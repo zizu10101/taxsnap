@@ -1,0 +1,394 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Briefcase,
+  Loader2,
+  Pencil,
+  Receipt as ReceiptIcon,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import type { Receipt } from "@/lib/database.types";
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
+}
+
+function formatDate(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function descriptionOf(receipt: Receipt): string {
+  const items = Array.isArray(receipt.items) ? receipt.items : [];
+  return items.map((item) => item.name).join("; ");
+}
+
+interface EditForm {
+  merchant_name: string;
+  transaction_date: string;
+  tax_category: string;
+  total_amount: number;
+  tax_amount: number;
+  description: string;
+  job_name: string;
+}
+
+function toForm(receipt: Receipt): EditForm {
+  return {
+    merchant_name: receipt.merchant_name,
+    transaction_date: receipt.transaction_date,
+    tax_category: receipt.tax_category,
+    total_amount: receipt.total_amount,
+    tax_amount: receipt.tax_amount,
+    description: descriptionOf(receipt),
+    job_name: receipt.job_name ?? "",
+  };
+}
+
+// Keyed by receipt.id from the parent so editing state resets cleanly
+// whenever the dialog is pointed at a different receipt.
+function ReceiptSummaryContent({
+  receipt,
+  existingJobs,
+  onOpenChange,
+  onDeleted,
+  onUpdated,
+}: {
+  receipt: Receipt;
+  existingJobs: string[];
+  onOpenChange: (open: boolean) => void;
+  onDeleted: (id: string) => void;
+  onUpdated: (receipt: Receipt) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<EditForm>(() => toForm(receipt));
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/receipts/${receipt.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchant_name: form.merchant_name,
+          transaction_date: form.transaction_date,
+          total_amount: form.total_amount,
+          tax_amount: form.tax_amount,
+          tax_category: form.tax_category,
+          items_summary: form.description,
+          job_name: form.job_name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save changes");
+
+      onUpdated(data.receipt as Receipt);
+      toast.success("Receipt updated");
+      setIsEditing(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/receipts/${receipt.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete receipt");
+      }
+      onDeleted(receipt.id);
+      toast.success("Receipt deleted");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (isEditing) {
+    const subtotal = form.total_amount - form.tax_amount;
+
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>Edit receipt</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-merchant">Merchant</Label>
+            <Input
+              id="edit-merchant"
+              value={form.merchant_name}
+              onChange={(e) =>
+                setForm({ ...form, merchant_name: e.target.value })
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-date">Date</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={form.transaction_date}
+                onChange={(e) =>
+                  setForm({ ...form, transaction_date: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-category">Category</Label>
+              <Select
+                value={form.tax_category}
+                onValueChange={(v) => v && setForm({ ...form, tax_category: v })}
+              >
+                <SelectTrigger id="edit-category" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAX_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-total">Total ($)</Label>
+              <Input
+                id="edit-total"
+                type="number"
+                step="0.01"
+                value={form.total_amount}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    total_amount: parseFloat(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-tax">Sales tax ($)</Label>
+              <Input
+                id="edit-tax"
+                type="number"
+                step="0.01"
+                value={form.tax_amount}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    tax_amount: parseFloat(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-description">Description</Label>
+            <Input
+              id="edit-description"
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-job">Job name / number (optional)</Label>
+            <Input
+              id="edit-job"
+              list="edit-job-name-options"
+              placeholder="e.g. 123 Main St or Job #4521"
+              value={form.job_name}
+              onChange={(e) => setForm({ ...form, job_name: e.target.value })}
+            />
+            <datalist id="edit-job-name-options">
+              {existingJobs.map((job) => (
+                <option key={job} value={job} />
+              ))}
+            </datalist>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Subtotal {formatCurrency(subtotal)} + tax{" "}
+            {formatCurrency(form.tax_amount)} = total{" "}
+            {formatCurrency(form.total_amount)}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setForm(toForm(receipt));
+              setIsEditing(false);
+            }}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save changes
+          </Button>
+        </DialogFooter>
+      </>
+    );
+  }
+
+  const description = descriptionOf(receipt) || "—";
+  const subtotal = receipt.total_amount - receipt.tax_amount;
+
+  return (
+    <>
+      <DialogHeader>
+        <div className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <ReceiptIcon className="h-3.5 w-3.5" />
+          Receipt Summary
+        </div>
+        <DialogTitle className="text-xl">{receipt.merchant_name}</DialogTitle>
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-sm text-muted-foreground">
+            {formatDate(receipt.transaction_date)}
+          </span>
+          <Badge variant="secondary">{receipt.tax_category}</Badge>
+        </div>
+        {receipt.job_name && (
+          <div className="flex items-center gap-1.5 pt-1 text-sm text-muted-foreground">
+            <Briefcase className="h-3.5 w-3.5" />
+            {receipt.job_name}
+          </div>
+        )}
+      </DialogHeader>
+
+      <div className="rounded-lg border">
+        <div className="space-y-1 p-4">
+          <p className="text-xs text-muted-foreground">Description</p>
+          <p className="text-sm">{description}</p>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2 p-4 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Sales tax</span>
+            <span className="tabular-nums">
+              {formatCurrency(receipt.tax_amount)}
+            </span>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between p-4">
+          <span className="font-semibold">Total</span>
+          <span className="text-lg font-semibold tabular-nums">
+            {formatCurrency(receipt.total_amount)}
+          </span>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-destructive hover:text-destructive"
+        >
+          {deleting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+          Delete
+        </Button>
+        <Button variant="outline" onClick={() => setIsEditing(true)}>
+          <Pencil className="h-4 w-4" />
+          Edit
+        </Button>
+        <Button onClick={() => onOpenChange(false)}>Close</Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+export function ReceiptDetailDialog({
+  receipt,
+  existingJobs = [],
+  onOpenChange,
+  onDeleted,
+  onUpdated,
+}: {
+  receipt: Receipt | null;
+  existingJobs?: string[];
+  onOpenChange: (open: boolean) => void;
+  onDeleted: (id: string) => void;
+  onUpdated: (receipt: Receipt) => void;
+}) {
+  return (
+    <Dialog open={!!receipt} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        {receipt && (
+          <ReceiptSummaryContent
+            key={receipt.id}
+            receipt={receipt}
+            existingJobs={existingJobs}
+            onOpenChange={onOpenChange}
+            onDeleted={onDeleted}
+            onUpdated={onUpdated}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

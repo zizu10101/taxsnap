@@ -5,7 +5,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { InvoicesBody } from "@/components/invoices/invoices-body";
+import { DocumentList } from "@/components/invoices/document-list";
 
 export const metadata: Metadata = {
   title: "Invoices — TaxSnap",
@@ -17,24 +17,26 @@ export default async function InvoicesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/auth");
-  }
+  if (!user) redirect("/auth");
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status")
+    .select("subscription_status, logo_url")
     .eq("id", user.id)
     .single();
 
   const isPro = profile?.subscription_status === "pro";
 
-  const { data: invoices } = isPro
-    ? await supabase
-        .from("invoices")
-        .select("*")
-        .order("created_at", { ascending: false })
-    : { data: null };
+  const [{ data: documents }, { data: clients }] = isPro
+    ? await Promise.all([
+        supabase
+          .from("documents")
+          .select("*, client:clients(*)")
+          .eq("type", "invoice")
+          .order("issue_date", { ascending: false }),
+        supabase.from("clients").select("*").order("name", { ascending: true }),
+      ])
+    : [{ data: null }, { data: null }];
 
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 p-4">
@@ -52,7 +54,13 @@ export default async function InvoicesPage() {
       </div>
 
       {isPro ? (
-        <InvoicesBody initialInvoices={invoices ?? []} />
+        <DocumentList
+          type="invoice"
+          basePath="/dashboard/invoices"
+          initialDocuments={documents ?? []}
+          initialClients={clients ?? []}
+          initialLogoPath={profile?.logo_url ?? null}
+        />
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
@@ -61,12 +69,10 @@ export default async function InvoicesPage() {
             </div>
             <p className="font-medium">Invoicing is a Pro feature</p>
             <p className="max-w-xs text-sm text-muted-foreground">
-              Upgrade to the Pro plan ($29/mo) to create and send client
-              invoices right from TaxSnap.
+              Upgrade to the Pro plan ($29/mo) to create invoices and
+              estimates, manage clients, and track payment status.
             </p>
-            <Button nativeButton={false} render={<Link href="/billing" />}>
-              Upgrade to Pro
-            </Button>
+            <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
           </CardContent>
         </Card>
       )}

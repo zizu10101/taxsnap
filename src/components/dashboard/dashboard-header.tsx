@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, FileText, LogOut } from "lucide-react";
+import { Camera, ClipboardList, FileText, LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,15 +34,26 @@ export function DashboardHeader({
         </Link>
         <div className="flex items-center gap-1">
           {subscriptionStatus === "pro" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Invoices"
-              nativeButton={false}
-              render={<Link href="/invoices" />}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Estimates"
+                nativeButton={false}
+                render={<Link href="/dashboard/estimates" />}
+              >
+                <ClipboardList className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Invoices"
+                nativeButton={false}
+                render={<Link href="/dashboard/invoices" />}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </>
           )}
           <Button
             variant="ghost"

@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     tax_category,
     items_summary,
     image_path,
+    job_name,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
       total_amount: Number(total_amount) || 0,
       tax_amount: Number(tax_amount) || 0,
       tax_category: category,
+      job_name: job_name?.trim() || null,
       items: items_summary ? [{ name: items_summary, amount: 0 }] : [],
     })
     .select()

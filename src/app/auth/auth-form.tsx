@@ -182,12 +182,12 @@ export function AuthForm() {
         </Tabs>
 
         {message && (
-          <p className="mt-4 rounded-md bg-emerald-50 p-3 text-center text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          <p className="mt-4 rounded-md bg-success/10 p-3 text-center text-sm text-success">
             {message}
           </p>
         )}
         {error && (
-          <p className="mt-4 rounded-md bg-red-50 p-3 text-center text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <p className="mt-4 rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
             {error}
           </p>
         )}

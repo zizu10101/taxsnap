@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Loader2, Receipt as ReceiptIcon, Trash2 } from "lucide-react";
+import {
+  Briefcase,
+  Download,
+  Loader2,
+  Receipt as ReceiptIcon,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +33,13 @@ function formatDate(dateStr: string) {
 export function ReceiptsList({
   receipts,
   onDeleted,
+  onSelect,
+  exportFilename,
 }: {
   receipts: Receipt[];
   onDeleted: (id: string) => void;
+  onSelect: (receipt: Receipt) => void;
+  exportFilename: string;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -52,18 +62,17 @@ export function ReceiptsList({
 
   function handleExport() {
     if (receipts.length === 0) {
-      toast.info("No receipts to export yet");
+      toast.info("No receipts in this range to export");
       return;
     }
     const csv = receiptsToCsv(receipts);
-    const filename = `taxsnap-receipts-${new Date().toISOString().slice(0, 10)}.csv`;
-    downloadCsv(filename, csv);
+    downloadCsv(exportFilename, csv);
   }
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Recent receipts</CardTitle>
+        <CardTitle>Receipts</CardTitle>
         <Button variant="outline" size="sm" onClick={handleExport}>
           <Download className="h-4 w-4" />
           Export CSV
@@ -73,16 +82,23 @@ export function ReceiptsList({
         {receipts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
             <ReceiptIcon className="h-8 w-8" />
-            <p className="text-sm">
-              No receipts yet. Snap your first one to get started.
-            </p>
+            <p className="text-sm">No receipts in this date range.</p>
           </div>
         ) : (
           <ul className="divide-y">
             {receipts.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between gap-3 py-3"
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(r)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(r);
+                  }
+                }}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -91,8 +107,15 @@ export function ReceiptsList({
                       {r.tax_category}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     {formatDate(r.transaction_date)}
+                    {r.job_name && (
+                      <span className="flex items-center gap-0.5 truncate">
+                        <span aria-hidden>·</span>
+                        <Briefcase className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{r.job_name}</span>
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -103,7 +126,10 @@ export function ReceiptsList({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(r.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(r.id);
+                    }}
                     disabled={deletingId === r.id}
                   >
                     {deletingId === r.id ? (

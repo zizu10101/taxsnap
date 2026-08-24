@@ -3,17 +3,12 @@
 //   npx supabase gen types typescript --project-id <id> > src/lib/database.types.ts
 
 export type SubscriptionStatus = "free" | "basic" | "pro";
-export type InvoiceStatus = "draft" | "sent" | "paid";
+export type DocumentType = "invoice" | "estimate";
+export type DocumentStatus = "draft" | "sent" | "paid";
 
 export interface ReceiptItem {
   name: string;
   amount: number;
-}
-
-export interface InvoiceLineItem {
-  description: string;
-  quantity: number;
-  unit_price: number;
 }
 
 export interface Database {
@@ -26,6 +21,7 @@ export interface Database {
           stripe_customer_id: string | null;
           subscription_status: SubscriptionStatus;
           business_type: string;
+          logo_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -34,6 +30,7 @@ export interface Database {
           stripe_customer_id?: string | null;
           subscription_status?: SubscriptionStatus;
           business_type?: string;
+          logo_url?: string | null;
           created_at?: string;
         };
         Update: {
@@ -42,6 +39,7 @@ export interface Database {
           stripe_customer_id?: string | null;
           subscription_status?: SubscriptionStatus;
           business_type?: string;
+          logo_url?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -56,6 +54,7 @@ export interface Database {
           total_amount: number;
           tax_amount: number;
           tax_category: string;
+          job_name: string | null;
           items: ReceiptItem[] | null;
           created_at: string;
         };
@@ -68,6 +67,7 @@ export interface Database {
           total_amount: number;
           tax_amount?: number;
           tax_category: string;
+          job_name?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -80,41 +80,160 @@ export interface Database {
           total_amount?: number;
           tax_amount?: number;
           tax_category?: string;
+          job_name?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
         Relationships: [];
       };
-      invoices: {
+      clients: {
         Row: {
           id: string;
           user_id: string;
-          client_name: string;
-          client_email: string | null;
-          line_items: InvoiceLineItem[];
-          total_amount: number;
-          status: InvoiceStatus;
+          name: string;
+          email: string | null;
+          address: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           user_id: string;
-          client_name: string;
-          client_email?: string | null;
-          line_items?: InvoiceLineItem[];
-          total_amount?: number;
-          status?: InvoiceStatus;
+          name: string;
+          email?: string | null;
+          address?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           user_id?: string;
-          client_name?: string;
-          client_email?: string | null;
-          line_items?: InvoiceLineItem[];
-          total_amount?: number;
-          status?: InvoiceStatus;
+          name?: string;
+          email?: string | null;
+          address?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      documents: {
+        Row: {
+          id: string;
+          user_id: string;
+          client_id: string | null;
+          type: DocumentType;
+          status: DocumentStatus;
+          issue_date: string;
+          due_date: string | null;
+          subtotal: number;
+          hst_amount: number;
+          total_amount: number;
+          converted_from_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          client_id?: string | null;
+          type: DocumentType;
+          status?: DocumentStatus;
+          issue_date?: string;
+          due_date?: string | null;
+          subtotal?: number;
+          hst_amount?: number;
+          total_amount?: number;
+          converted_from_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          client_id?: string | null;
+          type?: DocumentType;
+          status?: DocumentStatus;
+          issue_date?: string;
+          due_date?: string | null;
+          subtotal?: number;
+          hst_amount?: number;
+          total_amount?: number;
+          converted_from_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "documents_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      document_items: {
+        Row: {
+          id: string;
+          document_id: string;
+          description: string;
+          quantity: number;
+          unit_price: number;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          document_id: string;
+          description: string;
+          quantity?: number;
+          unit_price?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          document_id?: string;
+          description?: string;
+          quantity?: number;
+          unit_price?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "document_items_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sales: {
+        Row: {
+          id: string;
+          user_id: string;
+          period_label: string;
+          gross_sales: number;
+          cash_deposits: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          period_label: string;
+          gross_sales?: number;
+          cash_deposits?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          period_label?: string;
+          gross_sales?: number;
+          cash_deposits?: number;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -128,4 +247,16 @@ export interface Database {
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Receipt = Database["public"]["Tables"]["receipts"]["Row"];
-export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
+export type Client = Database["public"]["Tables"]["clients"]["Row"];
+export type InvoiceDocument = Database["public"]["Tables"]["documents"]["Row"];
+export type DocumentUpdate = Database["public"]["Tables"]["documents"]["Update"];
+export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"];
+export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
+
+export interface DocumentWithClient extends InvoiceDocument {
+  client: Client | null;
+}
+
+export interface DocumentWithRelations extends DocumentWithClient {
+  items: DocumentItem[];
+}

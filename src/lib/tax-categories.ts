@@ -1,11 +1,19 @@
 export const TAX_CATEGORIES = [
   "Job Materials",
-  "Vehicle/Fuel",
   "Tools & Equipment",
-  "Office/Admin",
-  "Meals",
-  "Advertising",
+  "Inventory",
+  "Supplies",
+  "Vehicle/Fuel",
+  "Gas",
+  "Lease",
+  "407",
   "Insurance",
+  "Rent",
+  "Phone",
+  "Internet",
+  "Office/Admin",
+  "Advertising",
+  "Meals",
   "Other",
 ] as const;
 

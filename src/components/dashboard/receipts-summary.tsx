@@ -17,32 +17,23 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-export function MonthlySummary({ receipts }: { receipts: Receipt[] }) {
+// Receipts passed in are already filtered to the selected date range by the
+// parent - this component just totals whatever it's given.
+export function ReceiptsSummary({
+  receipts,
+  rangeLabel,
+}: {
+  receipts: Receipt[];
+  rangeLabel: string;
+}) {
   const stats = useMemo(() => {
-    const now = new Date();
-    const monthReceipts = receipts.filter((r) => {
-      const d = new Date(`${r.transaction_date}T00:00:00`);
-      return (
-        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-      );
-    });
-
-    const totalDeductible = monthReceipts.reduce(
-      (sum, r) => sum + r.total_amount,
-      0,
-    );
-    const estimatedSavings = totalDeductible * ESTIMATED_TAX_RATE;
-
+    const totalDeductible = receipts.reduce((sum, r) => sum + r.total_amount, 0);
     return {
-      count: monthReceipts.length,
+      count: receipts.length,
       totalDeductible,
-      estimatedSavings,
+      estimatedSavings: totalDeductible * ESTIMATED_TAX_RATE,
     };
   }, [receipts]);
-
-  const monthLabel = new Date().toLocaleDateString("en-US", {
-    month: "long",
-  });
 
   return (
     <div className="grid grid-cols-3 gap-3">
@@ -51,7 +42,7 @@ export function MonthlySummary({ receipts }: { receipts: Receipt[] }) {
           <ReceiptIcon className="h-4 w-4 text-muted-foreground" />
           <span className="text-xl font-bold tabular-nums">{stats.count}</span>
           <span className="text-xs text-muted-foreground">
-            Receipts in {monthLabel}
+            Receipts in {rangeLabel}
           </span>
         </CardContent>
       </Card>
@@ -64,10 +55,10 @@ export function MonthlySummary({ receipts }: { receipts: Receipt[] }) {
           <span className="text-xs text-muted-foreground">Deductible spend</span>
         </CardContent>
       </Card>
-      <Card className="border-primary/30 bg-primary/5">
+      <Card className="border-success/30 bg-success/5">
         <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-          <PiggyBank className="h-4 w-4 text-primary" />
-          <span className="text-xl font-bold tabular-nums text-primary">
+          <PiggyBank className="h-4 w-4 text-success" />
+          <span className="text-xl font-bold tabular-nums text-success">
             {formatCurrency(stats.estimatedSavings)}
           </span>
           <span className="text-xs text-muted-foreground">Est. tax savings</span>
