@@ -24,7 +24,9 @@ export function receiptsToCsv(receipts: Receipt[]): string {
 
   const rows = receipts.map((r) => {
     const items = Array.isArray(r.items) ? r.items : [];
-    const notes = items.map((i) => i.name).join("; ");
+    const notes = items
+      .map((i) => (i.amount ? `${i.name} ($${i.amount.toFixed(2)})` : i.name))
+      .join("; ");
     return [
       r.transaction_date,
       r.merchant_name,

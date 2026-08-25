@@ -11,7 +11,12 @@ export const metadata: Metadata = {
   title: "Invoices — TaxSnap",
 };
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  const { new: newParam } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,7 +26,9 @@ export default async function InvoicesPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status, logo_url")
+    .select(
+      "subscription_status, logo_url, business_name, business_address, business_phone, business_email, business_profile_skipped",
+    )
     .eq("id", user.id)
     .single();
 
@@ -31,7 +38,7 @@ export default async function InvoicesPage() {
     ? await Promise.all([
         supabase
           .from("documents")
-          .select("*, client:clients(*)")
+          .select("*, client:clients(*), payments(*)")
           .eq("type", "invoice")
           .order("issue_date", { ascending: false }),
         supabase.from("clients").select("*").order("name", { ascending: true }),
@@ -59,7 +66,15 @@ export default async function InvoicesPage() {
           basePath="/dashboard/invoices"
           initialDocuments={documents ?? []}
           initialClients={clients ?? []}
-          initialLogoPath={profile?.logo_url ?? null}
+          initialProfile={{
+            logo_url: profile?.logo_url ?? null,
+            business_name: profile?.business_name ?? null,
+            business_address: profile?.business_address ?? null,
+            business_phone: profile?.business_phone ?? null,
+            business_email: profile?.business_email ?? null,
+            business_profile_skipped: profile?.business_profile_skipped ?? false,
+          }}
+          autoOpenNew={newParam === "1"}
         />
       ) : (
         <Card>

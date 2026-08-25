@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, FileText, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRightLeft, CheckCircle2, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
-import { BusinessLogoUpload } from "@/components/invoices/business-logo";
+import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
+import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-summary";
+import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import type {
   Client,
   DocumentStatus,
@@ -34,6 +37,7 @@ function formatDate(dateStr: string) {
 const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
   draft: "outline",
   sent: "secondary",
+  partial: "secondary",
   paid: "default",
 };
 
@@ -42,18 +46,24 @@ export function DocumentList({
   basePath,
   initialDocuments,
   initialClients,
-  initialLogoPath,
+  initialProfile,
+  convertedMap = {},
+  autoOpenNew = false,
 }: {
   type: DocumentType;
   basePath: string;
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
-  initialLogoPath: string | null;
+  initialProfile: BusinessProfileFields;
+  /** estimate id -> id of the invoice it was converted into (estimates only) */
+  convertedMap?: Record<string, string>;
+  autoOpenNew?: boolean;
 }) {
+  const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
   const [clients, setClients] = useState(initialClients);
-  const [logoPath, setLogoPath] = useState(initialLogoPath);
-  const [builderOpen, setBuilderOpen] = useState(false);
+  const [converted, setConverted] = useState(convertedMap);
+  const [builderOpen, setBuilderOpen] = useState(autoOpenNew);
 
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
@@ -61,7 +71,13 @@ export function DocumentList({
     try {
       const res = await fetch(`/api/documents/${id}/convert`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to convert");
+      if (!res.ok) {
+        if (data.invoice_id) {
+          setConverted((prev) => ({ ...prev, [id]: data.invoice_id }));
+        }
+        throw new Error(data.error || "Failed to convert");
+      }
+      setConverted((prev) => ({ ...prev, [id]: data.document.id }));
       toast.success("Converted to a draft invoice");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -79,7 +95,9 @@ export function DocumentList({
         </Button>
       </div>
 
-      <BusinessLogoUpload logoPath={logoPath} onLogoChange={setLogoPath} />
+      <BusinessProfileCard initialProfile={initialProfile} />
+
+      {type === "invoice" && <InvoiceBillingSummary documents={documents} />}
 
       <Button className="w-full" onClick={() => setBuilderOpen(true)}>
         <Plus className="h-4 w-4" />
@@ -95,44 +113,87 @@ export function DocumentList({
         </Card>
       ) : (
         <div className="space-y-3">
-          {documents.map((doc) => (
-            <Card key={doc.id}>
-              <Link href={`${basePath}/${doc.id}`} className="block">
+          {documents.map((doc) => {
+            const convertedToId = type === "estimate" ? converted[doc.id] : undefined;
+            return (
+              <Card
+                key={doc.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`${basePath}/${doc.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`${basePath}/${doc.id}`);
+                  }
+                }}
+                className="cursor-pointer outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+              >
                 <CardContent className="flex items-center justify-between gap-3 py-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">
                         {doc.client?.name ?? "No client"}
                       </p>
-                      <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
+                      {convertedToId ? (
+                        <Badge className="border-transparent bg-success text-success-foreground">
+                          Converted
+                        </Badge>
+                      ) : (
+                        <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(doc.issue_date)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold tabular-nums">
-                      {formatCurrency(doc.total_amount)}
-                    </span>
-                    {type === "estimate" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="Convert to invoice"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleConvert(doc.id);
-                        }}
-                      >
-                        <ArrowRightLeft className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <div className="text-right">
+                      <span className="block font-semibold tabular-nums">
+                        {formatCurrency(doc.total_amount)}
+                      </span>
+                      {doc.status === "partial" && (
+                        <span className="block text-[11px] text-muted-foreground tabular-nums">
+                          {formatCurrency(
+                            doc.total_amount -
+                              doc.payments.reduce((sum, p) => sum + p.amount, 0),
+                          )}{" "}
+                          due
+                        </span>
+                      )}
+                    </div>
+                    {type === "estimate" &&
+                      (convertedToId ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-success"
+                          title="View invoice"
+                          nativeButton={false}
+                          render={<Link href={`/dashboard/invoices/${convertedToId}`} />}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Convert to invoice"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConvert(doc.id);
+                          }}
+                        >
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
+                      ))}
                   </div>
                 </CardContent>
-              </Link>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 

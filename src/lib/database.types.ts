@@ -4,7 +4,7 @@
 
 export type SubscriptionStatus = "free" | "basic" | "pro";
 export type DocumentType = "invoice" | "estimate";
-export type DocumentStatus = "draft" | "sent" | "paid";
+export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
 
 export interface ReceiptItem {
   name: string;
@@ -22,6 +22,11 @@ export interface Database {
           subscription_status: SubscriptionStatus;
           business_type: string;
           logo_url: string | null;
+          business_name: string | null;
+          business_address: string | null;
+          business_phone: string | null;
+          business_email: string | null;
+          business_profile_skipped: boolean;
           created_at: string;
         };
         Insert: {
@@ -31,6 +36,11 @@ export interface Database {
           subscription_status?: SubscriptionStatus;
           business_type?: string;
           logo_url?: string | null;
+          business_name?: string | null;
+          business_address?: string | null;
+          business_phone?: string | null;
+          business_email?: string | null;
+          business_profile_skipped?: boolean;
           created_at?: string;
         };
         Update: {
@@ -40,6 +50,11 @@ export interface Database {
           subscription_status?: SubscriptionStatus;
           business_type?: string;
           logo_url?: string | null;
+          business_name?: string | null;
+          business_address?: string | null;
+          business_phone?: string | null;
+          business_email?: string | null;
+          business_profile_skipped?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -126,6 +141,7 @@ export interface Database {
           hst_amount: number;
           total_amount: number;
           converted_from_id: string | null;
+          excluded_from_hst: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -141,6 +157,7 @@ export interface Database {
           hst_amount?: number;
           total_amount?: number;
           converted_from_id?: string | null;
+          excluded_from_hst?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -156,6 +173,7 @@ export interface Database {
           hst_amount?: number;
           total_amount?: number;
           converted_from_id?: string | null;
+          excluded_from_hst?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -207,6 +225,44 @@ export interface Database {
           },
         ];
       };
+      payments: {
+        Row: {
+          id: string;
+          document_id: string;
+          amount: number;
+          paid_date: string;
+          method: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          document_id: string;
+          amount: number;
+          paid_date?: string;
+          method?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          document_id?: string;
+          amount?: number;
+          paid_date?: string;
+          method?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sales: {
         Row: {
           id: string;
@@ -250,11 +306,14 @@ export type Receipt = Database["public"]["Tables"]["receipts"]["Row"];
 export type Client = Database["public"]["Tables"]["clients"]["Row"];
 export type InvoiceDocument = Database["public"]["Tables"]["documents"]["Row"];
 export type DocumentUpdate = Database["public"]["Tables"]["documents"]["Update"];
+export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"];
 export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
+export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 
 export interface DocumentWithClient extends InvoiceDocument {
   client: Client | null;
+  payments: Payment[];
 }
 
 export interface DocumentWithRelations extends DocumentWithClient {

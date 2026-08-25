@@ -4,7 +4,7 @@ import { ONTARIO_HST_RATE } from "@/lib/hst";
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
-const DOCUMENT_STATUSES: DocumentStatus[] = ["draft", "sent", "paid"];
+const DOCUMENT_STATUSES: DocumentStatus[] = ["draft", "sent", "partial", "paid"];
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: document, error } = await result.supabase
     .from("documents")
-    .select("*, client:clients(*), items:document_items(*)")
+    .select("*, client:clients(*), payments(*), items:document_items(*)")
     .eq("id", id)
     .eq("user_id", result.user.id)
     .single();
@@ -73,6 +73,9 @@ export async function PATCH(
   }
   if (body.issue_date) updates.issue_date = body.issue_date;
   if (body.due_date !== undefined) updates.due_date = body.due_date || null;
+  if (typeof body.excluded_from_hst === "boolean") {
+    updates.excluded_from_hst = body.excluded_from_hst;
+  }
 
   let clientId: string | undefined = body.client_id ?? undefined;
   if (!clientId && body.new_client?.name?.trim()) {
@@ -122,7 +125,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("*, client:clients(*)")
+    .select("*, client:clients(*), payments(*)")
     .single();
 
   if (updateError) {

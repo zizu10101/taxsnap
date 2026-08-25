@@ -26,6 +26,22 @@ export async function POST(
     return NextResponse.json({ error: "Estimate not found." }, { status: 404 });
   }
 
+  const { data: existingConversion } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("converted_from_id", estimate.id)
+    .maybeSingle();
+
+  if (existingConversion) {
+    return NextResponse.json(
+      {
+        error: "This estimate has already been converted to an invoice.",
+        invoice_id: existingConversion.id,
+      },
+      { status: 409 },
+    );
+  }
+
   const { data: invoice, error: insertError } = await supabase
     .from("documents")
     .insert({
@@ -40,7 +56,7 @@ export async function POST(
       total_amount: estimate.total_amount,
       converted_from_id: estimate.id,
     })
-    .select("*, client:clients(*)")
+    .select("*, client:clients(*), payments(*)")
     .single();
 
   if (insertError) {

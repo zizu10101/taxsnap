@@ -5,6 +5,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -246,45 +247,56 @@ export function DocumentBuilder({
 
           <div className="space-y-2">
             <Label>Line items</Label>
-            {items.map((item, i) => (
-              <div key={i} className="flex items-end gap-2">
-                <Input
-                  placeholder="Description"
-                  className="flex-1"
-                  value={item.description}
-                  onChange={(e) => updateItem(i, { description: e.target.value })}
-                />
-                <Input
-                  type="number"
-                  placeholder="Qty"
-                  className="w-16"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateItem(i, { quantity: parseFloat(e.target.value) || 0 })
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Price"
-                  className="w-24"
-                  value={item.unit_price}
-                  onChange={(e) =>
-                    updateItem(i, { unit_price: parseFloat(e.target.value) || 0 })
-                  }
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() =>
-                    setItems((prev) => prev.filter((_, idx) => idx !== i))
-                  }
-                  disabled={items.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+            {items.map((item, i) => {
+              const lineTotal =
+                (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+              return (
+                <div key={i} className="space-y-1.5 rounded-lg border p-2.5">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Description (e.g. Potlights)"
+                      className="flex-1"
+                      value={item.description}
+                      onChange={(e) =>
+                        updateItem(i, { description: e.target.value })
+                      }
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() =>
+                        setItems((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      disabled={items.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <NumberInput
+                      placeholder="Qty"
+                      className="w-16"
+                      value={item.quantity}
+                      onValueChange={(quantity) => updateItem(i, { quantity })}
+                    />
+                    <span className="text-muted-foreground">×</span>
+                    <NumberInput
+                      placeholder="Price"
+                      className="w-24"
+                      value={item.unit_price}
+                      onValueChange={(unit_price) =>
+                        updateItem(i, { unit_price })
+                      }
+                    />
+                    <span className="text-muted-foreground">=</span>
+                    <span className="ml-auto shrink-0 font-semibold tabular-nums">
+                      {formatCurrency(lineTotal)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
             <Button
               variant="outline"
               size="sm"

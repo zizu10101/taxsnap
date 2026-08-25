@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRightLeft,
+  CheckCircle2,
+  DollarSign,
   Loader2,
   Pencil,
   Printer,
@@ -14,7 +16,10 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -25,11 +30,17 @@ import {
 } from "@/components/ui/select";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
+import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import type {
   Client,
   DocumentStatus,
   DocumentWithRelations,
+  Payment,
 } from "@/lib/database.types";
+
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -46,18 +57,27 @@ function formatDate(dateStr: string) {
   });
 }
 
+export interface BusinessInfo {
+  name: string | null;
+  email: string;
+  phone: string | null;
+  address: string | null;
+}
+
 export function DocumentDetail({
   document,
   clients,
-  fromEmail,
+  business,
   logoPath,
   basePath,
+  convertedToInvoiceId = null,
 }: {
   document: DocumentWithRelations;
   clients: Client[];
-  fromEmail: string;
+  business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
+  convertedToInvoiceId?: string | null;
 }) {
   const router = useRouter();
   const [doc, setDoc] = useState(document);
@@ -67,8 +87,19 @@ export function DocumentDetail({
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentDate, setPaymentDate] = useState(() => toIsoDate(new Date()));
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [addingPayment, setAddingPayment] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(
+    null,
+  );
+
   const label = doc.type === "invoice" ? "Invoice" : "Estimate";
   const shortId = doc.id.slice(0, 8).toUpperCase();
+  const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
+  const balanceDue = doc.total_amount - paidToDate;
 
   async function handleStatusChange(status: DocumentStatus) {
     setStatusSaving(true);
@@ -103,6 +134,55 @@ export function DocumentDetail({
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setConverting(false);
+    }
+  }
+
+  async function handleAddPayment() {
+    if (paymentAmount <= 0) {
+      toast.error("Enter a payment amount greater than $0.");
+      return;
+    }
+    setAddingPayment(true);
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: paymentAmount,
+          paid_date: paymentDate,
+          method: paymentMethod,
+          note: paymentNote,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to record payment");
+      setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
+      setPaymentAmount(0);
+      setPaymentMethod("");
+      setPaymentNote("");
+      toast.success("Payment recorded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setAddingPayment(false);
+    }
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    setDeletingPaymentId(paymentId);
+    try {
+      const res = await fetch(
+        `/api/documents/${doc.id}/payments/${paymentId}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete payment");
+      setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
+      toast.success("Payment removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setDeletingPaymentId(null);
     }
   }
 
@@ -143,6 +223,7 @@ export function DocumentDetail({
             <SelectContent>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>
           </Select>
@@ -150,25 +231,38 @@ export function DocumentDetail({
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
-          {doc.type === "estimate" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleConvert}
-              disabled={converting}
-            >
-              {converting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowRightLeft className="h-4 w-4" />
-              )}
-              Convert to Invoice
-            </Button>
-          )}
+          {doc.type === "estimate" &&
+            (convertedToInvoiceId ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-success hover:text-success"
+                nativeButton={false}
+                render={<Link href={`/dashboard/invoices/${convertedToInvoiceId}`} />}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                View Invoice
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleConvert}
+                disabled={converting}
+              >
+                {converting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRightLeft className="h-4 w-4" />
+                )}
+                Convert to Invoice
+              </Button>
+            ))}
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
             Print
           </Button>
+          <ShareDocumentButton document={doc} business={business} logoPath={logoPath} />
           <Button
             variant="outline"
             size="sm"
@@ -185,6 +279,20 @@ export function DocumentDetail({
           </Button>
         </div>
       </div>
+
+      {convertedToInvoiceId && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success print:hidden">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          This estimate was converted to{" "}
+          <Link
+            href={`/dashboard/invoices/${convertedToInvoiceId}`}
+            className="font-medium underline underline-offset-2"
+          >
+            an invoice
+          </Link>
+          .
+        </div>
+      )}
 
       <Card className="print:border-none print:shadow-none">
         <CardContent className="space-y-6 p-6 print:p-0">
@@ -209,7 +317,10 @@ export function DocumentDetail({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground uppercase">From</p>
-              <p>{fromEmail}</p>
+              <p className="font-medium">{business.name ?? business.email}</p>
+              {business.name && <p>{business.email}</p>}
+              {business.phone && <p>{business.phone}</p>}
+              {business.address && <p>{business.address}</p>}
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase">Bill To</p>
@@ -282,9 +393,124 @@ export function DocumentDetail({
                 {formatCurrency(doc.total_amount)}
               </span>
             </div>
+            {doc.type === "invoice" && paidToDate > 0 && (
+              <>
+                <div className="flex items-center justify-between text-success">
+                  <span>Paid to date</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(paidToDate)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-base font-semibold">
+                  <span>Balance due</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(Math.max(balanceDue, 0))}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {doc.type === "invoice" && (
+        <Card className="mt-4 print:hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <DollarSign className="h-4 w-4 text-success" />
+              Payment History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {doc.payments.length > 0 && (
+              <div className="space-y-2">
+                {[...doc.payments]
+                  .sort((a, b) => (a.paid_date < b.paid_date ? 1 : -1))
+                  .map((payment: Payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium tabular-nums">
+                          {formatCurrency(payment.amount)}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {formatDate(payment.paid_date)}
+                          {payment.method && ` · ${payment.method}`}
+                          {payment.note && ` · ${payment.note}`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeletePayment(payment.id)}
+                        disabled={deletingPaymentId === payment.id}
+                      >
+                        {deletingPaymentId === payment.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-amount">Amount ($)</Label>
+                <NumberInput
+                  id="payment-amount"
+                  step="0.01"
+                  value={paymentAmount}
+                  onValueChange={setPaymentAmount}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-date">Date</Label>
+                <Input
+                  id="payment-date"
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-method">Method (optional)</Label>
+                <Input
+                  id="payment-method"
+                  placeholder="e.g. E-transfer"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-note">Note (optional)</Label>
+                <Input
+                  id="payment-note"
+                  placeholder="e.g. Deposit"
+                  value={paymentNote}
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAddPayment}
+              disabled={addingPayment}
+            >
+              {addingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
+              Record Payment
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <DocumentBuilder
         open={editorOpen}

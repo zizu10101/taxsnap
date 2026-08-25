@@ -5,6 +5,7 @@ import {
   Briefcase,
   Loader2,
   Pencil,
+  Plus,
   Receipt as ReceiptIcon,
   Trash2,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -29,7 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
-import type { Receipt } from "@/lib/database.types";
+import type { Receipt, ReceiptItem } from "@/lib/database.types";
+
+const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -46,9 +50,8 @@ function formatDate(dateStr: string) {
   });
 }
 
-function descriptionOf(receipt: Receipt): string {
-  const items = Array.isArray(receipt.items) ? receipt.items : [];
-  return items.map((item) => item.name).join("; ");
+function itemsOf(receipt: Receipt): ReceiptItem[] {
+  return Array.isArray(receipt.items) ? receipt.items : [];
 }
 
 interface EditForm {
@@ -57,18 +60,19 @@ interface EditForm {
   tax_category: string;
   total_amount: number;
   tax_amount: number;
-  description: string;
+  items: ReceiptItem[];
   job_name: string;
 }
 
 function toForm(receipt: Receipt): EditForm {
+  const items = itemsOf(receipt);
   return {
     merchant_name: receipt.merchant_name,
     transaction_date: receipt.transaction_date,
     tax_category: receipt.tax_category,
     total_amount: receipt.total_amount,
     tax_amount: receipt.tax_amount,
-    description: descriptionOf(receipt),
+    items: items.length ? items : [{ ...EMPTY_ITEM }],
     job_name: receipt.job_name ?? "",
   };
 }
@@ -93,6 +97,13 @@ function ReceiptSummaryContent({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  function updateItem(index: number, patch: Partial<ReceiptItem>) {
+    setForm({
+      ...form,
+      items: form.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    });
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -105,7 +116,7 @@ function ReceiptSummaryContent({
           total_amount: form.total_amount,
           tax_amount: form.tax_amount,
           tax_category: form.tax_category,
-          items_summary: form.description,
+          items: form.items.filter((i) => i.name.trim()),
           job_name: form.job_name,
         }),
       });
@@ -198,45 +209,69 @@ function ReceiptSummaryContent({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="edit-total">Total ($)</Label>
-              <Input
+              <NumberInput
                 id="edit-total"
-                type="number"
                 step="0.01"
                 value={form.total_amount}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    total_amount: parseFloat(e.target.value) || 0,
-                  })
+                onValueChange={(total_amount) =>
+                  setForm({ ...form, total_amount })
                 }
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-tax">Sales tax ($)</Label>
-              <Input
+              <NumberInput
                 id="edit-tax"
-                type="number"
                 step="0.01"
                 value={form.tax_amount}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    tax_amount: parseFloat(e.target.value) || 0,
-                  })
-                }
+                onValueChange={(tax_amount) => setForm({ ...form, tax_amount })}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Description</Label>
-            <Input
-              id="edit-description"
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
+            <Label>Items purchased</Label>
+            {form.items.map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  placeholder="Item"
+                  className="flex-1"
+                  value={item.name}
+                  onChange={(e) => updateItem(i, { name: e.target.value })}
+                />
+                <NumberInput
+                  step="0.01"
+                  placeholder="Price"
+                  className="w-24"
+                  value={item.amount}
+                  onValueChange={(amount) => updateItem(i, { amount })}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      items: form.items.filter((_, idx) => idx !== i),
+                    })
+                  }
+                  disabled={form.items.length === 1}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setForm({ ...form, items: [...form.items, { ...EMPTY_ITEM }] })
               }
-            />
+            >
+              <Plus className="h-4 w-4" />
+              Add item
+            </Button>
           </div>
 
           <div className="space-y-2">
@@ -282,7 +317,7 @@ function ReceiptSummaryContent({
     );
   }
 
-  const description = descriptionOf(receipt) || "—";
+  const items = itemsOf(receipt);
   const subtotal = receipt.total_amount - receipt.tax_amount;
 
   return (
@@ -308,9 +343,22 @@ function ReceiptSummaryContent({
       </DialogHeader>
 
       <div className="rounded-lg border">
-        <div className="space-y-1 p-4">
-          <p className="text-xs text-muted-foreground">Description</p>
-          <p className="text-sm">{description}</p>
+        <div className="space-y-1.5 p-4">
+          <p className="text-xs text-muted-foreground">Items purchased</p>
+          {items.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {items.map((item, i) => (
+                <li key={i} className="flex items-center justify-between gap-3">
+                  <span className="truncate">{item.name}</span>
+                  <span className="shrink-0 tabular-nums">
+                    {formatCurrency(item.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
         </div>
 
         <Separator />

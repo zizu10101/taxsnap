@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import type { ReceiptItem } from "@/lib/database.types";
 
 export interface ParsedReceipt {
   merchant_name: string;
@@ -7,7 +8,7 @@ export interface ParsedReceipt {
   total_amount: number;
   tax_amount: number;
   tax_category: string;
-  items_summary: string;
+  items: ReceiptItem[];
 }
 
 let client: GoogleGenAI | null = null;
@@ -45,10 +46,24 @@ const RECEIPT_SCHEMA = {
       description: "The best-fit IRS Schedule C style write-off category.",
       enum: [...TAX_CATEGORIES],
     },
-    items_summary: {
-      type: Type.STRING,
+    items: {
+      type: Type.ARRAY,
       description:
-        "A brief one-sentence summary of the items/services purchased.",
+        "Itemized list of individual products or services on the receipt, one entry per line item.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: {
+            type: Type.STRING,
+            description: "Short description of the item or service.",
+          },
+          amount: {
+            type: Type.NUMBER,
+            description: "The price printed for this line item.",
+          },
+        },
+        required: ["name", "amount"],
+      },
     },
   },
   required: [
@@ -57,27 +72,30 @@ const RECEIPT_SCHEMA = {
     "total_amount",
     "tax_amount",
     "tax_category",
-    "items_summary",
+    "items",
   ],
 };
 
 const SYSTEM_PROMPT = `You are a receipt-parsing assistant for TaxSnap, an app used by \
 self-employed trade contractors (painters, handymen, barbers, etc.) to track tax \
 write-offs. Given a photo of a receipt, extract the merchant name, transaction date, \
-total amount, sales tax amount, and the single best-fit tax write-off category from \
-this list: ${TAX_CATEGORIES.join(", ")}.
+total amount, sales tax amount, the single best-fit tax write-off category, and an \
+itemized breakdown of what was purchased.
 
 Rules:
 - transaction_date must be formatted as YYYY-MM-DD. If the year is missing, assume the \
 most recent plausible year.
 - total_amount and tax_amount must be plain numbers (no currency symbols).
 - If tax_amount is not printed on the receipt, use 0.
-- Pick exactly one tax_category from the provided list, choosing the closest match for \
-a self-employed trade contractor's business expenses.
-- items_summary should briefly describe what was purchased (e.g. "Paint, brushes, and \
-drop cloths").
+- Pick exactly one tax_category from this list, choosing the closest match for a \
+self-employed trade contractor's business expenses: ${TAX_CATEGORIES.join(", ")}.
+- items should list each distinct product or service line from the receipt with its own
+  price (e.g. [{"name": "Interior latex paint 1gal", "amount": 38.99}, {"name": "Paint
+  brush set", "amount": 12.50}]). Skip subtotal/tax/total lines - those aren't items.
+- If individual line items and prices aren't legible, return a single item summarizing
+  the purchase with the full total_amount as its amount.
 - If the image is not a legible receipt, make a best-effort guess but keep values minimal \
-(0 for amounts, "Unknown" for merchant_name).`;
+(0 for amounts, "Unknown" for merchant_name, a single generic item).`;
 
 export async function parseReceiptImage(
   base64Image: string,
@@ -111,6 +129,15 @@ export async function parseReceiptImage(
 
   const parsed = JSON.parse(text) as ParsedReceipt;
 
+  const items = Array.isArray(parsed.items)
+    ? parsed.items
+        .filter((item) => item?.name)
+        .map((item) => ({
+          name: String(item.name),
+          amount: Number(item.amount) || 0,
+        }))
+    : [];
+
   return {
     merchant_name: parsed.merchant_name || "Unknown",
     transaction_date:
@@ -122,6 +149,6 @@ export async function parseReceiptImage(
     )
       ? parsed.tax_category
       : "Other",
-    items_summary: parsed.items_summary || "",
+    items,
   };
 }

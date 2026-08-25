@@ -103,13 +103,15 @@ export function describeRange(preset: RangePreset, range: DateRange): string {
   return "All Time";
 }
 
-export function filterByRange<T extends { transaction_date: string }>(
+export function filterByRange<T>(
   items: T[],
   range: DateRange,
+  dateField: keyof T = "transaction_date" as keyof T,
 ): T[] {
   return items.filter((item) => {
-    if (range.start && item.transaction_date < range.start) return false;
-    if (range.end && item.transaction_date > range.end) return false;
+    const value = item[dateField] as unknown as string;
+    if (range.start && value < range.start) return false;
+    if (range.end && value > range.end) return false;
     return true;
   });
 }

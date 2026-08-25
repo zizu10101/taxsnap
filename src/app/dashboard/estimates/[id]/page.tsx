@@ -23,7 +23,9 @@ export default async function EstimateDetailPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status, logo_url")
+    .select(
+      "subscription_status, logo_url, business_name, business_address, business_phone, business_email",
+    )
     .eq("id", user.id)
     .single();
 
@@ -31,15 +33,21 @@ export default async function EstimateDetailPage({
     redirect("/dashboard/estimates");
   }
 
-  const [{ data: document }, { data: clients }] = await Promise.all([
-    supabase
-      .from("documents")
-      .select("*, client:clients(*), items:document_items(*)")
-      .eq("id", id)
-      .eq("type", "estimate")
-      .single(),
-    supabase.from("clients").select("*").order("name", { ascending: true }),
-  ]);
+  const [{ data: document }, { data: clients }, { data: conversion }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("*, client:clients(*), payments(*), items:document_items(*)")
+        .eq("id", id)
+        .eq("type", "estimate")
+        .single(),
+      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase
+        .from("documents")
+        .select("id")
+        .eq("converted_from_id", id)
+        .maybeSingle(),
+    ]);
 
   if (!document) notFound();
 
@@ -47,9 +55,15 @@ export default async function EstimateDetailPage({
     <DocumentDetail
       document={document as DocumentWithRelations}
       clients={clients ?? []}
-      fromEmail={user.email ?? ""}
+      business={{
+        name: profile?.business_name ?? null,
+        email: profile?.business_email || user.email || "",
+        phone: profile?.business_phone ?? null,
+        address: profile?.business_address ?? null,
+      }}
       logoPath={profile?.logo_url ?? null}
       basePath="/dashboard/estimates"
+      convertedToInvoiceId={conversion?.id ?? null}
     />
   );
 }

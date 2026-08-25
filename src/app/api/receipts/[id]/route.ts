@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import type { ReceiptItem } from "@/lib/database.types";
+
+function sanitizeItems(items: unknown): ReceiptItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item): item is ReceiptItem => !!item?.name?.trim())
+    .map((item) => ({
+      name: item.name.trim(),
+      amount: Number(item.amount) || 0,
+    }));
+}
 
 export async function PATCH(
   request: Request,
@@ -23,7 +34,7 @@ export async function PATCH(
     total_amount,
     tax_amount,
     tax_category,
-    items_summary,
+    items,
     job_name,
   } = body ?? {};
 
@@ -45,7 +56,7 @@ export async function PATCH(
       tax_amount: Number(tax_amount) || 0,
       tax_category: category,
       job_name: job_name?.trim() || null,
-      items: items_summary ? [{ name: items_summary, amount: 0 }] : [],
+      items: sanitizeItems(items),
     })
     .eq("id", id)
     .eq("user_id", user.id)

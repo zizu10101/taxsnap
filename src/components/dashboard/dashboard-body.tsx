@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { ClipboardList, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
@@ -67,10 +70,31 @@ export function DashboardBody({
 
   return (
     <div className="space-y-6">
-      <UploadReceipt
-        onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
-        existingJobs={existingJobs}
-      />
+      <div className="grid grid-cols-3 gap-2">
+        <UploadReceipt
+          variant="tile"
+          onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+          existingJobs={existingJobs}
+        />
+        <Button
+          variant="outline"
+          className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
+          nativeButton={false}
+          render={<Link href="/dashboard/estimates?new=1" />}
+        >
+          <ClipboardList className="h-5 w-5" />
+          New Estimate
+        </Button>
+        <Button
+          variant="outline"
+          className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
+          nativeButton={false}
+          render={<Link href="/dashboard/invoices?new=1" />}
+        >
+          <FileText className="h-5 w-5" />
+          New Invoice
+        </Button>
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />

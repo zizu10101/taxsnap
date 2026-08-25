@@ -18,7 +18,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
@@ -31,7 +32,7 @@ import {
   type RangePreset,
 } from "@/lib/date-range";
 import type {
-  DocumentWithRelations,
+  DocumentWithClient,
   Receipt,
   SalesPeriod,
 } from "@/lib/database.types";
@@ -41,6 +42,31 @@ function formatCurrency(amount: number) {
     style: "currency",
     currency: "USD",
   }).format(amount);
+}
+
+function formatDate(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// One payment received against one invoice, pro-rated into its pre-tax
+// revenue and HST-collected portions - a deposit is taxable revenue at the
+// time it's received, not just once the invoice is fully paid, so Line
+// 101/103 are built from these instead of an invoice's full total.
+interface RecognizedPayment {
+  paymentId: string;
+  documentId: string;
+  clientName: string;
+  paidDate: string;
+  subtotalPortion: number;
+  hstPortion: number;
+  excluded: boolean;
 }
 
 function LineRow({
@@ -77,19 +103,29 @@ function LineRow({
 function HstSummaryCardBody({
   rangeLabel,
   receipts,
-  paidInvoices,
+  recognizedPayments,
+  onToggleExcluded,
   saved,
   onSaved,
 }: {
   rangeLabel: string;
   receipts: Receipt[];
-  paidInvoices: PaidInvoiceInput[];
+  recognizedPayments: RecognizedPayment[];
+  onToggleExcluded: (id: string, excluded: boolean) => void;
   saved: SalesPeriod | undefined;
   onSaved: (record: SalesPeriod) => void;
 }) {
   const [grossSales, setGrossSales] = useState(saved?.gross_sales ?? 0);
   const [cashDeposits, setCashDeposits] = useState(saved?.cash_deposits ?? 0);
   const [saving, setSaving] = useState(false);
+
+  const paidInvoices: PaidInvoiceInput[] = useMemo(
+    () =>
+      recognizedPayments
+        .filter((p) => !p.excluded)
+        .map((p) => ({ subtotal: p.subtotalPortion, hst_amount: p.hstPortion })),
+    [recognizedPayments],
+  );
 
   const lines = useMemo(
     () => calculateHSTReturn(grossSales, paidInvoices, receipts),
@@ -134,22 +170,20 @@ function HstSummaryCardBody({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="gross-sales">Gross Sales ($)</Label>
-          <Input
+          <NumberInput
             id="gross-sales"
-            type="number"
             step="0.01"
             value={grossSales}
-            onChange={(e) => setGrossSales(parseFloat(e.target.value) || 0)}
+            onValueChange={setGrossSales}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cash-deposits">Cash Deposits ($)</Label>
-          <Input
+          <NumberInput
             id="cash-deposits"
-            type="number"
             step="0.01"
             value={cashDeposits}
-            onChange={(e) => setCashDeposits(parseFloat(e.target.value) || 0)}
+            onValueChange={setCashDeposits}
           />
           <p className="text-[11px] text-muted-foreground">
             For your own reconciliation - not included in Line 101.
@@ -164,14 +198,47 @@ function HstSummaryCardBody({
 
       <div className="space-y-2">
         <LineRow line="101" label="Total Sales & Revenue" value={lines.line101} />
-        {paidInvoices.length > 0 && (
-          <p className="pl-1 text-[11px] text-muted-foreground">
-            Includes {formatCurrency(
-              paidInvoices.reduce((sum, i) => sum + i.subtotal, 0),
-            )}{" "}
-            from {paidInvoices.length} paid{" "}
-            {paidInvoices.length === 1 ? "invoice" : "invoices"}.
-          </p>
+        {recognizedPayments.length > 0 && (
+          <div className="space-y-1 rounded-md border border-dashed p-2">
+            <p className="pl-1 text-[11px] text-muted-foreground">
+              Includes {formatCurrency(
+                paidInvoices.reduce((sum, i) => sum + i.subtotal, 0),
+              )}{" "}
+              from {paidInvoices.length} invoice{" "}
+              {paidInvoices.length === 1 ? "payment" : "payments"} received.
+              Uncheck one to leave that invoice out of this period&apos;s
+              totals.
+            </p>
+            <div className="space-y-1">
+              {recognizedPayments.map((p) => (
+                <label
+                  key={p.paymentId}
+                  className="flex items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted/50"
+                >
+                  <Checkbox
+                    checked={!p.excluded}
+                    onCheckedChange={(checked) =>
+                      onToggleExcluded(p.documentId, !checked)
+                    }
+                  />
+                  <span
+                    className={`min-w-0 flex-1 truncate ${
+                      p.excluded ? "text-muted-foreground line-through" : ""
+                    }`}
+                  >
+                    {p.clientName} · {formatDate(p.paidDate)}
+                  </span>
+                  <span
+                    className={`shrink-0 tabular-nums ${
+                      p.excluded ? "text-muted-foreground" : "font-medium"
+                    }`}
+                  >
+                    {formatCurrency(p.subtotalPortion)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
         )}
         <LineRow
           line="103"
@@ -212,9 +279,7 @@ function HstSummaryCardBody({
 export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
   const [collapsed, setCollapsed] = useState(true);
   const [salesRecords, setSalesRecords] = useState<SalesPeriod[]>([]);
-  const [paidInvoiceDocs, setPaidInvoiceDocs] = useState<DocumentWithRelations[]>(
-    [],
-  );
+  const [invoiceDocs, setInvoiceDocs] = useState<DocumentWithClient[]>([]);
   const [preset, setPreset] = useState<RangePreset>("this-quarter");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-quarter"));
 
@@ -233,13 +298,7 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
     fetch("/api/documents?type=invoice")
       .then((res) => (res.ok ? res.json() : { documents: [] }))
       .then((data) => {
-        if (Array.isArray(data.documents)) {
-          setPaidInvoiceDocs(
-            data.documents.filter(
-              (d: DocumentWithRelations) => d.status === "paid",
-            ),
-          );
-        }
+        if (Array.isArray(data.documents)) setInvoiceDocs(data.documents);
       })
       .catch(() => {
         // Non-fatal: same as above.
@@ -250,17 +309,32 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
     () => filterByRange(receipts, range),
     [receipts, range],
   );
-  const filteredPaidInvoices = useMemo(
-    () =>
-      paidInvoiceDocs
-        .filter((d) => {
-          if (range.start && d.issue_date < range.start) return false;
-          if (range.end && d.issue_date > range.end) return false;
-          return true;
-        })
-        .map((d) => ({ subtotal: d.subtotal, hst_amount: d.hst_amount })),
-    [paidInvoiceDocs, range],
-  );
+
+  // Flatten every invoice's payments into pro-rated revenue/HST portions,
+  // keeping only the ones actually received within the selected period -
+  // a deposit received last quarter shouldn't count toward this quarter's
+  // return just because the invoice itself was issued back then.
+  const filteredRecognizedPayments = useMemo(() => {
+    const recognized: RecognizedPayment[] = [];
+    for (const doc of invoiceDocs) {
+      const fraction = doc.total_amount > 0 ? 1 / doc.total_amount : 0;
+      for (const payment of doc.payments) {
+        if (range.start && payment.paid_date < range.start) continue;
+        if (range.end && payment.paid_date > range.end) continue;
+        recognized.push({
+          paymentId: payment.id,
+          documentId: doc.id,
+          clientName: doc.client?.name ?? "No client",
+          paidDate: payment.paid_date,
+          subtotalPortion: round2(doc.subtotal * fraction * payment.amount),
+          hstPortion: round2(doc.hst_amount * fraction * payment.amount),
+          excluded: doc.excluded_from_hst,
+        });
+      }
+    }
+    return recognized.sort((a, b) => (a.paidDate < b.paidDate ? 1 : -1));
+  }, [invoiceDocs, range]);
+
   const rangeLabel = useMemo(() => describeRange(preset, range), [preset, range]);
 
   function handleRangeChange(nextPreset: RangePreset, nextRange: DateRange) {
@@ -275,6 +349,29 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
       record,
       ...prev.filter((s) => s.id !== record.id),
     ]);
+  }
+
+  async function handleToggleExcluded(id: string, excluded: boolean) {
+    // Optimistic update - the checkbox should feel instant.
+    setInvoiceDocs((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, excluded_from_hst: excluded } : d)),
+    );
+    try {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excluded_from_hst: excluded }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    } catch {
+      // Roll back on failure.
+      setInvoiceDocs((prev) =>
+        prev.map((d) =>
+          d.id === id ? { ...d, excluded_from_hst: !excluded } : d,
+        ),
+      );
+      toast.error("Couldn't save that change - try again.");
+    }
   }
 
   return (
@@ -311,7 +408,8 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
             key={rangeLabel}
             rangeLabel={rangeLabel}
             receipts={filteredReceipts}
-            paidInvoices={filteredPaidInvoices}
+            recognizedPayments={filteredRecognizedPayments}
+            onToggleExcluded={handleToggleExcluded}
             saved={saved}
             onSaved={handleSaved}
           />

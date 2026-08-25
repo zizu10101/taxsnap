@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, ImageUp, Loader2, Sparkles } from "lucide-react";
+import { Camera, ImageUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
 import { compressImage } from "@/lib/compress-image";
-import type { Receipt } from "@/lib/database.types";
+import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 interface ParsedDraft {
   merchant_name: string;
@@ -37,18 +38,22 @@ interface ParsedDraft {
   total_amount: number;
   tax_amount: number;
   tax_category: string;
-  items_summary: string;
+  items: ReceiptItem[];
   job_name: string;
   image_path: string | null;
   image_url: string | null;
 }
 
+const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
+
 export function UploadReceipt({
   onSaved,
   existingJobs = [],
+  variant = "hero",
 }: {
   onSaved: (receipt: Receipt) => void;
   existingJobs?: string[];
+  variant?: "hero" | "tile";
 }) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +89,7 @@ export function UploadReceipt({
 
       setDraft({
         ...data.parsed,
+        items: data.parsed.items?.length ? data.parsed.items : [{ ...EMPTY_ITEM }],
         job_name: "",
         image_path: data.image_path,
         image_url: data.image_url,
@@ -111,7 +117,7 @@ export function UploadReceipt({
           total_amount: draft.total_amount,
           tax_amount: draft.tax_amount,
           tax_category: draft.tax_category,
-          items_summary: draft.items_summary,
+          items: draft.items.filter((i) => i.name.trim()),
           job_name: draft.job_name,
           image_path: draft.image_path,
         }),
@@ -134,6 +140,14 @@ export function UploadReceipt({
     setPreviewImage(null);
   }
 
+  function updateItem(index: number, patch: Partial<ReceiptItem>) {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      items: draft.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    });
+  }
+
   return (
     <>
       <input
@@ -154,14 +168,34 @@ export function UploadReceipt({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button
-              size="lg"
-              className="h-16 w-full text-base font-semibold shadow-md"
-              disabled={parsing}
-            />
+            variant === "tile" ? (
+              <Button
+                variant="outline"
+                className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
+                disabled={parsing}
+              />
+            ) : (
+              <Button
+                size="lg"
+                className="h-16 w-full text-base font-semibold shadow-md"
+                disabled={parsing}
+              />
+            )
           }
         >
-          {parsing ? (
+          {variant === "tile" ? (
+            parsing ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Reading...
+              </>
+            ) : (
+              <>
+                <Camera className="h-5 w-5" />
+                Scan Receipt
+              </>
+            )
+          ) : parsing ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
               Reading receipt...
@@ -257,31 +291,23 @@ export function UploadReceipt({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="total_amount">Total ($)</Label>
-                  <Input
+                  <NumberInput
                     id="total_amount"
-                    type="number"
                     step="0.01"
                     value={draft.total_amount}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        total_amount: parseFloat(e.target.value) || 0,
-                      })
+                    onValueChange={(total_amount) =>
+                      setDraft({ ...draft, total_amount })
                     }
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tax_amount">Sales tax ($)</Label>
-                  <Input
+                  <NumberInput
                     id="tax_amount"
-                    type="number"
                     step="0.01"
                     value={draft.tax_amount}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        tax_amount: parseFloat(e.target.value) || 0,
-                      })
+                    onValueChange={(tax_amount) =>
+                      setDraft({ ...draft, tax_amount })
                     }
                   />
                 </div>
@@ -305,11 +331,50 @@ export function UploadReceipt({
                 </datalist>
               </div>
 
-              {draft.items_summary && (
-                <p className="text-sm text-muted-foreground">
-                  {draft.items_summary}
-                </p>
-              )}
+              <div className="space-y-2">
+                <Label>Items purchased</Label>
+                {draft.items.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      placeholder="Item"
+                      className="flex-1"
+                      value={item.name}
+                      onChange={(e) => updateItem(i, { name: e.target.value })}
+                    />
+                    <NumberInput
+                      step="0.01"
+                      placeholder="Price"
+                      className="w-24"
+                      value={item.amount}
+                      onValueChange={(amount) => updateItem(i, { amount })}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          items: draft.items.filter((_, idx) => idx !== i),
+                        })
+                      }
+                      disabled={draft.items.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setDraft({ ...draft, items: [...draft.items, { ...EMPTY_ITEM }] })
+                  }
+                >
+                  <Plus className="h-4 w-4" />
+                  Add item
+                </Button>
+              </div>
             </div>
           )}
 

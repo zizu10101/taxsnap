@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   let query = result.supabase
     .from("documents")
-    .select("*, client:clients(*)")
+    .select("*, client:clients(*), payments(*)")
     .order("issue_date", { ascending: false });
 
   if (type && DOCUMENT_TYPES.includes(type as DocumentType)) {
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       hst_amount: hstAmount,
       total_amount: totalAmount,
     })
-    .select("*, client:clients(*)")
+    .select("*, client:clients(*), payments(*)")
     .single();
 
   if (documentError) {
