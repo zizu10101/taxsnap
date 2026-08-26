@@ -76,15 +76,26 @@ const RECEIPT_SCHEMA = {
   ],
 };
 
-const SYSTEM_PROMPT = `You are a receipt-parsing assistant for TaxSnap, an app used by \
+function buildSystemPrompt(today: string) {
+  return `You are a receipt-parsing assistant for TaxSnap, an app used by \
 self-employed trade contractors (painters, handymen, barbers, etc.) to track tax \
 write-offs. Given a photo of a receipt, extract the merchant name, transaction date, \
 total amount, sales tax amount, the single best-fit tax write-off category, and an \
 itemized breakdown of what was purchased.
 
+Today's date is ${today}. Receipts are almost always photographed within days or weeks \
+of the purchase, not years later.
+
 Rules:
 - transaction_date must be formatted as YYYY-MM-DD. If the year is missing, assume the \
 most recent plausible year.
+- A numeric date's field order (e.g. "26/08/23") is often ambiguous - it could be \
+DD/MM/YY, MM/DD/YY, or YY/MM/DD, and receipts don't reliably follow one convention. \
+Only trust the order unambiguously when the receipt itself disambiguates it (a month \
+name, a 4-digit year, or an explicit "YYYY-MM-DD"/labeled format). Otherwise, pick \
+whichever valid ordering produces a date closest to today's date - never a future date, \
+and never a date years in the past just because a 2-digit group could be read as an \
+old year when it also validly reads as a day or a recent year.
 - total_amount and tax_amount must be plain numbers (no currency symbols).
 - If tax_amount is not printed on the receipt, use 0.
 - Pick exactly one tax_category from this list, choosing the closest match for a \
@@ -96,12 +107,14 @@ self-employed trade contractor's business expenses: ${TAX_CATEGORIES.join(", ")}
   the purchase with the full total_amount as its amount.
 - If the image is not a legible receipt, make a best-effort guess but keep values minimal \
 (0 for amounts, "Unknown" for merchant_name, a single generic item).`;
+}
 
 export async function parseReceiptImage(
   base64Image: string,
   mimeType: string,
 ): Promise<ParsedReceipt> {
   const ai = getClient();
+  const today = new Date().toISOString().slice(0, 10);
 
   const response = await ai.models.generateContent({
     model: "gemini-3.6-flash",
@@ -117,7 +130,7 @@ export async function parseReceiptImage(
       },
     ],
     config: {
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: buildSystemPrompt(today),
       responseMimeType: "application/json",
       responseSchema: RECEIPT_SCHEMA,
       temperature: 0.1,

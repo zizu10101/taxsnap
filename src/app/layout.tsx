@@ -34,6 +34,13 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "TaxSnap",
   },
+  other: {
+    // Next 16 only emits the modern unprefixed `mobile-web-app-capable` tag
+    // for appleWebApp.capable; Safari only honors that one from iOS 16.4+
+    // (2023). This legacy tag keeps standalone install working on older
+    // iOS versions still in the field.
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {

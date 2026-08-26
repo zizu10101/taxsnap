@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { Camera, FileSpreadsheet, Sparkles } from "lucide-react";
+import { Camera, Check, FileSpreadsheet, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { InstallPromptCards } from "@/components/install-prompt-cards";
+import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
 
 const STEPS = [
   {
@@ -16,8 +18,8 @@ const STEPS = [
   },
   {
     icon: FileSpreadsheet,
-    title: "Export at tax time",
-    description: "One click gets you a clean spreadsheet for your books.",
+    title: "Ready for your HST return",
+    description: "See exactly what goes on Lines 101, 103 & 109 - no guesswork.",
   },
 ];
 
@@ -25,7 +27,8 @@ export default function Home() {
   return (
     <main className="flex flex-1 flex-col bg-background">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
-        <span className="font-heading text-lg font-bold tracking-tight">
+        <span className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight">
+          <img src="/logo-mark.png" alt="" className="h-7 w-7" />
           TaxSnap
         </span>
         <Button
@@ -60,11 +63,14 @@ export default function Home() {
               size="lg"
               variant="outline"
               nativeButton={false}
-              render={<Link href="/billing" />}
+              render={<Link href="#pricing" />}
             >
               See pricing
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            No credit card required &middot; tracks Ontario HST from your first receipt
+          </p>
         </div>
 
         {/* Signature element: a mocked-up receipt, the actual unit of work
@@ -79,16 +85,20 @@ export default function Home() {
             <p className="font-heading text-base font-bold tracking-tight">
               HARBOR HARDWARE &amp; SUPPLY
             </p>
-            <p className="mt-0.5 text-muted-foreground">Aug 20 &middot; Portland, OR</p>
+            <p className="mt-0.5 text-muted-foreground">Aug 20 &middot; Mississauga, ON</p>
             <div className="mt-3 space-y-1 text-muted-foreground">
               <p>Interior latex paint&nbsp;&nbsp;&nbsp;&nbsp;38.99</p>
               <p>Paint brush set&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;12.50</p>
               <p>Drop cloth 9x12&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;9.99</p>
             </div>
             <div className="my-3 border-t border-dashed border-border" />
-            <div className="flex items-center justify-between font-semibold">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>HST (13%)</span>
+              <span>$7.99</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between font-semibold">
               <span>TOTAL</span>
-              <span>$74.49</span>
+              <span>$69.47</span>
             </div>
             <Badge className="mt-3 border-transparent bg-success text-success-foreground">
               ✓ Job Materials
@@ -121,6 +131,69 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <section id="pricing" className="border-t border-border">
+        <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
+          <h2 className="font-heading text-2xl font-bold">Pricing</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Start free. Upgrade whenever you need more.
+          </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
+              <h3 className="font-heading text-lg font-bold">{FREE_PLAN.name}</h3>
+              <p className="text-sm text-muted-foreground">
+                {FREE_PLAN.description}
+              </p>
+              <p className="text-3xl font-bold">{FREE_PLAN.price}</p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {FREE_PLAN.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                variant="outline"
+                className="mt-auto"
+                nativeButton={false}
+                render={<Link href="/auth" />}
+              >
+                Get started free
+              </Button>
+            </div>
+            {PRICING_PLANS.map((plan) => (
+              <div
+                key={plan.tier}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
+              >
+                <h3 className="font-heading text-lg font-bold">{plan.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {plan.description}
+                </p>
+                <p className="text-3xl font-bold">{plan.price}</p>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className="mt-auto"
+                  nativeButton={false}
+                  render={<Link href="/auth" />}
+                >
+                  Get started
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <InstallPromptCards />
     </main>
   );
 }

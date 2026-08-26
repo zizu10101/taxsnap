@@ -1,8 +1,14 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { ImageResponse } from "next/og";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const logo = readFileSync(join(process.cwd(), "public", "logo-mark.png")).toString(
+    "base64",
+  );
+
   return new ImageResponse(
     (
       <div
@@ -12,19 +18,17 @@ export async function GET() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#C2410C",
+          background: "#faf6ef",
           borderRadius: 40,
         }}
       >
-        <svg width="110" height="110" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M9 2h6l1 3h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2l1-3Z"
-            stroke="#f8fafc"
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="13" r="4" stroke="#f8fafc" strokeWidth="1.6" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`data:image/png;base64,${logo}`}
+          width={130}
+          height={130}
+          alt=""
+        />
       </div>
     ),
     { width: 192, height: 192 },

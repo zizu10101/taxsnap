@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, ClipboardList, FileText, LogOut } from "lucide-react";
+import { ClipboardList, FileText, LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +22,7 @@ export function DashboardHeader({
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-4 py-3">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Camera className="h-4 w-4" />
-          </span>
+          <img src="/logo-mark.png" alt="" className="h-8 w-8 shrink-0" />
           <span className="flex min-w-0 flex-col leading-tight">
             TaxSnap
             <span className="max-w-[160px] truncate text-xs font-normal text-muted-foreground">
@@ -33,28 +31,6 @@ export function DashboardHeader({
           </span>
         </Link>
         <div className="flex items-center gap-1">
-          {subscriptionStatus === "pro" && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Estimates"
-                nativeButton={false}
-                render={<Link href="/dashboard/estimates" />}
-              >
-                <ClipboardList className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Invoices"
-                nativeButton={false}
-                render={<Link href="/dashboard/invoices" />}
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-            </>
-          )}
           <Button
             variant="ghost"
             size="sm"
@@ -72,6 +48,32 @@ export function DashboardHeader({
           </form>
         </div>
       </div>
+      {subscriptionStatus === "pro" && (
+        <nav className="border-t bg-background">
+          <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1 justify-center gap-1.5"
+              nativeButton={false}
+              render={<Link href="/dashboard/estimates" />}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Estimates
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1 justify-center gap-1.5"
+              nativeButton={false}
+              render={<Link href="/dashboard/invoices" />}
+            >
+              <FileText className="h-4 w-4" />
+              Invoices
+            </Button>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

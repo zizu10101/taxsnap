@@ -15,39 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { BillingTier } from "@/lib/stripe";
 import type { SubscriptionStatus } from "@/lib/database.types";
-
-const PLANS: {
-  tier: BillingTier;
-  name: string;
-  price: string;
-  description: string;
-  features: string[];
-}[] = [
-  {
-    tier: "basic",
-    name: "Basic",
-    price: "$9/mo",
-    description: "For solo contractors tracking write-offs.",
-    features: [
-      "Unlimited receipt scans",
-      "AI auto-categorization",
-      "Monthly tax savings summary",
-      "CSV export for tax season",
-    ],
-  },
-  {
-    tier: "pro",
-    name: "Pro",
-    price: "$29/mo",
-    description: "Everything in Basic, plus client invoicing.",
-    features: [
-      "Everything in Basic",
-      "Unlimited client invoices",
-      "Invoice status tracking",
-      "Priority support",
-    ],
-  },
-];
+import { PRICING_PLANS } from "@/lib/pricing-plans";
 
 export function PricingCards({
   currentStatus,
@@ -112,7 +80,7 @@ export function PricingCards({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {PLANS.map((plan) => {
+        {PRICING_PLANS.map((plan) => {
           const isCurrent = currentStatus === plan.tier;
           return (
             <Card

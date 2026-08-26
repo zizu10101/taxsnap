@@ -50,6 +50,15 @@ if you copy Radix-style shadcn patterns from memory or training data:
   it was deleted) via the render-time "adjust state from props" pattern,
   not a `useEffect`, to stay clear of the `react-hooks/set-state-in-effect`
   rule below.
+- The other sanctioned way around `react-hooks/set-state-in-effect`: reading
+  a browser-only value that can differ between the server-rendered HTML and
+  the client (feature detection, `matchMedia`, `navigator.userAgent`, PWA
+  install state) needs `useSyncExternalStore` with a `getServerSnapshot` that
+  returns the SSR-safe default - not `useState` + `useEffect(() =>
+  setX(...))`. The latter both trips the lint rule and risks a hydration
+  mismatch if the real client value would have rendered different markup.
+  See `src/components/install-prompt-cards.tsx` (standalone-display-mode and
+  iOS detection) for the pattern.
 
 ## Design system
 
@@ -69,6 +78,25 @@ class added manually), **Inter** for body, **IBM Plex Mono** for numbers
 currently toggles it - no `next-themes`, no `prefers-color-scheme` media
 query wired up. That's intentional/pre-existing, not a bug to fix
 incidentally.
+
+The brand mark is `public/logo-mark.png` (transparent PNG, the orange
+chevron) - it's the single source of truth for the logo everywhere: the
+dashboard header, the landing page header/install cards, and the generated
+favicon/PWA icons (`src/app/icon.tsx`, `apple-icon.tsx`,
+`icons/icon-192|512/route.tsx`). Those four icon files read the PNG off disk
+with `fs.readFileSync` and embed it as a base64 `data:` URI inside the
+`next/og` `ImageResponse` JSX (`runtime = "nodejs"` is required for `fs` to
+work there) rather than referencing `/logo-mark.png` by URL, since the icon
+routes render server-side with no browser `fetch` base to resolve a relative
+path against. To swap the logo, just replace `public/logo-mark.png` - no
+other file needs to change. If a new source logo has a JPEG-with-off-white-
+background origin (vs. a real transparent PNG), chroma-keying it needs a
+wide gap between the two threshold values, sampled from actual foreground
+vs. background pixels rather than a single corner pixel - the background in
+at least one AI-generated logo had enough of its own gradient/paper-texture
+noise (~20-30 sum-of-abs-RGB-diff) that a tight threshold left a muddy
+halo. Prefer sharp's `trim()` on a generously-oversized crop over hand-
+rolled bounding-box math for finding the actual content bounds first.
 
 ## Database
 
@@ -130,6 +158,22 @@ Pro-gating for API routes goes through `requireProUser()` in
 `/api/documents` (including the nested `/payments` routes),
 `/api/profile/logo`, `/api/profile/business`.
 
+## Receipt parsing
+
+`src/lib/gemini.ts` builds the Gemini system prompt dynamically per request
+with today's date (`buildSystemPrompt(today)`), because a bare numeric
+receipt date like `26/08/23` is genuinely ambiguous - it could be DD/MM/YY,
+MM/DD/YY, or YY/MM/DD, and there's no reliable single convention across
+receipt printers/POS systems. The prompt resolves the ambiguity by recency:
+prefer whichever valid reading lands closest to today and never in the
+future, unless the receipt has an unambiguous signal (a month name, a
+4-digit year). This is a heuristic, not a guarantee - it will misread a
+receipt that's genuinely years old if the user is scanning it late for a
+catch-up write-off, but that's rare next to "receipt photographed within
+days of purchase." Don't revert to a fixed DD/MM/YY (or any fixed order)
+assumption; that's what caused a real misparse (`26/08/23` read as Aug 26
+2023 instead of Aug 23 2026).
+
 ## Tax logic
 
 `src/lib/hst.ts` computes a **planning estimate**, not a filing-ready
@@ -163,6 +207,39 @@ the period entirely (`documents.excluded_from_hst`, toggled via
 payments on the same invoice both fall in the visible period, toggling
 either one excludes both.
 
+## Plan gating & pricing
+
+Two independent gating mechanisms exist, don't conflate them:
+
+- **Pro-only features** (invoicing/estimates/clients/logo/business profile):
+  `requireProUser()` in `src/lib/require-pro.ts`, checked per-API-route.
+- **Free-tier receipt scan cap**: enforced directly inside
+  `POST /api/parse-receipt` (not via `requireProUser`) - a `free`-status
+  user is blocked once their `receipts` row count reaches
+  `FREE_SCAN_LIMIT` (from `src/lib/pricing-plans.ts`), *before* the route
+  uploads the image or calls Gemini, so a blocked scan doesn't burn API
+  cost. The block returns `{ error, code: "FREE_LIMIT_REACHED" }` with a
+  403; the client (`upload-receipt.tsx`) matches on that `code` to show an
+  "Upgrade" action button (linking to `/billing`) instead of a dead-end
+  error toast. `basic` and `pro` users are exempt from this cap - Basic's
+  entire value proposition today *is* unlimited scans vs. Free's capped
+  ones, so don't let that cap silently regress to unenforced again.
+
+`src/lib/pricing-plans.ts` (`FREE_PLAN`, `PRICING_PLANS`, `FREE_SCAN_LIMIT`)
+is the single source of truth for plan copy, shared between the public
+landing page pricing section (`src/app/page.tsx#pricing`) and the
+authenticated `/billing` page's `PricingCards` - don't fork the plan
+name/price/feature list back into either page individually, or they'll
+drift. Note `/billing` itself requires a logged-in user (it shows current
+plan + triggers real Stripe checkout), so it's not a valid target for a
+signed-out "See pricing" link - that's what the landing page's own
+`#pricing` section is for. Also note the price strings in
+`pricing-plans.ts` are purely display copy - the amount actually charged at
+checkout comes from whatever Stripe Price object `STRIPE_BASIC_PRICE_ID` /
+`STRIPE_PRO_PRICE_ID` points at in the Stripe dashboard, so if that copy
+ever changes, the Stripe Price objects need to be updated to match once
+billing goes live.
+
 ## Local dev / testing this app on a phone
 
 `npm run dev` (Turbopack) is fine for iteration, but **don't tunnel dev
@@ -182,6 +259,21 @@ The service worker (`public/sw.js`) is network-first for page navigations
 and cache-first only for hashed static assets. If it ever gets reverted to
 cache-first for pages, users will see a stale dashboard after every deploy
 until they manually clear site data - don't do that.
+
+The app is already a fully installable PWA (`public/manifest.json`,
+service worker, generated icons) - it doesn't need "PWA-ifying," it already
+is one. `src/components/install-prompt-cards.tsx` renders a landing-page
+install prompt, but **Android and iOS are not symmetric**: Android/Chrome
+fires a real `beforeinstallprompt` event, so that card has a genuine
+one-tap "Install Now" button; iOS Safari has no equivalent API, so its card
+is instructions-only (Share icon → "Add to Home Screen") - never word the
+iOS side as a one-tap install, it can't deliver that. Relatedly,
+`layout.tsx`'s `metadata.other` manually adds the legacy
+`apple-mobile-web-app-capable` meta tag alongside Next 16's own
+`appleWebApp.capable` output, because this Next version only emits the
+modern unprefixed `mobile-web-app-capable` tag - Safari only started
+honoring that unprefixed tag in iOS 16.4 (2023), so the legacy tag is kept
+for older devices still in the field.
 
 ## Sharing invoices/estimates
 

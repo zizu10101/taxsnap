@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, ImageUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ export function UploadReceipt({
   existingJobs?: string[];
   variant?: "hero" | "tile";
 }) {
+  const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const [parsing, setParsing] = useState(false);
@@ -84,6 +86,13 @@ export function UploadReceipt({
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          setPreviewImage(null);
+          return;
+        }
         throw new Error(data.error || "Failed to parse receipt");
       }
 

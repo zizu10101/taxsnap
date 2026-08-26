@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { parseReceiptImage } from "@/lib/gemini";
+import { FREE_SCAN_LIMIT } from "@/lib/pricing-plans";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,6 +23,29 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_status")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.subscription_status === "free") {
+    const { count } = await supabase
+      .from("receipts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if ((count ?? 0) >= FREE_SCAN_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans. Upgrade to Basic for unlimited scans.`,
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
   }
 
   const formData = await request.formData();
