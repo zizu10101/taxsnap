@@ -300,7 +300,7 @@ export function DocumentDetail({
             <LogoImage
               key={logoPath}
               path={logoPath}
-              className="h-12 max-w-[200px] object-contain object-left"
+              className="h-20 max-w-[260px] object-contain object-left"
             />
           )}
 

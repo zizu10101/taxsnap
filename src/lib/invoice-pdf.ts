@@ -45,7 +45,7 @@ export async function generateDocumentPdf(
   if (logoDataUrl) {
     try {
       const { width, height } = await loadImageDimensions(logoDataUrl);
-      const maxH = 40;
+      const maxH = 64;
       const w = (width / height) * maxH;
       pdf.addImage(logoDataUrl, marginX, y - 24, w, maxH);
       y += maxH + 12;
