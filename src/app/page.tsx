@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   {
@@ -19,7 +20,8 @@ const STEPS = [
   {
     icon: FileSpreadsheet,
     title: "Ready for your HST return",
-    description: "See exactly what goes on Lines 101, 103 & 109 - no guesswork.",
+    description:
+      "CRA Lines 101, 103 & 106 update automatically with every scan.",
   },
 ];
 
@@ -165,8 +167,18 @@ export default function Home() {
             {PRICING_PLANS.map((plan) => (
               <div
                 key={plan.tier}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
+                className={cn(
+                  "relative flex flex-col gap-3 rounded-lg border bg-card p-5",
+                  plan.tier === "basic"
+                    ? "border-primary shadow-sm"
+                    : "border-border",
+                )}
               >
+                {plan.tier === "basic" && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border-transparent bg-primary text-primary-foreground">
+                    Most Popular
+                  </Badge>
+                )}
                 <h3 className="font-heading text-lg font-bold">{plan.name}</h3>
                 <p className="text-sm text-muted-foreground">
                   {plan.description}

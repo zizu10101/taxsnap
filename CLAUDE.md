@@ -230,7 +230,10 @@ is the single source of truth for plan copy, shared between the public
 landing page pricing section (`src/app/page.tsx#pricing`) and the
 authenticated `/billing` page's `PricingCards` - don't fork the plan
 name/price/feature list back into either page individually, or they'll
-drift. Note `/billing` itself requires a logged-in user (it shows current
+drift. The landing page hardcodes a "Most Popular" badge onto whichever
+card has `plan.tier === "basic"` (it's Basic that's meant to be the target
+tier) - that condition lives in `page.tsx`, not in the shared plan data, so
+it won't follow if `PRICING_PLANS`' ordering or tiers ever change. Note `/billing` itself requires a logged-in user (it shows current
 plan + triggers real Stripe checkout), so it's not a valid target for a
 signed-out "See pricing" link - that's what the landing page's own
 `#pricing` section is for. Also note the price strings in
