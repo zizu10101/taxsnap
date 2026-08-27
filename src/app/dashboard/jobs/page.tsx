@@ -6,18 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DocumentList } from "@/components/invoices/document-list";
+import { JobList } from "@/components/jobs/job-list";
 
 export const metadata: Metadata = {
-  title: "Invoices — TaxSnap",
+  title: "Jobs — TaxSnap",
 };
 
-export default async function InvoicesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ new?: string }>;
-}) {
-  const { new: newParam } = await searchParams;
+export default async function JobsPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,31 +22,22 @@ export default async function InvoicesPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "subscription_status, logo_url, business_name, business_address, business_phone, business_email, business_profile_skipped",
-    )
+    .select("subscription_status")
     .eq("id", user.id)
     .single();
 
   const isPro = profile?.subscription_status === "pro";
 
-  const [{ data: documents }, { data: clients }] = isPro
-    ? await Promise.all([
-        supabase
-          .from("documents")
-          .select("*, client:clients(*), payments(*)")
-          .eq("type", "invoice")
-          .order("issue_date", { ascending: false }),
-        supabase.from("clients").select("*").order("name", { ascending: true }),
-      ])
-    : [{ data: null }, { data: null }];
+  const { data: jobs } = isPro
+    ? await supabase.from("jobs").select("*").order("name", { ascending: true })
+    : { data: null };
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
-        active="invoices"
+        active="jobs"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
         <Link
@@ -63,38 +49,24 @@ export default async function InvoicesPage({
         </Link>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Invoices</h1>
+          <h1 className="text-2xl font-bold">Jobs</h1>
           <p className="text-muted-foreground">
-            Bill your clients directly from TaxSnap.
+            True cost per job: tagged expenses plus logged labor.
           </p>
         </div>
 
         {isPro ? (
-          <DocumentList
-            type="invoice"
-            basePath="/dashboard/invoices"
-            initialDocuments={documents ?? []}
-            initialClients={clients ?? []}
-            initialProfile={{
-              logo_url: profile?.logo_url ?? null,
-              business_name: profile?.business_name ?? null,
-              business_address: profile?.business_address ?? null,
-              business_phone: profile?.business_phone ?? null,
-              business_email: profile?.business_email ?? null,
-              business_profile_skipped: profile?.business_profile_skipped ?? false,
-            }}
-            autoOpenNew={newParam === "1"}
-          />
+          <JobList initialJobs={jobs ?? []} />
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <Lock className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="font-medium">Invoicing is a Pro feature</p>
+              <p className="font-medium">Job cost tracking is a Pro feature</p>
               <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to create invoices and
-                estimates, manage clients, and track payment status.
+                Upgrade to the Pro plan ($29/mo) to see true per-job cost
+                across expenses and labor.
               </p>
               <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
             </CardContent>

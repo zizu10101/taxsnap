@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Briefcase,
   Loader2,
@@ -34,6 +34,20 @@ import { TAX_CATEGORIES } from "@/lib/tax-categories";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
+
+// Sentinel values for the job Select, mirroring the client picker's
+// "+ Add new client" inline-create pattern in document-builder.tsx. Native
+// <input list>/<datalist> autocomplete doesn't render as a real dropdown on
+// most mobile browsers - it just looks like a plain text box - so this uses
+// the app's own Select for a picker that actually works on phones.
+const NO_JOB = "__no_job__";
+const NEW_JOB = "__new_job__";
+
+function initialJobMode(jobName: string, existingJobs: string[]): string {
+  if (!jobName) return NO_JOB;
+  if (existingJobs.includes(jobName)) return jobName;
+  return NEW_JOB;
+}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -96,6 +110,34 @@ function ReceiptSummaryContent({
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [jobMode, setJobMode] = useState<string>(() =>
+    initialJobMode(form.job_name, existingJobs),
+  );
+  const [newJobName, setNewJobName] = useState<string>(() =>
+    jobMode === NEW_JOB ? form.job_name : "",
+  );
+
+  const jobSelectItems = useMemo(() => {
+    const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
+    for (const job of existingJobs) map[job] = job;
+    return map;
+  }, [existingJobs]);
+
+  function handleJobModeChange(value: string) {
+    setJobMode(value);
+    if (value === NO_JOB) {
+      setForm({ ...form, job_name: "" });
+    } else if (value === NEW_JOB) {
+      setForm({ ...form, job_name: newJobName });
+    } else {
+      setForm({ ...form, job_name: value });
+    }
+  }
+
+  function handleNewJobNameChange(value: string) {
+    setNewJobName(value);
+    setForm({ ...form, job_name: value });
+  }
 
   function updateItem(index: number, patch: Partial<ReceiptItem>) {
     setForm({
@@ -275,19 +317,32 @@ function ReceiptSummaryContent({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-job">Job name / number (optional)</Label>
-            <Input
-              id="edit-job"
-              list="edit-job-name-options"
-              placeholder="e.g. 123 Main St or Job #4521"
-              value={form.job_name}
-              onChange={(e) => setForm({ ...form, job_name: e.target.value })}
-            />
-            <datalist id="edit-job-name-options">
-              {existingJobs.map((job) => (
-                <option key={job} value={job} />
-              ))}
-            </datalist>
+            <Label htmlFor="edit-job">Job (optional)</Label>
+            <Select
+              items={jobSelectItems}
+              value={jobMode}
+              onValueChange={(v) => v && handleJobModeChange(v)}
+            >
+              <SelectTrigger id="edit-job" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_JOB}>No job</SelectItem>
+                <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
+                {existingJobs.map((job) => (
+                  <SelectItem key={job} value={job}>
+                    {job}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {jobMode === NEW_JOB && (
+              <Input
+                placeholder="e.g. 123 Main St or Job #4521"
+                value={newJobName}
+                onChange={(e) => handleNewJobNameChange(e.target.value)}
+              />
+            )}
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -301,7 +356,10 @@ function ReceiptSummaryContent({
           <Button
             variant="outline"
             onClick={() => {
-              setForm(toForm(receipt));
+              const reverted = toForm(receipt);
+              setForm(reverted);
+              setJobMode(initialJobMode(reverted.job_name, existingJobs));
+              setNewJobName(reverted.job_name);
               setIsEditing(false);
             }}
             disabled={saving}

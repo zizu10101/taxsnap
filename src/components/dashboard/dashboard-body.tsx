@@ -29,8 +29,10 @@ function slugify(label: string): string {
 
 export function DashboardBody({
   initialReceipts,
+  initialJobNames,
 }: {
   initialReceipts: Receipt[];
+  initialJobNames: string[];
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [preset, setPreset] = useState<RangePreset>("this-month");
@@ -38,11 +40,15 @@ export function DashboardBody({
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
 
+  // Union of the jobs table (includes jobs created from the Jobs/Hours
+  // pages that have no receipt yet) and any job_name already on a receipt
+  // in this session (covers a job typed here moments ago, before a fresh
+  // server fetch would pick it up).
   const existingJobs = useMemo(() => {
-    const jobs = new Set<string>();
+    const jobs = new Set<string>(initialJobNames);
     for (const r of receipts) if (r.job_name) jobs.add(r.job_name);
     return [...jobs].sort();
-  }, [receipts]);
+  }, [receipts, initialJobNames]);
 
   const filteredReceipts = useMemo(() => {
     const byRange = filterByRange(receipts, range);

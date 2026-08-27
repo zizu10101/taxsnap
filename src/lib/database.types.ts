@@ -70,6 +70,7 @@ export interface Database {
           tax_amount: number;
           tax_category: string;
           job_name: string | null;
+          job_id: string | null;
           items: ReceiptItem[] | null;
           created_at: string;
         };
@@ -83,6 +84,7 @@ export interface Database {
           tax_amount?: number;
           tax_category: string;
           job_name?: string | null;
+          job_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -96,10 +98,19 @@ export interface Database {
           tax_amount?: number;
           tax_category?: string;
           job_name?: string | null;
+          job_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "receipts_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       clients: {
         Row: {
@@ -263,6 +274,103 @@ export interface Database {
           },
         ];
       };
+      jobs: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      employees: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          default_hourly_rate: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          default_hourly_rate?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          default_hourly_rate?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      hour_entries: {
+        Row: {
+          id: string;
+          user_id: string;
+          employee_id: string;
+          job_id: string;
+          work_date: string;
+          hours: number;
+          rate: number;
+          labor_cost: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          employee_id: string;
+          job_id: string;
+          work_date?: string;
+          hours: number;
+          rate: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          employee_id?: string;
+          job_id?: string;
+          work_date?: string;
+          hours?: number;
+          rate?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "hour_entries_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "hour_entries_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sales: {
         Row: {
           id: string;
@@ -310,6 +418,11 @@ export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"];
 export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
+export type Job = Database["public"]["Tables"]["jobs"]["Row"];
+export type Employee = Database["public"]["Tables"]["employees"]["Row"];
+export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
+export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];
+export type HourEntryUpdate = Database["public"]["Tables"]["hour_entries"]["Update"];
 
 export interface DocumentWithClient extends InvoiceDocument {
   client: Client | null;
@@ -318,4 +431,9 @@ export interface DocumentWithClient extends InvoiceDocument {
 
 export interface DocumentWithRelations extends DocumentWithClient {
   items: DocumentItem[];
+}
+
+export interface HourEntryWithRelations extends HourEntry {
+  employee: Employee;
+  job: Job;
 }

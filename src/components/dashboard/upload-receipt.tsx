@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImageUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -47,6 +47,14 @@ interface ParsedDraft {
 
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
 
+// Sentinel values for the job Select, mirroring the client picker's
+// "+ Add new client" inline-create pattern in document-builder.tsx. Native
+// <input list>/<datalist> autocomplete doesn't render as a real dropdown on
+// most mobile browsers - it just looks like a plain text box - so this uses
+// the app's own Select for a picker that actually works on phones.
+const NO_JOB = "__no_job__";
+const NEW_JOB = "__new_job__";
+
 export function UploadReceipt({
   onSaved,
   existingJobs = [],
@@ -63,6 +71,32 @@ export function UploadReceipt({
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<ParsedDraft | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [jobMode, setJobMode] = useState<string>(NO_JOB);
+  const [newJobName, setNewJobName] = useState("");
+
+  const jobSelectItems = useMemo(() => {
+    const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
+    for (const job of existingJobs) map[job] = job;
+    return map;
+  }, [existingJobs]);
+
+  function handleJobModeChange(value: string) {
+    if (!draft) return;
+    setJobMode(value);
+    if (value === NO_JOB) {
+      setDraft({ ...draft, job_name: "" });
+    } else if (value === NEW_JOB) {
+      setDraft({ ...draft, job_name: newJobName });
+    } else {
+      setDraft({ ...draft, job_name: value });
+    }
+  }
+
+  function handleNewJobNameChange(value: string) {
+    if (!draft) return;
+    setNewJobName(value);
+    setDraft({ ...draft, job_name: value });
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -103,6 +137,8 @@ export function UploadReceipt({
         image_path: data.image_path,
         image_url: data.image_url,
       });
+      setJobMode(NO_JOB);
+      setNewJobName("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setPreviewImage(null);
@@ -323,21 +359,32 @@ export function UploadReceipt({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="job_name">Job name / number (optional)</Label>
-                <Input
-                  id="job_name"
-                  list="job-name-options"
-                  placeholder="e.g. 123 Main St or Job #4521"
-                  value={draft.job_name}
-                  onChange={(e) =>
-                    setDraft({ ...draft, job_name: e.target.value })
-                  }
-                />
-                <datalist id="job-name-options">
-                  {existingJobs.map((job) => (
-                    <option key={job} value={job} />
-                  ))}
-                </datalist>
+                <Label htmlFor="job_name">Job (optional)</Label>
+                <Select
+                  items={jobSelectItems}
+                  value={jobMode}
+                  onValueChange={(v) => v && handleJobModeChange(v)}
+                >
+                  <SelectTrigger id="job_name" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_JOB}>No job</SelectItem>
+                    <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
+                    {existingJobs.map((job) => (
+                      <SelectItem key={job} value={job}>
+                        {job}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {jobMode === NEW_JOB && (
+                  <Input
+                    placeholder="e.g. 123 Main St or Job #4521"
+                    value={newJobName}
+                    onChange={(e) => handleNewJobNameChange(e.target.value)}
+                  />
+                )}
               </div>
 
               <div className="space-y-2">

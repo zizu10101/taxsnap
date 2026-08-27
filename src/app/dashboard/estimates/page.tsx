@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocumentList } from "@/components/invoices/document-list";
@@ -58,54 +59,62 @@ export default async function EstimatesPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 p-4">
-      <Link
-        href="/dashboard"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to dashboard
-      </Link>
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <DashboardHeader
+        email={user.email ?? ""}
+        subscriptionStatus={profile?.subscription_status ?? "free"}
+        active="estimates"
+      />
+      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
+        <Link
+          href="/dashboard"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to dashboard
+        </Link>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Estimates</h1>
-        <p className="text-muted-foreground">
-          Quote a job, then convert it to an invoice once it&apos;s approved.
-        </p>
-      </div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Estimates</h1>
+          <p className="text-muted-foreground">
+            Quote a job, then convert it to an invoice once it&apos;s
+            approved.
+          </p>
+        </div>
 
-      {isPro ? (
-        <DocumentList
-          type="estimate"
-          basePath="/dashboard/estimates"
-          initialDocuments={documents ?? []}
-          initialClients={clients ?? []}
-          initialProfile={{
-            logo_url: profile?.logo_url ?? null,
-            business_name: profile?.business_name ?? null,
-            business_address: profile?.business_address ?? null,
-            business_phone: profile?.business_phone ?? null,
-            business_email: profile?.business_email ?? null,
-            business_profile_skipped: profile?.business_profile_skipped ?? false,
-          }}
-          convertedMap={convertedMap}
-          autoOpenNew={newParam === "1"}
-        />
-      ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="font-medium">Estimates are a Pro feature</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              Upgrade to the Pro plan ($29/mo) to create invoices and
-              estimates, manage clients, and track payment status.
-            </p>
-            <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
-          </CardContent>
-        </Card>
-      )}
+        {isPro ? (
+          <DocumentList
+            type="estimate"
+            basePath="/dashboard/estimates"
+            initialDocuments={documents ?? []}
+            initialClients={clients ?? []}
+            initialProfile={{
+              logo_url: profile?.logo_url ?? null,
+              business_name: profile?.business_name ?? null,
+              business_address: profile?.business_address ?? null,
+              business_phone: profile?.business_phone ?? null,
+              business_email: profile?.business_email ?? null,
+              business_profile_skipped: profile?.business_profile_skipped ?? false,
+            }}
+            convertedMap={convertedMap}
+            autoOpenNew={newParam === "1"}
+          />
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Lock className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Estimates are a Pro feature</p>
+              <p className="max-w-xs text-sm text-muted-foreground">
+                Upgrade to the Pro plan ($29/mo) to create invoices and
+                estimates, manage clients, and track payment status.
+              </p>
+              <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
+            </CardContent>
+          </Card>
+        )}
+      </main>
     </div>
   );
 }

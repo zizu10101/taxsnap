@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DocumentDetail } from "@/components/invoices/document-detail";
 import type { DocumentWithRelations } from "@/lib/database.types";
 
@@ -46,17 +47,22 @@ export default async function InvoiceDetailPage({
   if (!document) notFound();
 
   return (
-    <DocumentDetail
-      document={document as DocumentWithRelations}
-      clients={clients ?? []}
-      business={{
-        name: profile?.business_name ?? null,
-        email: profile?.business_email || user.email || "",
-        phone: profile?.business_phone ?? null,
-        address: profile?.business_address ?? null,
-      }}
-      logoPath={profile?.logo_url ?? null}
-      basePath="/dashboard/invoices"
-    />
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <DashboardHeader email={user.email ?? ""} subscriptionStatus="pro" active="invoices" />
+      <main className="flex-1">
+        <DocumentDetail
+          document={document as DocumentWithRelations}
+          clients={clients ?? []}
+          business={{
+            name: profile?.business_name ?? null,
+            email: profile?.business_email || user.email || "",
+            phone: profile?.business_phone ?? null,
+            address: profile?.business_address ?? null,
+          }}
+          logoPath={profile?.logo_url ?? null}
+          basePath="/dashboard/invoices"
+        />
+      </main>
+    </div>
   );
 }

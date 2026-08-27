@@ -87,10 +87,22 @@ export function DocumentList({
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" render={<Link href="/dashboard/invoices" />}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="hover:bg-primary/10 hover:text-primary"
+          nativeButton={false}
+          render={<Link href="/dashboard/invoices" />}
+        >
           Invoices
         </Button>
-        <Button variant="outline" size="sm" render={<Link href="/dashboard/estimates" />}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="hover:bg-primary/10 hover:text-primary"
+          nativeButton={false}
+          render={<Link href="/dashboard/estimates" />}
+        >
           Estimates
         </Button>
       </div>

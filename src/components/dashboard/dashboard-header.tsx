@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, FileText, LogOut } from "lucide-react";
+import { Briefcase, ClipboardList, FileText, LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +14,11 @@ const TIER_LABEL: Record<SubscriptionStatus, string> = {
 export function DashboardHeader({
   email,
   subscriptionStatus,
+  active,
 }: {
   email: string;
   subscriptionStatus: SubscriptionStatus;
+  active?: "estimates" | "invoices" | "jobs";
 }) {
   return (
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
@@ -52,9 +54,9 @@ export function DashboardHeader({
         <nav className="border-t bg-background">
           <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
             <Button
-              variant="default"
+              variant={active === "estimates" ? "default" : "outline"}
               size="sm"
-              className="flex-1 justify-center gap-1.5"
+              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
               nativeButton={false}
               render={<Link href="/dashboard/estimates" />}
             >
@@ -62,14 +64,24 @@ export function DashboardHeader({
               Estimates
             </Button>
             <Button
-              variant="default"
+              variant={active === "invoices" ? "default" : "outline"}
               size="sm"
-              className="flex-1 justify-center gap-1.5"
+              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
               nativeButton={false}
               render={<Link href="/dashboard/invoices" />}
             >
               <FileText className="h-4 w-4" />
               Invoices
+            </Button>
+            <Button
+              variant={active === "jobs" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+              nativeButton={false}
+              render={<Link href="/dashboard/jobs" />}
+            >
+              <Briefcase className="h-4 w-4" />
+              Jobs
             </Button>
           </div>
         </nav>
