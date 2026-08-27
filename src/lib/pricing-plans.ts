@@ -40,6 +40,9 @@ export const PRICING_PLANS: {
     features: [
       "Everything in Basic",
       "Professional PDF client invoicing",
+      "Deposits & partial payments",
+      "Send via email, WhatsApp, or SMS",
+      "Job costing — expenses + labor, real profit per job",
       "Invoice status & payment tracking",
       "Priority support",
     ],

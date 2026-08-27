@@ -20,8 +20,7 @@ const STEPS = [
   {
     icon: FileSpreadsheet,
     title: "Ready for your HST return",
-    description:
-      "CRA Lines 101, 103 & 106 update automatically with every scan.",
+    description: "See exactly what you owe — no spreadsheets, no guessing.",
   },
 ];
 
@@ -77,7 +76,7 @@ export default function Home() {
 
         {/* Signature element: a mocked-up receipt, the actual unit of work
             this product is built around, rather than a generic icon. */}
-        <div className="flex justify-center lg:justify-end">
+        <div className="flex flex-col items-center gap-2 lg:items-end">
           <div
             className="w-full max-w-[300px] -rotate-2 rounded-sm border border-border bg-card p-5 font-mono text-[13px] shadow-xl"
             style={{
@@ -106,6 +105,9 @@ export default function Home() {
               ✓ Job Materials
             </Badge>
           </div>
+          <p className="max-w-[300px] text-center text-xs text-muted-foreground">
+            Built by a Mississauga business owner who was sick of doing HST by hand.
+          </p>
         </div>
       </section>
 
