@@ -58,7 +58,8 @@ if you copy Radix-style shadcn patterns from memory or training data:
   setX(...))`. The latter both trips the lint rule and risks a hydration
   mismatch if the real client value would have rendered different markup.
   See `src/components/install-prompt-cards.tsx` (standalone-display-mode and
-  iOS detection) for the pattern.
+  iOS detection) for the pattern - also used in
+  `share-document-button.tsx`'s mobile-vs-desktop share button check.
 
 ## Design system
 
@@ -143,6 +144,32 @@ unsure):
     an invoice (`amount`, `paid_date`, optional `method`/`note`). This is
     the source of truth the HST calculator and the invoice's "Paid to
     date"/"Balance due" figures are built from - see Tax logic below.
+- `jobs` - first-class job entity backing the pre-existing free-text
+  `receipts.job_name` tag. A DB trigger (`sync_receipt_job` in
+  `0009_jobs.sql`) keeps `receipts.job_id` in sync automatically whenever
+  `job_name` is set/edited, so the existing free-text job filter UI
+  (`job-filter.tsx`, `dashboard-body.tsx`) needed zero code changes -
+  `jobs` rows get find-or-created transparently underneath it. Also
+  created directly from the Jobs page or the hour-entry form
+  (find-or-create by name, same inline-create pattern as `new_client` on
+  documents).
+- `employees` - name, `default_hourly_rate`, `is_active` (deactivate, not
+  delete - `hour_entries.employee_id` is `on delete restrict` so
+  historical labor cost never loses its employee). Names are title-cased
+  on save (`src/lib/format-name.ts`), with hand-rolled Mc-/Mac-/apostrophe
+  handling (McDonald, MacLeod, but not MacK; O'Brien) - deliberately no
+  npm dependency added for this. See that file's exceptions list for the
+  common-word cases it can't get fully right (e.g. "Macbeth" as a
+  surname).
+- `hour_entries` - `employee_id` + `job_id` + date + hours + `rate`
+  (copied from the employee's `default_hourly_rate` at entry time,
+  editable per entry, never a live reference) + `labor_cost` as a
+  **generated column** (`hours * rate`, stored) so it can never drift and
+  a later change to an employee's default rate can't retroactively
+  rewrite a historical entry's cost. Labor cost is intentionally never
+  wired into `sales`/`documents`/`payments` or `src/lib/hst.ts` anywhere -
+  it's for job cost analysis only, kept fully separate from the tax
+  module (see "Tax logic" below).
 
 RLS pattern throughout: `auth.uid() = user_id`. Storage buckets
 (`receipts`, `logos`) are private; access via `createSignedUrl`, never a
@@ -156,7 +183,8 @@ remounts).
 Pro-gating for API routes goes through `requireProUser()` in
 `src/lib/require-pro.ts` - use it for anything under `/api/clients`,
 `/api/documents` (including the nested `/payments` routes),
-`/api/profile/logo`, `/api/profile/business`.
+`/api/profile/logo`, `/api/profile/business`, `/api/jobs`,
+`/api/employees`, `/api/hours`.
 
 ## Receipt parsing
 
@@ -283,12 +311,85 @@ for older devices still in the field.
 `src/lib/invoice-pdf.ts` builds an itemized PDF client-side with `jsPDF`
 (manual layout, no autotable plugin - keep it that way, it's a small
 enough document that a table library is overkill). `ShareDocumentButton`
-(`src/components/invoices/share-document-button.tsx`) hands that PDF to
-`navigator.share`/`navigator.canShare({ files })` so it goes out through
-whatever the OS share sheet offers (WhatsApp, Messages, Mail, etc.) -
-that's the only way to attach a *file* to a share; a `mailto:`/`wa.me`
-link can't carry one. Falls back to a plain download when the Web Share
-API or file sharing isn't available (most desktop browsers).
+(`src/components/invoices/share-document-button.tsx`) branches on device,
+not just capability:
+
+- **Mobile** (real OS share sheet with file support): hands the PDF to
+  `navigator.share({ files })` so it goes out through whatever the OS
+  offers (WhatsApp, Messages, Mail, etc.) - the only way to attach a
+  *file* to a share, since a `mailto:`/`wa.me` link can't carry one.
+- **Desktop**: two explicit buttons instead of one Share button - `Email`
+  opens a `mailto:` draft (prefilled to the client's email if on file,
+  plus subject/body) with a toast reminding the user to attach the PDF
+  since `mailto:` can't carry one, and `Download PDF` triggers the same
+  PDF generation directly, always visible rather than hidden behind a
+  fallback.
+
+The device check (`isMobileDevice()` in that file) requires *both* a
+mobile-shaped UA/touch signature *and* `navigator.canShare({ files })` -
+capability alone isn't a reliable signal any more, since Edge/Chrome on
+Windows and Safari on macOS now also support file sharing, which would
+put the desktop-only buttons behind a check that's true on plenty of
+actual desktops (this bit us once - the buttons silently didn't show up
+on a real Windows machine during testing). Uses `useSyncExternalStore`
+(see Stack quirks) so the desktop buttons are what SSR/first paint
+render, only swapping to the single Share button once the browser's real
+device+capability is known.
+
+## Employee hour tracking & job costing
+
+Pro-gated like invoicing (`requireProUser()` on every `/api/jobs`,
+`/api/employees`, `/api/hours` route) - entered entirely by the account
+owner, no employee login/self-serve access exists or is planned. See
+"Database" above for the `jobs`/`employees`/`hour_entries` schema and the
+job-name sync trigger.
+
+- `/dashboard/jobs` -> `/dashboard/jobs/[id]` shows the job cost rollup:
+  sum of tagged expenses (`receipts.total_amount` where `job_id` matches)
+  + sum of labor (`hour_entries.labor_cost`) = true job cost.
+  `/dashboard/employees` and `/dashboard/hours` round out the section,
+  linked together by `src/components/jobs/job-cost-nav.tsx`.
+- The receipt job picker (`upload-receipt.tsx`, `receipt-detail-dialog.tsx`)
+  uses a `Select` with a "+ Add new job" inline-create option (same
+  pattern as `new_client` on documents), not a native
+  `<input list>`/`<datalist>` - that native pattern doesn't render as an
+  actual dropdown on most mobile browsers, it just looks like a plain
+  text box with nothing to pick from.
+- `DashboardHeader`'s top nav (Estimates/Invoices/Jobs) takes an optional
+  `active` prop that highlights the current tab
+  (`variant={active === X ? "default" : "outline"}`) - pass it from every
+  page under that section (Jobs/Employees/Hours all pass `active="jobs"`
+  since they share one tab). `/dashboard` itself passes no `active`, so
+  nothing is highlighted there.
+
+## Auth
+
+Supabase Auth via `src/app/auth/auth-form.tsx`: magic link, email/password,
+and Google OAuth (`supabase.auth.signInWithOAuth({ provider: "google" })`).
+All three funnel through the same `src/app/auth/callback/route.ts`, which
+just does a generic `exchangeCodeForSession(code)` - it doesn't need to
+know which method produced the code, so adding another OAuth provider
+later needs no callback changes.
+
+Google sign-in requires two manual steps outside this repo before it'll
+work: a Google Cloud OAuth client (redirect URI =
+`<project>.supabase.co/auth/v1/callback`), and enabling Google under
+Supabase Dashboard -> Authentication -> Providers. Until that's done it
+fails with a "provider is not enabled" error from Supabase itself, not a
+bug in the client code.
+
+Account linking (verified against Supabase's own docs, not assumed):
+automatic identity linking is on by default - if a Google sign-in's email
+matches an existing user whose email is already confirmed, Supabase links
+the new identity to that same `auth.users.id` rather than creating a
+duplicate. Because `handle_new_user()` (see Database above) only fires on
+a genuine new `auth.users` insert, a linked sign-in doesn't touch
+`profiles` - existing receipts/documents/subscription stay intact under
+the same id. This depends on "Confirm email" staying enabled for the
+Email provider (it already is, per the sign-up flow's own "check your
+email to confirm" copy) - if that's ever disabled, an unconfirmed
+password account's email becomes fair game for a different Google
+account to claim.
 
 ## Conventions
 
