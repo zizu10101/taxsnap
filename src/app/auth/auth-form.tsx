@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Camera, Loader2, Mail } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,9 +141,9 @@ export function AuthForm() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-          <Camera className="h-6 w-6" />
-        </div>
+        <Link href="/" className="mx-auto mb-2 flex h-12 w-12 items-center justify-center">
+          <img src="/logo-mark.png" alt="TaxSnap" className="h-12 w-12" />
+        </Link>
         <CardTitle className="text-2xl">Welcome to TaxSnap</CardTitle>
         <CardDescription>
           Snap receipts, track write-offs, save on taxes.
