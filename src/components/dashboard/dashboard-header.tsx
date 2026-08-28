@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Briefcase, ClipboardList, FileText, LogOut } from "lucide-react";
+import { Briefcase, ClipboardList, FileText, LogOut, Scissors } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ export function DashboardHeader({
 }: {
   email: string;
   subscriptionStatus: SubscriptionStatus;
-  active?: "estimates" | "invoices" | "jobs";
+  active?: "estimates" | "invoices" | "jobs" | "commission";
 }) {
   return (
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
@@ -82,6 +82,16 @@ export function DashboardHeader({
             >
               <Briefcase className="h-4 w-4" />
               Jobs
+            </Button>
+            <Button
+              variant={active === "commission" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+              nativeButton={false}
+              render={<Link href="/dashboard/commission" />}
+            >
+              <Scissors className="h-4 w-4" />
+              Commission
             </Button>
           </div>
         </nav>

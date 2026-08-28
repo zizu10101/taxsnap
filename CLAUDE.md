@@ -23,7 +23,12 @@ if you copy Radix-style shadcn patterns from memory or training data:
   console error ("expected a native `<button>`...") and can affect
   keyboard/focus behavior. This bit us in production once - see
   `src/components/dashboard/upload-receipt.tsx` and `dashboard-header.tsx`
-  for the correct pattern.
+  for the correct pattern. It has since resurfaced twice more (the
+  Invoices/Estimates toggle in `document-list.tsx`, and 9 separate
+  "Upgrade to Pro" buttons copy-pasted across every Pro-gated page) - if
+  you're adding a new `Button render={<Link ... />}`, grep the codebase for
+  `render={<Link` first and double-check every match has `nativeButton`
+  set, don't assume a copied pattern already got it right.
 - **`Select` needs an explicit `items` prop** (`Record<value, label>` or an
   array of `{value, label}`) whenever a value's raw string differs from its
   displayed label (e.g. a preset key like `"this-month"` displayed as
@@ -170,6 +175,26 @@ unsure):
   wired into `sales`/`documents`/`payments` or `src/lib/hst.ts` anywhere -
   it's for job cost analysis only, kept fully separate from the tax
   module (see "Tax logic" below).
+- `services` - name, `default_price`, `color` (hex, auto-assigned
+  round-robin from `SERVICE_COLOR_PALETTE` in `src/lib/service-colors.ts`
+  at creation, editable after), `is_active`.
+- `stylists` - name, `is_active`, `pay_type`
+  (`'commission' | 'hourly' | 'salary'` - not currently read by any logic,
+  `commission_rate` alone drives `commission_owed`; it's a forward-compat
+  field), `commission_rate` as a **fraction** (0.15 = 15%, not 15) so
+  `commission_owed` below stays a direct multiply.
+- `commission_entries` - one row per logged transaction. `service_name` +
+  `price_charged` + `commission_rate_applied` are all snapshotted at entry
+  time (same reasoning as `document_items`) - editing a service's price or
+  a stylist's rate later never rewrites historical entries.
+  `commission_owed` is a **generated column**
+  (`round(price_charged * commission_rate_applied, 2)`, stored), same
+  never-drifts guarantee as `hour_entries.labor_cost`. No separate
+  "work date" field like `hour_entries.work_date` - entries are created in
+  real time at the moment of the tap, so `created_at` is already the
+  transaction timestamp. Same tax boundary as `labor_cost`: never wired
+  into `sales`/`documents`/`payments`/`src/lib/hst.ts` anywhere - this is
+  for commission payout tracking only.
 
 RLS pattern throughout: `auth.uid() = user_id`. Storage buckets
 (`receipts`, `logos`) are private; access via `createSignedUrl`, never a
@@ -184,7 +209,8 @@ Pro-gating for API routes goes through `requireProUser()` in
 `src/lib/require-pro.ts` - use it for anything under `/api/clients`,
 `/api/documents` (including the nested `/payments` routes),
 `/api/profile/logo`, `/api/profile/business`, `/api/jobs`,
-`/api/employees`, `/api/hours`.
+`/api/employees`, `/api/hours`, `/api/services`, `/api/stylists`,
+`/api/commission-entries`.
 
 ## Receipt parsing
 
@@ -355,12 +381,84 @@ job-name sync trigger.
   `<input list>`/`<datalist>` - that native pattern doesn't render as an
   actual dropdown on most mobile browsers, it just looks like a plain
   text box with nothing to pick from.
-- `DashboardHeader`'s top nav (Estimates/Invoices/Jobs) takes an optional
-  `active` prop that highlights the current tab
+- `DashboardHeader`'s top nav (Estimates/Invoices/Jobs/Commission) takes an
+  optional `active` prop that highlights the current tab
   (`variant={active === X ? "default" : "outline"}`) - pass it from every
   page under that section (Jobs/Employees/Hours all pass `active="jobs"`
-  since they share one tab). `/dashboard` itself passes no `active`, so
+  since they share one tab, same idea for Commission's four pages passing
+  `active="commission"`). `/dashboard` itself passes no `active`, so
   nothing is highlighted there.
+
+## Commission tracking (per-stylist)
+
+Fully separate from job costing above - `stylists` are commission-based
+service providers, not hourly `employees`. Same Pro-gating, same
+owner-only entry (no stylist login), same tax boundary
+(`commission_owed` never touches `sales`/`documents`/`payments`/`hst.ts`).
+
+- `/dashboard/commission` is the front-counter logging screen
+  (`CommissionLogger`): tap a color-coded service card, then a stylist
+  card, and the entry saves **immediately** on the stylist tap - no
+  confirmation step, by design (this is meant to be a fast 2-tap flow at
+  a real counter). A toast with an Undo action follows, alongside a small
+  auto-focused "Customer name" field with no submit button - it PATCHes
+  whatever's typed after a fixed `CAPTURE_DURATION_MS` (5s) timer that
+  does *not* reset on typing, and only one capture is ever open at a time
+  (a second entry logged mid-capture commits the first's typed-so-far
+  text immediately rather than stacking multiple open captures). The
+  pending entry id and typed text are both tracked in **refs**
+  (`pendingEntryIdRef`/`customerNameRef`), not just the state used for
+  rendering - `setPendingEntryId(entryId)` doesn't take effect
+  synchronously, so a `setTimeout` scheduled right after calling it would
+  otherwise close over the *previous* render's id (often `null`), silently
+  dropping the customer-name PATCH. This was a real bug caught during
+  manual testing, not a hypothetical.
+- `price_charged`/`commission_rate_applied` are looked up **server-side**
+  from the service/stylist rows at save time
+  (`POST /api/commission-entries`), never trusted from the client - there's
+  no editable step in this flow to tamper with anyway, and it guarantees
+  the snapshot reflects what was actually on file at the moment of the tap.
+- `/dashboard/commission/services` and `/dashboard/commission/stylists`
+  are standard add/edit/deactivate management screens
+  (`ServiceList`/`StylistList`), same shape as `EmployeeList`.
+- `/dashboard/commission/reports` (`CommissionReports`) reuses
+  `DateRangeFilter`/`src/lib/date-range.ts` for the range picker - that
+  shared file gained `"today"` and `"this-week"` presets for this feature
+  (previously only month/quarter/year/all-time/custom existed), so it now
+  benefits any other date filter in the app too. Date-range filtering for
+  this report happens **server-side** in `GET /api/commission-entries`
+  (`?stylist_id=&from=&to=`), not via the client-side `filterByRange`
+  helper used elsewhere - `commission_entries.created_at` is a
+  `timestamptz`, and comparing that against a bare `YYYY-MM-DD` upper
+  bound string would silently exclude anything logged later in the last
+  day of the range (`"2026-08-31T23:59:59Z" > "2026-08-31"` as a plain
+  string compare), so the route uses an exclusive `< nextDay` bound
+  instead. That component's `useEffect` **always** refetches on mount, not
+  just on filter changes - an earlier version skipped the fetch when
+  landing with the default filter (relying on the server-rendered
+  `initialEntries` alone), which showed stale totals when navigating here
+  via the in-app nav right after logging new entries on the Log tab (the
+  single most common way to reach this page) - Next's client-side router
+  cache can serve an old RSC payload from an earlier visit in the same
+  session, and nothing was forcing a correction.
+- PDF/share generation for the per-stylist report reuses the *same*
+  drawing primitives as `generateDocumentPdf` (invoices/estimates), not a
+  parallel PDF system - `drawPdfHeader`/`drawTableHeader`/`drawTableRow`/
+  `drawTotalsBlock` were extracted from `invoice-pdf.ts` into exported
+  helpers that both `generateDocumentPdf` and the new
+  `generateCommissionReportPdf` build on. Likewise, the mobile-vs-desktop
+  share/download/email device check was extracted from
+  `share-document-button.tsx` into `src/lib/share-capability.ts`, shared
+  by both that component and the new `CommissionReportShareButtons`.
+- **No offline write queue exists anywhere in this app** (checked
+  `public/sw.js` directly - it explicitly bypasses every non-GET request
+  and everything under `/api/*`). A dropped connection at the moment of
+  the stylist tap just fails the `fetch()` with no retry/queue. The
+  logger keeps the failed state on screen with a Retry toast action
+  rather than silently resetting to the service grid, so a failed save
+  doesn't look like it worked - but building a real offline outbox
+  (IndexedDB + background sync) was deliberately treated as separate
+  future scope, not bundled into this feature.
 
 ## Auth
 

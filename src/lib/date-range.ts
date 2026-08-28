@@ -1,4 +1,6 @@
 export type RangePreset =
+  | "today"
+  | "this-week"
   | "this-month"
   | "last-month"
   | "this-quarter"
@@ -21,7 +23,17 @@ function lastDayOfMonth(year: number, monthIndex: number): Date {
   return new Date(year, monthIndex + 1, 0);
 }
 
+// Sunday-start week, matching the en-US locale convention used everywhere
+// else in this file's date formatting.
+function startOfWeek(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+
 export const RANGE_PRESET_LABELS: Record<RangePreset, string> = {
+  today: "Today",
+  "this-week": "This Week",
   "this-month": "This Month",
   "last-month": "Last Month",
   "this-quarter": "This Quarter",
@@ -36,6 +48,16 @@ export function getPresetRange(preset: RangePreset): DateRange {
   const month = now.getMonth();
 
   switch (preset) {
+    case "today": {
+      const today = toIsoDate(now);
+      return { start: today, end: today };
+    }
+    case "this-week": {
+      const start = startOfWeek(now);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return { start: toIsoDate(start), end: toIsoDate(end) };
+    }
     case "this-month":
       return {
         start: toIsoDate(new Date(year, month, 1)),
@@ -75,6 +97,10 @@ function formatDateLabel(iso: string): string {
 
 export function describeRange(preset: RangePreset, range: DateRange): string {
   if (preset === "all-time") return "All Time";
+  if (preset === "today" && range.start) return formatDateLabel(range.start);
+  if (preset === "this-week" && range.start && range.end) {
+    return `${formatDateLabel(range.start)} – ${formatDateLabel(range.end)}`;
+  }
 
   if (preset === "this-month" || preset === "last-month") {
     const iso = range.start ?? toIsoDate(new Date());

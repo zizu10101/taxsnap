@@ -70,7 +70,9 @@ export default async function EmployeesPage() {
                 Upgrade to the Pro plan ($29/mo) to track employees, log
                 hours, and see true per-job costs.
               </p>
-              <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
+              <Button nativeButton={false} render={<Link href="/billing" />}>
+                Upgrade to Pro
+              </Button>
             </CardContent>
           </Card>
         )}

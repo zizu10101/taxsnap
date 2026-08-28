@@ -6,14 +6,15 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { HoursList } from "@/components/hours/hours-list";
-import type { HourEntryWithRelations } from "@/lib/database.types";
+import { CommissionReports } from "@/components/commission/commission-reports";
+import { getPresetRange } from "@/lib/date-range";
+import type { CommissionEntryWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
-  title: "Hours — TaxSnap",
+  title: "Commission Reports — TaxSnap",
 };
 
-export default async function HoursPage() {
+export default async function CommissionReportsPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,29 +24,33 @@ export default async function HoursPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status")
+    .select(
+      "subscription_status, logo_url, business_name, business_address, business_phone, business_email",
+    )
     .eq("id", user.id)
     .single();
 
   const isPro = profile?.subscription_status === "pro";
 
-  const [{ data: entries }, { data: employees }, { data: jobs }] = isPro
+  const defaultRange = getPresetRange("this-month");
+
+  const [{ data: stylists }, { data: entries }] = isPro
     ? await Promise.all([
+        supabase.from("stylists").select("*").order("name", { ascending: true }),
         supabase
-          .from("hour_entries")
-          .select("*, employee:employees(*), job:jobs(*)")
-          .order("work_date", { ascending: false }),
-        supabase.from("employees").select("*").order("name", { ascending: true }),
-        supabase.from("jobs").select("*").order("name", { ascending: true }),
+          .from("commission_entries")
+          .select("*, stylist:stylists(*), service:services(*)")
+          .gte("created_at", defaultRange.start ?? "1970-01-01")
+          .order("created_at", { ascending: false }),
       ])
-    : [{ data: null }, { data: null }, { data: null }];
+    : [{ data: null }, { data: null }];
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
-        active="jobs"
+        active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
         <Link
@@ -57,17 +62,23 @@ export default async function HoursPage() {
         </Link>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Hours</h1>
+          <h1 className="text-2xl font-bold">Commission Reports</h1>
           <p className="text-muted-foreground">
-            Log hours worked per employee, per job.
+            Per-stylist and all-stylists commission totals.
           </p>
         </div>
 
         {isPro ? (
-          <HoursList
-            initialEntries={(entries ?? []) as HourEntryWithRelations[]}
-            initialEmployees={employees ?? []}
-            initialJobs={jobs ?? []}
+          <CommissionReports
+            stylists={stylists ?? []}
+            initialEntries={(entries ?? []) as CommissionEntryWithRelations[]}
+            business={{
+              name: profile?.business_name ?? null,
+              email: profile?.business_email || user.email || "",
+              phone: profile?.business_phone ?? null,
+              address: profile?.business_address ?? null,
+            }}
+            logoPath={profile?.logo_url ?? null}
           />
         ) : (
           <Card>
@@ -75,10 +86,10 @@ export default async function HoursPage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <Lock className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="font-medium">Hour tracking is a Pro feature</p>
+              <p className="font-medium">Commission tracking is a Pro feature</p>
               <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to log employee hours and
-                see true per-job labor cost.
+                Upgrade to the Pro plan ($29/mo) to log and report per-stylist
+                commissions.
               </p>
               <Button nativeButton={false} render={<Link href="/billing" />}>
                 Upgrade to Pro

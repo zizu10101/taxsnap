@@ -96,7 +96,9 @@ export default async function InvoicesPage({
                 Upgrade to the Pro plan ($29/mo) to create invoices and
                 estimates, manage clients, and track payment status.
               </p>
-              <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
+              <Button nativeButton={false} render={<Link href="/billing" />}>
+                Upgrade to Pro
+              </Button>
             </CardContent>
           </Card>
         )}

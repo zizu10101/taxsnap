@@ -6,14 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { HoursList } from "@/components/hours/hours-list";
-import type { HourEntryWithRelations } from "@/lib/database.types";
+import { ServiceList } from "@/components/commission/service-list";
 
 export const metadata: Metadata = {
-  title: "Hours — TaxSnap",
+  title: "Services — TaxSnap",
 };
 
-export default async function HoursPage() {
+export default async function ServicesPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,23 +28,16 @@ export default async function HoursPage() {
 
   const isPro = profile?.subscription_status === "pro";
 
-  const [{ data: entries }, { data: employees }, { data: jobs }] = isPro
-    ? await Promise.all([
-        supabase
-          .from("hour_entries")
-          .select("*, employee:employees(*), job:jobs(*)")
-          .order("work_date", { ascending: false }),
-        supabase.from("employees").select("*").order("name", { ascending: true }),
-        supabase.from("jobs").select("*").order("name", { ascending: true }),
-      ])
-    : [{ data: null }, { data: null }, { data: null }];
+  const { data: services } = isPro
+    ? await supabase.from("services").select("*").order("name", { ascending: true })
+    : { data: null };
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
-        active="jobs"
+        active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
         <Link
@@ -57,28 +49,24 @@ export default async function HoursPage() {
         </Link>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Hours</h1>
+          <h1 className="text-2xl font-bold">Services</h1>
           <p className="text-muted-foreground">
-            Log hours worked per employee, per job.
+            Manage the services stylists can log commission against.
           </p>
         </div>
 
         {isPro ? (
-          <HoursList
-            initialEntries={(entries ?? []) as HourEntryWithRelations[]}
-            initialEmployees={employees ?? []}
-            initialJobs={jobs ?? []}
-          />
+          <ServiceList initialServices={services ?? []} />
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <Lock className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="font-medium">Hour tracking is a Pro feature</p>
+              <p className="font-medium">Commission tracking is a Pro feature</p>
               <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to log employee hours and
-                see true per-job labor cost.
+                Upgrade to the Pro plan ($29/mo) to log and report per-stylist
+                commissions.
               </p>
               <Button nativeButton={false} render={<Link href="/billing" />}>
                 Upgrade to Pro

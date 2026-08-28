@@ -1,19 +1,29 @@
 import { jsPDF } from "jspdf";
-import type { DocumentWithRelations } from "@/lib/database.types";
+import type { DocumentWithRelations, CommissionEntryWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
-function formatCurrency(amount: number) {
+export function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(amount);
 }
 
-function formatDate(dateStr: string) {
+export function formatDate(dateStr: string) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+  });
+}
+
+export function formatDateTime(isoStr: string) {
+  return new Date(isoStr).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -28,20 +38,25 @@ function loadImageDimensions(
   });
 }
 
-// Renders the same data shown on the on-screen detail view into a simple,
-// print-ready PDF, laid out by hand (no table plugin) since the column
-// layout is fixed and the item counts are small.
-export async function generateDocumentPdf(
-  doc: DocumentWithRelations,
-  business: BusinessInfo,
-  logoDataUrl: string | null,
-): Promise<Blob> {
-  const pdf = new jsPDF({ unit: "pt", format: "letter" });
-  const marginX = 48;
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const rightX = pageWidth - marginX;
-  let y = 56;
+export const PDF_MARGIN_X = 48;
 
+export function newPdf() {
+  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  return { pdf, marginX: PDF_MARGIN_X, rightX: pageWidth - PDF_MARGIN_X };
+}
+
+// Shared masthead: logo (if any) + a big bold label + a muted sub-label
+// underneath it (an invoice number, a report's date range, etc.) - the one
+// visual element every generated PDF in this app opens with.
+export async function drawPdfHeader(
+  pdf: jsPDF,
+  marginX: number,
+  y: number,
+  label: string,
+  subLabel: string,
+  logoDataUrl: string | null,
+): Promise<number> {
   if (logoDataUrl) {
     try {
       const { width, height } = await loadImageDimensions(logoDataUrl);
@@ -54,16 +69,110 @@ export async function generateDocumentPdf(
     }
   }
 
-  const label = doc.type === "invoice" ? "INVOICE" : "ESTIMATE";
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(22);
   pdf.text(label, marginX, y);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
   pdf.setTextColor(120);
-  pdf.text(`#${doc.id.slice(0, 8).toUpperCase()}`, marginX, y + 16);
+  pdf.text(subLabel, marginX, y + 16);
   pdf.setTextColor(0);
-  y += 44;
+  return y + 44;
+}
+
+export interface PdfColumn {
+  label: string;
+  x: number;
+  align: "left" | "right";
+  maxWidth?: number;
+}
+
+// Generic itemized-table header row + rule, shared by any document made of
+// columns/rows (invoice line items, commission report transactions).
+export function drawTableHeader(
+  pdf: jsPDF,
+  marginX: number,
+  rightX: number,
+  y: number,
+  columns: PdfColumn[],
+): number {
+  pdf.setFontSize(9);
+  pdf.setTextColor(120);
+  for (const col of columns) {
+    pdf.text(col.label, col.x, y, col.align === "right" ? { align: "right" } : undefined);
+  }
+  pdf.setTextColor(0);
+  y += 8;
+  pdf.setDrawColor(210);
+  pdf.line(marginX, y, rightX, y);
+  return y + 18;
+}
+
+export function drawTableRow(
+  pdf: jsPDF,
+  y: number,
+  columns: PdfColumn[],
+  values: string[],
+): number {
+  pdf.setFontSize(10);
+  columns.forEach((col, i) => {
+    pdf.text(values[i] ?? "", col.x, y, {
+      ...(col.align === "right" ? { align: "right" as const } : {}),
+      ...(col.maxWidth ? { maxWidth: col.maxWidth } : {}),
+    });
+  });
+  return y + 20;
+}
+
+// Shared totals block: right-aligned label/value rows ending in one bold
+// "grand total" row - used for an invoice's Subtotal/HST/Total and a
+// commission report's Transactions/Revenue/Commission Owed alike.
+export function drawTotalsBlock(
+  pdf: jsPDF,
+  rightX: number,
+  y: number,
+  rows: { label: string; value: string; bold?: boolean }[],
+): number {
+  const labelX = rightX - 140;
+  for (const row of rows) {
+    if (row.bold) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(13);
+      pdf.text(row.label, labelX, y, { align: "right" });
+      pdf.text(row.value, rightX, y, { align: "right" });
+      pdf.setFont("helvetica", "normal");
+    } else {
+      pdf.setFontSize(10);
+      pdf.setTextColor(120);
+      pdf.text(row.label, labelX, y, { align: "right" });
+      pdf.setTextColor(0);
+      pdf.text(row.value, rightX, y, { align: "right" });
+    }
+    y += row.bold ? 20 : 16;
+  }
+  return y;
+}
+
+// Renders the same data shown on the on-screen detail view into a simple,
+// print-ready PDF, laid out by hand (no table plugin) since the column
+// layout is fixed and the item counts are small.
+export async function generateDocumentPdf(
+  doc: DocumentWithRelations,
+  business: BusinessInfo,
+  logoDataUrl: string | null,
+): Promise<Blob> {
+  const { pdf, marginX, rightX } = newPdf();
+  let y = 56;
+
+  const label = doc.type === "invoice" ? "INVOICE" : "ESTIMATE";
+  y = await drawPdfHeader(
+    pdf,
+    marginX,
+    y,
+    label,
+    `#${doc.id.slice(0, 8).toUpperCase()}`,
+    logoDataUrl,
+  );
 
   const colWidth = (rightX - marginX) / 2;
   pdf.setFontSize(9);
@@ -111,56 +220,107 @@ export async function generateDocumentPdf(
   pdf.line(marginX, y, rightX, y);
   y += 20;
 
-  const col = {
-    desc: marginX,
-    qty: rightX - 220,
-    price: rightX - 140,
-  };
+  const columns: PdfColumn[] = [
+    { label: "DESCRIPTION", x: marginX, align: "left", maxWidth: rightX - 220 - marginX - 12 },
+    { label: "QTY", x: rightX - 220, align: "right" },
+    { label: "UNIT PRICE", x: rightX - 140, align: "right" },
+    { label: "AMOUNT", x: rightX, align: "right" },
+  ];
+  y = drawTableHeader(pdf, marginX, rightX, y, columns);
 
-  pdf.setFontSize(9);
-  pdf.setTextColor(120);
-  pdf.text("DESCRIPTION", col.desc, y);
-  pdf.text("QTY", col.qty, y, { align: "right" });
-  pdf.text("UNIT PRICE", col.price, y, { align: "right" });
-  pdf.text("AMOUNT", rightX, y, { align: "right" });
-  pdf.setTextColor(0);
-  y += 8;
-  pdf.line(marginX, y, rightX, y);
-  y += 18;
-
-  pdf.setFontSize(10);
   for (const item of doc.items) {
-    pdf.text(item.description, col.desc, y, { maxWidth: col.qty - col.desc - 12 });
-    pdf.text(String(item.quantity), col.qty, y, { align: "right" });
-    pdf.text(formatCurrency(item.unit_price), col.price, y, { align: "right" });
-    pdf.text(formatCurrency(item.quantity * item.unit_price), rightX, y, {
-      align: "right",
-    });
-    y += 20;
+    y = drawTableRow(pdf, y, columns, [
+      item.description,
+      String(item.quantity),
+      formatCurrency(item.unit_price),
+      formatCurrency(item.quantity * item.unit_price),
+    ]);
   }
 
   y += 6;
   pdf.line(marginX, y, rightX, y);
   y += 20;
 
-  const totalsLabelX = rightX - 140;
-  pdf.setFontSize(10);
-  pdf.setTextColor(120);
-  pdf.text("Subtotal", totalsLabelX, y, { align: "right" });
-  pdf.setTextColor(0);
-  pdf.text(formatCurrency(doc.subtotal), rightX, y, { align: "right" });
-  y += 16;
+  drawTotalsBlock(pdf, rightX, y, [
+    { label: "Subtotal", value: formatCurrency(doc.subtotal) },
+    { label: "HST (13%)", value: formatCurrency(doc.hst_amount) },
+    { label: "Total", value: formatCurrency(doc.total_amount), bold: true },
+  ]);
 
+  return pdf.output("blob");
+}
+
+// Per-stylist commission report - same visual system as
+// generateDocumentPdf above (header/logo, itemized table, totals block),
+// built from the same shared drawing helpers rather than a parallel PDF
+// system.
+export async function generateCommissionReportPdf(
+  stylistName: string,
+  rangeLabel: string,
+  entries: CommissionEntryWithRelations[],
+  business: BusinessInfo,
+  logoDataUrl: string | null,
+): Promise<Blob> {
+  const { pdf, marginX, rightX } = newPdf();
+  let y = 56;
+
+  y = await drawPdfHeader(
+    pdf,
+    marginX,
+    y,
+    "COMMISSION REPORT",
+    `${stylistName} — ${rangeLabel}`,
+    logoDataUrl,
+  );
+
+  pdf.setFontSize(9);
   pdf.setTextColor(120);
-  pdf.text("HST (13%)", totalsLabelX, y, { align: "right" });
+  pdf.text(business.name ?? "", marginX, y);
   pdf.setTextColor(0);
-  pdf.text(formatCurrency(doc.hst_amount), rightX, y, { align: "right" });
+  y += 24;
+
+  const columns: PdfColumn[] = [
+    { label: "DATE", x: marginX, align: "left" },
+    {
+      label: "SERVICE",
+      x: marginX + 90,
+      align: "left",
+      maxWidth: rightX - 220 - marginX - 90 - 12,
+    },
+    { label: "CUSTOMER", x: rightX - 220, align: "left", maxWidth: 100 },
+    { label: "PRICE", x: rightX - 100, align: "right" },
+    { label: "COMMISSION", x: rightX, align: "right" },
+  ];
+  y = drawTableHeader(pdf, marginX, rightX, y, columns);
+
+  let totalRevenue = 0;
+  let totalCommission = 0;
+  for (const entry of entries) {
+    if (y > 720) {
+      pdf.addPage();
+      y = 56;
+      y = drawTableHeader(pdf, marginX, rightX, y, columns);
+    }
+    totalRevenue += entry.price_charged;
+    totalCommission += entry.commission_owed;
+    y = drawTableRow(pdf, y, columns, [
+      formatDateTime(entry.created_at),
+      entry.service_name,
+      entry.customer_name ?? "—",
+      formatCurrency(entry.price_charged),
+      formatCurrency(entry.commission_owed),
+    ]);
+  }
+
+  y += 6;
+  pdf.line(marginX, y, rightX, y);
   y += 20;
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(13);
-  pdf.text("Total", totalsLabelX, y, { align: "right" });
-  pdf.text(formatCurrency(doc.total_amount), rightX, y, { align: "right" });
+  drawTotalsBlock(pdf, rightX, y, [
+    { label: "Transactions", value: String(entries.length) },
+    { label: "Revenue", value: formatCurrency(totalRevenue) },
+    { label: "Commission Owed", value: formatCurrency(totalCommission), bold: true },
+  ]);
 
   return pdf.output("blob");
 }

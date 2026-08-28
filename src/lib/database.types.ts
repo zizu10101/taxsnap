@@ -5,6 +5,7 @@
 export type SubscriptionStatus = "free" | "basic" | "pro";
 export type DocumentType = "invoice" | "estimate";
 export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
+export type PayType = "commission" | "hourly" | "salary";
 
 export interface ReceiptItem {
   name: string;
@@ -371,6 +372,118 @@ export interface Database {
           },
         ];
       };
+      services: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          default_price: number;
+          color: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          default_price?: number;
+          color: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          default_price?: number;
+          color?: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      stylists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          is_active: boolean;
+          pay_type: PayType;
+          commission_rate: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          is_active?: boolean;
+          pay_type?: PayType;
+          commission_rate?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          is_active?: boolean;
+          pay_type?: PayType;
+          commission_rate?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      commission_entries: {
+        Row: {
+          id: string;
+          user_id: string;
+          stylist_id: string;
+          service_id: string | null;
+          service_name: string;
+          customer_name: string | null;
+          price_charged: number;
+          commission_rate_applied: number;
+          commission_owed: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          stylist_id: string;
+          service_id?: string | null;
+          service_name: string;
+          customer_name?: string | null;
+          price_charged: number;
+          commission_rate_applied: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          stylist_id?: string;
+          service_id?: string | null;
+          service_name?: string;
+          customer_name?: string | null;
+          price_charged?: number;
+          commission_rate_applied?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "commission_entries_stylist_id_fkey";
+            columns: ["stylist_id"];
+            isOneToOne: false;
+            referencedRelation: "stylists";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "commission_entries_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sales: {
         Row: {
           id: string;
@@ -423,6 +536,18 @@ export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
 export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];
 export type HourEntryUpdate = Database["public"]["Tables"]["hour_entries"]["Update"];
+export type Service = Database["public"]["Tables"]["services"]["Row"];
+export type ServiceUpdate = Database["public"]["Tables"]["services"]["Update"];
+export type Stylist = Database["public"]["Tables"]["stylists"]["Row"];
+export type StylistUpdate = Database["public"]["Tables"]["stylists"]["Update"];
+export type CommissionEntry = Database["public"]["Tables"]["commission_entries"]["Row"];
+export type CommissionEntryUpdate =
+  Database["public"]["Tables"]["commission_entries"]["Update"];
+
+export interface CommissionEntryWithRelations extends CommissionEntry {
+  stylist: Stylist;
+  service: Service | null;
+}
 
 export interface DocumentWithClient extends InvoiceDocument {
   client: Client | null;

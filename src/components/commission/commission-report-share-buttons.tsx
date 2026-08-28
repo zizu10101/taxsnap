@@ -5,17 +5,10 @@ import { Download, Loader2, Mail, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { generateDocumentPdf } from "@/lib/invoice-pdf";
+import { generateCommissionReportPdf } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
-import type { DocumentWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-}
+import type { CommissionEntryWithRelations } from "@/lib/database.types";
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,25 +30,16 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-async function buildPdf(document: DocumentWithRelations, business: BusinessInfo, logoPath: string | null) {
-  let logoDataUrl: string | null = null;
-  if (logoPath) {
-    const supabase = createClient();
-    const { data } = await supabase.storage.from("logos").createSignedUrl(logoPath, 60);
-    if (data) {
-      const resp = await fetch(data.signedUrl);
-      logoDataUrl = await blobToDataUrl(await resp.blob());
-    }
-  }
-  return generateDocumentPdf(document, business, logoDataUrl);
-}
-
-export function ShareDocumentButton({
-  document,
+export function CommissionReportShareButtons({
+  stylistName,
+  rangeLabel,
+  entries,
   business,
   logoPath,
 }: {
-  document: DocumentWithRelations;
+  stylistName: string;
+  rangeLabel: string;
+  entries: CommissionEntryWithRelations[];
   business: BusinessInfo;
   logoPath: string | null;
 }) {
@@ -63,27 +47,28 @@ export function ShareDocumentButton({
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  const label = document.type === "invoice" ? "Invoice" : "Estimate";
-  const shortId = document.id.slice(0, 8).toUpperCase();
+  const filename = `Commission-${stylistName.replace(/\s+/g, "-")}.pdf`;
 
-  // Uses the Web Share API so the PDF hands off to whatever the user picks
-  // in their own device's native share sheet (WhatsApp, Messages, Mail,
-  // etc.) - there's no way to attach a generated file to a
-  // `mailto:`/`wa.me` link directly, so this is the only path that
-  // actually attaches the file rather than just a text link.
+  async function buildPdf() {
+    let logoDataUrl: string | null = null;
+    if (logoPath) {
+      const supabase = createClient();
+      const { data } = await supabase.storage.from("logos").createSignedUrl(logoPath, 60);
+      if (data) {
+        const resp = await fetch(data.signedUrl);
+        logoDataUrl = await blobToDataUrl(await resp.blob());
+      }
+    }
+    return generateCommissionReportPdf(stylistName, rangeLabel, entries, business, logoDataUrl);
+  }
+
   async function handleShare() {
     setSharing(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath);
-      const filename = `${label}-${shortId}.pdf`;
+      const pdfBlob = await buildPdf();
       const file = new File([pdfBlob], filename, { type: "application/pdf" });
-
-      await navigator.share({
-        files: [file],
-        title: `${label} ${document.client?.name ? `for ${document.client.name}` : ""}`,
-      });
+      await navigator.share({ files: [file], title: `Commission report for ${stylistName}` });
     } catch (err) {
-      // The user closing the native share sheet throws AbortError - not a real failure.
       if (err instanceof Error && err.name === "AbortError") return;
       toast.error(err instanceof Error ? err.message : "Failed to share");
     } finally {
@@ -94,8 +79,8 @@ export function ShareDocumentButton({
   async function handleDownload() {
     setDownloading(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath);
-      downloadBlob(`${label}-${shortId}.pdf`, pdfBlob);
+      const pdfBlob = await buildPdf();
+      downloadBlob(filename, pdfBlob);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     } finally {
@@ -103,24 +88,10 @@ export function ShareDocumentButton({
     }
   }
 
-  // mailto: can't carry an attachment, so this is a plain email draft -
-  // the toast nudges the user toward the separate Download PDF button
-  // sitting right next to it.
   function handleEmail() {
-    const to = document.client?.email ?? "";
-    const subject = `${label} #${shortId} from ${business.name ?? "us"}`;
-    const body = [
-      `Hi ${document.client?.name ?? "there"},`,
-      "",
-      `Please find your ${label.toLowerCase()} #${shortId} attached.`,
-      "",
-      `Total: ${formatCurrency(document.total_amount)}`,
-      "",
-      `Thanks,`,
-      business.name ?? "",
-    ].join("\n");
-
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const subject = `Commission report — ${stylistName} — ${rangeLabel}`;
+    const body = `Hi,\n\nAttached is the commission report for ${stylistName} (${rangeLabel}).\n\nThanks,\n${business.name ?? ""}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     toast.info("Don't forget to attach the PDF - use “Download PDF” and add it to the email.");
   }
 

@@ -68,7 +68,9 @@ export default async function JobsPage() {
                 Upgrade to the Pro plan ($29/mo) to see true per-job cost
                 across expenses and labor.
               </p>
-              <Button render={<Link href="/billing" />}>Upgrade to Pro</Button>
+              <Button nativeButton={false} render={<Link href="/billing" />}>
+                Upgrade to Pro
+              </Button>
             </CardContent>
           </Card>
         )}

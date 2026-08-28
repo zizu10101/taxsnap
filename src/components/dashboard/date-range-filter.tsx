@@ -17,6 +17,8 @@ import {
 } from "@/lib/date-range";
 
 const PRESET_ORDER: RangePreset[] = [
+  "today",
+  "this-week",
   "this-month",
   "last-month",
   "this-quarter",
