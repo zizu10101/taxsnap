@@ -32,14 +32,19 @@ export default function Home() {
           <img src="/logo-mark.png" alt="" className="h-7 w-7" />
           TaxSnap
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/auth" />}
-        >
-          Sign in
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/auth" />}
+          >
+            Sign in
+          </Button>
+          <Button size="sm" nativeButton={false} render={<Link href="/auth" />}>
+            Get Started
+          </Button>
+        </div>
       </header>
 
       <section className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-10 px-4 py-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-16">
@@ -186,6 +191,12 @@ export default function Home() {
                   {plan.description}
                 </p>
                 <p className="text-3xl font-bold">{plan.price}</p>
+                {plan.tier === "pro" && (
+                  <p className="-mt-1 text-xs font-medium text-primary">
+                    See true profit per job — materials + labor,
+                    automatically.
+                  </p>
+                )}
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2">
@@ -208,6 +219,29 @@ export default function Home() {
       </section>
 
       <InstallPromptCards />
+
+      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
+        <div className="mx-auto max-w-4xl space-y-3 px-4">
+          <p>
+            Have questions? Reach us anytime at{" "}
+            <a
+              href="mailto:info@gettaxsnap.ca"
+              className="font-medium text-foreground underline hover:text-primary"
+            >
+              info@gettaxsnap.ca
+            </a>
+          </p>
+          <p className="mx-auto max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
+            TaxSnap is an independent bookkeeping organization tool. TaxSnap
+            is not affiliated with, endorsed by, or an official product of
+            any government tax authority. TaxSnap does not provide official
+            tax or accounting advice.
+          </p>
+          <p className="pt-2 text-muted-foreground/80">
+            © {new Date().getFullYear()} TaxSnap. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }
