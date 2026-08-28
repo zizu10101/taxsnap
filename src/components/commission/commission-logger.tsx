@@ -17,7 +17,7 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-const CAPTURE_DURATION_MS = 5000;
+const CAPTURE_DURATION_MS = 9000;
 
 export function CommissionLogger({
   initialServices,
@@ -30,12 +30,14 @@ export function CommissionLogger({
   const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
 
-  // A timeout fired at capture start (not reset by typing - "auto-dismisses
-  // after a few seconds whether or not something was typed") plus the
-  // latest typed value AND the entry id in refs, not state - setPendingEntryId
-  // doesn't update synchronously, so a setTimeout scheduled right after
-  // calling it would otherwise close over the *previous* render's
-  // pendingEntryId (often null), silently dropping the customer name PATCH.
+  // A timeout that resets on every keystroke - typing actively extends the
+  // window so someone mid-typing never gets cut off, it only fires
+  // CAPTURE_DURATION_MS after the *last* keystroke (or immediately at
+  // capture start if nothing is typed at all). The latest typed value AND
+  // the entry id are tracked in refs, not state - setPendingEntryId doesn't
+  // update synchronously, so a setTimeout scheduled right after calling it
+  // would otherwise close over the *previous* render's pendingEntryId
+  // (often null), silently dropping the customer name PATCH.
   const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customerNameRef = useRef("");
   const pendingEntryIdRef = useRef<string | null>(null);
@@ -107,7 +109,10 @@ export function CommissionLogger({
       startCapture(entry.id);
       toast.success(
         `Logged: ${entry.service_name} → ${stylist.name}, ${formatCurrency(entry.price_charged)}`,
-        { action: { label: "Undo", onClick: () => handleUndo(entry.id) } },
+        {
+          action: { label: "Undo", onClick: () => handleUndo(entry.id) },
+          duration: CAPTURE_DURATION_MS,
+        },
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to log entry", {
@@ -212,6 +217,8 @@ export function CommissionLogger({
             onChange={(e) => {
               setCustomerName(e.target.value);
               customerNameRef.current = e.target.value;
+              if (captureTimer.current) clearTimeout(captureTimer.current);
+              captureTimer.current = setTimeout(commitPendingCapture, CAPTURE_DURATION_MS);
             }}
           />
         </div>
