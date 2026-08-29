@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 // Not called by the current 3-tap logging flow (customer_name is set at
 // creation time now, see POST /api/commission-entries) - left in place as
@@ -23,7 +24,7 @@ export async function PATCH(
     .from("commission_entries")
     .update({ customer_name: customer_name?.trim() || null })
     .eq("id", id)
-    .select("*, stylist:stylists(*), service:services(*)")
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

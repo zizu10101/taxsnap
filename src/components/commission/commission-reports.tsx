@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -25,9 +26,11 @@ import {
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { CommissionNav } from "@/components/commission/commission-nav";
 import { CommissionReportShareButtons } from "@/components/commission/commission-report-share-buttons";
+import { MarkAsPaidDialog } from "@/components/commission/mark-as-paid-dialog";
+import { ConfirmPayoutDialog } from "@/components/commission/confirm-payout-dialog";
 import { getPresetRange, describeRange, type DateRange, type RangePreset } from "@/lib/date-range";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
-import type { CommissionEntryWithRelations, Stylist } from "@/lib/database.types";
+import type { CommissionEntryWithRelations, StylistPublic } from "@/lib/database.types";
 
 const ALL_STYLISTS = "__all__";
 type PaidFilter = "unpaid" | "paid";
@@ -54,7 +57,7 @@ export function CommissionReports({
   business,
   logoPath,
 }: {
-  stylists: Stylist[];
+  stylists: StylistPublic[];
   initialEntries: CommissionEntryWithRelations[];
   business: BusinessInfo;
   logoPath: string | null;
@@ -69,16 +72,27 @@ export function CommissionReports({
   const [paidFilter, setPaidFilter] = useState<PaidFilter>("unpaid");
   const [deleteTarget, setDeleteTarget] = useState<CommissionEntryWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [markPaidOpen, setMarkPaidOpen] = useState(false);
+  // Bumped every time the dialog is opened so it's keyed fresh each time
+  // (see MarkAsPaidDialog) - it's reused across stylists/opens otherwise,
+  // and it needs a real remount rather than an effect-driven reset.
+  const [markPaidKey, setMarkPaidKey] = useState(0);
+  // Unlike MarkAsPaidDialog (one persistent instance per selected stylist),
+  // ConfirmPayoutDialog is only ever mounted while a target exists - it
+  // naturally unmounts/remounts fresh on every open this way, no key needed.
+  const [confirmTarget, setConfirmTarget] = useState<{
+    payoutId: string;
+    stylist: StylistPublic;
+  } | null>(null);
+  const fetchTokenRef = useRef(0);
 
-  // Always refetches on mount too, not just on filter changes - relying on
-  // `initialEntries` alone risks showing stale totals, since Next's
-  // client-side router cache can serve an old RSC payload from an earlier
-  // visit to this page in the same session (e.g. right after logging new
-  // entries via the Log tab and clicking straight into Reports - the exact
-  // normal workflow this page exists for).
-  useEffect(() => {
-    let cancelled = false;
-
+  // A token guard rather than a boolean flag, so this same function can be
+  // called both from the filter-driven effect below and imperatively (e.g.
+  // after the Mark as Paid dialog creates/confirms a payout) without two
+  // in-flight calls racing each other and an older response clobbering a
+  // newer one.
+  const fetchEntries = useCallback(() => {
+    const token = ++fetchTokenRef.current;
     const params = new URLSearchParams();
     if (stylistId !== ALL_STYLISTS) {
       params.set("stylist_id", stylistId);
@@ -87,16 +101,22 @@ export function CommissionReports({
     if (range.start) params.set("from", range.start);
     if (range.end) params.set("to", range.end);
 
-    fetch(`/api/commission-entries?${params.toString()}`)
+    return fetch(`/api/commission-entries?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setEntries(data.entries ?? []);
+        if (fetchTokenRef.current === token) setEntries(data.entries ?? []);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [stylistId, range.start, range.end, paidFilter]);
+
+  // Always refetches on mount too, not just on filter changes - relying on
+  // `initialEntries` alone risks showing stale totals, since Next's
+  // client-side router cache can serve an old RSC payload from an earlier
+  // visit to this page in the same session (e.g. right after logging new
+  // entries via the Log tab and clicking straight into Reports - the exact
+  // normal workflow this page exists for).
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   const stylistSelectItems = useMemo(() => {
     const map: Record<string, string> = { [ALL_STYLISTS]: "All Stylists" };
@@ -127,6 +147,27 @@ export function CommissionReports({
   const rangeLabel = describeRange(preset, range);
   const commissionLabel =
     selectedStylist ? (paidFilter === "unpaid" ? "Owed" : "Paid") : "Commission owed";
+
+  // entries is already sorted created_at descending (see the API route), so
+  // the earliest unpaid entry - the natural start of "what's outstanding" -
+  // is the last item, not the first.
+  const earliestUnpaidDate =
+    paidFilter === "unpaid" && entries.length > 0
+      ? entries[entries.length - 1].created_at.slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+  // Updates the badge in place rather than refetching - we already know
+  // exactly what changed. A payout can link multiple entries, so every
+  // entry sharing this payout_id flips together.
+  function handlePayoutConfirmed(payoutId: string) {
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.payout?.id === payoutId
+          ? { ...e, payout: { ...e.payout, confirmed_by_stylist: true, confirmed_at: new Date().toISOString() } }
+          : e,
+      ),
+    );
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -210,6 +251,18 @@ export function CommissionReports({
         </CardContent>
       </Card>
 
+      {selectedStylist && paidFilter === "unpaid" && entries.length > 0 && (
+        <Button
+          className="w-full"
+          onClick={() => {
+            setMarkPaidKey((k) => k + 1);
+            setMarkPaidOpen(true);
+          }}
+        >
+          Mark as Paid
+        </Button>
+      )}
+
       {selectedStylist && (
         <div className="flex gap-2">
           <CommissionReportShareButtons
@@ -261,7 +314,33 @@ export function CommissionReports({
               <Card key={entry.id}>
                 <CardContent className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{entry.service_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{entry.service_name}</p>
+                      {paidFilter === "paid" &&
+                        (entry.payout?.confirmed_by_stylist ? (
+                          <Badge className="border-success/30 bg-success/10 text-success">
+                            Confirmed
+                          </Badge>
+                        ) : (
+                          <>
+                            <Badge variant="outline">Unconfirmed</Badge>
+                            {entry.payout && (
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() =>
+                                  setConfirmTarget({
+                                    payoutId: entry.payout!.id,
+                                    stylist: entry.stylist,
+                                  })
+                                }
+                              >
+                                Confirm
+                              </Button>
+                            )}
+                          </>
+                        ))}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {entry.customer_name ? `${entry.customer_name} · ` : ""}
                       {formatDateTime(entry.created_at)}
@@ -320,6 +399,27 @@ export function CommissionReports({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedStylist && (
+        <MarkAsPaidDialog
+          key={markPaidKey}
+          open={markPaidOpen}
+          onOpenChange={setMarkPaidOpen}
+          stylist={selectedStylist}
+          defaultRangeStart={earliestUnpaidDate}
+          onDone={fetchEntries}
+        />
+      )}
+
+      {confirmTarget && (
+        <ConfirmPayoutDialog
+          open
+          onOpenChange={(open) => !open && setConfirmTarget(null)}
+          stylist={confirmTarget.stylist}
+          payoutId={confirmTarget.payoutId}
+          onConfirmed={() => handlePayoutConfirmed(confirmTarget.payoutId)}
+        />
+      )}
     </div>
   );
 }

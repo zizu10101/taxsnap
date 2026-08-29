@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 function nextDayIso(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("commission_entries")
-    .select("*, stylist:stylists(*), service:services(*)")
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
     // Soft-deleted entries are never included in any normal view -
     // there's no "trash" view built, so deleted just means gone here.
     .eq("is_deleted", false)
@@ -68,7 +69,12 @@ export async function POST(request: Request) {
   }
 
   const [{ data: stylist }, { data: service }] = await Promise.all([
-    supabase.from("stylists").select("*").eq("id", stylist_id).eq("user_id", user.id).single(),
+    supabase
+      .from("stylists")
+      .select(STYLIST_PUBLIC_COLUMNS)
+      .eq("id", stylist_id)
+      .eq("user_id", user.id)
+      .single(),
     supabase.from("services").select("*").eq("id", service_id).eq("user_id", user.id).single(),
   ]);
 
@@ -86,7 +92,7 @@ export async function POST(request: Request) {
       price_charged: service.default_price,
       commission_rate_applied: stylist.commission_rate,
     })
-    .select("*, stylist:stylists(*), service:services(*)")
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

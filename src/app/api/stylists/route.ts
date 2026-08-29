@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import type { PayType } from "@/lib/database.types";
 
 const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
@@ -13,7 +14,7 @@ export async function GET() {
 
   const { data, error } = await result.supabase
     .from("stylists")
-    .select("*")
+    .select(STYLIST_PUBLIC_COLUMNS)
     .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       pay_type: PAY_TYPES.includes(pay_type) ? pay_type : "commission",
       commission_rate: Number(commission_rate) || 0,
     })
-    .select()
+    .select(STYLIST_PUBLIC_COLUMNS)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionReports } from "@/components/commission/commission-reports";
 import { getPresetRange } from "@/lib/date-range";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import type { CommissionEntryWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
@@ -36,10 +37,12 @@ export default async function CommissionReportsPage() {
 
   const [{ data: stylists }, { data: entries }] = isPro
     ? await Promise.all([
-        supabase.from("stylists").select("*").order("name", { ascending: true }),
+        supabase.from("stylists").select(STYLIST_PUBLIC_COLUMNS).order("name", { ascending: true }),
         supabase
           .from("commission_entries")
-          .select("*, stylist:stylists(*), service:services(*)")
+          .select(
+            `*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`,
+          )
           .gte("created_at", defaultRange.start ?? "1970-01-01")
           .order("created_at", { ascending: false }),
       ])

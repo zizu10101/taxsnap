@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionNav } from "@/components/commission/commission-nav";
 import { StylistDialog } from "@/components/commission/stylist-dialog";
-import type { Stylist } from "@/lib/database.types";
+import type { StylistPublic } from "@/lib/database.types";
 
-export function StylistList({ initialStylists }: { initialStylists: Stylist[] }) {
+export function StylistList({ initialStylists }: { initialStylists: StylistPublic[] }) {
   const [stylists, setStylists] = useState(initialStylists);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Stylist | null>(null);
+  const [editing, setEditing] = useState<StylistPublic | null>(null);
 
-  function upsert(stylist: Stylist) {
+  function upsert(stylist: StylistPublic) {
     setStylists((prev) => {
       const exists = prev.some((s) => s.id === stylist.id);
       const next = exists
@@ -25,7 +25,7 @@ export function StylistList({ initialStylists }: { initialStylists: Stylist[] })
     });
   }
 
-  async function toggleActive(stylist: Stylist) {
+  async function toggleActive(stylist: StylistPublic) {
     try {
       const res = await fetch(`/api/stylists/${stylist.id}`, {
         method: "PATCH",
@@ -34,7 +34,7 @@ export function StylistList({ initialStylists }: { initialStylists: Stylist[] })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update");
-      upsert(data.stylist as Stylist);
+      upsert(data.stylist as StylistPublic);
       toast.success(stylist.is_active ? "Stylist deactivated" : "Stylist reactivated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -108,6 +108,7 @@ export function StylistList({ initialStylists }: { initialStylists: Stylist[] })
       )}
 
       <StylistDialog
+        key={editing?.id ?? "new"}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         stylist={editing}

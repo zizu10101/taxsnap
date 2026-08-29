@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StylistList } from "@/components/commission/stylist-list";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 export const metadata: Metadata = {
   title: "Stylists — TaxSnap",
@@ -29,7 +30,7 @@ export default async function StylistsPage() {
   const isPro = profile?.subscription_status === "pro";
 
   const { data: stylists } = isPro
-    ? await supabase.from("stylists").select("*").order("name", { ascending: true })
+    ? await supabase.from("stylists").select(STYLIST_PUBLIC_COLUMNS).order("name", { ascending: true })
     : { data: null };
 
   return (

@@ -120,6 +120,7 @@ export function ServiceList({ initialServices }: { initialServices: Service[] })
       )}
 
       <ServiceDialog
+        key={editing?.id ?? "new"}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         service={editing}

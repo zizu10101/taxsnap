@@ -411,6 +411,13 @@ export interface Database {
           is_active: boolean;
           pay_type: PayType;
           commission_rate: number;
+          // Never selectable via a normal request (column-level REVOKE in
+          // 0013_stylist_pin.sql) - present here only to mirror the actual
+          // DB schema, per this file's own header comment. Every real
+          // select call site uses STYLIST_PUBLIC_COLUMNS instead of "*",
+          // which omits this and reads has_pin instead.
+          pin_hash: string | null;
+          has_pin: boolean;
           created_at: string;
         };
         Insert: {
@@ -595,6 +602,20 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["payouts"]["Row"];
       };
+      set_stylist_pin: {
+        Args: {
+          p_stylist_id: string;
+          p_pin: string;
+        };
+        Returns: undefined;
+      };
+      verify_stylist_pin: {
+        Args: {
+          p_stylist_id: string;
+          p_pin: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -619,14 +640,18 @@ export type Service = Database["public"]["Tables"]["services"]["Row"];
 export type ServiceUpdate = Database["public"]["Tables"]["services"]["Update"];
 export type Stylist = Database["public"]["Tables"]["stylists"]["Row"];
 export type StylistUpdate = Database["public"]["Tables"]["stylists"]["Update"];
+// What every real select actually returns (STYLIST_PUBLIC_COLUMNS omits
+// pin_hash) - use this, not Stylist, for anything that reaches the client.
+export type StylistPublic = Omit<Stylist, "pin_hash">;
 export type CommissionEntry = Database["public"]["Tables"]["commission_entries"]["Row"];
 export type CommissionEntryUpdate =
   Database["public"]["Tables"]["commission_entries"]["Update"];
 export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
 
 export interface CommissionEntryWithRelations extends CommissionEntry {
-  stylist: Stylist;
+  stylist: StylistPublic;
   service: Service | null;
+  payout: Pick<Payout, "id" | "confirmed_by_stylist" | "confirmed_at" | "paid_at"> | null;
 }
 
 export interface DocumentWithClient extends InvoiceDocument {

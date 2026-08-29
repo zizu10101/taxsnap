@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import type { PayType, StylistUpdate } from "@/lib/database.types";
 
 const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
@@ -42,7 +43,7 @@ export async function PATCH(
     .from("stylists")
     .update(update)
     .eq("id", id)
-    .select()
+    .select(STYLIST_PUBLIC_COLUMNS)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

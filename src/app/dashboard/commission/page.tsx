@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionLogger } from "@/components/commission/commission-logger";
+import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 export const metadata: Metadata = {
   title: "Commission — TaxSnap",
@@ -37,7 +38,7 @@ export default async function CommissionPage() {
           .order("name", { ascending: true }),
         supabase
           .from("stylists")
-          .select("*")
+          .select(STYLIST_PUBLIC_COLUMNS)
           .eq("is_active", true)
           .order("name", { ascending: true }),
       ])

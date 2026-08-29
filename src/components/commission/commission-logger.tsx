@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CommissionNav } from "@/components/commission/commission-nav";
-import type { CommissionEntryWithRelations, Service, Stylist } from "@/lib/database.types";
+import type { CommissionEntryWithRelations, Service, StylistPublic } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -22,10 +22,10 @@ export function CommissionLogger({
   initialStylists,
 }: {
   initialServices: Service[];
-  initialStylists: Stylist[];
+  initialStylists: StylistPublic[];
 }) {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedStylist, setSelectedStylist] = useState<Stylist | null>(null);
+  const [selectedStylist, setSelectedStylist] = useState<StylistPublic | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
