@@ -6,6 +6,7 @@ export type SubscriptionStatus = "free" | "basic" | "pro";
 export type DocumentType = "invoice" | "estimate";
 export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
 export type PayType = "commission" | "hourly" | "salary";
+export type PayoutStatus = "active" | "voided";
 
 export interface ReceiptItem {
   name: string;
@@ -443,6 +444,9 @@ export interface Database {
           price_charged: number;
           commission_rate_applied: number;
           commission_owed: number;
+          payout_id: string | null;
+          is_deleted: boolean;
+          deleted_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -454,6 +458,9 @@ export interface Database {
           customer_name?: string | null;
           price_charged: number;
           commission_rate_applied: number;
+          payout_id?: string | null;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -465,6 +472,9 @@ export interface Database {
           customer_name?: string | null;
           price_charged?: number;
           commission_rate_applied?: number;
+          payout_id?: string | null;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -480,6 +490,60 @@ export interface Database {
             columns: ["service_id"];
             isOneToOne: false;
             referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "commission_entries_payout_id_fkey";
+            columns: ["payout_id"];
+            isOneToOne: false;
+            referencedRelation: "payouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payouts: {
+        Row: {
+          id: string;
+          stylist_id: string;
+          paid_at: string;
+          total_amount: number;
+          range_start: string;
+          range_end: string;
+          confirmed_by_stylist: boolean;
+          confirmed_at: string | null;
+          status: PayoutStatus;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          stylist_id: string;
+          paid_at?: string;
+          total_amount: number;
+          range_start: string;
+          range_end: string;
+          confirmed_by_stylist?: boolean;
+          confirmed_at?: string | null;
+          status?: PayoutStatus;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          stylist_id?: string;
+          paid_at?: string;
+          total_amount?: number;
+          range_start?: string;
+          range_end?: string;
+          confirmed_by_stylist?: boolean;
+          confirmed_at?: string | null;
+          status?: PayoutStatus;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payouts_stylist_id_fkey";
+            columns: ["stylist_id"];
+            isOneToOne: false;
+            referencedRelation: "stylists";
             referencedColumns: ["id"];
           },
         ];
@@ -516,7 +580,22 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      create_payout: {
+        Args: {
+          p_stylist_id: string;
+          p_range_start: string;
+          p_range_end: string;
+        };
+        Returns: Database["public"]["Tables"]["payouts"]["Row"];
+      };
+      confirm_payout: {
+        Args: {
+          p_payout_id: string;
+        };
+        Returns: Database["public"]["Tables"]["payouts"]["Row"];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
@@ -543,6 +622,7 @@ export type StylistUpdate = Database["public"]["Tables"]["stylists"]["Update"];
 export type CommissionEntry = Database["public"]["Tables"]["commission_entries"]["Row"];
 export type CommissionEntryUpdate =
   Database["public"]["Tables"]["commission_entries"]["Update"];
+export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
 
 export interface CommissionEntryWithRelations extends CommissionEntry {
   stylist: Stylist;

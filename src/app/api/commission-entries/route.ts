@@ -18,10 +18,14 @@ export async function GET(request: Request) {
   const stylistId = searchParams.get("stylist_id");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const status = searchParams.get("status"); // "unpaid" | "paid" | null
 
   let query = supabase
     .from("commission_entries")
     .select("*, stylist:stylists(*), service:services(*)")
+    // Soft-deleted entries are never included in any normal view -
+    // there's no "trash" view built, so deleted just means gone here.
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
 
   if (stylistId) query = query.eq("stylist_id", stylistId);
@@ -31,6 +35,8 @@ export async function GET(request: Request) {
   // later that same day, so the upper bound uses the *next* day, exclusive.
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lt("created_at", nextDayIso(to));
+  if (status === "unpaid") query = query.is("payout_id", null);
+  if (status === "paid") query = query.not("payout_id", "is", null);
 
   const { data, error } = await query;
 
