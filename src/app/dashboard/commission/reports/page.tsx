@@ -41,7 +41,7 @@ export default async function CommissionReportsPage() {
         supabase
           .from("commission_entries")
           .select(
-            `*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`,
+            `*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`,
           )
           .gte("created_at", defaultRange.start ?? "1970-01-01")
           .order("created_at", { ascending: false }),

@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -30,7 +30,7 @@ import { MarkAsPaidDialog } from "@/components/commission/mark-as-paid-dialog";
 import { ConfirmPayoutDialog } from "@/components/commission/confirm-payout-dialog";
 import { getPresetRange, describeRange, type DateRange, type RangePreset } from "@/lib/date-range";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
-import type { CommissionEntryWithRelations, StylistPublic } from "@/lib/database.types";
+import type { CommissionEntryWithRelations, Payout, StylistPublic } from "@/lib/database.types";
 
 const ALL_STYLISTS = "__all__";
 type PaidFilter = "unpaid" | "paid";
@@ -48,6 +48,16 @@ function formatDateTime(isoStr: string) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  });
+}
+
+// range_start/range_end are plain YYYY-MM-DD dates, not timestamps - append
+// a time so `new Date(...)` parses in local time instead of UTC midnight,
+// which would otherwise display as the previous day in western timezones.
+function formatDate(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -84,7 +94,22 @@ export function CommissionReports({
     payoutId: string;
     stylist: StylistPublic;
   } | null>(null);
+  // Fetched separately from `entries` (see GET /api/payouts) - voiding
+  // unlinks a payout's entries entirely, so a voided payout has nothing
+  // left in commission_entries to drive a row in the entries-based list
+  // above. Collapsed by default: this is meant to be rare.
+  const [voidedPayouts, setVoidedPayouts] = useState<Payout[]>([]);
+  const [voidedOpen, setVoidedOpen] = useState(false);
+  const [voidTarget, setVoidTarget] = useState<{
+    payoutId: string;
+    stylistName: string;
+    totalAmount: number;
+    rangeStart: string;
+    rangeEnd: string;
+  } | null>(null);
+  const [voiding, setVoiding] = useState(false);
   const fetchTokenRef = useRef(0);
+  const voidedTokenRef = useRef(0);
 
   // A token guard rather than a boolean flag, so this same function can be
   // called both from the filter-driven effect below and imperatively (e.g.
@@ -108,6 +133,30 @@ export function CommissionReports({
       });
   }, [stylistId, range.start, range.end, paidFilter]);
 
+  // Voided payouts are queried directly (GET /api/payouts), not derived
+  // from `entries` - void_payout() nulls out payout_id on every entry it
+  // covered, so there's nothing left in commission_entries to find them
+  // through. Only relevant on the Paid tab for a specific stylist - skips
+  // the request entirely otherwise rather than fetching and just not
+  // rendering it. No setState on skip (unlike a plain early return that
+  // clears state): the section is only ever rendered when paidFilter is
+  // "paid" anyway, so stale data left in state while on another tab/filter
+  // is never visible - it's always overwritten by a fresh fetch before the
+  // Paid tab (and this state) is shown again.
+  const fetchVoidedPayouts = useCallback(() => {
+    if (stylistId === ALL_STYLISTS || paidFilter !== "paid") return;
+    const token = ++voidedTokenRef.current;
+    const params = new URLSearchParams({ stylist_id: stylistId, status: "voided" });
+    if (range.start) params.set("from", range.start);
+    if (range.end) params.set("to", range.end);
+
+    return fetch(`/api/payouts?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (voidedTokenRef.current === token) setVoidedPayouts(data.payouts ?? []);
+      });
+  }, [stylistId, paidFilter, range.start, range.end]);
+
   // Always refetches on mount too, not just on filter changes - relying on
   // `initialEntries` alone risks showing stale totals, since Next's
   // client-side router cache can serve an old RSC payload from an earlier
@@ -116,7 +165,8 @@ export function CommissionReports({
   // normal workflow this page exists for).
   useEffect(() => {
     fetchEntries();
-  }, [fetchEntries]);
+    fetchVoidedPayouts();
+  }, [fetchEntries, fetchVoidedPayouts]);
 
   const stylistSelectItems = useMemo(() => {
     const map: Record<string, string> = { [ALL_STYLISTS]: "All Stylists" };
@@ -167,6 +217,41 @@ export function CommissionReports({
           : e,
       ),
     );
+  }
+
+  async function handleVoid() {
+    if (!voidTarget) return;
+    setVoiding(true);
+    try {
+      const res = await fetch(`/api/payouts/${voidTarget.payoutId}/void`, { method: "PATCH" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // These two mean the server's state has already moved on from what
+        // we're showing (the stylist confirmed it, or it was voided from
+        // another tab/session) - a generic retry won't fix that, so refetch
+        // the real state instead of just surfacing an error.
+        if (res.status === 400 || res.status === 409) {
+          toast.error(data.error || "This payout can no longer be voided.");
+          setVoidTarget(null);
+          fetchEntries();
+          fetchVoidedPayouts();
+          return;
+        }
+        throw new Error(data.error || "Failed to void payout");
+      }
+
+      const payout = data.payout as Payout;
+      setEntries((prev) => prev.filter((e) => e.payout?.id !== payout.id));
+      setVoidedPayouts((prev) => [payout, ...prev]);
+      setVoidedOpen(true);
+      toast.success("Payout voided - entries returned to Unpaid");
+      setVoidTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to void payout");
+    } finally {
+      setVoiding(false);
+    }
   }
 
   async function handleDelete() {
@@ -338,6 +423,23 @@ export function CommissionReports({
                                 Confirm
                               </Button>
                             )}
+                            {entry.payout && (
+                              <Button
+                                variant="destructive"
+                                size="xs"
+                                onClick={() =>
+                                  setVoidTarget({
+                                    payoutId: entry.payout!.id,
+                                    stylistName: entry.stylist.name,
+                                    totalAmount: entry.payout!.total_amount,
+                                    rangeStart: entry.payout!.range_start,
+                                    rangeEnd: entry.payout!.range_end,
+                                  })
+                                }
+                              >
+                                Void
+                              </Button>
+                            )}
                           </>
                         ))}
                     </div>
@@ -373,6 +475,53 @@ export function CommissionReports({
         </div>
       )}
 
+      {paidFilter === "paid" && voidedPayouts.length > 0 && (
+        <Card>
+          <CardHeader
+            role="button"
+            tabIndex={0}
+            onClick={() => setVoidedOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setVoidedOpen((prev) => !prev);
+              }
+            }}
+            className="flex cursor-pointer flex-row items-center justify-between outline-none"
+          >
+            <CardTitle className="text-sm text-muted-foreground">
+              Voided payouts ({voidedPayouts.length})
+            </CardTitle>
+            {voidedOpen ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </CardHeader>
+          {voidedOpen && (
+            <CardContent className="space-y-2">
+              {voidedPayouts.map((payout) => (
+                <div
+                  key={payout.id}
+                  className="rounded-lg border border-border/50 p-3 opacity-60"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">{selectedStylist?.name}</p>
+                    <span className="font-semibold tabular-nums line-through">
+                      {formatCurrency(payout.total_amount)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(payout.range_start)} – {formatDate(payout.range_end)}
+                    {payout.voided_at && <> · Voided {formatDateTime(payout.voided_at)}</>}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       <Dialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -395,6 +544,33 @@ export function CommissionReports({
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!voidTarget} onOpenChange={(open) => !open && setVoidTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Void this payout?</DialogTitle>
+            <DialogDescription>
+              {voidTarget && (
+                <>
+                  {voidTarget.stylistName} · {formatCurrency(voidTarget.totalAmount)}
+                  <br />
+                  {formatDate(voidTarget.rangeStart)} – {formatDate(voidTarget.rangeEnd)}
+                  <br />
+                </>
+              )}
+              This returns its entries to Unpaid so they can be included in a new payout. This
+              can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button variant="destructive" onClick={handleVoid} disabled={voiding}>
+              {voiding && <Loader2 className="h-4 w-4 animate-spin" />}
+              Void payout
             </Button>
           </DialogFooter>
         </DialogContent>

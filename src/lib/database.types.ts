@@ -519,6 +519,7 @@ export interface Database {
           confirmed_by_stylist: boolean;
           confirmed_at: string | null;
           status: PayoutStatus;
+          voided_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -531,6 +532,7 @@ export interface Database {
           confirmed_by_stylist?: boolean;
           confirmed_at?: string | null;
           status?: PayoutStatus;
+          voided_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -543,6 +545,7 @@ export interface Database {
           confirmed_by_stylist?: boolean;
           confirmed_at?: string | null;
           status?: PayoutStatus;
+          voided_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -602,6 +605,12 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["payouts"]["Row"];
       };
+      void_payout: {
+        Args: {
+          p_payout_id: string;
+        };
+        Returns: Database["public"]["Tables"]["payouts"]["Row"];
+      };
       set_stylist_pin: {
         Args: {
           p_stylist_id: string;
@@ -651,7 +660,17 @@ export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
 export interface CommissionEntryWithRelations extends CommissionEntry {
   stylist: StylistPublic;
   service: Service | null;
-  payout: Pick<Payout, "id" | "confirmed_by_stylist" | "confirmed_at" | "paid_at"> | null;
+  payout: Pick<
+    Payout,
+    | "id"
+    | "confirmed_by_stylist"
+    | "confirmed_at"
+    | "paid_at"
+    | "status"
+    | "total_amount"
+    | "range_start"
+    | "range_end"
+  > | null;
 }
 
 export interface DocumentWithClient extends InvoiceDocument {

@@ -24,7 +24,7 @@ export async function PATCH(
     .from("commission_entries")
     .update({ customer_name: customer_name?.trim() || null })
     .eq("id", id)
-    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

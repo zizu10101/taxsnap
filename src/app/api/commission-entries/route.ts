@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("commission_entries")
-    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`)
     // Soft-deleted entries are never included in any normal view -
     // there's no "trash" view built, so deleted just means gone here.
     .eq("is_deleted", false)
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       price_charged: service.default_price,
       commission_rate_applied: stylist.commission_rate,
     })
-    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at)`)
+    .select(`*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
