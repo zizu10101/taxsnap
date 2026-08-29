@@ -38,12 +38,12 @@ export async function GET(request: Request) {
   return NextResponse.json({ entries: data });
 }
 
-// The 2-tap logging flow: service + stylist tap saves immediately, no
-// confirmation step. price_charged/commission_rate_applied are looked up
-// fresh from the service/stylist rows server-side (never trusted from the
-// client) since there's no editable step in this flow to tamper with
-// anyway, and it guarantees the snapshot reflects what was actually on
-// file at the moment of the tap.
+// The 3-tap logging flow: service tap, stylist tap, then a customer-name
+// step that submits explicitly. price_charged/commission_rate_applied are
+// looked up fresh from the service/stylist rows server-side (never trusted
+// from the client) since there's no editable price/rate step in this flow
+// to tamper with anyway, and it guarantees the snapshot reflects what was
+// actually on file at the moment of submit.
 export async function POST(request: Request) {
   const result = await requireProUser();
   if ("error" in result) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   const { supabase, user } = result;
 
   const body = await request.json();
-  const { stylist_id, service_id } = body ?? {};
+  const { stylist_id, service_id, customer_name } = body ?? {};
 
   if (!stylist_id || !service_id) {
     return NextResponse.json(
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
       stylist_id,
       service_id,
       service_name: service.name,
+      customer_name: customer_name?.trim() || null,
       price_charged: service.default_price,
       commission_rate_applied: stylist.commission_rate,
     })

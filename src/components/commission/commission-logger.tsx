@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,8 +17,6 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-const CAPTURE_DURATION_MS = 9000;
-
 export function CommissionLogger({
   initialServices,
   initialStylists,
@@ -27,61 +25,11 @@ export function CommissionLogger({
   initialStylists: Stylist[];
 }) {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+  const [selectedStylist, setSelectedStylist] = useState<Stylist | null>(null);
   const [customerName, setCustomerName] = useState("");
-
-  // A timeout that resets on every keystroke - typing actively extends the
-  // window so someone mid-typing never gets cut off, it only fires
-  // CAPTURE_DURATION_MS after the *last* keystroke (or immediately at
-  // capture start if nothing is typed at all). The latest typed value AND
-  // the entry id are tracked in refs, not state - setPendingEntryId doesn't
-  // update synchronously, so a setTimeout scheduled right after calling it
-  // would otherwise close over the *previous* render's pendingEntryId
-  // (often null), silently dropping the customer name PATCH.
-  const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const customerNameRef = useRef("");
-  const pendingEntryIdRef = useRef<string | null>(null);
-
-  function commitPendingCapture() {
-    if (captureTimer.current) {
-      clearTimeout(captureTimer.current);
-      captureTimer.current = null;
-    }
-    if (pendingEntryIdRef.current && customerNameRef.current.trim()) {
-      fetch(`/api/commission-entries/${pendingEntryIdRef.current}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_name: customerNameRef.current.trim() }),
-      }).catch(() => {
-        // Best-effort - the core entry is already saved regardless.
-      });
-    }
-    pendingEntryIdRef.current = null;
-    setPendingEntryId(null);
-    setCustomerName("");
-    customerNameRef.current = "";
-  }
-
-  function startCapture(entryId: string) {
-    // Only one capture slot at a time - a rapid second log commits
-    // whatever was typed for the first before starting the next.
-    commitPendingCapture();
-    pendingEntryIdRef.current = entryId;
-    setPendingEntryId(entryId);
-    setCustomerName("");
-    customerNameRef.current = "";
-    captureTimer.current = setTimeout(commitPendingCapture, CAPTURE_DURATION_MS);
-  }
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleUndo(entryId: string) {
-    if (pendingEntryIdRef.current === entryId) {
-      if (captureTimer.current) clearTimeout(captureTimer.current);
-      captureTimer.current = null;
-      pendingEntryIdRef.current = null;
-      setPendingEntryId(null);
-      setCustomerName("");
-      customerNameRef.current = "";
-    }
     try {
       const res = await fetch(`/api/commission-entries/${entryId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to undo");
@@ -91,36 +39,36 @@ export function CommissionLogger({
     }
   }
 
-  async function handleStylistTap(stylist: Stylist) {
-    if (!selectedService) return;
-    const service = selectedService;
-    setSelectedService(null);
-
+  async function handleSubmit() {
+    if (!selectedService || !selectedStylist) return;
+    setSubmitting(true);
     try {
       const res = await fetch("/api/commission-entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stylist_id: stylist.id, service_id: service.id }),
+        body: JSON.stringify({
+          stylist_id: selectedStylist.id,
+          service_id: selectedService.id,
+          customer_name: customerName.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to log");
 
       const entry = data.entry as CommissionEntryWithRelations;
-      startCapture(entry.id);
       toast.success(
-        `Logged: ${entry.service_name} → ${stylist.name}, ${formatCurrency(entry.price_charged)}`,
-        {
-          action: { label: "Undo", onClick: () => handleUndo(entry.id) },
-          duration: CAPTURE_DURATION_MS,
-        },
+        `Logged: ${entry.service_name} → ${selectedStylist.name}, ${formatCurrency(entry.price_charged)}`,
+        { action: { label: "Undo", onClick: () => handleUndo(entry.id) } },
       );
+      setSelectedService(null);
+      setSelectedStylist(null);
+      setCustomerName("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to log entry", {
-        action: { label: "Retry", onClick: () => handleStylistTap(stylist) },
-      });
-      // Stay on the stylist grid rather than silently resetting, so a
-      // failed save (e.g. dropped connection) doesn't look like it worked.
-      setSelectedService(service);
+      toast.error(err instanceof Error ? err.message : "Failed to log entry");
+      // Stay on this step, keep whatever was typed - a failed save shouldn't
+      // make the owner retype the customer name.
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -163,7 +111,36 @@ export function CommissionLogger({
     <div className="space-y-4">
       <CommissionNav active="log" />
 
-      {selectedService ? (
+      {selectedService && selectedStylist ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setSelectedStylist(null)}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {selectedService.name} → {selectedStylist.name}
+          </button>
+          <p className="text-sm text-muted-foreground">
+            {formatCurrency(selectedService.default_price)}
+          </p>
+          <Input
+            autoFocus
+            placeholder="Customer name (optional)"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+          />
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Submit
+          </Button>
+        </div>
+      ) : selectedService ? (
         <div className="space-y-3">
           <button
             type="button"
@@ -178,7 +155,7 @@ export function CommissionLogger({
               <button
                 key={stylist.id}
                 type="button"
-                onClick={() => handleStylistTap(stylist)}
+                onClick={() => setSelectedStylist(stylist)}
                 className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-card p-3 text-center font-medium transition-colors hover:bg-muted/50 active:scale-[0.98]"
               >
                 {stylist.name}
@@ -205,22 +182,6 @@ export function CommissionLogger({
               </span>
             </button>
           ))}
-        </div>
-      )}
-
-      {pendingEntryId && (
-        <div className="fixed inset-x-4 bottom-4 z-20 mx-auto max-w-sm rounded-lg border border-border bg-card p-3 shadow-lg">
-          <Input
-            autoFocus
-            placeholder="Customer name"
-            value={customerName}
-            onChange={(e) => {
-              setCustomerName(e.target.value);
-              customerNameRef.current = e.target.value;
-              if (captureTimer.current) clearTimeout(captureTimer.current);
-              captureTimer.current = setTimeout(commitPendingCapture, CAPTURE_DURATION_MS);
-            }}
-          />
         </div>
       )}
     </div>
