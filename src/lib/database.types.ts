@@ -558,6 +558,58 @@ export interface Database {
           },
         ];
       };
+      adjustments: {
+        Row: {
+          id: string;
+          stylist_id: string;
+          amount: number;
+          reason: string;
+          related_payout_id: string | null;
+          applied_payout_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          stylist_id: string;
+          amount: number;
+          reason: string;
+          related_payout_id?: string | null;
+          applied_payout_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          stylist_id?: string;
+          amount?: number;
+          reason?: string;
+          related_payout_id?: string | null;
+          applied_payout_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adjustments_stylist_id_fkey";
+            columns: ["stylist_id"];
+            isOneToOne: false;
+            referencedRelation: "stylists";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adjustments_related_payout_id_fkey";
+            columns: ["related_payout_id"];
+            isOneToOne: false;
+            referencedRelation: "payouts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adjustments_applied_payout_id_fkey";
+            columns: ["applied_payout_id"];
+            isOneToOne: false;
+            referencedRelation: "payouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sales: {
         Row: {
           id: string;
@@ -598,6 +650,15 @@ export interface Database {
           p_range_end: string;
         };
         Returns: Database["public"]["Tables"]["payouts"]["Row"];
+      };
+      create_adjustment: {
+        Args: {
+          p_stylist_id: string;
+          p_related_payout_id: string;
+          p_amount: number;
+          p_reason: string;
+        };
+        Returns: Database["public"]["Tables"]["adjustments"]["Row"];
       };
       confirm_payout: {
         Args: {
@@ -656,6 +717,7 @@ export type CommissionEntry = Database["public"]["Tables"]["commission_entries"]
 export type CommissionEntryUpdate =
   Database["public"]["Tables"]["commission_entries"]["Update"];
 export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
+export type Adjustment = Database["public"]["Tables"]["adjustments"]["Row"];
 
 export interface CommissionEntryWithRelations extends CommissionEntry {
   stylist: StylistPublic;

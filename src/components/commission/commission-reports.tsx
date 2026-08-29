@@ -28,9 +28,15 @@ import { CommissionNav } from "@/components/commission/commission-nav";
 import { CommissionReportShareButtons } from "@/components/commission/commission-report-share-buttons";
 import { MarkAsPaidDialog } from "@/components/commission/mark-as-paid-dialog";
 import { ConfirmPayoutDialog } from "@/components/commission/confirm-payout-dialog";
+import { AddAdjustmentDialog } from "@/components/commission/add-adjustment-dialog";
 import { getPresetRange, describeRange, type DateRange, type RangePreset } from "@/lib/date-range";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
-import type { CommissionEntryWithRelations, Payout, StylistPublic } from "@/lib/database.types";
+import type {
+  Adjustment,
+  CommissionEntryWithRelations,
+  Payout,
+  StylistPublic,
+} from "@/lib/database.types";
 
 const ALL_STYLISTS = "__all__";
 type PaidFilter = "unpaid" | "paid";
@@ -108,8 +114,34 @@ export function CommissionReports({
     rangeEnd: string;
   } | null>(null);
   const [voiding, setVoiding] = useState(false);
+  // Unapplied adjustments for the selected stylist - not date-range-scoped
+  // (see GET /api/adjustments), since create_payout() folds in every
+  // unapplied one regardless of what range a future payout covers. Only
+  // meaningful on the Unpaid tab, where they preview what's about to be
+  // owed on top of the entries total.
+  const [pendingAdjustments, setPendingAdjustments] = useState<Adjustment[]>([]);
+  const [adjustmentTarget, setAdjustmentTarget] = useState<{
+    payoutId: string;
+    stylistId: string;
+    stylistName: string;
+  } | null>(null);
+  // The Paid tab is organized around payouts, fetched directly (GET
+  // /api/payouts), not derived from `entries` - a payout created purely
+  // from a folded-in adjustment (no new commission_entries in its range)
+  // has nothing in commission_entries to represent it, so deriving payouts
+  // from entries would make that payout invisible here entirely, same root
+  // cause as why voided payouts (above) can't be derived from entries.
+  const [paidPayouts, setPaidPayouts] = useState<Payout[]>([]);
+  // Adjustments already folded into a payout (applied_payout_id set) -
+  // grouped client-side by applied_payout_id and shown under whichever
+  // payout they match, same "amount + reason" style as the pending list
+  // on Unpaid.
+  const [appliedAdjustments, setAppliedAdjustments] = useState<Adjustment[]>([]);
   const fetchTokenRef = useRef(0);
   const voidedTokenRef = useRef(0);
+  const adjustmentsTokenRef = useRef(0);
+  const paidPayoutsTokenRef = useRef(0);
+  const appliedAdjustmentsTokenRef = useRef(0);
 
   // A token guard rather than a boolean flag, so this same function can be
   // called both from the filter-driven effect below and imperatively (e.g.
@@ -157,6 +189,56 @@ export function CommissionReports({
       });
   }, [stylistId, paidFilter, range.start, range.end]);
 
+  // Not date-range-scoped (see GET /api/adjustments's own reasoning) - only
+  // relevant on the Unpaid tab, where it previews what's pending on top of
+  // the entries total. Same no-setState-on-skip reasoning as
+  // fetchVoidedPayouts: never rendered outside paidFilter === "unpaid", so
+  // stale data left in state while on another tab is never visible.
+  const fetchPendingAdjustments = useCallback(() => {
+    if (stylistId === ALL_STYLISTS || paidFilter !== "unpaid") return;
+    const token = ++adjustmentsTokenRef.current;
+    const params = new URLSearchParams({ stylist_id: stylistId, applied: "false" });
+
+    return fetch(`/api/adjustments?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (adjustmentsTokenRef.current === token) setPendingAdjustments(data.adjustments ?? []);
+      });
+  }, [stylistId, paidFilter]);
+
+  // See paidPayouts above for why this is fetched directly instead of
+  // derived from entries. Same no-setState-on-skip reasoning as the other
+  // Paid-tab-only fetches.
+  const fetchPaidPayouts = useCallback(() => {
+    if (stylistId === ALL_STYLISTS || paidFilter !== "paid") return;
+    const token = ++paidPayoutsTokenRef.current;
+    const params = new URLSearchParams({ stylist_id: stylistId, status: "active" });
+    if (range.start) params.set("from", range.start);
+    if (range.end) params.set("to", range.end);
+
+    return fetch(`/api/payouts?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (paidPayoutsTokenRef.current === token) setPaidPayouts(data.payouts ?? []);
+      });
+  }, [stylistId, paidFilter, range.start, range.end]);
+
+  // Not date-range-scoped itself (see GET /api/adjustments) - matching each
+  // one against `paidPayouts` (which is range-scoped) by applied_payout_id
+  // is what keeps only the relevant ones visible.
+  const fetchAppliedAdjustments = useCallback(() => {
+    if (stylistId === ALL_STYLISTS || paidFilter !== "paid") return;
+    const token = ++appliedAdjustmentsTokenRef.current;
+    const params = new URLSearchParams({ stylist_id: stylistId, applied: "true" });
+
+    return fetch(`/api/adjustments?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (appliedAdjustmentsTokenRef.current === token)
+          setAppliedAdjustments(data.adjustments ?? []);
+      });
+  }, [stylistId, paidFilter]);
+
   // Always refetches on mount too, not just on filter changes - relying on
   // `initialEntries` alone risks showing stale totals, since Next's
   // client-side router cache can serve an old RSC payload from an earlier
@@ -166,7 +248,16 @@ export function CommissionReports({
   useEffect(() => {
     fetchEntries();
     fetchVoidedPayouts();
-  }, [fetchEntries, fetchVoidedPayouts]);
+    fetchPendingAdjustments();
+    fetchPaidPayouts();
+    fetchAppliedAdjustments();
+  }, [
+    fetchEntries,
+    fetchVoidedPayouts,
+    fetchPendingAdjustments,
+    fetchPaidPayouts,
+    fetchAppliedAdjustments,
+  ]);
 
   const stylistSelectItems = useMemo(() => {
     const map: Record<string, string> = { [ALL_STYLISTS]: "All Stylists" };
@@ -174,11 +265,31 @@ export function CommissionReports({
     return map;
   }, [stylists]);
 
+  // One card per payout in scope, not one per entry - a payout can have
+  // zero linked commission_entries (e.g. one created purely from a
+  // folded-in adjustment), which an entries-driven list would never render
+  // at all. paidPayouts is the authoritative source of which payouts
+  // exist; entries/appliedAdjustments are just grouped under them.
+  const payoutGroups = useMemo(() => {
+    return paidPayouts.map((payout) => ({
+      payout,
+      entries: entries.filter((e) => e.payout?.id === payout.id),
+      adjustments: appliedAdjustments.filter((a) => a.applied_payout_id === payout.id),
+    }));
+  }, [paidPayouts, entries, appliedAdjustments]);
+
   const totals = useMemo(() => {
     const revenue = entries.reduce((sum, e) => sum + e.price_charged, 0);
-    const commission = entries.reduce((sum, e) => sum + e.commission_owed, 0);
+    // On the Paid tab, the commission figure has to be the sum of each
+    // payout's own total_amount, not a sum of linked entries'
+    // commission_owed - a payout can include a folded-in adjustment with
+    // no corresponding entry, which the entries sum would silently miss.
+    const commission =
+      stylistId !== ALL_STYLISTS && paidFilter === "paid"
+        ? payoutGroups.reduce((sum, g) => sum + g.payout.total_amount, 0)
+        : entries.reduce((sum, e) => sum + e.commission_owed, 0);
     return { count: entries.length, revenue, commission };
-  }, [entries]);
+  }, [entries, stylistId, paidFilter, payoutGroups]);
 
   const rollupByStylist = useMemo(() => {
     const map = new Map<string, { name: string; count: number; revenue: number; commission: number }>();
@@ -217,6 +328,13 @@ export function CommissionReports({
           : e,
       ),
     );
+    setPaidPayouts((prev) =>
+      prev.map((p) =>
+        p.id === payoutId
+          ? { ...p, confirmed_by_stylist: true, confirmed_at: new Date().toISOString() }
+          : p,
+      ),
+    );
   }
 
   async function handleVoid() {
@@ -236,6 +354,8 @@ export function CommissionReports({
           setVoidTarget(null);
           fetchEntries();
           fetchVoidedPayouts();
+          fetchPaidPayouts();
+          fetchAppliedAdjustments();
           return;
         }
         throw new Error(data.error || "Failed to void payout");
@@ -243,6 +363,7 @@ export function CommissionReports({
 
       const payout = data.payout as Payout;
       setEntries((prev) => prev.filter((e) => e.payout?.id !== payout.id));
+      setPaidPayouts((prev) => prev.filter((p) => p.id !== payout.id));
       setVoidedPayouts((prev) => [payout, ...prev]);
       setVoidedOpen(true);
       toast.success("Payout voided - entries returned to Unpaid");
@@ -336,17 +457,39 @@ export function CommissionReports({
         </CardContent>
       </Card>
 
-      {selectedStylist && paidFilter === "unpaid" && entries.length > 0 && (
-        <Button
-          className="w-full"
-          onClick={() => {
-            setMarkPaidKey((k) => k + 1);
-            setMarkPaidOpen(true);
-          }}
-        >
-          Mark as Paid
-        </Button>
+      {paidFilter === "unpaid" && pendingAdjustments.length > 0 && (
+        <Card>
+          <CardContent className="space-y-1 py-3">
+            {pendingAdjustments.map((adj) => (
+              <div key={adj.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate text-muted-foreground">{adj.reason}</span>
+                <span
+                  className={`shrink-0 font-medium tabular-nums ${
+                    adj.amount > 0 ? "text-primary" : "text-destructive"
+                  }`}
+                >
+                  {adj.amount > 0 ? "+" : ""}
+                  {formatCurrency(adj.amount)} adjustment pending
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
+
+      {selectedStylist &&
+        paidFilter === "unpaid" &&
+        (entries.length > 0 || pendingAdjustments.length > 0) && (
+          <Button
+            className="w-full"
+            onClick={() => {
+              setMarkPaidKey((k) => k + 1);
+              setMarkPaidOpen(true);
+            }}
+          >
+            Mark as Paid
+          </Button>
+        )}
 
       {selectedStylist && (
         <div className="flex gap-2">
@@ -386,12 +529,120 @@ export function CommissionReports({
             ))
           )}
         </div>
+      ) : paidFilter === "paid" ? (
+        <div className="space-y-2">
+          {payoutGroups.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                No paid entries in this range.
+              </CardContent>
+            </Card>
+          ) : (
+            payoutGroups.map(({ payout, entries: payoutEntries, adjustments: payoutAdjustments }) => (
+              <Card key={payout.id}>
+                <CardContent className="space-y-2 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {payout.confirmed_by_stylist ? (
+                        <>
+                          <Badge className="border-success/30 bg-success/10 text-success">
+                            Confirmed
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() =>
+                              setAdjustmentTarget({
+                                payoutId: payout.id,
+                                stylistId: selectedStylist!.id,
+                                stylistName: selectedStylist!.name,
+                              })
+                            }
+                          >
+                            Add adjustment
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Badge variant="outline">Unconfirmed</Badge>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() =>
+                              setConfirmTarget({ payoutId: payout.id, stylist: selectedStylist! })
+                            }
+                          >
+                            Confirm
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="xs"
+                            onClick={() =>
+                              setVoidTarget({
+                                payoutId: payout.id,
+                                stylistName: selectedStylist!.name,
+                                totalAmount: payout.total_amount,
+                                rangeStart: payout.range_start,
+                                rangeEnd: payout.range_end,
+                              })
+                            }
+                          >
+                            Void
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-semibold text-primary tabular-nums">
+                      {formatCurrency(payout.total_amount)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(payout.range_start)} – {formatDate(payout.range_end)}
+                  </p>
+                  {payoutEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between gap-2 border-l-2 border-border pl-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate">{entry.service_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {entry.customer_name ? `${entry.customer_name} · ` : ""}
+                          {formatDateTime(entry.created_at)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {formatCurrency(entry.commission_owed)}
+                      </span>
+                    </div>
+                  ))}
+                  {payoutAdjustments.map((adj) => (
+                    <div
+                      key={adj.id}
+                      className="flex items-center justify-between gap-2 border-l-2 border-border pl-2 text-sm"
+                    >
+                      <span className="truncate text-muted-foreground">{adj.reason}</span>
+                      <span
+                        className={`shrink-0 font-medium tabular-nums ${
+                          adj.amount > 0 ? "text-primary" : "text-destructive"
+                        }`}
+                      >
+                        {adj.amount > 0 ? "+" : ""}
+                        {formatCurrency(adj.amount)} adjustment
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           {entries.length === 0 ? (
             <Card>
               <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                No {paidFilter} entries in this range.
+                No unpaid entries in this range.
               </CardContent>
             </Card>
           ) : (
@@ -399,50 +650,7 @@ export function CommissionReports({
               <Card key={entry.id}>
                 <CardContent className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium">{entry.service_name}</p>
-                      {paidFilter === "paid" &&
-                        (entry.payout?.confirmed_by_stylist ? (
-                          <Badge className="border-success/30 bg-success/10 text-success">
-                            Confirmed
-                          </Badge>
-                        ) : (
-                          <>
-                            <Badge variant="outline">Unconfirmed</Badge>
-                            {entry.payout && (
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() =>
-                                  setConfirmTarget({
-                                    payoutId: entry.payout!.id,
-                                    stylist: entry.stylist,
-                                  })
-                                }
-                              >
-                                Confirm
-                              </Button>
-                            )}
-                            {entry.payout && (
-                              <Button
-                                variant="destructive"
-                                size="xs"
-                                onClick={() =>
-                                  setVoidTarget({
-                                    payoutId: entry.payout!.id,
-                                    stylistName: entry.stylist.name,
-                                    totalAmount: entry.payout!.total_amount,
-                                    rangeStart: entry.payout!.range_start,
-                                    rangeEnd: entry.payout!.range_end,
-                                  })
-                                }
-                              >
-                                Void
-                              </Button>
-                            )}
-                          </>
-                        ))}
-                    </div>
+                    <p className="truncate text-sm font-medium">{entry.service_name}</p>
                     <p className="text-xs text-muted-foreground">
                       {entry.customer_name ? `${entry.customer_name} · ` : ""}
                       {formatDateTime(entry.created_at)}
@@ -457,16 +665,14 @@ export function CommissionReports({
                         {formatCurrency(entry.commission_owed)} commission
                       </span>
                     </div>
-                    {!entry.payout_id && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        title="Delete entry"
-                        onClick={() => setDeleteTarget(entry)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Delete entry"
+                      onClick={() => setDeleteTarget(entry)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -583,7 +789,15 @@ export function CommissionReports({
           onOpenChange={setMarkPaidOpen}
           stylist={selectedStylist}
           defaultRangeStart={earliestUnpaidDate}
-          onDone={fetchEntries}
+          onDone={() => {
+            fetchEntries();
+            // A new payout consumes every pending adjustment for the
+            // stylist (create_payout sets applied_payout_id on all of
+            // them) - without this, an adjustment that was just folded in
+            // would keep showing as "pending" until some unrelated filter
+            // change happened to retrigger this fetch on its own.
+            fetchPendingAdjustments();
+          }}
         />
       )}
 
@@ -594,6 +808,16 @@ export function CommissionReports({
           stylist={confirmTarget.stylist}
           payoutId={confirmTarget.payoutId}
           onConfirmed={() => handlePayoutConfirmed(confirmTarget.payoutId)}
+        />
+      )}
+
+      {adjustmentTarget && (
+        <AddAdjustmentDialog
+          open
+          onOpenChange={(open) => !open && setAdjustmentTarget(null)}
+          stylistId={adjustmentTarget.stylistId}
+          stylistName={adjustmentTarget.stylistName}
+          payoutId={adjustmentTarget.payoutId}
         />
       )}
     </div>

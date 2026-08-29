@@ -50,7 +50,15 @@ export function MarkAsPaidDialog({
   const [step, setStep] = useState<Step>("range");
   const [rangeStart, setRangeStart] = useState(defaultRangeStart);
   const [rangeEnd, setRangeEnd] = useState(todayIso());
-  const [rangeTotal, setRangeTotal] = useState<number | null>(null);
+  const [entriesTotal, setEntriesTotal] = useState(0);
+  const [entryCount, setEntryCount] = useState(0);
+  // Not scoped to the range - create_payout() folds in *every* unapplied
+  // adjustment for the stylist regardless of what range is being paid out
+  // (an adjustment corrects a past payout, it isn't tied to a service
+  // date), so the preview has to mirror that or it'd understate what the
+  // real payout ends up being.
+  const [adjustmentsTotal, setAdjustmentsTotal] = useState(0);
+  const [adjustmentCount, setAdjustmentCount] = useState(0);
   // A fresh mount always starts loading (the effect below fires immediately
   // for the default range) - never set synchronously inside an effect body.
   const [loadingTotal, setLoadingTotal] = useState(true);
@@ -68,18 +76,28 @@ export function MarkAsPaidDialog({
   useEffect(() => {
     if (step !== "range" || !rangeStart || !rangeEnd) return;
     const token = ++totalTokenRef.current;
-    const params = new URLSearchParams({
+    const entriesParams = new URLSearchParams({
       stylist_id: stylist.id,
       status: "unpaid",
       from: rangeStart,
       to: rangeEnd,
     });
-    fetch(`/api/commission-entries?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data) => {
+    const adjustmentsParams = new URLSearchParams({
+      stylist_id: stylist.id,
+      applied: "false",
+    });
+    Promise.all([
+      fetch(`/api/commission-entries?${entriesParams.toString()}`).then((res) => res.json()),
+      fetch(`/api/adjustments?${adjustmentsParams.toString()}`).then((res) => res.json()),
+    ])
+      .then(([entriesData, adjustmentsData]) => {
         if (totalTokenRef.current !== token) return;
-        const entries = (data.entries ?? []) as CommissionEntryWithRelations[];
-        setRangeTotal(entries.reduce((sum, e) => sum + e.commission_owed, 0));
+        const entries = (entriesData.entries ?? []) as CommissionEntryWithRelations[];
+        const adjustments = (adjustmentsData.adjustments ?? []) as { amount: number }[];
+        setEntriesTotal(entries.reduce((sum, e) => sum + e.commission_owed, 0));
+        setEntryCount(entries.length);
+        setAdjustmentsTotal(adjustments.reduce((sum, a) => sum + a.amount, 0));
+        setAdjustmentCount(adjustments.length);
       })
       .finally(() => {
         if (totalTokenRef.current === token) setLoadingTotal(false);
@@ -154,7 +172,12 @@ export function MarkAsPaidDialog({
     onOpenChange(false);
   }
 
-  const rangeInvalid = !loadingTotal && rangeTotal === 0;
+  const previewTotal = entriesTotal + adjustmentsTotal;
+  // Count-based, not dollar-total-based - mirrors create_payout()'s own
+  // check exactly. A lone adjustment with zero new entries (or a
+  // combination that nets to zero) is still a valid payout to create.
+  const rangeInvalid = !loadingTotal && entryCount === 0 && adjustmentCount === 0;
+  const negativeTotal = !loadingTotal && !rangeInvalid && previewTotal < 0;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(next) : close())}>
@@ -200,17 +223,42 @@ export function MarkAsPaidDialog({
                   />
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total for this range</p>
-                <p className="text-lg font-semibold text-primary tabular-nums">
-                  {loadingTotal ? (
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                  ) : (
-                    formatCurrency(rangeTotal ?? 0)
-                  )}
-                </p>
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                {loadingTotal ? (
+                  <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                ) : (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Entries</span>
+                      <span className="tabular-nums">{formatCurrency(entriesTotal)}</span>
+                    </div>
+                    {adjustmentCount > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Adjustment</span>
+                        <span className="tabular-nums">
+                          {adjustmentsTotal > 0 ? "+" : ""}
+                          {formatCurrency(adjustmentsTotal)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between border-t border-border pt-1 text-lg font-semibold">
+                      <span>Total</span>
+                      <span className={`tabular-nums ${negativeTotal ? "text-destructive" : "text-primary"}`}>
+                        {formatCurrency(previewTotal)}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {rangeInvalid && (
-                  <p className="mt-1 text-xs text-destructive">No unpaid entries in this range.</p>
+                  <p className="mt-1 text-center text-xs text-destructive">
+                    No unpaid entries in this range.
+                  </p>
+                )}
+                {negativeTotal && (
+                  <p className="mt-1 text-center text-xs text-destructive">
+                    This would be negative due to an outstanding adjustment - narrow the range or
+                    wait for more entries to accrue.
+                  </p>
                 )}
               </div>
             </div>
@@ -220,7 +268,7 @@ export function MarkAsPaidDialog({
               </Button>
               <Button
                 onClick={handleConfirmRange}
-                disabled={creating || loadingTotal || rangeInvalid}
+                disabled={creating || loadingTotal || rangeInvalid || negativeTotal}
               >
                 {creating && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirm payout

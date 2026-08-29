@@ -86,6 +86,15 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (error.message.includes("NEGATIVE_PAYOUT_TOTAL")) {
+      return NextResponse.json(
+        {
+          error:
+            "This payout would be negative due to an outstanding adjustment - wait for more entries to accrue or review the adjustment first.",
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
