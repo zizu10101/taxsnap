@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
+import { PinSetupFlow } from "@/components/ui/pin-setup-flow";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -57,10 +58,12 @@ export function StylistDialog({
   // the same two-field form rather than showing entry fields by default,
   // so the dialog doesn't look like it's asking to re-enter an existing PIN.
   const [pinSectionOpen, setPinSectionOpen] = useState(!(stylist?.has_pin ?? false));
-  const [pin1, setPin1] = useState("");
-  const [pin2, setPin2] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinSaving, setPinSaving] = useState(false);
+  // Bumped to force-remount PinSetupFlow (back to its blank "enter" step)
+  // after the server rejects a PIN - the flow only resets itself locally
+  // for a same-component mismatch, not for an external/async rejection.
+  const [pinFlowAttempt, setPinFlowAttempt] = useState(0);
 
   async function handleSave() {
     if (!name.trim()) {
@@ -94,28 +97,17 @@ export function StylistDialog({
 
   function cancelPinReset() {
     setPinSectionOpen(false);
-    setPin1("");
-    setPin2("");
     setPinError(null);
   }
 
-  async function handleSavePin() {
-    if (pin1.length !== 4 || pin2.length !== 4) {
-      setPinError("Enter a 4-digit PIN in both fields.");
-      return;
-    }
-    if (pin1 !== pin2) {
-      setPinError("PINs don't match.");
-      return;
-    }
-
+  async function handleSavePin(pin: string) {
     setPinError(null);
     setPinSaving(true);
     try {
       const res = await fetch(`/api/stylists/${stylist!.id}/set-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pin1 }),
+        body: JSON.stringify({ pin }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save PIN");
@@ -135,6 +127,7 @@ export function StylistDialog({
       onOpenChange(false);
     } catch (err) {
       setPinError(err instanceof Error ? err.message : "Failed to save PIN");
+      setPinFlowAttempt((a) => a + 1);
     } finally {
       setPinSaving(false);
     }
@@ -199,49 +192,22 @@ export function StylistDialog({
               )}
 
               {(!hasPin || pinSectionOpen) && (
-                <div className="space-y-2 rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">
+                <div className="space-y-3 rounded-lg border border-border p-3">
+                  <p className="text-center text-xs text-muted-foreground">
                     {hasPin
                       ? "Set a new 4-digit PIN - the old one stops working immediately."
                       : "Used to confirm payouts with this stylist."}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="stylist-pin-1" className="text-xs">
-                        New PIN
-                      </Label>
-                      <Input
-                        id="stylist-pin-1"
-                        inputMode="numeric"
-                        maxLength={4}
-                        value={pin1}
-                        onChange={(e) => {
-                          setPin1(e.target.value.replace(/\D/g, "").slice(0, 4));
-                          setPinError(null);
-                        }}
-                        className="text-center tracking-[0.3em]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="stylist-pin-2" className="text-xs">
-                        Confirm PIN
-                      </Label>
-                      <Input
-                        id="stylist-pin-2"
-                        inputMode="numeric"
-                        maxLength={4}
-                        value={pin2}
-                        onChange={(e) => {
-                          setPin2(e.target.value.replace(/\D/g, "").slice(0, 4));
-                          setPinError(null);
-                        }}
-                        className="text-center tracking-[0.3em]"
-                      />
-                    </div>
-                  </div>
-                  {pinError && <p className="text-xs text-destructive">{pinError}</p>}
-                  <div className="flex justify-end gap-2">
-                    {hasPin && (
+                  <PinSetupFlow
+                    key={pinFlowAttempt}
+                    onSubmit={handleSavePin}
+                    submitting={pinSaving}
+                  />
+                  {pinError && (
+                    <p className="text-center text-xs text-destructive">{pinError}</p>
+                  )}
+                  {hasPin && (
+                    <div className="flex justify-center">
                       <Button
                         type="button"
                         variant="ghost"
@@ -251,17 +217,8 @@ export function StylistDialog({
                       >
                         Cancel
                       </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSavePin}
-                      disabled={pinSaving || pin1.length !== 4 || pin2.length !== 4}
-                    >
-                      {pinSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Save PIN
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

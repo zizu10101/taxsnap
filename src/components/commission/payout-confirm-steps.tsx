@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PinPad } from "@/components/ui/pin-pad";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // The actual PIN entry/verify/confirm step - identical whether reached from
@@ -31,12 +31,14 @@ export function PayoutPinStep({
   onDismiss: () => void;
   onConfirmed: () => void;
 }) {
-  const [pin, setPin] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  // Bumped to force-remount the PinPad (clearing its digits) after a wrong
+  // guess or an error - the pad has no reset of its own, by design.
+  const [padAttempt, setPadAttempt] = useState(0);
 
-  async function handleVerifyPin() {
+  async function handleVerifyPin(pin: string) {
     setVerifying(true);
     setPinError(null);
     try {
@@ -55,7 +57,7 @@ export function PayoutPinStep({
       if (!res.ok) throw new Error(data.error || "Failed to verify PIN");
       if (!data.valid) {
         setPinError("Incorrect PIN. Try again.");
-        setPin("");
+        setPadAttempt((a) => a + 1);
         return;
       }
 
@@ -66,6 +68,7 @@ export function PayoutPinStep({
       onConfirmed();
     } catch (err) {
       setPinError(err instanceof Error ? err.message : "Failed to verify PIN");
+      setPadAttempt((a) => a + 1);
     } finally {
       setVerifying(false);
     }
@@ -79,19 +82,11 @@ export function PayoutPinStep({
           Hand the device to {stylistName} to confirm this payout.
         </DialogDescription>
       </DialogHeader>
-      <div className="space-y-3">
-        <Input
-          autoFocus
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="4-digit PIN"
-          value={pin}
-          onChange={(e) => {
-            setPin(e.target.value.replace(/\D/g, "").slice(0, 4));
-            setPinError(null);
-          }}
-          className="text-center text-2xl tracking-[0.5em]"
-          disabled={locked}
+      <div className="flex flex-col items-center gap-3">
+        <PinPad
+          key={padAttempt}
+          onComplete={handleVerifyPin}
+          disabled={verifying || locked}
         />
         {pinError && (
           <div className="space-y-2 text-center">
@@ -109,13 +104,9 @@ export function PayoutPinStep({
           </div>
         )}
       </div>
-      <DialogFooter className="sm:justify-between">
+      <DialogFooter>
         <Button variant="ghost" onClick={onDismiss}>
           {dismissLabel}
-        </Button>
-        <Button onClick={handleVerifyPin} disabled={verifying || locked || pin.length !== 4}>
-          {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
-          Submit
         </Button>
       </DialogFooter>
     </>
