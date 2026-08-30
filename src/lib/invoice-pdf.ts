@@ -279,13 +279,31 @@ export async function generateCommissionReportPdf(
   pdf.setTextColor(0);
   y += 24;
 
+  // SERVICE's x used to be a flat `marginX + 90`, unrelated to how wide the
+  // DATE column's own text actually renders - drawTableRow has no
+  // per-column clipping, so a date/time string wider than that fixed gap
+  // (e.g. "Aug 28, 2026, 1:33 PM" at font size 10, comfortably over 90pt)
+  // painted straight through into SERVICE's start, e.g. "1:33 PHaircut".
+  // Measuring the actual widest rendered date string in this report (at
+  // the same font size drawTableRow uses for row text) and sizing the gap
+  // to that instead means the column boundary is always at least as wide
+  // as the content requires, for any timestamp this format can produce -
+  // not just whatever happened to fit the last time someone eyeballed it.
+  pdf.setFontSize(10);
+  const DATE_COLUMN_GAP = 16;
+  const dateColumnWidth =
+    entries.length > 0
+      ? Math.max(...entries.map((e) => pdf.getTextWidth(formatDateTime(e.created_at))))
+      : pdf.getTextWidth("Dec 31, 2026, 12:59 PM"); // worst-case fallback: no rows to measure
+  const serviceX = marginX + dateColumnWidth + DATE_COLUMN_GAP;
+
   const columns: PdfColumn[] = [
-    { label: "DATE", x: marginX, align: "left" },
+    { label: "DATE", x: marginX, align: "left", maxWidth: dateColumnWidth },
     {
       label: "SERVICE",
-      x: marginX + 90,
+      x: serviceX,
       align: "left",
-      maxWidth: rightX - 220 - marginX - 90 - 12,
+      maxWidth: rightX - 220 - serviceX - 12,
     },
     { label: "CUSTOMER", x: rightX - 220, align: "left", maxWidth: 100 },
     { label: "PRICE", x: rightX - 100, align: "right" },
