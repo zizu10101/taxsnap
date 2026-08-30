@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { CommissionNav } from "@/components/commission/commission-nav";
+import { FieldTrail, PriceTrail, EditedBadge } from "@/components/commission/entry-trail";
+import { EditEntryDialog } from "@/components/commission/edit-entry-dialog";
 import { CommissionReportShareButtons } from "@/components/commission/commission-report-share-buttons";
 import { MarkAsPaidDialog } from "@/components/commission/mark-as-paid-dialog";
 import { ConfirmPayoutDialog } from "@/components/commission/confirm-payout-dialog";
@@ -35,6 +37,7 @@ import type {
   Adjustment,
   CommissionEntryWithRelations,
   Payout,
+  Service,
   StylistPublic,
 } from "@/lib/database.types";
 
@@ -69,11 +72,13 @@ function formatDate(dateStr: string) {
 
 export function CommissionReports({
   stylists,
+  services,
   initialEntries,
   business,
   logoPath,
 }: {
   stylists: StylistPublic[];
+  services: Service[];
   initialEntries: CommissionEntryWithRelations[];
   business: BusinessInfo;
   logoPath: string | null;
@@ -88,6 +93,11 @@ export function CommissionReports({
   const [paidFilter, setPaidFilter] = useState<PaidFilter>("unpaid");
   const [deleteTarget, setDeleteTarget] = useState<CommissionEntryWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Same EditEntryDialog as the staff Log tab's Today's entries, same
+  // mount-only-while-editing pattern as ConfirmPayoutDialog/
+  // AddAdjustmentDialog below - Unpaid rows are the only ones that render
+  // this as tappable (Paid rows have no click handler at all).
+  const [editingEntry, setEditingEntry] = useState<CommissionEntryWithRelations | null>(null);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   // Bumped every time the dialog is opened so it's keyed fresh each time
   // (see MarkAsPaidDialog) - it's reused across stylists/opens otherwise,
@@ -375,6 +385,39 @@ export function CommissionReports({
     }
   }
 
+  // Same PATCH endpoint and same throw-on-failure contract as
+  // CommissionLogger's handleSaveEdit - the dialog catches a thrown error,
+  // shows it inline, and stays open for a retry rather than losing the
+  // in-progress selection.
+  //
+  // Refetches rather than patching `entries` in place, unlike
+  // CommissionLogger's version - Unpaid here is scoped by stylist_id, so a
+  // reassignment can move an entry out of the currently-viewed stylist's
+  // list entirely. Patching in place would leave it stuck showing under
+  // the old stylist (with its newly-recalculated commission, but counted
+  // toward the wrong person's total) instead of disappearing the way a
+  // reassignment actually should. Same "refetch the real state" idiom
+  // already used elsewhere in this file (see handleVoid's 400/409 path).
+  async function handleSaveEdit(values: {
+    service_id: string;
+    stylist_id: string;
+    customer_name: string;
+  }) {
+    if (!editingEntry) return;
+    const res = await fetch(`/api/commission-entries/${editingEntry.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save changes");
+
+    const updated = data.entry as CommissionEntryWithRelations;
+    toast.success(`Updated: ${updated.service_name} → ${updated.stylist.name}`);
+    setEditingEntry(null);
+    fetchEntries();
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -605,10 +648,20 @@ export function CommissionReports({
                       className="flex items-center justify-between gap-2 border-l-2 border-border pl-2 text-sm"
                     >
                       <div className="min-w-0">
-                        <p className="truncate">{entry.service_name}</p>
+                        <p className="truncate">
+                          <FieldTrail
+                            original={entry.original_service_name}
+                            current={entry.service_name}
+                          />
+                          {entry.edited_at && <EditedBadge className="ml-1.5 align-middle" />}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {entry.customer_name ? `${entry.customer_name} · ` : ""}
                           {formatDateTime(entry.created_at)}
+                          {entry.original_stylist_name &&
+                            entry.original_stylist_name !== entry.stylist.name && (
+                              <> · reassigned from {entry.original_stylist_name}</>
+                            )}
                         </p>
                       </div>
                       <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -649,17 +702,35 @@ export function CommissionReports({
             entries.map((entry) => (
               <Card key={entry.id}>
                 <CardContent className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{entry.service_name}</p>
+                  <button
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="min-w-0 flex-1 rounded-md text-left transition-colors hover:bg-muted/50"
+                  >
+                    <p className="truncate text-sm font-medium">
+                      <FieldTrail
+                        original={entry.original_service_name}
+                        current={entry.service_name}
+                      />
+                      {entry.edited_at && <EditedBadge className="ml-1.5 align-middle" />}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {entry.customer_name ? `${entry.customer_name} · ` : ""}
                       {formatDateTime(entry.created_at)}
+                      {entry.original_stylist_name &&
+                        entry.original_stylist_name !== entry.stylist.name && (
+                          <> · reassigned from {entry.original_stylist_name}</>
+                        )}
                     </p>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
                       <span className="block font-semibold tabular-nums">
-                        {formatCurrency(entry.price_charged)}
+                        <PriceTrail
+                          original={entry.original_price}
+                          current={entry.price_charged}
+                          format={formatCurrency}
+                        />
                       </span>
                       <span className="block text-xs text-primary tabular-nums">
                         {formatCurrency(entry.commission_owed)} commission
@@ -818,6 +889,17 @@ export function CommissionReports({
           stylistId={adjustmentTarget.stylistId}
           stylistName={adjustmentTarget.stylistName}
           payoutId={adjustmentTarget.payoutId}
+        />
+      )}
+
+      {editingEntry && (
+        <EditEntryDialog
+          entry={editingEntry}
+          services={services}
+          stylists={stylists}
+          open
+          onOpenChange={(open) => !open && setEditingEntry(null)}
+          onSave={handleSaveEdit}
         />
       )}
     </div>

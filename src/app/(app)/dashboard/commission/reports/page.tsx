@@ -36,18 +36,25 @@ export default async function CommissionReportsPage() {
 
   const defaultRange = getPresetRange("this-month");
 
-  const [{ data: stylists }, { data: entries }] = isPro
+  const [{ data: stylists }, { data: services }, { data: entries }] = isPro
     ? await Promise.all([
         supabase.from("stylists").select(STYLIST_PUBLIC_COLUMNS).order("name", { ascending: true }),
+        // Needed for EditEntryDialog's service picker - the report itself
+        // never rendered services before edit capability was added here.
+        supabase
+          .from("services")
+          .select("*")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
         supabase
           .from("commission_entries")
           .select(
-            `*, stylist:stylists(${STYLIST_PUBLIC_COLUMNS}), service:services(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`,
+            `*, stylist:stylists!commission_entries_stylist_id_fkey(${STYLIST_PUBLIC_COLUMNS}), service:services!commission_entries_service_id_fkey(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`,
           )
           .gte("created_at", defaultRange.start ?? "1970-01-01")
           .order("created_at", { ascending: false }),
       ])
-    : [{ data: null }, { data: null }];
+    : [{ data: null }, { data: null }, { data: null }];
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -69,6 +76,7 @@ export default async function CommissionReportsPage() {
         {isPro ? (
           <CommissionReports
             stylists={stylists ?? []}
+            services={services ?? []}
             initialEntries={(entries ?? []) as CommissionEntryWithRelations[]}
             business={{
               name: profile?.business_name ?? null,

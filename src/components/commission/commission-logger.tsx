@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CommissionNav } from "@/components/commission/commission-nav";
+import { FieldTrail, PriceTrail, EditedBadge } from "@/components/commission/entry-trail";
+import { EditEntryDialog } from "@/components/commission/edit-entry-dialog";
+import { useAppLock } from "@/components/app-lock/app-lock-context";
+import { getPresetRange } from "@/lib/date-range";
 import type { CommissionEntryWithRelations, Service, StylistPublic } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -24,19 +28,72 @@ export function CommissionLogger({
   initialServices: Service[];
   initialStylists: StylistPublic[];
 }) {
+  // Create-flow state only, below - editing an existing entry (Today's
+  // entries) is a fully separate EditEntryDialog with its own state, not a
+  // reuse of this. See editingEntry further down and the dialog's own
+  // comment for why: the old shared-state version of this had a real bug
+  // where backing out of an edit could silently create a duplicate entry
+  // instead of canceling.
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedStylist, setSelectedStylist] = useState<StylistPublic | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { role } = useAppLock();
+  const isStaffMode = role === "staff";
+
+  // Today's entries is staff-mode only (see CommissionLogger's caller) -
+  // the owner already has the full Reports tab for this, staff only ever
+  // reach the Log page. Fetched client-side since role is client-only
+  // state; the server-rendered page has no way to know it in advance.
+  const [todaysEntries, setTodaysEntries] = useState<CommissionEntryWithRelations[]>([]);
+  // The entry currently open in EditEntryDialog, or null. The dialog is
+  // only ever mounted while this is set (`{editingEntry && <EditEntryDialog .../>}`
+  // below), so it always gets a fresh mount - and fresh local state seeded
+  // from `entry` - per edit, and fully unmounts (discarding that state) on
+  // cancel/close/save.
+  const [editingEntry, setEditingEntry] = useState<CommissionEntryWithRelations | null>(null);
+
+  useEffect(() => {
+    if (!isStaffMode) return;
+    const { start, end } = getPresetRange("today");
+    fetch(`/api/commission-entries?from=${start}&to=${end}`)
+      .then((res) => res.json())
+      .then((data) => setTodaysEntries(data.entries ?? []));
+  }, [isStaffMode]);
 
   async function handleUndo(entryId: string) {
     try {
       const res = await fetch(`/api/commission-entries/${entryId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to undo");
+      setTodaysEntries((prev) => prev.filter((e) => e.id !== entryId));
       toast.success("Entry removed");
     } catch {
       toast.error("Failed to undo - the entry is still logged.");
     }
+  }
+
+  // The dialog reports back the three fields once Save is tapped; this is
+  // the only place that actually calls PATCH. Throwing on failure lets the
+  // dialog's own try/catch show the error inline and keep itself open for
+  // a retry, instead of losing the in-progress selection.
+  async function handleSaveEdit(values: {
+    service_id: string;
+    stylist_id: string;
+    customer_name: string;
+  }) {
+    if (!editingEntry) return;
+    const res = await fetch(`/api/commission-entries/${editingEntry.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save changes");
+
+    const updated = data.entry as CommissionEntryWithRelations;
+    setTodaysEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    toast.success(`Updated: ${updated.service_name} → ${updated.stylist.name}`);
+    setEditingEntry(null);
   }
 
   async function handleSubmit() {
@@ -60,6 +117,8 @@ export function CommissionLogger({
         `Logged: ${entry.service_name} → ${selectedStylist.name}, ${formatCurrency(entry.price_charged)}`,
         { action: { label: "Undo", onClick: () => handleUndo(entry.id) } },
       );
+      if (isStaffMode) setTodaysEntries((prev) => [entry, ...prev]);
+
       setSelectedService(null);
       setSelectedStylist(null);
       setCustomerName("");
@@ -83,24 +142,29 @@ export function CommissionLogger({
               Add at least one active service and one active stylist before
               you can log a commission entry.
             </p>
-            <div className="flex gap-2">
-              {initialServices.length === 0 && (
-                <Button
-                  nativeButton={false}
-                  render={<Link href="/dashboard/commission/services" />}
-                >
-                  Add services
-                </Button>
-              )}
-              {initialStylists.length === 0 && (
-                <Button
-                  nativeButton={false}
-                  render={<Link href="/dashboard/commission/stylists" />}
-                >
-                  Add stylists
-                </Button>
-              )}
-            </div>
+            {/* Staff can't reach Services/Stylists (route-gated back to
+                here anyway) - these links would be dead ends in staff
+                mode, so they're omitted rather than shown and bounced. */}
+            {!isStaffMode && (
+              <div className="flex gap-2">
+                {initialServices.length === 0 && (
+                  <Button
+                    nativeButton={false}
+                    render={<Link href="/dashboard/commission/services" />}
+                  >
+                    Add services
+                  </Button>
+                )}
+                {initialStylists.length === 0 && (
+                  <Button
+                    nativeButton={false}
+                    render={<Link href="/dashboard/commission/stylists" />}
+                  >
+                    Add stylists
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -116,7 +180,7 @@ export function CommissionLogger({
           <button
             type="button"
             onClick={() => setSelectedStylist(null)}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             {selectedService.name} → {selectedStylist.name}
@@ -145,7 +209,7 @@ export function CommissionLogger({
           <button
             type="button"
             onClick={() => setSelectedService(null)}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             {selectedService.name} — pick a stylist
@@ -183,6 +247,68 @@ export function CommissionLogger({
             </button>
           ))}
         </div>
+      )}
+
+      {isStaffMode && (
+        <div className="space-y-2 border-t border-border pt-4">
+          <h2 className="text-sm font-semibold text-muted-foreground">Today&apos;s entries</h2>
+          {todaysEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No entries logged yet today.</p>
+          ) : (
+            <div className="space-y-2">
+              {todaysEntries.map((entry) => {
+                const isPaid = !!entry.payout_id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    disabled={isPaid}
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-muted/50 enabled:active:scale-[0.99]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        <FieldTrail
+                          original={entry.original_service_name}
+                          current={entry.service_name}
+                        />
+                        {entry.edited_at && <EditedBadge className="ml-1.5 align-middle" />}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        <FieldTrail
+                          original={entry.original_stylist_name}
+                          current={entry.stylist.name}
+                        />
+                        {entry.customer_name ? ` · ${entry.customer_name}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right text-sm tabular-nums">
+                      <PriceTrail
+                        original={entry.original_price}
+                        current={entry.price_charged}
+                        format={formatCurrency}
+                      />
+                      {isPaid && (
+                        <span className="block text-xs text-muted-foreground">Paid</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {editingEntry && (
+        <EditEntryDialog
+          entry={editingEntry}
+          services={initialServices}
+          stylists={initialStylists}
+          open
+          onOpenChange={(open) => !open && setEditingEntry(null)}
+          onSave={handleSaveEdit}
+        />
       )}
     </div>
   );

@@ -455,6 +455,16 @@ export interface Database {
           payout_id: string | null;
           is_deleted: boolean;
           deleted_at: string | null;
+          // Set together, only on the FIRST edit (see
+          // 0018_commission_entry_edits.sql / PATCH /api/commission-entries/[id])
+          // - a second edit must not overwrite these with the state right
+          // before it, so they always read as "what was first entered."
+          edited_at: string | null;
+          original_service_id: string | null;
+          original_service_name: string | null;
+          original_price: number | null;
+          original_stylist_id: string | null;
+          original_stylist_name: string | null;
           created_at: string;
         };
         Insert: {
@@ -469,6 +479,12 @@ export interface Database {
           payout_id?: string | null;
           is_deleted?: boolean;
           deleted_at?: string | null;
+          edited_at?: string | null;
+          original_service_id?: string | null;
+          original_service_name?: string | null;
+          original_price?: number | null;
+          original_stylist_id?: string | null;
+          original_stylist_name?: string | null;
           created_at?: string;
         };
         Update: {
@@ -483,6 +499,12 @@ export interface Database {
           payout_id?: string | null;
           is_deleted?: boolean;
           deleted_at?: string | null;
+          edited_at?: string | null;
+          original_service_id?: string | null;
+          original_service_name?: string | null;
+          original_price?: number | null;
+          original_stylist_id?: string | null;
+          original_stylist_name?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -501,10 +523,24 @@ export interface Database {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "commission_entries_original_stylist_id_fkey";
+            columns: ["original_stylist_id"];
+            isOneToOne: false;
+            referencedRelation: "stylists";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "commission_entries_payout_id_fkey";
             columns: ["payout_id"];
             isOneToOne: false;
             referencedRelation: "payouts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "commission_entries_original_service_id_fkey";
+            columns: ["original_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
             referencedColumns: ["id"];
           },
         ];
