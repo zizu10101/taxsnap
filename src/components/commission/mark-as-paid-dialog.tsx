@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PayoutPinStep, PayoutNoPinStep } from "@/components/commission/payout-confirm-steps";
+import { toIsoDate, localDateToUtcInstant, localDateExclusiveEndUtc } from "@/lib/date-range";
 import type { CommissionEntryWithRelations, Payout, StylistPublic } from "@/lib/database.types";
 
 type Step = "range" | "pin" | "no-pin";
@@ -24,10 +25,6 @@ function formatCurrency(amount: number) {
     style: "currency",
     currency: "USD",
   }).format(amount);
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export function MarkAsPaidDialog({
@@ -49,7 +46,7 @@ export function MarkAsPaidDialog({
   // useState initializer below only ever needs to handle a true first mount.
   const [step, setStep] = useState<Step>("range");
   const [rangeStart, setRangeStart] = useState(defaultRangeStart);
-  const [rangeEnd, setRangeEnd] = useState(todayIso());
+  const [rangeEnd, setRangeEnd] = useState(toIsoDate(new Date()));
   const [entriesTotal, setEntriesTotal] = useState(0);
   const [entryCount, setEntryCount] = useState(0);
   // Not scoped to the range - create_payout() folds in *every* unapplied
@@ -79,8 +76,8 @@ export function MarkAsPaidDialog({
     const entriesParams = new URLSearchParams({
       stylist_id: stylist.id,
       status: "unpaid",
-      from: rangeStart,
-      to: rangeEnd,
+      from: localDateToUtcInstant(rangeStart),
+      to: localDateExclusiveEndUtc(rangeEnd),
     });
     const adjustmentsParams = new URLSearchParams({
       stylist_id: stylist.id,
@@ -117,6 +114,14 @@ export function MarkAsPaidDialog({
           stylist_id: stylist.id,
           range_start: rangeStart,
           range_end: rangeEnd,
+          // range_start/range_end above are shop-local calendar dates, kept
+          // only for display on the payout row (e.g. "Aug 1 - Aug 15") -
+          // these two are the actual UTC instant boundaries used to select
+          // which entries fall inside the range, since created_at is a
+          // timestamptz and a bare date would be compared in UTC, not the
+          // shop's local timezone (see lib/date-range.ts).
+          start_ts: localDateToUtcInstant(rangeStart),
+          end_ts: localDateExclusiveEndUtc(rangeEnd),
         }),
       });
       const data = await res.json();

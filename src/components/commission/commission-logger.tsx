@@ -11,7 +11,7 @@ import { CommissionNav } from "@/components/commission/commission-nav";
 import { FieldTrail, PriceTrail, EditedBadge } from "@/components/commission/entry-trail";
 import { EditEntryDialog } from "@/components/commission/edit-entry-dialog";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
-import { getPresetRange } from "@/lib/date-range";
+import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { CommissionEntryWithRelations, Service, StylistPublic } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -55,8 +55,8 @@ export function CommissionLogger({
 
   useEffect(() => {
     if (!isStaffMode) return;
-    const { start, end } = getPresetRange("today");
-    fetch(`/api/commission-entries?from=${start}&to=${end}`)
+    const { from, to } = rangeToUtcBounds(getPresetRange("today"));
+    fetch(`/api/commission-entries?from=${from}&to=${to}`)
       .then((res) => res.json())
       .then((data) => setTodaysEntries(data.entries ?? []));
   }, [isStaffMode]);

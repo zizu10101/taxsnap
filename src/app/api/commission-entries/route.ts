@@ -2,12 +2,6 @@ import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
-function nextDayIso(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 export async function GET(request: Request) {
   const result = await requireProUser();
   if ("error" in result) {
@@ -30,12 +24,16 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (stylistId) query = query.eq("stylist_id", stylistId);
-  // from/to are date-only (YYYY-MM-DD) from the shared DateRangeFilter, but
-  // created_at is a timestamptz - comparing against a bare date would treat
-  // "to" as that day's midnight and silently exclude everything logged
-  // later that same day, so the upper bound uses the *next* day, exclusive.
+  // from/to are full UTC instants (see lib/date-range.ts's rangeToUtcBounds)
+  // representing shop-local midnight boundaries, not bare dates - created_at
+  // is a timestamptz, and comparing it against a bare "YYYY-MM-DD" string
+  // would be implicitly interpreted in the database's session timezone
+  // (UTC), not the shop's local timezone, silently shifting the window by
+  // the shop's UTC offset. The client computes these instants (it's the
+  // only side that knows the shop's real local offset), so this route just
+  // compares them directly - "to" is already the exclusive upper bound.
   if (from) query = query.gte("created_at", from);
-  if (to) query = query.lt("created_at", nextDayIso(to));
+  if (to) query = query.lt("created_at", to);
   if (status === "unpaid") query = query.is("payout_id", null);
   if (status === "paid") query = query.not("payout_id", "is", null);
 

@@ -15,8 +15,76 @@ export interface DateRange {
   end: string | null;
 }
 
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+// Local calendar date, not UTC - `date.toISOString().slice(0, 10)` (the
+// previous implementation) converts to UTC first, which silently shifts
+// the date by one in either direction depending on the time of day and
+// the runtime's UTC offset. For a shop in a negative-UTC-offset timezone
+// (all of North America), that meant "Today" already rolled over to
+// tomorrow's date every evening, well before local midnight - e.g. 8pm EST
+// is already past midnight UTC. `getFullYear`/`getMonth`/`getDate` read
+// the Date object's local representation directly, so this is correct
+// wherever it runs: the shop's own local time in the browser (the
+// reasonable stand-in for "shop timezone" this app uses everywhere, since
+// it's built for a single physical location), or the server's own local
+// time for any SSR-only default that a client-side refetch overwrites
+// immediately after.
+export function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Exclusive upper bound for a date-only range end - e.g. "2026-08-30" ->
+// "2026-08-31" - for comparing against a timestamptz column, where a plain
+// `<= "2026-08-30"` bound would exclude anything logged later that same
+// day. Built entirely from local Date construction/extraction (no UTC
+// round-trip anywhere in it), so - unlike the two near-identical
+// `nextDayIso` helpers this replaces in the commission-entries/payouts API
+// routes - it can't drift by a day depending on the runtime's timezone
+// offset either.
+export function nextDayIso(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return toIsoDate(new Date(year, month - 1, day + 1));
+}
+
+// Converts a shop-local calendar date into the UTC instant of that day's
+// local midnight - the correct way to compare a local calendar boundary
+// against a `timestamptz` column (commission_entries.created_at,
+// payouts.paid_at). A bare "YYYY-MM-DD" string compared directly against a
+// timestamptz is implicitly cast in the *database's* session timezone (UTC
+// on Supabase), not the shop's local timezone - so "today >= 2026-08-30"
+// really means ">= 2026-08-30T00:00:00Z", which for any North American shop
+// is several hours before actual local midnight, letting the tail end of
+// the previous local day leak into "Today". `new Date(y, m, d, ...)`
+// resolves the correct local-to-UTC offset for that specific calendar day
+// (DST included), so `.toISOString()` here is the correct use of a UTC
+// round-trip - unlike toIsoDate above, which deliberately avoids
+// toISOString() because it's extracting a calendar-date *label*, this is
+// converting a known-correct local instant into its UTC equivalent for a
+// precise timestamp comparison.
+export function localDateToUtcInstant(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+}
+
+// Exclusive upper-bound instant - local midnight at the *start* of the day
+// after `dateStr`, for a `< upperBound` comparison against a timestamptz
+// column.
+export function localDateExclusiveEndUtc(dateStr: string): string {
+  return localDateToUtcInstant(nextDayIso(dateStr));
+}
+
+// Converts a date-only DateRange (as produced by getPresetRange/the
+// DateRangeFilter) into UTC instant bounds ready to send to any API route
+// that filters a timestamptz column - see localDateToUtcInstant above for
+// why the conversion can't happen server-side (the server has no idea what
+// the shop's local offset is).
+export function rangeToUtcBounds(range: DateRange): { from: string | null; to: string | null } {
+  return {
+    from: range.start ? localDateToUtcInstant(range.start) : null,
+    to: range.end ? localDateExclusiveEndUtc(range.end) : null,
+  };
 }
 
 function lastDayOfMonth(year: number, monthIndex: number): Date {

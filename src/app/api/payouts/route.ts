@@ -4,12 +4,6 @@ import type { Payout, PayoutStatus } from "@/lib/database.types";
 
 const PAYOUT_STATUSES: PayoutStatus[] = ["active", "voided"];
 
-function nextDayIso(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 // Lists payouts directly (not derived from commission_entries) - needed so
 // a voided payout stays visible in Reports even though void_payout()
 // deliberately nulls out every linked entry's payout_id, severing the only
@@ -33,12 +27,10 @@ export async function GET(request: Request) {
   if (status && PAYOUT_STATUSES.includes(status as PayoutStatus)) {
     query = query.eq("status", status as PayoutStatus);
   }
-  // from/to are date-only (YYYY-MM-DD) from the shared DateRangeFilter, but
-  // paid_at is a timestamptz - same exclusive "< next day" upper bound as
-  // GET /api/commission-entries, for the same reason (a bare upper-bound
-  // date would exclude anything paid out later that same day).
+  // from/to are full UTC instants (see GET /api/commission-entries for why
+  // - same timestamptz-vs-bare-date pitfall applies to paid_at here).
   if (from) query = query.gte("paid_at", from);
-  if (to) query = query.lt("paid_at", nextDayIso(to));
+  if (to) query = query.lt("paid_at", to);
 
   const { data, error } = await query;
 
@@ -61,19 +53,29 @@ export async function POST(request: Request) {
   const { supabase } = result;
 
   const body = await request.json();
-  const { stylist_id, range_start, range_end } = body ?? {};
+  const { stylist_id, range_start, range_end, start_ts, end_ts } = body ?? {};
 
-  if (!stylist_id || !range_start || !range_end) {
+  if (!stylist_id || !range_start || !range_end || !start_ts || !end_ts) {
     return NextResponse.json(
-      { error: "stylist_id, range_start, and range_end are required." },
+      {
+        error:
+          "stylist_id, range_start, range_end, start_ts, and end_ts are required.",
+      },
       { status: 400 },
     );
   }
 
+  // range_start/range_end are shop-local calendar dates, stored on the
+  // payout purely for display. start_ts/end_ts are the actual UTC instant
+  // boundaries create_payout() filters commission_entries.created_at
+  // against - computed client-side (see MarkAsPaidDialog) since the server
+  // has no way to know the shop's local UTC offset.
   const { data, error } = await supabase.rpc("create_payout", {
     p_stylist_id: stylist_id,
     p_range_start: range_start,
     p_range_end: range_end,
+    p_start_ts: start_ts,
+    p_end_ts: end_ts,
   });
 
   if (error) {

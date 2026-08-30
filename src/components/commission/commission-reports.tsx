@@ -31,7 +31,14 @@ import { CommissionReportShareButtons } from "@/components/commission/commission
 import { MarkAsPaidDialog } from "@/components/commission/mark-as-paid-dialog";
 import { ConfirmPayoutDialog } from "@/components/commission/confirm-payout-dialog";
 import { AddAdjustmentDialog } from "@/components/commission/add-adjustment-dialog";
-import { getPresetRange, describeRange, type DateRange, type RangePreset } from "@/lib/date-range";
+import {
+  getPresetRange,
+  describeRange,
+  toIsoDate,
+  rangeToUtcBounds,
+  type DateRange,
+  type RangePreset,
+} from "@/lib/date-range";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type {
   Adjustment,
@@ -165,15 +172,16 @@ export function CommissionReports({
       params.set("stylist_id", stylistId);
       params.set("status", paidFilter);
     }
-    if (range.start) params.set("from", range.start);
-    if (range.end) params.set("to", range.end);
+    const { from, to } = rangeToUtcBounds(range);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
 
     return fetch(`/api/commission-entries?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         if (fetchTokenRef.current === token) setEntries(data.entries ?? []);
       });
-  }, [stylistId, range.start, range.end, paidFilter]);
+  }, [stylistId, range, paidFilter]);
 
   // Voided payouts are queried directly (GET /api/payouts), not derived
   // from `entries` - void_payout() nulls out payout_id on every entry it
@@ -189,15 +197,16 @@ export function CommissionReports({
     if (stylistId === ALL_STYLISTS || paidFilter !== "paid") return;
     const token = ++voidedTokenRef.current;
     const params = new URLSearchParams({ stylist_id: stylistId, status: "voided" });
-    if (range.start) params.set("from", range.start);
-    if (range.end) params.set("to", range.end);
+    const { from, to } = rangeToUtcBounds(range);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
 
     return fetch(`/api/payouts?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         if (voidedTokenRef.current === token) setVoidedPayouts(data.payouts ?? []);
       });
-  }, [stylistId, paidFilter, range.start, range.end]);
+  }, [stylistId, paidFilter, range]);
 
   // Not date-range-scoped (see GET /api/adjustments's own reasoning) - only
   // relevant on the Unpaid tab, where it previews what's pending on top of
@@ -223,15 +232,16 @@ export function CommissionReports({
     if (stylistId === ALL_STYLISTS || paidFilter !== "paid") return;
     const token = ++paidPayoutsTokenRef.current;
     const params = new URLSearchParams({ stylist_id: stylistId, status: "active" });
-    if (range.start) params.set("from", range.start);
-    if (range.end) params.set("to", range.end);
+    const { from, to } = rangeToUtcBounds(range);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
 
     return fetch(`/api/payouts?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         if (paidPayoutsTokenRef.current === token) setPaidPayouts(data.payouts ?? []);
       });
-  }, [stylistId, paidFilter, range.start, range.end]);
+  }, [stylistId, paidFilter, range]);
 
   // Not date-range-scoped itself (see GET /api/adjustments) - matching each
   // one against `paidPayouts` (which is range-scoped) by applied_payout_id
@@ -321,11 +331,14 @@ export function CommissionReports({
 
   // entries is already sorted created_at descending (see the API route), so
   // the earliest unpaid entry - the natural start of "what's outstanding" -
-  // is the last item, not the first.
+  // is the last item, not the first. created_at is a UTC timestamptz
+  // string - slicing its first 10 characters would read off the UTC
+  // calendar date, same bug as toIsoDate used to have; parsing it into a
+  // Date and re-extracting via toIsoDate gets the shop-local date instead.
   const earliestUnpaidDate =
     paidFilter === "unpaid" && entries.length > 0
-      ? entries[entries.length - 1].created_at.slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+      ? toIsoDate(new Date(entries[entries.length - 1].created_at))
+      : toIsoDate(new Date());
 
   // Updates the badge in place rather than refetching - we already know
   // exactly what changed. A payout can link multiple entries, so every
