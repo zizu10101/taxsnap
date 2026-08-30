@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionLogger } from "@/components/commission/commission-logger";
@@ -52,13 +53,7 @@ export default async function CommissionPage() {
         active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <Link
-          href="/dashboard"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
+        <BackToDashboardLink />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Commission</h1>

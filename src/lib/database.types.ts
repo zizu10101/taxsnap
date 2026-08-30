@@ -7,6 +7,7 @@ export type DocumentType = "invoice" | "estimate";
 export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
 export type PayType = "commission" | "hourly" | "salary";
 export type PayoutStatus = "active" | "voided";
+export type AppLockRole = "owner" | "staff";
 
 export interface ReceiptItem {
   name: string;
@@ -640,6 +641,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      app_settings: {
+        Row: {
+          user_id: string;
+          // Never selectable via a normal request (column-level REVOKE in
+          // 0017_app_lock.sql) - present here only to mirror the actual DB
+          // schema, per this file's own header comment. Every real select
+          // call site uses APP_SETTINGS_PUBLIC_COLUMNS instead of "*",
+          // which omits these and reads has_owner_pin/has_staff_pin instead.
+          owner_pin_hash: string | null;
+          staff_pin_hash: string | null;
+          has_owner_pin: boolean;
+          has_staff_pin: boolean;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -686,6 +711,24 @@ export interface Database {
         };
         Returns: boolean;
       };
+      set_owner_pin: {
+        Args: {
+          p_pin: string;
+        };
+        Returns: undefined;
+      };
+      set_staff_pin: {
+        Args: {
+          p_pin: string;
+        };
+        Returns: undefined;
+      };
+      verify_app_pin: {
+        Args: {
+          p_pin: string;
+        };
+        Returns: string | null;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -718,6 +761,11 @@ export type CommissionEntryUpdate =
   Database["public"]["Tables"]["commission_entries"]["Update"];
 export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
 export type Adjustment = Database["public"]["Tables"]["adjustments"]["Row"];
+export type AppSettings = Database["public"]["Tables"]["app_settings"]["Row"];
+// What every real select actually returns (APP_SETTINGS_PUBLIC_COLUMNS omits
+// owner_pin_hash/staff_pin_hash) - use this, not AppSettings, for anything
+// that reaches the client.
+export type AppSettingsPublic = Omit<AppSettings, "owner_pin_hash" | "staff_pin_hash">;
 
 export interface CommissionEntryWithRelations extends CommissionEntry {
   stylist: StylistPublic;
