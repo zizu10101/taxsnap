@@ -1,31 +1,22 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
 import { ResetPasswordForm } from "./reset-password-form";
 
 export const metadata: Metadata = {
   title: "Set a new password — TaxSnap",
 };
 
-// resetPasswordForEmail's redirectTo points directly here (a bare path, no
-// query string) instead of bouncing through /auth/callback?redirectTo=...
-// like magic-link/OAuth do - Supabase's Redirect URLs allow-list matching
-// (at least for a wildcard entry, observed directly against this project)
-// doesn't reliably preserve a query string appended to the requested
-// redirect URL, silently truncating it to the bare origin instead of
-// erroring. Exchanging the code inline here, against a query-string-free
-// URL, sidesteps that rather than depending on exactly how the allow-list
-// matcher treats it.
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ code?: string }>;
-}) {
-  const { code } = await searchParams;
-  if (code) {
-    const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
-  }
-
+// No code-exchange logic here anymore - /auth/callback (a real Route
+// Handler) already exchanged the recovery code for a session and
+// persisted it via Set-Cookie before redirecting here (see
+// ForgotPasswordForm and lib/auth-redirect.ts). This used to do its own
+// exchangeCodeForSession() call inline in this Server Component, which
+// looked like it worked (the exchange itself succeeded) but could never
+// actually persist the resulting session - Next.js only allows setting
+// cookies on the response from a Route Handler, Server Action, or
+// middleware, never a plain Server Component render, so the session was
+// silently dropped and updateUser() on submit always failed with
+// "Auth session missing!".
+export default function ResetPasswordPage() {
   return (
     <main className="flex min-h-screen flex-1 items-center justify-center bg-muted/40 p-4">
       <ResetPasswordForm />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { setPostAuthRedirect } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,13 +34,21 @@ export function ForgotPasswordForm() {
     setLoading(true);
     setError(null);
 
+    // Routes through /auth/callback like magic-link/OAuth/signup-confirm,
+    // not directly at /auth/reset-password - the callback's Route Handler
+    // can actually persist the session cookies exchangeCodeForSession
+    // produces (Set-Cookie only works from a Route Handler, Server Action,
+    // or middleware, never a plain Server Component page render), whereas
+    // reset-password/page.tsx doing its own exchange inline previously
+    // looked like it worked (the code exchange itself succeeded) but never
+    // actually wrote the session to the browser, so updateUser() on submit
+    // always failed with "Auth session missing!". See lib/auth-redirect.ts
+    // for why the real destination travels via a cookie instead of a
+    // redirectTo query string.
+    setPostAuthRedirect("/auth/reset-password");
     const supabase = createClient();
-    // Points directly at /auth/reset-password (no query string) rather
-    // than through /auth/callback?redirectTo=... - see that page's own
-    // comment for why: a query string on the requested redirect URL
-    // wasn't surviving Supabase's Redirect URLs allow-list matching.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: `${window.location.origin}/auth/callback`,
     });
 
     setLoading(false);

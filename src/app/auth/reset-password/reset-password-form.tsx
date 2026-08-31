@@ -16,14 +16,16 @@ import {
 } from "@/components/ui/card";
 
 // Reached only via the emailed reset link: /auth/callback already exchanged
-// the recovery code for a session (same callback magic-link/OAuth use,
-// redirected here via resetPasswordForEmail's redirectTo) before the
-// browser ever got here, so this page just needs a plain
-// supabase.auth.updateUser({ password }) against the session already
-// sitting in cookies - no separate token/code handling of its own. If
-// that session is missing (an expired/already-used link, or the page
-// reached directly), updateUser's own error surfaces as-is rather than a
-// bespoke pre-check, same as the rest of this app's auth error handling.
+// the recovery code for a session and persisted it via Set-Cookie (same
+// Route Handler magic-link/OAuth/signup-confirm use, redirected here
+// afterward via the post_auth_redirect cookie - see
+// ForgotPasswordForm/lib/auth-redirect.ts) before the browser ever got
+// here, so this page just needs a plain supabase.auth.updateUser({
+// password }) against the session already sitting in cookies - no
+// separate token/code handling of its own. If that session is missing (an
+// expired/already-used link, or the page reached directly), updateUser's
+// own error surfaces as-is rather than a bespoke pre-check, same as the
+// rest of this app's auth error handling.
 export function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
