@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { setPostAuthRedirect } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,11 +63,12 @@ export function AuthForm() {
     setError(null);
     setMessage(null);
 
+    setPostAuthRedirect(redirectTo);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -84,11 +86,12 @@ export function AuthForm() {
     setError(null);
     setMessage(null);
 
+    setPostAuthRedirect(redirectTo);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -109,11 +112,12 @@ export function AuthForm() {
     const supabase = createClient();
 
     if (passwordAction === "sign-up") {
+      setPostAuthRedirect(redirectTo);
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       setLoading(false);
