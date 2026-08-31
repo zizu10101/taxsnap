@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const [{ data: profile }, { data: receipts }, { data: jobs }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("subscription_status")
+      .select("subscription_status, business_type")
       .eq("id", user.id)
       .single(),
     supabase
@@ -40,6 +40,7 @@ export default async function DashboardPage() {
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
+        businessType={profile?.business_type ?? "general"}
       />
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-4">
         <DashboardBody

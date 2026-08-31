@@ -28,7 +28,7 @@ export default async function InvoicesPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, logo_url, business_name, business_address, business_phone, business_email, business_profile_skipped",
+      "subscription_status, business_type, logo_url, business_name, business_address, business_phone, business_email, business_profile_skipped",
     )
     .eq("id", user.id)
     .single();
@@ -51,6 +51,7 @@ export default async function InvoicesPage({
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
+        businessType={profile?.business_type ?? "general"}
         active="invoices"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">

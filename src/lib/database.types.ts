@@ -3,6 +3,7 @@
 //   npx supabase gen types typescript --project-id <id> > src/lib/database.types.ts
 
 export type SubscriptionStatus = "free" | "basic" | "pro";
+export type BusinessType = "salon" | "general";
 export type DocumentType = "invoice" | "estimate";
 export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
 export type PayType = "commission" | "hourly" | "salary";
@@ -23,7 +24,7 @@ export interface Database {
           email: string;
           stripe_customer_id: string | null;
           subscription_status: SubscriptionStatus;
-          business_type: string;
+          business_type: BusinessType;
           logo_url: string | null;
           business_name: string | null;
           business_address: string | null;
@@ -37,7 +38,7 @@ export interface Database {
           email: string;
           stripe_customer_id?: string | null;
           subscription_status?: SubscriptionStatus;
-          business_type?: string;
+          business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;
           business_address?: string | null;
@@ -51,7 +52,7 @@ export interface Database {
           email?: string;
           stripe_customer_id?: string | null;
           subscription_status?: SubscriptionStatus;
-          business_type?: string;
+          business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;
           business_address?: string | null;

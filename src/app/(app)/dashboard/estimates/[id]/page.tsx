@@ -25,7 +25,7 @@ export default async function EstimateDetailPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, logo_url, business_name, business_address, business_phone, business_email",
+      "subscription_status, business_type, logo_url, business_name, business_address, business_phone, business_email",
     )
     .eq("id", user.id)
     .single();
@@ -54,7 +54,12 @@ export default async function EstimateDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader email={user.email ?? ""} subscriptionStatus="pro" active="estimates" />
+      <DashboardHeader
+        email={user.email ?? ""}
+        subscriptionStatus="pro"
+        businessType={profile?.business_type ?? "general"}
+        active="estimates"
+      />
       <main className="flex-1">
         <DocumentDetail
           document={document as DocumentWithRelations}

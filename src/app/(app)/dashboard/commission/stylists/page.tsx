@@ -24,7 +24,7 @@ export default async function StylistsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status")
+    .select("subscription_status, business_type")
     .eq("id", user.id)
     .single();
 
@@ -39,6 +39,7 @@ export default async function StylistsPage() {
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
+        businessType={profile?.business_type ?? "general"}
         active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">

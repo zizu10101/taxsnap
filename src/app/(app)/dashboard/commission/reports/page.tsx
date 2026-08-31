@@ -27,7 +27,7 @@ export default async function CommissionReportsPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, logo_url, business_name, business_address, business_phone, business_email",
+      "subscription_status, business_type, logo_url, business_name, business_address, business_phone, business_email",
     )
     .eq("id", user.id)
     .single();
@@ -61,6 +61,7 @@ export default async function CommissionReportsPage() {
       <DashboardHeader
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
+        businessType={profile?.business_type ?? "general"}
         active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">

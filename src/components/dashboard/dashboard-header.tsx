@@ -6,7 +6,7 @@ import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
-import type { SubscriptionStatus } from "@/lib/database.types";
+import type { BusinessType, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
   free: "Free",
@@ -17,10 +17,12 @@ const TIER_LABEL: Record<SubscriptionStatus, string> = {
 export function DashboardHeader({
   email,
   subscriptionStatus,
+  businessType,
   active,
 }: {
   email: string;
   subscriptionStatus: SubscriptionStatus;
+  businessType: BusinessType;
   active?: "estimates" | "invoices" | "jobs" | "commission";
 }) {
   const { role, exitStaffMode } = useAppLock();
@@ -113,16 +115,18 @@ export function DashboardHeader({
               <Briefcase className="h-4 w-4" />
               Jobs
             </Button>
-            <Button
-              variant={active === "commission" ? "default" : "outline"}
-              size="sm"
-              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-              nativeButton={false}
-              render={<Link href="/dashboard/commission" />}
-            >
-              <Scissors className="h-4 w-4" />
-              Commission
-            </Button>
+            {businessType === "salon" && (
+              <Button
+                variant={active === "commission" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                nativeButton={false}
+                render={<Link href="/dashboard/commission" />}
+              >
+                <Scissors className="h-4 w-4" />
+                Commission
+              </Button>
+            )}
           </div>
         </nav>
       )}

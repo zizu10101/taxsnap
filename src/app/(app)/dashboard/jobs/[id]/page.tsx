@@ -26,7 +26,7 @@ export default async function JobDetailPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status")
+    .select("subscription_status, business_type")
     .eq("id", user.id)
     .single();
 
@@ -55,7 +55,12 @@ export default async function JobDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader email={user.email ?? ""} subscriptionStatus="pro" active="jobs" />
+      <DashboardHeader
+        email={user.email ?? ""}
+        subscriptionStatus="pro"
+        businessType={profile?.business_type ?? "general"}
+        active="jobs"
+      />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
         <Link
           href="/dashboard/jobs"
