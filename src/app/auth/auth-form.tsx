@@ -218,26 +218,35 @@ export function AuthForm() {
             {otpSent ? (
               <div className="space-y-4">
                 <p className="rounded-md bg-success/10 p-3 text-center text-sm text-success">
-                  Check your email for a sign-in link, or enter the 6-digit code
+                  Check your email for a sign-in link, or enter the code
                   from that email below.
                 </p>
                 <form onSubmit={handleVerifyCode} className="space-y-2">
-                  <Label htmlFor="otp-code">6-digit code</Label>
+                  <Label htmlFor="otp-code">Sign-in code</Label>
                   <div className="flex gap-2">
                     <Input
                       id="otp-code"
                       type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      placeholder="123456"
-                      maxLength={6}
+                      placeholder="Enter code"
+                      // Not hardcoded to 6 digits - Supabase's OTP length is a
+                      // per-project dashboard setting (Authentication ->
+                      // Providers -> Email -> OTP Length), and this project's
+                      // is actually 8, not the default 6. An earlier version
+                      // capped this at 6 and silently truncated the real code
+                      // before it ever reached verifyOtp(), which always
+                      // failed with "Token has expired or is invalid"
+                      // regardless of what the user typed correctly. 10 is
+                      // just a sane upper bound against pasting garbage.
+                      maxLength={10}
                       required
                       value={otpCode}
                       onChange={(e) =>
-                        setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                        setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 10))
                       }
                     />
-                    <Button type="submit" disabled={verifyingCode || otpCode.length !== 6}>
+                    <Button type="submit" disabled={verifyingCode || otpCode.length < 6}>
                       {verifyingCode && <Loader2 className="h-4 w-4 animate-spin" />}
                       Verify
                     </Button>
