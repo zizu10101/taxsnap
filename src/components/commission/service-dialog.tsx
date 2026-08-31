@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function ServiceDialog({
   const [price, setPrice] = useState(service?.default_price ?? 0);
   const [color, setColor] = useState(service?.color ?? SERVICE_COLOR_PALETTE[0]);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   async function handleSave() {
     if (!name.trim()) {
@@ -49,7 +51,18 @@ export function ServiceDialog({
         body: JSON.stringify({ name, default_price: price, color }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
+      if (!res.ok) {
+        // Free-tier salon accounts are capped at 1 active service (see
+        // lib/free-tier-limits.ts) - same upgrade-toast pattern already
+        // used for the free receipt-scan cap in upload-receipt.tsx.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to save");
+      }
 
       onSaved(data.service as Service);
       toast.success(isEditing ? "Service updated" : "Service added");

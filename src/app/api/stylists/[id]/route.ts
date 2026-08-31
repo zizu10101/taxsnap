@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
+import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
 import type { PayType, StylistUpdate } from "@/lib/database.types";
 
 const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
@@ -13,15 +14,29 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  const { supabase } = result;
+  const { supabase, user } = result;
   const { id } = await params;
 
   const body = await request.json();
   const { name, pay_type, commission_rate, is_active } = body ?? {};
+
+  // Same reactivation-cap reasoning as services/[id] - only checked when
+  // this PATCH would increase the active count.
+  if (is_active === true) {
+    if (await wouldExceedFreeTierActiveLimit(supabase, user.id, "stylists", id)) {
+      return NextResponse.json(
+        {
+          error: "Free accounts can have 1 active stylist. Upgrade to Pro to add more.",
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+  }
 
   const update: StylistUpdate = {};
   if (name !== undefined) {

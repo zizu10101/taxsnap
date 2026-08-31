@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function StylistDialog({
   // commission_rate is stored as a fraction (0.15) but edited as a percent (15).
   const [ratePercent, setRatePercent] = useState((stylist?.commission_rate ?? 0) * 100);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   // PIN state is deliberately separate from the fields above - it saves via
   // its own action (POST /api/stylists/[id]/set-pin), not bundled into
@@ -83,7 +85,18 @@ export function StylistDialog({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
+      if (!res.ok) {
+        // Free-tier salon accounts are capped at 1 active stylist (see
+        // lib/free-tier-limits.ts) - same upgrade-toast pattern already
+        // used for the free receipt-scan cap in upload-receipt.tsx.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to save");
+      }
 
       onSaved(data.stylist as StylistPublic);
       toast.success(isEditing ? "Stylist updated" : "Stylist added");

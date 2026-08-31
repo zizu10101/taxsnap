@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
+import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
 import type { PayType } from "@/lib/database.types";
 
 const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
 
 export async function GET() {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -22,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -33,6 +34,19 @@ export async function POST(request: Request) {
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Stylist name is required." }, { status: 400 });
+  }
+
+  // Free-tier salon accounts get 1 free active stylist as a preview - a
+  // new stylist always inserts as active, so this is checked
+  // unconditionally here rather than only when is_active is passed.
+  if (await wouldExceedFreeTierActiveLimit(supabase, user.id, "stylists")) {
+    return NextResponse.json(
+      {
+        error: "Free accounts can have 1 active stylist. Upgrade to Pro to add more.",
+        code: "FREE_LIMIT_REACHED",
+      },
+      { status: 403 },
+    );
   }
 
   const { data, error } = await supabase

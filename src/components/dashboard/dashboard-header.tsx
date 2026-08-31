@@ -81,40 +81,48 @@ export function DashboardHeader({
       </div>
       {/* Staff mode is only ever navigable to the Commission Log page, so
           the tab row (which links to everything else) is hidden outright
-          rather than left visible-but-blocked. */}
-      {!isStaffMode && subscriptionStatus === "pro" && (
+          rather than left visible-but-blocked. The row itself now renders
+          for a free-tier salon account too - Commission gives Free a
+          capped preview (see lib/free-tier-limits.ts), unlike
+          Estimates/Invoices/Jobs, which stay Pro-only and are individually
+          hidden below rather than gating the whole row. */}
+      {!isStaffMode && (subscriptionStatus === "pro" || businessType === "salon") && (
         <nav className="border-t bg-background">
           <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
-            <Button
-              variant={active === "estimates" ? "default" : "outline"}
-              size="sm"
-              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-              nativeButton={false}
-              render={<Link href="/dashboard/estimates" />}
-            >
-              <ClipboardList className="h-4 w-4" />
-              Estimates
-            </Button>
-            <Button
-              variant={active === "invoices" ? "default" : "outline"}
-              size="sm"
-              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-              nativeButton={false}
-              render={<Link href="/dashboard/invoices" />}
-            >
-              <FileText className="h-4 w-4" />
-              Invoices
-            </Button>
-            <Button
-              variant={active === "jobs" ? "default" : "outline"}
-              size="sm"
-              className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-              nativeButton={false}
-              render={<Link href="/dashboard/jobs" />}
-            >
-              <Briefcase className="h-4 w-4" />
-              Jobs
-            </Button>
+            {subscriptionStatus === "pro" && (
+              <>
+                <Button
+                  variant={active === "estimates" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/estimates" />}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Estimates
+                </Button>
+                <Button
+                  variant={active === "invoices" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/invoices" />}
+                >
+                  <FileText className="h-4 w-4" />
+                  Invoices
+                </Button>
+                <Button
+                  variant={active === "jobs" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/jobs" />}
+                >
+                  <Briefcase className="h-4 w-4" />
+                  Jobs
+                </Button>
+              </>
+            )}
             {businessType === "salon" && (
               <Button
                 variant={active === "commission" ? "default" : "outline"}

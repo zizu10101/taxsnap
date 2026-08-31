@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 export async function GET(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 // to tamper with anyway, and it guarantees the snapshot reflects what was
 // actually on file at the moment of submit.
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
+import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
 import type { ServiceUpdate } from "@/lib/database.types";
 
 // Owner can edit or deactivate a service (is_active = false) - never
@@ -9,15 +10,32 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  const { supabase } = result;
+  const { supabase, user } = result;
   const { id } = await params;
 
   const body = await request.json();
   const { name, default_price, color, is_active } = body ?? {};
+
+  // Only checked when this PATCH would *increase* the active count
+  // (reactivating a previously-deactivated service) - editing name/price/
+  // color, or deactivating, never needs the cap. Without this, a free
+  // account could exceed the 1-active limit by deactivating then
+  // reactivating rows instead of ever using the "add" flow twice.
+  if (is_active === true) {
+    if (await wouldExceedFreeTierActiveLimit(supabase, user.id, "services", id)) {
+      return NextResponse.json(
+        {
+          error: "Free accounts can have 1 active service. Upgrade to Pro to add more.",
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+  }
 
   const update: ServiceUpdate = {};
   if (name !== undefined) {

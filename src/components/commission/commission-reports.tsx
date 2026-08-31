@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronUp, Loader2, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,13 +78,45 @@ function formatDate(dateStr: string) {
   });
 }
 
+// Replaces CommissionReportShareButtons for a non-Pro account - totals and
+// the itemized list underneath this are still fully real and functional,
+// only export/share are Pro-only.
+function LockedShareRow() {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4" />
+        Export &amp; share are Pro features
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        nativeButton={false}
+        render={<Link href="/billing" />}
+      >
+        Upgrade
+      </Button>
+    </div>
+  );
+}
+
 export function CommissionReports({
+  isPro,
   stylists,
   services,
   initialEntries,
   business,
   logoPath,
 }: {
+  // Free-tier salon accounts reach this component too now (a capped
+  // preview, not locked out) - totals and the itemized list are fully
+  // functional either way. isPro only gates the two things staying
+  // Pro-only: PDF export/Share (locked inline below, see LockedShareRow)
+  // and payouts (Mark as Paid stays hidden for non-Pro exactly as it
+  // always was before this component was reachable at all on Free -
+  // deliberately no change to payout behavior/visibility, matching every
+  // payout/adjustment/PIN route staying untouched server-side too).
+  isPro: boolean;
   stylists: StylistPublic[];
   services: Service[];
   initialEntries: CommissionEntryWithRelations[];
@@ -533,7 +566,8 @@ export function CommissionReports({
         </Card>
       )}
 
-      {selectedStylist &&
+      {isPro &&
+        selectedStylist &&
         paidFilter === "unpaid" &&
         (entries.length > 0 || pendingAdjustments.length > 0) && (
           <Button
@@ -547,17 +581,20 @@ export function CommissionReports({
           </Button>
         )}
 
-      {selectedStylist && (
-        <div className="flex gap-2">
-          <CommissionReportShareButtons
-            stylistName={selectedStylist.name}
-            rangeLabel={rangeLabel}
-            entries={entries}
-            business={business}
-            logoPath={logoPath}
-          />
-        </div>
-      )}
+      {selectedStylist &&
+        (isPro ? (
+          <div className="flex gap-2">
+            <CommissionReportShareButtons
+              stylistName={selectedStylist.name}
+              rangeLabel={rangeLabel}
+              entries={entries}
+              business={business}
+              logoPath={logoPath}
+            />
+          </div>
+        ) : (
+          <LockedShareRow />
+        ))}
 
       {stylistId === ALL_STYLISTS ? (
         <div className="space-y-2">
