@@ -7,6 +7,7 @@ import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { setPostAuthRedirect } from "@/lib/auth-redirect";
 import type { BusinessType } from "@/lib/database.types";
+import { BusinessTypeToggle } from "./business-type-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -337,27 +338,7 @@ export function AuthForm() {
                 />
               </div>
               {passwordAction === "sign-up" && (
-                <div className="space-y-2">
-                  <Label>What kind of business is this?</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={businessType === "salon" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setBusinessType("salon")}
-                    >
-                      Salon / Barbershop
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={businessType === "general" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setBusinessType("general")}
-                    >
-                      General Business
-                    </Button>
-                  </div>
-                </div>
+                <BusinessTypeToggle value={businessType} onChange={setBusinessType} />
               )}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}

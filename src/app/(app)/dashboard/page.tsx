@@ -19,12 +19,32 @@ export default async function DashboardPage() {
     redirect("/auth");
   }
 
-  const [{ data: profile }, { data: receipts }, { data: jobs }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("subscription_status, business_type")
-      .eq("id", user.id)
-      .single(),
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_status, business_type, onboarding_completed, needs_business_type_prompt")
+    .eq("id", user.id)
+    .single();
+
+  // Checked before the onboarding redirect below, deliberately - a
+  // brand-new Google signup's business_type is still just the column
+  // default ('general') until they answer this, so the onboarding check
+  // (which depends on business_type already being 'salon') can't fire
+  // correctly for them until after this resolves it. Same "only place that
+  // redirects here" scoping as the onboarding check.
+  if (profile?.needs_business_type_prompt) {
+    redirect("/auth/choose-business-type");
+  }
+
+  // Salon onboarding shows once, before this page ever renders for real -
+  // "general" accounts and anyone who's already finished (or skipped
+  // through) it land here normally. This is the only place that redirects
+  // to /onboarding; every other /dashboard/** page is reachable directly
+  // regardless (e.g. a bookmark, or a redirectTo bounce elsewhere).
+  if (profile?.business_type === "salon" && !profile.onboarding_completed) {
+    redirect("/onboarding");
+  }
+
+  const [{ data: receipts }, { data: jobs }] = await Promise.all([
     supabase
       .from("receipts")
       .select("*")

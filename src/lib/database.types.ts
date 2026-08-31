@@ -31,6 +31,8 @@ export interface Database {
           business_phone: string | null;
           business_email: string | null;
           business_profile_skipped: boolean;
+          onboarding_completed: boolean;
+          needs_business_type_prompt: boolean;
           created_at: string;
         };
         Insert: {
@@ -45,6 +47,8 @@ export interface Database {
           business_phone?: string | null;
           business_email?: string | null;
           business_profile_skipped?: boolean;
+          onboarding_completed?: boolean;
+          needs_business_type_prompt?: boolean;
           created_at?: string;
         };
         Update: {
@@ -59,6 +63,8 @@ export interface Database {
           business_phone?: string | null;
           business_email?: string | null;
           business_profile_skipped?: boolean;
+          onboarding_completed?: boolean;
+          needs_business_type_prompt?: boolean;
           created_at?: string;
         };
         Relationships: [];

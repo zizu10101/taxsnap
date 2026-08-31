@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +11,19 @@ import { CommissionNav } from "@/components/commission/commission-nav";
 import { StylistDialog } from "@/components/commission/stylist-dialog";
 import type { StylistPublic } from "@/lib/database.types";
 
-export function StylistList({ initialStylists }: { initialStylists: StylistPublic[] }) {
+export function StylistList({
+  initialStylists,
+  showNav = true,
+}: {
+  initialStylists: StylistPublic[];
+  // Off for the onboarding flow, which reuses this list+dialog wholesale
+  // but isn't part of the Commission section's own tab row.
+  showNav?: boolean;
+}) {
   const [stylists, setStylists] = useState(initialStylists);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StylistPublic | null>(null);
+  const router = useRouter();
 
   function upsert(stylist: StylistPublic) {
     setStylists((prev) => {
@@ -33,7 +43,19 @@ export function StylistList({ initialStylists }: { initialStylists: StylistPubli
         body: JSON.stringify({ is_active: !stylist.is_active }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
+      if (!res.ok) {
+        // Reactivating a deactivated stylist is also capped for free-tier
+        // accounts (see lib/free-tier-limits.ts) - otherwise the 1-active
+        // limit could be bypassed entirely via deactivate-then-reactivate
+        // instead of ever using the "New stylist" flow twice.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to update");
+      }
       upsert(data.stylist as StylistPublic);
       toast.success(stylist.is_active ? "Stylist deactivated" : "Stylist reactivated");
     } catch (err) {
@@ -46,7 +68,7 @@ export function StylistList({ initialStylists }: { initialStylists: StylistPubli
 
   return (
     <div className="space-y-4">
-      <CommissionNav active="stylists" />
+      {showNav && <CommissionNav active="stylists" />}
 
       <Button
         className="w-full"

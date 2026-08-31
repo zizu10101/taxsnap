@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Plus, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +18,19 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-export function ServiceList({ initialServices }: { initialServices: Service[] }) {
+export function ServiceList({
+  initialServices,
+  showNav = true,
+}: {
+  initialServices: Service[];
+  // Off for the onboarding flow, which reuses this list+dialog wholesale
+  // but isn't part of the Commission section's own tab row.
+  showNav?: boolean;
+}) {
   const [services, setServices] = useState(initialServices);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
+  const router = useRouter();
 
   function upsert(service: Service) {
     setServices((prev) => {
@@ -40,7 +50,19 @@ export function ServiceList({ initialServices }: { initialServices: Service[] })
         body: JSON.stringify({ is_active: !service.is_active }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
+      if (!res.ok) {
+        // Reactivating a deactivated service is also capped for free-tier
+        // accounts (see lib/free-tier-limits.ts) - otherwise the 1-active
+        // limit could be bypassed entirely via deactivate-then-reactivate
+        // instead of ever using the "New service" flow twice.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to update");
+      }
       upsert(data.service as Service);
       toast.success(service.is_active ? "Service deactivated" : "Service reactivated");
     } catch (err) {
@@ -53,7 +75,7 @@ export function ServiceList({ initialServices }: { initialServices: Service[] })
 
   return (
     <div className="space-y-4">
-      <CommissionNav active="services" />
+      {showNav && <CommissionNav active="services" />}
 
       <Button
         className="w-full"
