@@ -57,6 +57,19 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(urlError);
+  // The magic-link email also carries a 6-digit code (see the Supabase
+  // email template) as a fallback for the click-the-link path - link
+  // scanners in some recipients' mail security stacks (Safe Links,
+  // Advanced Phishing Protection, etc.) can prefetch and consume the
+  // single-use magic-link token before the real click ever happens,
+  // which showed up as real "expired" failures in production. The code
+  // has no URL for anything to prefetch, so it's immune to that. Once a
+  // link is requested, this step shows in place of the email form until
+  // a different email is chosen.
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -99,7 +112,31 @@ export function AuthForm() {
     if (error) {
       setError(error.message);
     } else {
-      setMessage("Check your email for a magic sign-in link.");
+      setOtpSent(true);
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setVerifyingCode(true);
+    setCodeError(null);
+
+    const supabase = createClient();
+    // Doesn't go through /auth/callback at all - verifyOtp establishes the
+    // session directly client-side, the same way signInWithPassword does
+    // below, so there's no Supabase-domain round trip and no redirect_to
+    // to worry about for this path.
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otpCode,
+      type: "email",
+    });
+
+    setVerifyingCode(false);
+    if (error) {
+      setCodeError(error.message);
+    } else {
+      window.location.assign(redirectTo);
     }
   }
 
@@ -178,27 +215,70 @@ export function AuthForm() {
           </TabsList>
 
           <TabsContent value="magic-link" className="mt-4">
-            <form onSubmit={handleMagicLink} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="magic-email">Email</Label>
-                <Input
-                  id="magic-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+            {otpSent ? (
+              <div className="space-y-4">
+                <p className="rounded-md bg-success/10 p-3 text-center text-sm text-success">
+                  Check your email for a sign-in link, or enter the 6-digit code
+                  from that email below.
+                </p>
+                <form onSubmit={handleVerifyCode} className="space-y-2">
+                  <Label htmlFor="otp-code">6-digit code</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="otp-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                      maxLength={6}
+                      required
+                      value={otpCode}
+                      onChange={(e) =>
+                        setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                    />
+                    <Button type="submit" disabled={verifyingCode || otpCode.length !== 6}>
+                      {verifyingCode && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Verify
+                    </Button>
+                  </div>
+                  {codeError && <p className="text-sm text-destructive">{codeError}</p>}
+                </form>
+                <button
+                  type="button"
+                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setOtpSent(false);
+                    setOtpCode("");
+                    setCodeError(null);
+                  }}
+                >
+                  Use a different email
+                </button>
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Mail className="h-4 w-4" />
-                )}
-                Send magic link
-              </Button>
-            </form>
+            ) : (
+              <form onSubmit={handleMagicLink} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="magic-email">Email</Label>
+                  <Input
+                    id="magic-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  Send magic link
+                </Button>
+              </form>
+            )}
           </TabsContent>
 
           <TabsContent value="password" className="mt-4">
