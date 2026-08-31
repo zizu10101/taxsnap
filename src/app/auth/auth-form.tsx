@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { setPostAuthRedirect } from "@/lib/auth-redirect";
+import type { BusinessType } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +71,13 @@ export function AuthForm() {
   const [otpCode, setOtpCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
+  // Only asked on the password tab's explicit sign-up action - magic-link
+  // and Google OAuth silently create a user on first use with no separate
+  // "creating an account now" moment to ask this during, so those accounts
+  // just get the column default ('general') for now. A proper onboarding
+  // flow to ask everyone (including those two paths) is separate follow-up
+  // work, not part of this pass.
+  const [businessType, setBusinessType] = useState<BusinessType>("general");
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -155,6 +163,9 @@ export function AuthForm() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Read by handle_new_user() (0020_business_type.sql) to set the
+          // new profile row's business_type directly at creation time.
+          data: { business_type: businessType },
         },
       });
       setLoading(false);
@@ -325,6 +336,29 @@ export function AuthForm() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
+              {passwordAction === "sign-up" && (
+                <div className="space-y-2">
+                  <Label>What kind of business is this?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={businessType === "salon" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setBusinessType("salon")}
+                    >
+                      Salon / Barbershop
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={businessType === "general" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setBusinessType("general")}
+                    >
+                      General Business
+                    </Button>
+                  </div>
+                </div>
+              )}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {passwordAction === "sign-in" ? "Sign in" : "Create account"}
