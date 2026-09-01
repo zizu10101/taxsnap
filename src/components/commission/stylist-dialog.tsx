@@ -16,31 +16,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { PayType, StylistPublic } from "@/lib/database.types";
-
-const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
+import type { StylistPublic } from "@/lib/database.types";
 
 export function StylistDialog({
   open,
   onOpenChange,
   stylist,
+  isPro,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stylist?: StylistPublic | null;
+  // Gates the payout PIN section below - PIN confirmation is a Pro-only
+  // feature (same as payouts/void/adjustments), unlike the rest of this
+  // dialog which free-tier salon accounts can already reach since Stylists
+  // itself is no longer Pro-gated (see lib/free-tier-limits.ts).
+  isPro: boolean;
   onSaved: (stylist: StylistPublic) => void;
 }) {
   const isEditing = !!stylist;
   const [name, setName] = useState(stylist?.name ?? "");
-  const [payType, setPayType] = useState<PayType>(stylist?.pay_type ?? "commission");
   // commission_rate is stored as a fraction (0.15) but edited as a percent (15).
   const [ratePercent, setRatePercent] = useState((stylist?.commission_rate ?? 0) * 100);
   const [saving, setSaving] = useState(false);
@@ -80,7 +76,6 @@ export function StylistDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          pay_type: payType,
           commission_rate: ratePercent / 100,
         }),
       });
@@ -154,6 +149,13 @@ export function StylistDialog({
         </DialogHeader>
 
         <div className="grid gap-4">
+          {/* No pay-type picker - stylists.pay_type supports 'hourly'/
+              'salary' at the DB level for forward-compat, but nothing reads
+              it (commission_owed/create_payout only ever use
+              commission_rate), and there's no hours-logging or salary
+              machinery behind either option yet. Every stylist created here
+              is implicitly 'commission' (the column default) until that
+              real feature gets built. */}
           <div className="space-y-2">
             <Label htmlFor="stylist-name">Name</Label>
             <Input
@@ -164,29 +166,11 @@ export function StylistDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="stylist-pay-type">Pay type</Label>
-            <Select
-              value={payType}
-              onValueChange={(v) => v && setPayType(v as PayType)}
-            >
-              <SelectTrigger id="stylist-pay-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAY_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="stylist-rate">Commission rate (%)</Label>
             <NumberInput id="stylist-rate" value={ratePercent} onValueChange={setRatePercent} />
           </div>
 
-          {isEditing && stylist && (
+          {isEditing && stylist && isPro && (
             <div className="space-y-2 border-t border-border pt-4">
               <Label>Payout PIN</Label>
 

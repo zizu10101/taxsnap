@@ -13,9 +13,14 @@ import type { StylistPublic } from "@/lib/database.types";
 
 export function StylistList({
   initialStylists,
+  isPro,
   showNav = true,
 }: {
   initialStylists: StylistPublic[];
+  // Threaded down to StylistDialog to gate its payout PIN section - free
+  // tier can reach this list/dialog now (see lib/free-tier-limits.ts) but
+  // payout PIN confirmation stays Pro-only.
+  isPro: boolean;
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Commission section's own tab row.
   showNav?: boolean;
@@ -134,6 +139,7 @@ export function StylistList({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         stylist={editing}
+        isPro={isPro}
         onSaved={upsert}
       />
     </div>
