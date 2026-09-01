@@ -5,11 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 
 // Same lock-card-plus-upgrade pattern already shown on the real
 // Services/Stylists pages for a non-Pro visitor (see
-// dashboard/commission/services/page.tsx) - onboarding shows the identical
-// thing for any step whose underlying action is Pro-gated
-// (logo/services/stylists), rather than a separate onboarding-specific
-// upsell.
-export function ProLockCard() {
+// dashboard/commission/services/page.tsx). Only the Owner/Staff PIN steps
+// use this in onboarding now (Logo/Services/Stylists all give free-tier
+// accounts a real, working step instead) - `message` lets that step name
+// what's actually being unlocked rather than the generic default.
+export function ProLockCard({ message }: { message?: string }) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
@@ -18,7 +18,8 @@ export function ProLockCard() {
         </div>
         <p className="font-medium">This is a Pro feature</p>
         <p className="max-w-xs text-sm text-muted-foreground">
-          Upgrade to the Pro plan ($29/mo) to unlock it - you can always come back to this later.
+          {message ??
+            "Upgrade to the Pro plan ($29/mo) to unlock it - you can always come back to this later."}
         </p>
         <Button nativeButton={false} render={<Link href="/billing" />}>
           Upgrade to Pro

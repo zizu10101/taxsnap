@@ -76,9 +76,7 @@ export function OnboardingFlow({
   // rather than fabricating a shrunk total.
   switch (step) {
     case 0:
-      return (
-        <LogoStep isPro={isPro} initialLogoPath={initialLogoPath} onNext={goToNextOrFinish} />
-      );
+      return <LogoStep initialLogoPath={initialLogoPath} onNext={goToNextOrFinish} />;
     case 1:
       return (
         <PinStep
@@ -87,6 +85,7 @@ export function OnboardingFlow({
           description="Unlocks the full app on a shared device. You can change or add this later from Settings."
           endpoint="/api/app-lock/set-owner-pin"
           savedMessage="Owner PIN saved"
+          isPro={isPro}
           onNext={goToNextOrFinish}
         />
       );
@@ -98,24 +97,15 @@ export function OnboardingFlow({
           description="Unlocks a restricted view - Commission Log only, nothing else. You can change or add this later from Settings."
           endpoint="/api/app-lock/set-staff-pin"
           savedMessage="Staff PIN saved"
+          isPro={isPro}
           onNext={goToNextOrFinish}
         />
       );
     case 3:
-      return (
-        <ServicesStep
-          isPro={isPro}
-          initialServices={initialServices}
-          onNext={goToNextOrFinish}
-        />
-      );
+      return <ServicesStep initialServices={initialServices} onNext={goToNextOrFinish} />;
     case 4:
       return (
-        <StylistsStep
-          isPro={isPro}
-          initialStylists={initialStylists}
-          onNext={goToNextOrFinish}
-        />
+        <StylistsStep isPro={isPro} initialStylists={initialStylists} onNext={goToNextOrFinish} />
       );
     default:
       // Unreachable: 0, 3, and 4 are never filtered out of visibleSteps,

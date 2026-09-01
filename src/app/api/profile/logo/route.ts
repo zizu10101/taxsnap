@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
@@ -11,8 +11,13 @@ function logoPathFor(userId: string) {
   return `${userId}/logo`;
 }
 
+// Not Pro-gated - the onboarding Logo step (the only place a free-tier
+// account can reach this upload UI; BusinessProfileCard elsewhere is only
+// ever rendered on the already-Pro-gated Estimates/Invoices pages) lets any
+// tier set a logo during setup, so it's already in place the moment they
+// upgrade instead of needing to be re-entered.
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
