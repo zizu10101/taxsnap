@@ -13,6 +13,7 @@ import { BusinessProfileCard } from "@/components/invoices/business-profile-card
 import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-summary";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import type {
+  BusinessType,
   Client,
   DocumentStatus,
   DocumentType,
@@ -47,6 +48,7 @@ export function DocumentList({
   initialDocuments,
   initialClients,
   initialProfile,
+  businessType,
   convertedMap = {},
   autoOpenNew = false,
 }: {
@@ -55,6 +57,11 @@ export function DocumentList({
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
   initialProfile: BusinessProfileFields;
+  // Hides the Estimates toggle below for salon accounts - Estimates
+  // doesn't apply to that business type and is blocked at the route level
+  // (dashboard/estimates/layout.tsx), so this page's own Invoices/Estimates
+  // switcher shouldn't offer a link that only bounces back.
+  businessType: BusinessType;
   /** estimate id -> id of the invoice it was converted into (estimates only) */
   convertedMap?: Record<string, string>;
   autoOpenNew?: boolean;
@@ -96,15 +103,17 @@ export function DocumentList({
         >
           Invoices
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="hover:bg-primary/10 hover:text-primary"
-          nativeButton={false}
-          render={<Link href="/dashboard/estimates" />}
-        >
-          Estimates
-        </Button>
+        {businessType !== "salon" && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="hover:bg-primary/10 hover:text-primary"
+            nativeButton={false}
+            render={<Link href="/dashboard/estimates" />}
+          >
+            Estimates
+          </Button>
+        )}
       </div>
 
       <BusinessProfileCard initialProfile={initialProfile} />

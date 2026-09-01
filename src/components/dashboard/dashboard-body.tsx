@@ -18,7 +18,7 @@ import {
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
-import type { Receipt } from "@/lib/database.types";
+import type { BusinessType, Receipt } from "@/lib/database.types";
 
 function slugify(label: string): string {
   return label
@@ -30,9 +30,15 @@ function slugify(label: string): string {
 export function DashboardBody({
   initialReceipts,
   initialJobNames,
+  businessType,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
+  // Hides the "New Estimate" quick-action tile below for salon accounts -
+  // Estimates doesn't apply to that business type (see
+  // dashboard/estimates/layout.tsx for the matching route-level block and
+  // dashboard-header.tsx for the matching nav-tab hide).
+  businessType: BusinessType;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [preset, setPreset] = useState<RangePreset>("this-month");
@@ -76,21 +82,23 @@ export function DashboardBody({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-2">
+      <div className={businessType === "salon" ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
         <UploadReceipt
           variant="tile"
           onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
           existingJobs={existingJobs}
         />
-        <Button
-          variant="outline"
-          className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
-          nativeButton={false}
-          render={<Link href="/dashboard/estimates?new=1" />}
-        >
-          <ClipboardList className="h-5 w-5" />
-          New Estimate
-        </Button>
+        {businessType !== "salon" && (
+          <Button
+            variant="outline"
+            className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
+            nativeButton={false}
+            render={<Link href="/dashboard/estimates?new=1" />}
+          >
+            <ClipboardList className="h-5 w-5" />
+            New Estimate
+          </Button>
+        )}
         <Button
           variant="outline"
           className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"

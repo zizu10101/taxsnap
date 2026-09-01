@@ -69,6 +69,7 @@ export default async function DashboardPage() {
         <DashboardBody
           initialReceipts={receipts ?? []}
           initialJobNames={(jobs ?? []).map((j) => j.name)}
+          businessType={profile?.business_type ?? "general"}
         />
       </main>
     </div>

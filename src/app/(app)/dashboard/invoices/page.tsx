@@ -77,6 +77,7 @@ export default async function InvoicesPage({
             basePath="/dashboard/invoices"
             initialDocuments={documents ?? []}
             initialClients={clients ?? []}
+            businessType={profile?.business_type ?? "general"}
             initialProfile={{
               logo_url: profile?.logo_url ?? null,
               business_name: profile?.business_name ?? null,
