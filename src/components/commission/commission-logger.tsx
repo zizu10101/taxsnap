@@ -37,9 +37,12 @@ function formatDateTime(isoStr: string) {
 export function CommissionLogger({
   initialServices,
   initialStylists,
+  isPro,
 }: {
   initialServices: Service[];
   initialStylists: StylistPublic[];
+  // Only threaded through to CommissionNav, to show/hide the Overview tab.
+  isPro: boolean;
 }) {
   // Create-flow state only, below - editing an existing entry (Today's
   // entries) is a fully separate EditEntryDialog with its own state, not a
@@ -147,7 +150,7 @@ export function CommissionLogger({
   if (initialServices.length === 0 || initialStylists.length === 0) {
     return (
       <div className="space-y-4">
-        <CommissionNav active="log" />
+        <CommissionNav active="log" isPro={isPro} />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <p className="font-medium">Set up services and stylists first</p>
@@ -186,7 +189,7 @@ export function CommissionLogger({
 
   return (
     <div className="space-y-4">
-      <CommissionNav active="log" />
+      <CommissionNav active="log" isPro={isPro} />
 
       {selectedService && selectedStylist ? (
         <div className="space-y-3">

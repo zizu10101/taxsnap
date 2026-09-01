@@ -485,7 +485,7 @@ export function CommissionReports({
 
   return (
     <div className="space-y-4">
-      <CommissionNav active="reports" />
+      <CommissionNav active="reports" isPro={isPro} />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select

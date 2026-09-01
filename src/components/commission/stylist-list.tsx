@@ -73,7 +73,7 @@ export function StylistList({
 
   return (
     <div className="space-y-4">
-      {showNav && <CommissionNav active="stylists" />}
+      {showNav && <CommissionNav active="stylists" isPro={isPro} />}
 
       <Button
         className="w-full"

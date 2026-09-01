@@ -92,8 +92,9 @@ function lastDayOfMonth(year: number, monthIndex: number): Date {
 }
 
 // Sunday-start week, matching the en-US locale convention used everywhere
-// else in this file's date formatting.
-function startOfWeek(date: Date): Date {
+// else in this file's date formatting. Exported for commission-overview.ts's
+// trend-chart bucketing, which needs the same week-boundary convention.
+export function startOfWeek(date: Date): Date {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   d.setDate(d.getDate() - d.getDay());
   return d;

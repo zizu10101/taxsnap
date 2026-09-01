@@ -21,11 +21,15 @@ function formatCurrency(amount: number) {
 export function ServiceList({
   initialServices,
   showNav = true,
+  isPro = false,
 }: {
   initialServices: Service[];
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Commission section's own tab row.
   showNav?: boolean;
+  // Only threaded through to CommissionNav (Overview tab visibility) -
+  // defaults to false since it's irrelevant whenever showNav is false.
+  isPro?: boolean;
 }) {
   const [services, setServices] = useState(initialServices);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -75,7 +79,7 @@ export function ServiceList({
 
   return (
     <div className="space-y-4">
-      {showNav && <CommissionNav active="services" />}
+      {showNav && <CommissionNav active="services" isPro={isPro} />}
 
       <Button
         className="w-full"

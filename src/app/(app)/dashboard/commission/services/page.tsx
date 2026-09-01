@@ -52,7 +52,10 @@ export default async function ServicesPage() {
           </p>
         </div>
 
-        <ServiceList initialServices={services ?? []} />
+        <ServiceList
+          initialServices={services ?? []}
+          isPro={profile?.subscription_status === "pro"}
+        />
       </main>
     </div>
   );

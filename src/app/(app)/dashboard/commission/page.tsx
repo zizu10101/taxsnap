@@ -30,6 +30,8 @@ export default async function CommissionPage() {
     .eq("id", user.id)
     .single();
 
+  const isPro = profile?.subscription_status === "pro";
+
   const [{ data: services }, { data: stylists }] = await Promise.all([
     supabase
       .from("services")
@@ -65,6 +67,7 @@ export default async function CommissionPage() {
         <CommissionLogger
           initialServices={services ?? []}
           initialStylists={stylists ?? []}
+          isPro={isPro}
         />
       </main>
     </div>
