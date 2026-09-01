@@ -72,6 +72,7 @@ export default async function DashboardPage() {
           initialReceipts={receipts ?? []}
           initialJobNames={(jobs ?? []).map((j) => j.name)}
           businessType={profile?.business_type ?? "general"}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
         />
       </main>
     </div>

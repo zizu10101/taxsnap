@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ChevronDown,
   ChevronUp,
   Info,
   Landmark,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -32,9 +34,11 @@ import {
   type RangePreset,
 } from "@/lib/date-range";
 import type {
+  BusinessType,
   DocumentWithClient,
   Receipt,
   SalesPeriod,
+  SubscriptionStatus,
 } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -107,6 +111,7 @@ function HstSummaryCardBody({
   onToggleExcluded,
   saved,
   onSaved,
+  canEnterManualSales,
 }: {
   rangeLabel: string;
   receipts: Receipt[];
@@ -114,6 +119,13 @@ function HstSummaryCardBody({
   onToggleExcluded: (id: string, excluded: boolean) => void;
   saved: SalesPeriod | undefined;
   onSaved: (record: SalesPeriod) => void;
+  // Manual sales entry (Gross Sales/Cash Deposits below) is unrestricted
+  // for salon accounts at every tier, and Basic-or-higher for general -
+  // see requireSalesAccess in api/sales/route.ts, which enforces the same
+  // rule server-side. This only controls whether the input fields render;
+  // the computed HST lines below always reflect whatever's actually saved
+  // (0 if this account can't enter anything).
+  canEnterManualSales: boolean;
 }) {
   const [grossSales, setGrossSales] = useState(saved?.gross_sales ?? 0);
   const [cashDeposits, setCashDeposits] = useState(saved?.cash_deposits ?? 0);
@@ -167,34 +179,48 @@ function HstSummaryCardBody({
         filing.
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="gross-sales">Gross Sales ($)</Label>
-          <NumberInput
-            id="gross-sales"
-            step="0.01"
-            value={grossSales}
-            onValueChange={setGrossSales}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="cash-deposits">Cash Deposits ($)</Label>
-          <NumberInput
-            id="cash-deposits"
-            step="0.01"
-            value={cashDeposits}
-            onValueChange={setCashDeposits}
-          />
-          <p className="text-[11px] text-muted-foreground">
-            For your own reconciliation - not included in Line 101.
-          </p>
-        </div>
-      </div>
+      {canEnterManualSales ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="gross-sales">Gross Sales ($)</Label>
+              <NumberInput
+                id="gross-sales"
+                step="0.01"
+                value={grossSales}
+                onValueChange={setGrossSales}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cash-deposits">Cash Deposits ($)</Label>
+              <NumberInput
+                id="cash-deposits"
+                step="0.01"
+                value={cashDeposits}
+                onValueChange={setCashDeposits}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                For your own reconciliation - not included in Line 101.
+              </p>
+            </div>
+          </div>
 
-      <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
-        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-        Save for {rangeLabel}
-      </Button>
+          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save for {rangeLabel}
+          </Button>
+        </>
+      ) : (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            Manual sales entry requires the Basic plan or higher.
+          </p>
+          <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/billing" />}>
+            Upgrade
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-2">
         <LineRow line="101" label="Total Sales & Revenue" value={lines.line101} />
@@ -276,16 +302,36 @@ function HstSummaryCardBody({
 // receipts while checking HST numbers for a whole quarter, so it gets its
 // own picker (defaulting to "This Quarter", since GST/HST is commonly
 // filed quarterly) using the same DateRangeFilter component.
-export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
+export function HstSummaryCard({
+  receipts,
+  businessType,
+  subscriptionStatus,
+}: {
+  receipts: Receipt[];
+  businessType: BusinessType;
+  subscriptionStatus: SubscriptionStatus;
+}) {
   const [collapsed, setCollapsed] = useState(true);
   const [salesRecords, setSalesRecords] = useState<SalesPeriod[]>([]);
   const [invoiceDocs, setInvoiceDocs] = useState<DocumentWithClient[]>([]);
   const [preset, setPreset] = useState<RangePreset>("this-quarter");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-quarter"));
 
+  // Salon accounts keep unrestricted manual sales entry at every tier;
+  // general-business accounts need Basic-or-higher - see requireSalesAccess
+  // in api/sales/route.ts, which enforces the identical rule server-side.
+  const canEnterManualSales =
+    businessType === "salon" ||
+    subscriptionStatus === "basic" ||
+    subscriptionStatus === "pro";
+
   useEffect(() => {
+    // Skip the request entirely for an account that can't save anything
+    // anyway - GET would just 403 (harmless, but a needless network error).
+    if (!canEnterManualSales) return;
+
     fetch("/api/sales")
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : { sales: [] }))
       .then((data) => {
         if (Array.isArray(data.sales)) setSalesRecords(data.sales);
       })
@@ -303,6 +349,11 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
       .catch(() => {
         // Non-fatal: same as above.
       });
+    // canEnterManualSales is derived from props that don't change for the
+    // life of this component (a tier/business-type change only ever takes
+    // effect after a fresh page load) - deliberately run once on mount,
+    // same as the rest of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredReceipts = useMemo(
@@ -412,6 +463,7 @@ export function HstSummaryCard({ receipts }: { receipts: Receipt[] }) {
             onToggleExcluded={handleToggleExcluded}
             saved={saved}
             onSaved={handleSaved}
+            canEnterManualSales={canEnterManualSales}
           />
         </CardContent>
       )}

@@ -18,7 +18,7 @@ import {
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
-import type { BusinessType, Receipt } from "@/lib/database.types";
+import type { BusinessType, Receipt, SubscriptionStatus } from "@/lib/database.types";
 
 function slugify(label: string): string {
   return label
@@ -31,14 +31,19 @@ export function DashboardBody({
   initialReceipts,
   initialJobNames,
   businessType,
+  subscriptionStatus,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
   // Hides the "New Estimate" quick-action tile below for salon accounts -
   // Estimates doesn't apply to that business type (see
   // dashboard/estimates/layout.tsx for the matching route-level block and
-  // dashboard-header.tsx for the matching nav-tab hide).
+  // dashboard-header.tsx for the matching nav-tab hide). Also threaded into
+  // HstSummaryCard below to gate manual sales entry.
   businessType: BusinessType;
+  // Threaded into HstSummaryCard to gate manual sales entry (Basic-or-
+  // higher for general-business accounts; unrestricted for salon).
+  subscriptionStatus: SubscriptionStatus;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [preset, setPreset] = useState<RangePreset>("this-month");
@@ -117,7 +122,11 @@ export function DashboardBody({
 
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
 
-      <HstSummaryCard receipts={receipts} />
+      <HstSummaryCard
+        receipts={receipts}
+        businessType={businessType}
+        subscriptionStatus={subscriptionStatus}
+      />
 
       <ReceiptsList
         receipts={filteredReceipts}
