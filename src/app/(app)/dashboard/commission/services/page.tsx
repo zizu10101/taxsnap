@@ -24,7 +24,7 @@ export default async function ServicesPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status, business_type")
+    .select("subscription_status, business_type, logo_url")
     .eq("id", user.id)
     .single();
 
@@ -39,6 +39,7 @@ export default async function ServicesPage() {
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
         active="commission"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">

@@ -58,6 +58,7 @@ export default async function EstimateDetailPage({
         email={user.email ?? ""}
         subscriptionStatus="pro"
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
         active="estimates"
       />
       <main className="flex-1">

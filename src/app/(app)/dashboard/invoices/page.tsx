@@ -52,6 +52,7 @@ export default async function InvoicesPage({
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
         active="invoices"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">

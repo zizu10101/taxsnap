@@ -6,6 +6,7 @@ import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
+import { LogoImage } from "@/components/invoices/business-logo";
 import type { BusinessType, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
@@ -18,11 +19,18 @@ export function DashboardHeader({
   email,
   subscriptionStatus,
   businessType,
+  logoPath,
   active,
 }: {
   email: string;
   subscriptionStatus: SubscriptionStatus;
   businessType: BusinessType;
+  // profiles.logo_url - null on every page until a caller opts in. When
+  // set, it replaces the TaxSnap icon/wordmark below with the business's
+  // own logo (any tier - logo upload itself isn't Pro-gated, see
+  // api/profile/logo/route.ts) with a small "Powered by TaxSnap" line
+  // underneath, keeping the brand attributed without crowding it out.
+  logoPath: string | null;
   active?: "estimates" | "invoices" | "jobs" | "commission";
 }) {
   const { role, exitStaffMode } = useAppLock();
@@ -35,9 +43,23 @@ export function DashboardHeader({
           href={isStaffMode ? "/dashboard/commission" : "/dashboard"}
           className="flex items-center gap-2 font-semibold"
         >
-          <img src="/logo-mark.png" alt="" className="h-8 w-8 shrink-0" />
+          {logoPath ? (
+            <LogoImage
+              key={logoPath}
+              path={logoPath}
+              className="h-8 w-8 shrink-0 rounded-md object-contain"
+            />
+          ) : (
+            <img src="/logo-mark.png" alt="" className="h-8 w-8 shrink-0" />
+          )}
           <span className="flex min-w-0 flex-col leading-tight">
-            TaxSnap
+            {logoPath ? (
+              <span className="text-xs font-normal text-muted-foreground">
+                Powered by TaxSnap
+              </span>
+            ) : (
+              "TaxSnap"
+            )}
             <span className="max-w-[160px] truncate text-xs font-normal text-muted-foreground">
               {isStaffMode ? "Staff mode" : email}
             </span>

@@ -52,6 +52,7 @@ export default async function InvoiceDetailPage({
         email={user.email ?? ""}
         subscriptionStatus="pro"
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
         active="invoices"
       />
       <main className="flex-1">

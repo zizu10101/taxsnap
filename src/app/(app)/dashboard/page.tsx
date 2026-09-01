@@ -21,7 +21,9 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status, business_type, onboarding_completed, needs_business_type_prompt")
+    .select(
+      "subscription_status, business_type, logo_url, onboarding_completed, needs_business_type_prompt",
+    )
     .eq("id", user.id)
     .single();
 
@@ -61,6 +63,7 @@ export default async function DashboardPage() {
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
       />
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-4">
         <DashboardBody

@@ -64,6 +64,7 @@ export default async function EstimatesPage({
         email={user.email ?? ""}
         subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
         active="estimates"
       />
       <main className="mx-auto w-full max-w-2xl flex-1 p-4">
