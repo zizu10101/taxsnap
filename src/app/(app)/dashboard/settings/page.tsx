@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
+import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { APP_SETTINGS_PUBLIC_COLUMNS } from "@/lib/app-settings-columns";
 
 export const metadata: Metadata = {
@@ -22,11 +23,14 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/auth");
 
-  const { data: settings } = await supabase
-    .from("app_settings")
-    .select(APP_SETTINGS_PUBLIC_COLUMNS)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: settings }, { data: profile }] = await Promise.all([
+    supabase
+      .from("app_settings")
+      .select(APP_SETTINGS_PUBLIC_COLUMNS)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase.from("profiles").select("business_type").eq("id", user.id).single(),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 p-4">
@@ -43,10 +47,13 @@ export default async function SettingsPage() {
         <p className="text-muted-foreground">Manage app-wide preferences.</p>
       </div>
 
-      <AppLockSettings
-        hasOwnerPin={settings?.has_owner_pin ?? false}
-        hasStaffPin={settings?.has_staff_pin ?? false}
-      />
+      <div className="space-y-6">
+        <AppLockSettings
+          hasOwnerPin={settings?.has_owner_pin ?? false}
+          hasStaffPin={settings?.has_staff_pin ?? false}
+        />
+        {profile?.business_type === "salon" && <RedoSetupButton />}
+      </div>
     </div>
   );
 }
