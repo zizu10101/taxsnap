@@ -21,6 +21,19 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+// Same format as commission-reports.tsx/invoice-pdf.ts's formatDateTime -
+// always includes the date (not just the time) since a shift can run past
+// midnight, in which case "Today's entries" would otherwise show two
+// different calendar days' entries with identical-looking timestamps.
+function formatDateTime(isoStr: string) {
+  return new Date(isoStr).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function CommissionLogger({
   initialServices,
   initialStylists,
@@ -280,6 +293,9 @@ export function CommissionLogger({
                           current={entry.stylist.name}
                         />
                         {entry.customer_name ? ` · ${entry.customer_name}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(entry.created_at)}
                       </p>
                     </div>
                     <div className="shrink-0 text-right text-sm tabular-nums">
