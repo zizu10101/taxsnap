@@ -104,8 +104,7 @@ export function StylistList({
                     {!stylist.is_active && <Badge variant="outline">Inactive</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {(stylist.commission_rate * 100).toFixed(0)}% commission ·{" "}
-                    {stylist.pay_type}
+                    {(stylist.commission_rate * 100).toFixed(0)}% commission
                   </p>
                 </div>
                 <div className="flex items-center gap-1">

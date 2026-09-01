@@ -3,9 +3,7 @@ import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
-import type { PayType, StylistUpdate } from "@/lib/database.types";
-
-const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
+import type { StylistUpdate } from "@/lib/database.types";
 
 // Owner can edit or deactivate a stylist (is_active = false) - never
 // hard-deleted, so historical commission_entries always keep a real
@@ -45,8 +43,12 @@ export async function PATCH(
     }
     update.name = toTitleCase(name);
   }
+  // Commission-only for now (see api/stylists/route.ts POST) - the DB
+  // column still allows 'hourly'/'salary' for forward-compat, but there's
+  // no client UI or payout logic behind them, so this rejects any attempt
+  // to set a value other than the one real option.
   if (pay_type !== undefined) {
-    if (!PAY_TYPES.includes(pay_type)) {
+    if (pay_type !== "commission") {
       return NextResponse.json({ error: "Invalid pay type." }, { status: 400 });
     }
     update.pay_type = pay_type;

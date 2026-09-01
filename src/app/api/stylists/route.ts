@@ -3,9 +3,6 @@ import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
-import type { PayType } from "@/lib/database.types";
-
-const PAY_TYPES: PayType[] = ["commission", "hourly", "salary"];
 
 export async function GET() {
   const result = await requireUser();
@@ -30,7 +27,7 @@ export async function POST(request: Request) {
   const { supabase, user } = result;
 
   const body = await request.json();
-  const { name, pay_type, commission_rate } = body ?? {};
+  const { name, commission_rate } = body ?? {};
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Stylist name is required." }, { status: 400 });
@@ -54,7 +51,11 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       name: toTitleCase(name),
-      pay_type: PAY_TYPES.includes(pay_type) ? pay_type : "commission",
+      // Commission-only for now - stylists.pay_type still allows
+      // 'hourly'/'salary' at the DB level for forward-compat, but nothing
+      // in the app (commission_owed, create_payout, reports) reads it, so
+      // there's no client input for it until that's actually built.
+      pay_type: "commission",
       commission_rate: Number(commission_rate) || 0,
     })
     .select(STYLIST_PUBLIC_COLUMNS)
