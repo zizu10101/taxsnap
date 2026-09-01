@@ -53,7 +53,10 @@ export default async function StylistsPage() {
           </p>
         </div>
 
-        <StylistList initialStylists={stylists ?? []} />
+        <StylistList
+          initialStylists={stylists ?? []}
+          isPro={profile?.subscription_status === "pro"}
+        />
       </main>
     </div>
   );
