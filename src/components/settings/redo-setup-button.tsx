@@ -12,13 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { BusinessType } from "@/lib/database.types";
 
-// Salon-only - flips onboarding_completed back to false and sends the
-// account through /onboarding again. Nothing already set (logo, PINs,
-// services, stylists) is cleared; OnboardingFlow's visibleSteps logic
-// already skips steps that are satisfied, so this just re-opens whatever
+// Works for both business types - flips onboarding_completed back to
+// false and sends the account through /onboarding again, which itself
+// picks OnboardingFlow (salon) or GeneralOnboardingFlow (general) from
+// business_type. Nothing already set is cleared; salon's OnboardingFlow
+// additionally skips its two PIN steps outright once set (see
+// visibleSteps in onboarding-flow.tsx), so this just re-opens whatever
 // was skipped the first time.
-export function RedoSetupButton() {
+export function RedoSetupButton({ businessType }: { businessType: BusinessType }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -40,9 +43,11 @@ export function RedoSetupButton() {
       <CardHeader>
         <CardTitle>Redo Setup</CardTitle>
         <CardDescription>
-          Re-run the setup wizard (logo, PINs, services, stylists). Anything
-          already set stays as-is &mdash; you&apos;ll only be prompted for
-          what&apos;s still missing.
+          {businessType === "salon"
+            ? "Re-run the setup wizard (logo, PINs, services, stylists)."
+            : "Re-run the setup wizard (logo, business info, staff)."}{" "}
+          Anything already set stays as-is &mdash; you&apos;ll only be
+          prompted for what&apos;s still missing.
         </CardDescription>
       </CardHeader>
       <CardContent>

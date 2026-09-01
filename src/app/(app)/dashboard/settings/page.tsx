@@ -48,11 +48,17 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
-        <AppLockSettings
-          hasOwnerPin={settings?.has_owner_pin ?? false}
-          hasStaffPin={settings?.has_staff_pin ?? false}
-        />
-        {profile?.business_type === "salon" && <RedoSetupButton />}
+        {/* App Lock (Owner/Staff PIN) was built for salon staff-mode - a
+            general business has no staff-facing restricted view for it to
+            unlock, so the whole section is hidden rather than left as a
+            dead/unused setting. */}
+        {profile?.business_type !== "general" && (
+          <AppLockSettings
+            hasOwnerPin={settings?.has_owner_pin ?? false}
+            hasStaffPin={settings?.has_staff_pin ?? false}
+          />
+        )}
+        <RedoSetupButton businessType={profile?.business_type ?? "general"} />
       </div>
     </div>
   );

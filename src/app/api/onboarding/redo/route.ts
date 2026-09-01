@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// Manual re-entry point for the salon onboarding wizard (Settings ->
-// "Redo Setup"), so a salon account can revisit /onboarding without
-// deleting and recreating the account. Only flips onboarding_completed
-// back to false - nothing else is reset, so Logo/PINs/Services/Stylists
-// already set stay exactly as they are, and OnboardingFlow's own
-// skip-already-satisfied-steps logic (visibleSteps in onboarding-flow.tsx)
-// naturally shortens the wizard to whatever's still unset.
+// Manual re-entry point for the onboarding wizard (Settings -> "Redo
+// Setup"), so an account can revisit /onboarding without deleting and
+// recreating it. Works for both business types - /onboarding itself
+// branches to OnboardingFlow (salon) or GeneralOnboardingFlow (general).
+// Only flips onboarding_completed back to false - nothing else is reset,
+// so whatever's already set (Logo/PINs/Services/Stylists for salon;
+// Logo/Business info/Staff for general) stays exactly as it is; salon's
+// OnboardingFlow additionally skips its two PIN steps outright if already
+// set (see visibleSteps in onboarding-flow.tsx), since PinSetupFlow can't
+// otherwise display "already set" the way the other steps do.
 export async function POST() {
   const supabase = await createClient();
   const {
@@ -16,19 +19,6 @@ export async function POST() {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("business_type")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.business_type !== "salon") {
-    return NextResponse.json(
-      { error: "Setup is only available for salon accounts" },
-      { status: 400 },
-    );
   }
 
   const { error } = await supabase
