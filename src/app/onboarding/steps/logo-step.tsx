@@ -13,9 +13,15 @@ import { OnboardingStepShell } from "../onboarding-step-shell";
 export function LogoStep({
   initialLogoPath,
   onNext,
+  totalSteps = 5,
+  description = "Shown on every invoice, estimate, and commission report you create.",
 }: {
   initialLogoPath: string | null;
   onNext: () => void;
+  // Shared with the general-business flow (3 steps) below via
+  // GeneralOnboardingFlow - defaults to the salon flow's 5.
+  totalSteps?: number;
+  description?: string;
 }) {
   // BusinessLogoUpload (existing component, unmodified) auto-saves to
   // /api/profile/logo the moment a file is picked - there's no separate
@@ -25,8 +31,9 @@ export function LogoStep({
   return (
     <OnboardingStepShell
       stepNumber={1}
+      totalSteps={totalSteps}
       title="Add your logo"
-      description="Shown on every invoice, estimate, and commission report you create."
+      description={description}
       onSkip={onNext}
     >
       <BusinessLogoUpload logoPath={logoPath} onLogoChange={setLogoPath} />

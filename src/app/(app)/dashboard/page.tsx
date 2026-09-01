@@ -29,20 +29,22 @@ export default async function DashboardPage() {
 
   // Checked before the onboarding redirect below, deliberately - a
   // brand-new Google signup's business_type is still just the column
-  // default ('general') until they answer this, so the onboarding check
-  // (which depends on business_type already being 'salon') can't fire
-  // correctly for them until after this resolves it. Same "only place that
+  // default ('general') until they answer this, and /onboarding itself
+  // branches on business_type to pick a flow, so that branch can't fire
+  // correctly until after this resolves it. Same "only place that
   // redirects here" scoping as the onboarding check.
   if (profile?.needs_business_type_prompt) {
     redirect("/auth/choose-business-type");
   }
 
-  // Salon onboarding shows once, before this page ever renders for real -
-  // "general" accounts and anyone who's already finished (or skipped
-  // through) it land here normally. This is the only place that redirects
-  // to /onboarding; every other /dashboard/** page is reachable directly
+  // Onboarding shows once for every business type, before this page ever
+  // renders for real - /onboarding itself picks the salon (Logo/PINs/
+  // Services/Stylists) or general-business (Logo/Business info/Staff) flow
+  // from business_type. Anyone who's already finished (or skipped through)
+  // it lands here normally. This is the only place that redirects to
+  // /onboarding; every other /dashboard/** page is reachable directly
   // regardless (e.g. a bookmark, or a redirectTo bounce elsewhere).
-  if (profile?.business_type === "salon" && !profile.onboarding_completed) {
+  if (profile && !profile.onboarding_completed) {
     redirect("/onboarding");
   }
 

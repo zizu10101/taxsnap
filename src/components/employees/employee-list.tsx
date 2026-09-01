@@ -17,7 +17,15 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-export function EmployeeList({ initialEmployees }: { initialEmployees: Employee[] }) {
+export function EmployeeList({
+  initialEmployees,
+  showNav = true,
+}: {
+  initialEmployees: Employee[];
+  // Off for the onboarding flow, which reuses this list+dialog wholesale
+  // but isn't part of the Jobs section's own tab row.
+  showNav?: boolean;
+}) {
   const [employees, setEmployees] = useState(initialEmployees);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
@@ -53,7 +61,7 @@ export function EmployeeList({ initialEmployees }: { initialEmployees: Employee[
 
   return (
     <div className="space-y-4">
-      <JobCostNav active="employees" />
+      {showNav && <JobCostNav active="employees" />}
 
       <Button
         className="w-full"
