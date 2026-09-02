@@ -189,10 +189,13 @@ export default function Home() {
             </a>
           </p>
           <p className="mx-auto max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
-            TaxSnap is an independent bookkeeping organization tool. TaxSnap
-            is not affiliated with, endorsed by, or an official product of
-            any government tax authority. TaxSnap does not provide official
-            tax or accounting advice.
+            TaxSnap is a division of Edge Digital Business Solutions.
+            TaxSnap is an independent expense-tracking and bookkeeping
+            tool, not affiliated with, endorsed by, or an official product
+            of the CRA or any government tax authority. TaxSnap does not
+            file or submit anything on your behalf, and does not provide
+            professional tax or accounting advice — consult a licensed
+            professional for guidance specific to your situation.
           </p>
           <p className="pt-2 text-muted-foreground/80">
             © {new Date().getFullYear()} TaxSnap. All rights reserved.
