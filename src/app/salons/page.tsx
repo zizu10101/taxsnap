@@ -145,9 +145,31 @@ export default function SalonsLanding() {
       <PricingSection
         tiers={["pro"]}
         highlightTier="pro"
-        freeTagline="Try it with 1 service and 1 stylist — see how it works before you commit."
+        freeDescription="Try it before you commit."
+        tierDescriptions={{
+          pro: "Everything your shop needs.",
+        }}
+        freeTagline="1 service, 1 stylist, unlimited logging — see how commission tracking works in your shop."
         tierTaglines={{
-          pro: "Unlimited stylists, full payout history, PDF reports — everything your shop needs.",
+          pro: "Unlimited stylists, full payout history, PDF reports, plus client invoicing.",
+        }}
+        freeFeatures={[
+          "1 service, 1 stylist",
+          "Full commission logging",
+          "5 free receipt scans per month",
+          "HST return estimate",
+        ]}
+        tierFeatures={{
+          pro: [
+            "Everything in Free",
+            "Unlimited receipt scans & HST tracking",
+            "Unlimited services & stylists",
+            "Stylist payouts with PIN confirmation",
+            "Void, adjustments & full payout history",
+            "PDF commission reports",
+            "Professional invoicing & payment tracking",
+            "Priority support",
+          ],
         }}
         extraAuthParams={{ business: "salon" }}
       />
