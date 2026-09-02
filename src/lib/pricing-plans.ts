@@ -7,7 +7,7 @@ export const FREE_PLAN = {
   price: "$0",
   description: "Test the scanner.",
   features: [
-    `${FREE_SCAN_LIMIT} free receipt scans (no credit card required)`,
+    `${FREE_SCAN_LIMIT} free receipt scans per month (no credit card required)`,
     "AI categorization",
     "HST return estimate",
   ],

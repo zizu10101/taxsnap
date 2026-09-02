@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { parseReceiptImage } from "@/lib/gemini";
 import { FREE_SCAN_LIMIT } from "@/lib/pricing-plans";
+import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,15 +33,23 @@ export async function POST(request: Request) {
     .single();
 
   if (!profile || profile.subscription_status === "free") {
+    // Resets monthly, not a lifetime cap - "5 free receipt scans" is
+    // advertised per month (see pricing-plans.ts), so only count scans
+    // created since the start of the current calendar month. Uses the
+    // server's own local time as the month boundary (same SSR-default
+    // rationale as date-range.ts's own comment) - precision to the shop's
+    // exact local midnight doesn't matter for a monthly usage reset.
+    const { from } = rangeToUtcBounds(getPresetRange("this-month"));
     const { count } = await supabase
       .from("receipts")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .gte("created_at", from!);
 
     if ((count ?? 0) >= FREE_SCAN_LIMIT) {
       return NextResponse.json(
         {
-          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans. Upgrade to Basic for unlimited scans.`,
+          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans this month. Upgrade to Basic for unlimited scans.`,
           code: "FREE_LIMIT_REACHED",
         },
         { status: 403 },
