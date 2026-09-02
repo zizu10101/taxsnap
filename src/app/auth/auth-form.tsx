@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { setPostAuthRedirect } from "@/lib/auth-redirect";
+import { setPendingPlan, setPostAuthRedirect } from "@/lib/auth-redirect";
 import type { BusinessType } from "@/lib/database.types";
 import { BusinessTypeToggle } from "./business-type-toggle";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,14 @@ export function AuthForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/dashboard";
   const urlError = searchParams.get("error");
+  // Set by a "Get Started Basic/Pro" click on the landing page's pricing
+  // section (?plan=basic|pro) - see lib/auth-redirect.ts's
+  // PENDING_PLAN_COOKIE for why this has to travel through a cookie for
+  // the Google/magic-link-click/password-signup paths (all round-trip
+  // through Supabase's own domain via /auth/callback), and is read
+  // straight from this same param for the code-entry path below, which
+  // never leaves this page.
+  const plan = searchParams.get("plan");
 
   const [mode, setMode] = useState<Mode>("magic-link");
   const [passwordAction, setPasswordAction] =
@@ -86,6 +94,7 @@ export function AuthForm() {
     setMessage(null);
 
     setPostAuthRedirect(redirectTo);
+    setPendingPlan(plan);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -109,6 +118,7 @@ export function AuthForm() {
     setMessage(null);
 
     setPostAuthRedirect(redirectTo);
+    setPendingPlan(plan);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -141,12 +151,36 @@ export function AuthForm() {
       type: "email",
     });
 
-    setVerifyingCode(false);
     if (error) {
+      setVerifyingCode(false);
       setCodeError(error.message);
-    } else {
-      window.location.assign(redirectTo);
+      return;
     }
+
+    // This path never touches /auth/callback (see comment above), so
+    // there's no cookie round trip needed - plan is just read straight off
+    // this same page's own query param. Best-effort: if Checkout can't be
+    // created for some reason, fall through to the normal redirect rather
+    // than stranding the user on this form.
+    if (plan === "basic" || plan === "pro") {
+      try {
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: plan }),
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          window.location.assign(data.url);
+          return;
+        }
+      } catch {
+        // Fall through to the dashboard redirect below.
+      }
+    }
+
+    setVerifyingCode(false);
+    window.location.assign(redirectTo);
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -159,6 +193,7 @@ export function AuthForm() {
 
     if (passwordAction === "sign-up") {
       setPostAuthRedirect(redirectTo);
+      setPendingPlan(plan);
       const { error } = await supabase.auth.signUp({
         email,
         password,

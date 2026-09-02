@@ -28,3 +28,19 @@ export function sanitizeRedirectPath(path: string | null | undefined): string {
   if (!path || !path.startsWith("/") || path.startsWith("//")) return "/dashboard";
   return path;
 }
+
+// Same cookie-round-trip reasoning as POST_AUTH_REDIRECT_COOKIE above -
+// carries the plan a "Get Started" click on the landing page's pricing
+// section was for (?plan=basic/pro on /auth) across the same Supabase
+// domain round trip, so /auth/callback can send a brand-new signup
+// straight into Stripe Checkout for that plan instead of the dashboard.
+export const PENDING_PLAN_COOKIE = "pending_plan";
+
+export function setPendingPlan(tier: string | null) {
+  if (tier !== "basic" && tier !== "pro") return;
+  document.cookie = `${PENDING_PLAN_COOKIE}=${tier}; path=/; max-age=600; SameSite=Lax`;
+}
+
+export function sanitizePendingPlan(value: string | null | undefined): "basic" | "pro" | null {
+  return value === "basic" || value === "pro" ? value : null;
+}

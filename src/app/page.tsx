@@ -208,7 +208,7 @@ export default function Home() {
                 <Button
                   className="mt-auto"
                   nativeButton={false}
-                  render={<Link href="/auth" />}
+                  render={<Link href={`/auth?plan=${plan.tier}`} />}
                 >
                   Get started
                 </Button>
