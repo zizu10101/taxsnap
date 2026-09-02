@@ -60,7 +60,7 @@ export async function drawPdfHeader(
   if (logoDataUrl) {
     try {
       const { width, height } = await loadImageDimensions(logoDataUrl);
-      const maxH = 64;
+      const maxH = 128;
       const w = (width / height) * maxH;
       pdf.addImage(logoDataUrl, marginX, y - 24, w, maxH);
       y += maxH + 12;

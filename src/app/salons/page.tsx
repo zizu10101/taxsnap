@@ -49,10 +49,13 @@ export default function SalonsLanding() {
   return (
     <main className="flex flex-1 flex-col bg-background">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
-        <span className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight"
+        >
           <img src="/logo-mark.png" alt="" className="h-7 w-7" />
           TaxSnap
-        </span>
+        </Link>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
