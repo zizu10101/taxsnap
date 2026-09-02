@@ -13,10 +13,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { BusinessTypeToggle } from "@/app/auth/business-type-toggle";
+import { PENDING_BUSINESS_TYPE_COOKIE } from "@/lib/auth-redirect";
 import type { BusinessType } from "@/lib/database.types";
 
-export function ChooseBusinessTypeForm() {
-  const [businessType, setBusinessType] = useState<BusinessType>("general");
+export function ChooseBusinessTypeForm({
+  defaultBusinessType,
+}: {
+  // Pre-selects the toggle when this Google signup came from /salons
+  // (?business=salon) - see the page's own comment for why that has to
+  // travel via a cookie for this specific path. Still just a default;
+  // the toggle stays fully changeable either way.
+  defaultBusinessType: BusinessType;
+}) {
+  const [businessType, setBusinessType] = useState<BusinessType>(defaultBusinessType);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
@@ -30,6 +39,9 @@ export function ChooseBusinessTypeForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
+      // Clears the pending-plan cookie's counterpart for business_type -
+      // its one job (pre-selecting the toggle above) is done now.
+      document.cookie = `${PENDING_BUSINESS_TYPE_COOKIE}=; path=/; max-age=0`;
       router.push("/dashboard");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

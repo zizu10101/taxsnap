@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { setPendingPlan, setPostAuthRedirect } from "@/lib/auth-redirect";
+import { setPendingBusinessType, setPendingPlan, setPostAuthRedirect } from "@/lib/auth-redirect";
 import type { BusinessType } from "@/lib/database.types";
 import { BusinessTypeToggle } from "./business-type-toggle";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,15 @@ export function AuthForm() {
   // straight from this same param for the code-entry path below, which
   // never leaves this page.
   const plan = searchParams.get("plan");
+  // Set by a "Get Started" click on /salons (?business=salon) - defaults
+  // the business-type choice to salon wherever it's actually asked,
+  // instead of forcing it (the selector, wherever it appears, is still
+  // shown and still changeable). See lib/auth-redirect.ts's
+  // PENDING_BUSINESS_TYPE_COOKIE for the Google-specific piece of this -
+  // unlike plan, this one doesn't need a cookie for the magic-link/
+  // password paths below, since signUp()/signInWithOtp()'s own `data`
+  // option already sets business_type directly at row-creation time.
+  const business = searchParams.get("business");
 
   const [mode, setMode] = useState<Mode>("magic-link");
   const [passwordAction, setPasswordAction] =
@@ -80,13 +89,16 @@ export function AuthForm() {
   const [otpCode, setOtpCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
-  // Only asked on the password tab's explicit sign-up action - magic-link
-  // and Google OAuth silently create a user on first use with no separate
-  // "creating an account now" moment to ask this during, so those accounts
-  // just get the column default ('general') for now. A proper onboarding
-  // flow to ask everyone (including those two paths) is separate follow-up
-  // work, not part of this pass.
-  const [businessType, setBusinessType] = useState<BusinessType>("general");
+  // Toggle is only shown on the password tab's explicit sign-up action -
+  // magic-link and Google OAuth silently create a user on first use with
+  // no separate "creating an account now" moment to show it during, so
+  // those two paths set business_type directly (magic-link's signInWithOtp
+  // `data` option below) or via the post-signup /auth/choose-business-type
+  // prompt (Google) instead of this toggle. Defaults to salon when arriving
+  // from /salons's "Get Started" links, same as that prompt's own default.
+  const [businessType, setBusinessType] = useState<BusinessType>(
+    business === "salon" ? "salon" : "general",
+  );
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -95,6 +107,7 @@ export function AuthForm() {
 
     setPostAuthRedirect(redirectTo);
     setPendingPlan(plan);
+    setPendingBusinessType(business);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -124,6 +137,11 @@ export function AuthForm() {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Only has any effect for a brand-new user - handle_new_user()
+        // (0022_google_business_type_prompt.sql) only fires on the initial
+        // auth.users insert, so this is a no-op for an existing account
+        // logging back in via a stale/shared ?business=salon link.
+        ...(business === "salon" ? { data: { business_type: "salon" } } : {}),
       },
     });
 

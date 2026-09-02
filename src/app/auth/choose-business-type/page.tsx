@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { PENDING_BUSINESS_TYPE_COOKIE, sanitizePendingBusinessType } from "@/lib/auth-redirect";
 import { ChooseBusinessTypeForm } from "./choose-business-type-form";
 
 export const metadata: Metadata = {
@@ -34,5 +36,16 @@ export default async function ChooseBusinessTypePage() {
     redirect("/dashboard");
   }
 
-  return <ChooseBusinessTypeForm />;
+  // Set by a "Get Started" click on /salons (?business=salon) before the
+  // Google redirect - Google's own handshake can't carry custom signup
+  // data the way signUp()/signInWithOtp()'s `data` option can, so this
+  // cookie is what survives the round trip to pre-select the toggle below
+  // instead of defaulting to General. Still fully changeable, same as
+  // every other business_type entry point.
+  const cookieStore = await cookies();
+  const defaultBusinessType = sanitizePendingBusinessType(
+    cookieStore.get(PENDING_BUSINESS_TYPE_COOKIE)?.value,
+  );
+
+  return <ChooseBusinessTypeForm defaultBusinessType={defaultBusinessType ?? "general"} />;
 }

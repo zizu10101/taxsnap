@@ -44,3 +44,21 @@ export function setPendingPlan(tier: string | null) {
 export function sanitizePendingPlan(value: string | null | undefined): "basic" | "pro" | null {
   return value === "basic" || value === "pro" ? value : null;
 }
+
+// Same cookie-round-trip reasoning again, for a "Get Started" click on
+// /salons's ?business=salon - Google OAuth can't carry custom signup data
+// through its own handshake the way signUp()/signInWithOtp()'s `data`
+// option can (those two set business_type directly at row-creation time,
+// no cookie needed), so a Google signup's salon intent has to survive
+// until /auth/choose-business-type renders, to pre-select the toggle
+// there instead of defaulting to General.
+export const PENDING_BUSINESS_TYPE_COOKIE = "pending_business_type";
+
+export function setPendingBusinessType(businessType: string | null) {
+  if (businessType !== "salon") return;
+  document.cookie = `${PENDING_BUSINESS_TYPE_COOKIE}=salon; path=/; max-age=600; SameSite=Lax`;
+}
+
+export function sanitizePendingBusinessType(value: string | null | undefined): "salon" | null {
+  return value === "salon" ? "salon" : null;
+}

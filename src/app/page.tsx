@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { Camera, Check, FileSpreadsheet, Sparkles } from "lucide-react";
+import { ArrowRight, Camera, FileSpreadsheet, Scissors, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
-import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
-import { cn } from "@/lib/utils";
+import { PricingSection } from "@/components/landing/pricing-section";
 
 const STEPS = [
   {
@@ -116,6 +115,34 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Same bordered-card style as the pricing cards below, but a single
+          full-card link rather than a Button - still understated enough
+          not to compete with the real CTAs (Get started free / See
+          pricing / each plan's Get started), just more visible than a
+          plain text line. Sits right under the hero so a salon owner
+          self-identifies before reading feature copy that's aimed at
+          trade contractors. */}
+      <section className="border-t border-border">
+        <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
+          <Link
+            href="/salons"
+            className="group flex items-center gap-4 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary"
+          >
+            <Scissors className="h-8 w-8 shrink-0 text-primary" />
+            <div className="flex-1">
+              <h3 className="font-heading text-lg font-bold">
+                Run a salon or barbershop?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Commission tracking and stylist payouts, built for the
+                front counter.
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </section>
+
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-5xl divide-y divide-border px-4 sm:divide-y-0 sm:px-8">
           <div className="grid gap-8 py-10 sm:grid-cols-3 sm:gap-6">
@@ -141,82 +168,12 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="pricing" className="border-t border-border">
-        <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
-          <h2 className="font-heading text-2xl font-bold">Pricing</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Start free. Upgrade whenever you need more.
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
-              <h3 className="font-heading text-lg font-bold">{FREE_PLAN.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {FREE_PLAN.description}
-              </p>
-              <p className="text-3xl font-bold">{FREE_PLAN.price}</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {FREE_PLAN.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                variant="outline"
-                className="mt-auto"
-                nativeButton={false}
-                render={<Link href="/auth" />}
-              >
-                Get started free
-              </Button>
-            </div>
-            {PRICING_PLANS.map((plan) => (
-              <div
-                key={plan.tier}
-                className={cn(
-                  "relative flex flex-col gap-3 rounded-lg border bg-card p-5",
-                  plan.tier === "basic"
-                    ? "border-primary shadow-sm"
-                    : "border-border",
-                )}
-              >
-                {plan.tier === "basic" && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border-transparent bg-primary text-primary-foreground">
-                    Most Popular
-                  </Badge>
-                )}
-                <h3 className="font-heading text-lg font-bold">{plan.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {plan.description}
-                </p>
-                <p className="text-3xl font-bold">{plan.price}</p>
-                {plan.tier === "pro" && (
-                  <p className="-mt-1 text-xs font-medium text-primary">
-                    See true profit per job — materials + labor,
-                    automatically.
-                  </p>
-                )}
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className="mt-auto"
-                  nativeButton={false}
-                  render={<Link href={`/auth?plan=${plan.tier}`} />}
-                >
-                  Get started
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PricingSection
+        highlightTier="basic"
+        tierTaglines={{
+          pro: "See true profit per job — materials + labor, automatically.",
+        }}
+      />
 
       <InstallPromptCards />
 
