@@ -73,16 +73,32 @@ export function DashboardHeader({
             </Button>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                nativeButton={false}
-                render={<Link href="/billing" />}
-              >
-                <Badge variant="outline" className="mr-1">
-                  {TIER_LABEL[subscriptionStatus]}
-                </Badge>
-              </Button>
+              {/* Persistent upgrade entry point for free/basic - previously
+                  the only way to discover /billing was to hit a locked
+                  feature and get bounced there. Pro has nothing left to
+                  upgrade to, so it keeps the plain tier badge instead. */}
+              {subscriptionStatus === "pro" ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href="/billing" />}
+                >
+                  <Badge variant="outline" className="mr-1">
+                    {TIER_LABEL[subscriptionStatus]}
+                  </Badge>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-primary text-primary hover:bg-primary/10"
+                  nativeButton={false}
+                  render={<Link href="/billing" />}
+                >
+                  Upgrade
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
