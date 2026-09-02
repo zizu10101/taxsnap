@@ -79,13 +79,13 @@ export function PricingCards({
         </Button>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid items-stretch gap-4 sm:grid-cols-2">
         {PRICING_PLANS.map((plan) => {
           const isCurrent = currentStatus === plan.tier;
           return (
             <Card
               key={plan.tier}
-              className={isCurrent ? "border-primary shadow-sm" : undefined}
+              className={`h-full ${isCurrent ? "border-primary shadow-sm" : ""}`}
             >
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -100,7 +100,11 @@ export function PricingCards({
                 <CardDescription>{plan.description}</CardDescription>
                 <p className="pt-2 text-3xl font-bold">{plan.price}</p>
               </CardHeader>
-              <CardContent>
+              {/* flex-1 so this absorbs whatever height the two cards'
+                  differing feature-list lengths don't share, pinning both
+                  footers (and their buttons) to the same bottom edge
+                  regardless of how many lines either plan has. */}
+              <CardContent className="flex-1">
                 <ul className="space-y-2 text-sm">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2">
