@@ -113,7 +113,7 @@ export default function Home() {
             </Badge>
           </div>
           <p className="max-w-[300px] text-center text-xs text-muted-foreground">
-            Built by a Mississauga business owner who was sick of doing HST by hand.
+            Built by a small business owner, for small business owners.
           </p>
         </div>
       </section>

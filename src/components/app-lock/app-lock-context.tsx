@@ -8,16 +8,25 @@ export interface AppLockContextValue {
   // engaged" and "this session unlocked as the owner" - either way it means
   // full access, so consumers only ever need to special-case 'staff'.
   role: AppLockRole | null;
-  // Drops straight back to the lock screen (not into the owner's unlocked
-  // view) - re-entering the owner PIN from there is what restores full
-  // access. No-op outside a provider (default context value) so components
+  // Whether the gate is configured at all for this account - lets a
+  // consumer like DashboardHeader's Manager/Staff toggle hide itself
+  // entirely rather than offering a switch that can never actually lock
+  // anything (relock() only has an effect while this is true - see
+  // AppLockProvider's `locked` derivation).
+  hasOwnerPin: boolean;
+  // Drops back to the lock screen, regardless of which mode is currently
+  // active - the Manager/Staff toggle in DashboardHeader calls this for
+  // either direction of the switch, since a PIN re-entry is what actually
+  // grants the new mode (there's no way to just flip `role` without it).
+  // No-op outside a provider (default context value) so components
   // rendered in isolation (tests/storybook) don't crash calling it.
-  exitStaffMode: () => void;
+  relock: () => void;
 }
 
 export const AppLockContext = createContext<AppLockContextValue>({
   role: null,
-  exitStaffMode: () => {},
+  hasOwnerPin: false,
+  relock: () => {},
 });
 
 export function useAppLock() {

@@ -1,20 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppLockContext } from "./app-lock-context";
 import { LockScreen } from "./lock-screen";
-import type { AppLockRole } from "@/lib/database.types";
+import {
+  IDLE_TIMEOUT_MS,
+  clearUnlock,
+  getServerUnlockSnapshot,
+  getUnlockSnapshot,
+  subscribeUnlock,
+  touchUnlock,
+  writeUnlock,
+} from "./session-unlock-store";
 
-// No idle-timeout/session pattern existed anywhere in the app before this -
-// no middleware.ts, no auth/session context, nothing tracking activity
-// (checked - the only prior "session" concept is Supabase's own auth
-// cookie, which has nothing to do with idle re-locking). This is a
-// from-scratch idle timer: reset on any pointer/keyboard/touch activity
-// while unlocked, firing after 15 minutes of none. That's a reasonable
-// default for a front-counter device that gets set down between customers;
-// there's no existing convention to match it against.
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
 
 // Staff mode's only reachable route. Nav items to everything else are
@@ -26,24 +25,33 @@ const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
 const STAFF_ALLOWED_PATH = "/dashboard/commission";
 
 export function AppLockProvider({
+  userId,
   hasOwnerPin,
   children,
 }: {
+  userId: string;
   hasOwnerPin: boolean;
   children: React.ReactNode;
 }) {
-  // The gate never engages for an owner who hasn't opted in by setting a
-  // PIN - starting `locked` at `hasOwnerPin` means it's simply always false
-  // in that case, no separate "gate enabled" flag needed.
-  const [locked, setLocked] = useState(hasOwnerPin);
-  const [role, setRole] = useState<AppLockRole | null>(null);
+  // Backed by sessionStorage (see session-unlock-store.ts), not local
+  // useState - a plain `useState(hasOwnerPin)` only survives as long as
+  // this exact component instance stays mounted, and the parent (app)
+  // layout can remount it well within a single real owner session (see
+  // that store file's comment for the concrete trigger). role === null
+  // covers both "the owner has never set a PIN, the gate never engaged"
+  // and "no valid persisted unlock for this user right now."
+  const role = useSyncExternalStore(
+    subscribeUnlock,
+    () => getUnlockSnapshot(userId),
+    getServerUnlockSnapshot,
+  );
+  const locked = hasOwnerPin && role === null;
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
   const relock = useCallback(() => {
-    setLocked(true);
-    setRole(null);
+    clearUnlock();
   }, []);
 
   // Only runs once unlocked - re-locking while already locked is a no-op,
@@ -52,6 +60,10 @@ export function AppLockProvider({
     if (!hasOwnerPin || locked) return;
 
     function resetTimer() {
+      // Keeps the persisted record's clock in step with this in-memory
+      // timer, so a remount mid-session reads a fresh timestamp instead of
+      // treating an actually-active session as idle-expired.
+      touchUnlock(userId);
       if (idleTimer.current) clearTimeout(idleTimer.current);
       idleTimer.current = setTimeout(relock, IDLE_TIMEOUT_MS);
     }
@@ -63,7 +75,7 @@ export function AppLockProvider({
       if (idleTimer.current) clearTimeout(idleTimer.current);
       ACTIVITY_EVENTS.forEach((event) => window.removeEventListener(event, resetTimer));
     };
-  }, [hasOwnerPin, locked, relock]);
+  }, [hasOwnerPin, locked, relock, userId]);
 
   useEffect(() => {
     if (role === "staff" && pathname !== STAFF_ALLOWED_PATH) {
@@ -72,18 +84,11 @@ export function AppLockProvider({
   }, [role, pathname, router]);
 
   if (locked) {
-    return (
-      <LockScreen
-        onUnlock={(unlockedRole) => {
-          setRole(unlockedRole);
-          setLocked(false);
-        }}
-      />
-    );
+    return <LockScreen onUnlock={(unlockedRole) => writeUnlock(userId, unlockedRole)} />;
   }
 
   return (
-    <AppLockContext.Provider value={{ role, exitStaffMode: relock }}>
+    <AppLockContext.Provider value={{ role, hasOwnerPin, relock }}>
       {children}
     </AppLockContext.Provider>
   );

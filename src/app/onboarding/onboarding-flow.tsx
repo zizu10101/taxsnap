@@ -81,10 +81,10 @@ export function OnboardingFlow({
       return (
         <PinStep
           stepNumber={2}
-          title="Set an owner PIN"
+          title="Set a manager PIN"
           description="Unlocks the full app on a shared device. You can change or add this later from Settings."
           endpoint="/api/app-lock/set-owner-pin"
-          savedMessage="Owner PIN saved"
+          savedMessage="Manager PIN saved"
           isPro={isPro}
           onNext={goToNextOrFinish}
         />

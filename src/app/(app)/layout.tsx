@@ -39,7 +39,7 @@ export default async function AppLayout({
     .maybeSingle();
 
   return (
-    <AppLockProvider hasOwnerPin={settings?.has_owner_pin ?? false}>
+    <AppLockProvider userId={user.id} hasOwnerPin={settings?.has_owner_pin ?? false}>
       {children}
     </AppLockProvider>
   );

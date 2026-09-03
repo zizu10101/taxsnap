@@ -133,12 +133,12 @@ export function AppLockSettings({
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">App Lock</h2>
       <PinCard
-        title="Owner PIN"
+        title="Manager PIN"
         description="Unlocks the full app."
         initialHasPin={hasOwnerPin}
         endpoint="/api/app-lock/set-owner-pin"
-        savedMessage="Owner PIN saved"
-        changedMessage="Owner PIN changed"
+        savedMessage="Manager PIN saved"
+        changedMessage="Manager PIN changed"
         open={expanded === "owner"}
         onOpenChange={(open) => setExpanded(open ? "owner" : null)}
       />

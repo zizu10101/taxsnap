@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     if (error.message.includes("PIN_CONFLICT")) {
       return NextResponse.json(
         {
-          error: "That PIN is already used for the owner PIN. Choose a different one.",
+          error: "That PIN is already used for the manager PIN. Choose a different one.",
           code: "PIN_CONFLICT",
         },
         { status: 409 },

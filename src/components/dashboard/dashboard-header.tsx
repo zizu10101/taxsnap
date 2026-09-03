@@ -1,12 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, ClipboardList, FileText, LogOut, Scissors, Settings, ShieldOff } from "lucide-react";
+import {
+  BarChart3,
+  Briefcase,
+  ClipboardList,
+  FileText,
+  LogOut,
+  Scissors,
+  Settings,
+} from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
 import { LogoImage } from "@/components/invoices/business-logo";
+import { cn } from "@/lib/utils";
 import type { BusinessType, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
@@ -14,6 +23,50 @@ const TIER_LABEL: Record<SubscriptionStatus, string> = {
   basic: "Basic",
   pro: "Pro",
 };
+
+// The only control that can move a session between Manager and Staff mode
+// (there's no other switch/link for it anywhere - see the header below).
+// Neither side reflects the target state optimistically: clicking the
+// inactive side calls relock(), which drops straight to the lock screen -
+// re-entering the matching PIN there is what actually grants the new mode,
+// so this toggle's job is only to request that, never to flip `role`
+// itself. Clicking the already-active side is a no-op rather than a
+// needless PIN prompt - normal use of the app (including clicking this by
+// accident) should never ask for a PIN outside of an actual mode change.
+function ModeToggle({
+  isStaffMode,
+  onRequestSwitch,
+}: {
+  isStaffMode: boolean;
+  onRequestSwitch: () => void;
+}) {
+  return (
+    <div className="flex items-center rounded-full border border-border bg-muted/40 p-0.5 text-xs font-medium">
+      <button
+        type="button"
+        onClick={() => isStaffMode && onRequestSwitch()}
+        aria-pressed={!isStaffMode}
+        className={cn(
+          "rounded-full px-2.5 py-1 transition-colors",
+          !isStaffMode ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+        )}
+      >
+        Manager
+      </button>
+      <button
+        type="button"
+        onClick={() => !isStaffMode && onRequestSwitch()}
+        aria-pressed={isStaffMode}
+        className={cn(
+          "rounded-full px-2.5 py-1 transition-colors",
+          isStaffMode ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+        )}
+      >
+        Staff
+      </button>
+    </div>
+  );
+}
 
 export function DashboardHeader({
   email,
@@ -31,9 +84,9 @@ export function DashboardHeader({
   // api/profile/logo/route.ts) with a small "Powered by TaxSnap" line
   // underneath, keeping the brand attributed without crowding it out.
   logoPath: string | null;
-  active?: "estimates" | "invoices" | "jobs" | "commission";
+  active?: "estimates" | "invoices" | "jobs" | "commission" | "overview";
 }) {
-  const { role, exitStaffMode } = useAppLock();
+  const { role, hasOwnerPin, relock } = useAppLock();
   const isStaffMode = role === "staff";
 
   return (
@@ -66,12 +119,15 @@ export function DashboardHeader({
           </span>
         </Link>
         <div className="flex items-center gap-1">
-          {isStaffMode ? (
-            <Button variant="outline" size="sm" onClick={exitStaffMode}>
-              <ShieldOff className="h-4 w-4" />
-              Exit staff mode
-            </Button>
-          ) : (
+          {/* The only mode-switching control anywhere - hidden for a
+              general business (no staff-facing restricted view to switch
+              into) or an account that never set a Manager PIN (relock()
+              would show a lock screen it can never actually complete -
+              see AppLockContext's hasOwnerPin comment). */}
+          {businessType === "salon" && hasOwnerPin && (
+            <ModeToggle isStaffMode={isStaffMode} onRequestSwitch={relock} />
+          )}
+          {!isStaffMode && (
             <>
               {/* Persistent upgrade entry point for free/basic - previously
                   the only way to discover /billing was to hit a locked
