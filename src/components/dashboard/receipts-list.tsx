@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Briefcase,
   Download,
+  FileArchive,
   Loader2,
   Receipt as ReceiptIcon,
   Trash2,
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { downloadCsv, receiptsToCsv } from "@/lib/csv";
+import { downloadAccountantExport } from "@/lib/accountant-export";
+import { createClient } from "@/lib/supabase/client";
 import type { Receipt } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -34,14 +37,19 @@ export function ReceiptsList({
   receipts,
   onDeleted,
   onSelect,
-  exportFilename,
+  exportFilenameBase,
 }: {
   receipts: Receipt[];
   onDeleted: (id: string) => void;
   onSelect: (receipt: Receipt) => void;
-  exportFilename: string;
+  // Extension-less - both the plain CSV export and the accountant bundle
+  // derive their own filename from this one base, so the two downloads
+  // for the same range are obviously a pair (e.g.
+  // "taxsnap-receipts-august-2026.csv" / ".zip").
+  exportFilenameBase: string;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exportingBundle, setExportingBundle] = useState(false);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -66,17 +74,47 @@ export function ReceiptsList({
       return;
     }
     const csv = receiptsToCsv(receipts);
-    downloadCsv(exportFilename, csv);
+    downloadCsv(`${exportFilenameBase}.csv`, csv);
+  }
+
+  async function handleExportBundle() {
+    if (receipts.length === 0) {
+      toast.info("No receipts in this range to export");
+      return;
+    }
+    setExportingBundle(true);
+    try {
+      await downloadAccountantExport(receipts, createClient(), exportFilenameBase);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to build export");
+    } finally {
+      setExportingBundle(false);
+    }
   }
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle>Receipts</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportBundle}
+            disabled={exportingBundle}
+          >
+            {exportingBundle ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileArchive className="h-4 w-4" />
+            )}
+            For Accountant
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {receipts.length === 0 ? (

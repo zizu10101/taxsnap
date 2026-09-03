@@ -69,7 +69,7 @@ export function DashboardBody({
   const rangeLabel = useMemo(() => describeRange(preset, range), [preset, range]);
   const scopeLabel = jobFilter ? `${jobFilter} — ${rangeLabel}` : rangeLabel;
 
-  const exportFilename = `taxsnap-receipts-${slugify(scopeLabel)}.csv`;
+  const exportFilenameBase = `taxsnap-receipts-${slugify(scopeLabel)}`;
 
   function handleRangeChange(nextPreset: RangePreset, nextRange: DateRange) {
     setPreset(nextPreset);
@@ -132,7 +132,7 @@ export function DashboardBody({
         receipts={filteredReceipts}
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
-        exportFilename={exportFilename}
+        exportFilenameBase={exportFilenameBase}
       />
 
       <ReceiptDetailDialog
