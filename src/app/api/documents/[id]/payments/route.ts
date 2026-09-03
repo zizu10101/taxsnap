@@ -46,6 +46,34 @@ export async function POST(
     );
   }
 
+  // Overpayment guard - checked against every existing payment's sum, not
+  // just this one in isolation, so it also catches the case where several
+  // smaller payments would together exceed the total (not just one payment
+  // that's too large on its own). Checked before inserting rather than
+  // insert-then-roll-back, so a rejected payment never touches the table
+  // at all. The server is authoritative here - document-detail.tsx also
+  // checks client-side for instant feedback, but that alone can't be
+  // trusted (a stale balanceDue in the browser, or a direct API call).
+  const { data: existingPayments } = await supabase
+    .from("payments")
+    .select("amount")
+    .eq("document_id", id);
+
+  const existingTotal = round2(
+    (existingPayments ?? []).reduce((sum, p) => sum + p.amount, 0),
+  );
+  const remaining = round2(document.total_amount - existingTotal);
+
+  if (amount > remaining + 0.001) {
+    const over = round2(amount - remaining);
+    return NextResponse.json(
+      {
+        error: `This payment would exceed the invoice total by $${over.toFixed(2)} — edit the invoice or adjust the payment amount.`,
+      },
+      { status: 400 },
+    );
+  }
+
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
@@ -62,14 +90,7 @@ export async function POST(
     return NextResponse.json({ error: paymentError.message }, { status: 500 });
   }
 
-  const { data: allPayments } = await supabase
-    .from("payments")
-    .select("amount")
-    .eq("document_id", id);
-
-  const totalPaid = round2(
-    (allPayments ?? []).reduce((sum, p) => sum + p.amount, 0),
-  );
+  const totalPaid = round2(existingTotal + amount);
   const nextStatus = statusFromPaid(totalPaid, document.total_amount);
 
   const { data: updatedDocument, error: updateError } = await supabase

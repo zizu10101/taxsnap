@@ -142,6 +142,16 @@ export function DocumentDetail({
       toast.error("Enter a payment amount greater than $0.");
       return;
     }
+    // Instant feedback before the round trip - the server enforces this
+    // too (authoritative, catches a stale balanceDue or a direct API
+    // call), see POST /api/documents/[id]/payments's own comment.
+    if (paymentAmount > balanceDue + 0.001) {
+      const over = paymentAmount - balanceDue;
+      toast.error(
+        `This payment would exceed the invoice total by ${formatCurrency(over)} — edit the invoice or adjust the payment amount.`,
+      );
+      return;
+    }
     setAddingPayment(true);
     try {
       const res = await fetch(`/api/documents/${doc.id}/payments`, {
