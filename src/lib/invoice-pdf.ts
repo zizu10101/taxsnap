@@ -99,9 +99,17 @@ function jitteredRoundedRectPath(
 // once scaled down into the PDF), pre-rotated so the exported PNG can be
 // dropped straight into the page with pdf.addImage - simpler and more
 // reliable than fighting jsPDF's own lower-level rotation/transform APIs,
-// which aren't used anywhere else in this file.
-function createPaidStampDataUrl(): string {
-  const size = 400;
+// which aren't used anywhere else in this file. Every jitter/speckle
+// parameter here is sized for how it actually prints - this canvas gets
+// scaled down a lot (see drawPaidStamp), so subtle texture at native
+// resolution would just get anti-aliased away into a clean-looking edge.
+// Bigger, bolder wobble is what still reads as "rough" once shrunk.
+// Exported so the on-screen invoice view (PaidStamp component) can render
+// the exact same stamp graphic, not a separate CSS-approximated look-alike
+// - one canvas-drawing implementation, two places it gets dropped in (a
+// jsPDF page here, a plain <img> there).
+export function createPaidStampDataUrl(): string {
+  const size = 600;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -115,31 +123,31 @@ function createPaidStampDataUrl(): string {
   ctx.translate(size / 2, size / 2);
   ctx.rotate(angleRad);
 
-  const rectW = 260;
-  const rectH = 130;
+  const rectW = 380;
+  const rectH = 190;
 
   // Double border, thicker outer / thinner inner - the uneven double-line
   // look of a stamp that's been pressed slightly off-register with itself.
   ctx.strokeStyle = red;
   ctx.lineJoin = "round";
   ctx.globalAlpha = 0.9;
-  ctx.lineWidth = 7;
-  jitteredRoundedRectPath(ctx, rectW, rectH, 22, 5, 6);
+  ctx.lineWidth = 13;
+  jitteredRoundedRectPath(ctx, rectW, rectH, 30, 11, 7);
   ctx.stroke();
-  ctx.lineWidth = 3.5;
-  jitteredRoundedRectPath(ctx, rectW - 16, rectH - 16, 18, 4, 6);
+  ctx.lineWidth = 6;
+  jitteredRoundedRectPath(ctx, rectW - 24, rectH - 24, 24, 8, 7);
   ctx.stroke();
 
   // Bold, slightly uneven "PAID" - each letter gets its own small random
   // offset/rotation so the word doesn't look machine-typeset, then both
   // filled and stroked for a bolder, more defined edge than fill alone.
   const text = "PAID";
-  ctx.font = "bold 92px Arial, sans-serif";
+  ctx.font = "bold 132px Arial, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = red;
   ctx.strokeStyle = red;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.globalAlpha = 0.95;
 
   const letterWidths = text.split("").map((ch) => ctx.measureText(ch).width);
@@ -150,10 +158,10 @@ function createPaidStampDataUrl(): string {
     const letterCenterX = cursorX + letterWidths[i] / 2;
     ctx.save();
     ctx.translate(
-      letterCenterX + (Math.random() - 0.5) * 4,
-      (Math.random() - 0.5) * 6,
+      letterCenterX + (Math.random() - 0.5) * 6,
+      (Math.random() - 0.5) * 9,
     );
-    ctx.rotate(((Math.random() - 0.5) * 6 * Math.PI) / 180);
+    ctx.rotate(((Math.random() - 0.5) * 7 * Math.PI) / 180);
     ctx.fillText(letter, 0, 0);
     ctx.strokeText(letter, 0, 0);
     ctx.restore();
@@ -170,14 +178,14 @@ function createPaidStampDataUrl(): string {
   ctx.globalCompositeOperation = "destination-out";
   const cx = size / 2;
   const cy = size / 2;
-  const speckleRadius = 170;
-  for (let i = 0; i < 260; i++) {
+  const speckleRadius = 250;
+  for (let i = 0; i < 420; i++) {
     const angle = Math.random() * Math.PI * 2;
     // Biased toward the outer half of the stamp's footprint.
     const dist = speckleRadius * (0.35 + Math.random() * 0.65);
     const sx = cx + Math.cos(angle) * dist;
     const sy = cy + Math.sin(angle) * dist;
-    const r = 0.6 + Math.random() * 2.2;
+    const r = 1 + Math.random() * 4;
     ctx.globalAlpha = 0.35 + Math.random() * 0.5;
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -189,15 +197,22 @@ function createPaidStampDataUrl(): string {
   return canvas.toDataURL("image/png");
 }
 
-// Fixed top-right position, independent of item count/notes below it - the
-// header (drawPdfHeader) only ever draws at marginX, so this corner is
-// guaranteed empty on every invoice regardless of content length.
-function drawPaidStamp(pdf: jsPDF, rightX: number) {
+// Top-right corner, sized to whatever room is actually available there.
+// contentStartY is drawPdfHeader's own return value - where FROM/BILL TO
+// will be drawn next - which shifts a lot depending on whether a logo is
+// set (a logo pushes it well down the page; no logo leaves only a little
+// room under the label/sub-label). A fixed box size that assumed the
+// spacious logo case would silently overlap BILL TO on a logo-less
+// account; sizing off the real boundary keeps this correct either way
+// while still going as big and bold as the page actually allows.
+function drawPaidStamp(pdf: jsPDF, rightX: number, contentStartY: number) {
   const dataUrl = createPaidStampDataUrl();
   if (!dataUrl) return;
-  const boxSize = 130;
-  const x = rightX - boxSize + 15;
-  const y = 20;
+  const topMargin = 16;
+  const bottomGap = 10;
+  const boxSize = Math.min(190, Math.max(72, contentStartY - topMargin - bottomGap));
+  const x = rightX - boxSize + Math.min(20, boxSize * 0.12);
+  const y = topMargin;
   pdf.addImage(dataUrl, "PNG", x, y, boxSize, boxSize);
 }
 
@@ -331,9 +346,12 @@ export async function generateDocumentPdf(
 
   // Estimates never carry a payment status worth stamping - only an
   // invoice's own status (derived server-side from its payments, see
-  // POST /api/documents/[id]/payments) reaches "paid".
+  // POST /api/documents/[id]/payments) reaches "paid". y here is
+  // drawPdfHeader's return value, i.e. where FROM/BILL TO is about to be
+  // drawn - passed through so the stamp can size itself to the room
+  // actually available above that, logo or no logo.
   if (doc.type === "invoice" && doc.status === "paid") {
-    drawPaidStamp(pdf, rightX);
+    drawPaidStamp(pdf, rightX, y);
   }
 
   const colWidth = (rightX - marginX) / 2;

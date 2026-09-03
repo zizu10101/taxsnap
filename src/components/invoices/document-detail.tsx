@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
+import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import type {
   Client,
@@ -305,7 +306,15 @@ export function DocumentDetail({
       )}
 
       <Card className="print:border-none print:shadow-none">
-        <CardContent className="space-y-6 p-6 print:p-0">
+        <CardContent className="relative space-y-6 p-6 print:p-0">
+          {/* Same stamp graphic as the downloaded PDF (see PaidStamp's own
+              comment) - not print:hidden like the plain status badge below,
+              since this one is meant to look like it's actually on the
+              page, on screen or printed, matching the PDF either way. */}
+          {doc.status === "paid" && (
+            <PaidStamp className="pointer-events-none absolute top-2 right-2 h-20 w-20 sm:h-28 sm:w-28" />
+          )}
+
           {logoPath && (
             <LogoImage
               key={logoPath}
@@ -321,7 +330,9 @@ export function DocumentDetail({
               </p>
               <p className="text-sm text-muted-foreground">#{shortId}</p>
             </div>
-            <Badge className="print:hidden">{doc.status}</Badge>
+            {doc.status !== "paid" && (
+              <Badge className="print:hidden">{doc.status}</Badge>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
