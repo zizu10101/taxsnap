@@ -19,6 +19,7 @@ import {
   type RangePreset,
 } from "@/lib/date-range";
 import type { BusinessType, Receipt, SubscriptionStatus } from "@/lib/database.types";
+import type { BusinessInfo } from "@/components/invoices/document-detail";
 
 function slugify(label: string): string {
   return label
@@ -32,6 +33,8 @@ export function DashboardBody({
   initialJobNames,
   businessType,
   subscriptionStatus,
+  business,
+  logoPath,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
@@ -44,6 +47,12 @@ export function DashboardBody({
   // Threaded into HstSummaryCard to gate manual sales entry (Basic-or-
   // higher for general-business accounts; unrestricted for salon).
   subscriptionStatus: SubscriptionStatus;
+  // Passed straight through to ReceiptsList's accountant export bundle,
+  // which needs it to render invoice PDFs the same way the invoice detail
+  // page/PDF download already do - nothing on this page itself displays
+  // it.
+  business: BusinessInfo;
+  logoPath: string | null;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [preset, setPreset] = useState<RangePreset>("this-month");
@@ -133,6 +142,9 @@ export function DashboardBody({
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
         exportFilenameBase={exportFilenameBase}
+        range={range}
+        business={business}
+        logoPath={logoPath}
       />
 
       <ReceiptDetailDialog

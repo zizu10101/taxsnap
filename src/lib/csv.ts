@@ -1,4 +1,4 @@
-import type { Receipt } from "@/lib/database.types";
+import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
 
 function escapeCsvField(value: string | number): string {
   const str = String(value);
@@ -48,6 +48,59 @@ export function receiptsToCsv(receipts: Receipt[]): string {
     totalTax.toFixed(2),
     totalAmount.toFixed(2),
     "",
+  ];
+
+  const lines = [header, ...rows, totalsRow].map((row) =>
+    row.map(escapeCsvField).join(","),
+  );
+
+  return lines.join("\n");
+}
+
+// One row per invoice, alongside the accountant export's receipt CSV -
+// "Paid to Date"/"Balance Due" are derived from the same payments array
+// the invoice detail view and PDF already use, not a separate query, so
+// this can't disagree with what's shown on screen for the same invoice.
+export function invoicesToCsv(documents: DocumentWithRelations[]): string {
+  const header = [
+    "Issue Date",
+    "Client",
+    "Status",
+    "Subtotal",
+    "HST",
+    "Total",
+    "Paid to Date",
+    "Balance Due",
+  ];
+
+  const rows = documents.map((d) => {
+    const paid = d.payments.reduce((sum, p) => sum + p.amount, 0);
+    return [
+      d.issue_date,
+      d.client?.name ?? "—",
+      d.status,
+      d.subtotal.toFixed(2),
+      d.hst_amount.toFixed(2),
+      d.total_amount.toFixed(2),
+      paid.toFixed(2),
+      (d.total_amount - paid).toFixed(2),
+    ];
+  });
+
+  const totalAmount = documents.reduce((sum, d) => sum + d.total_amount, 0);
+  const totalPaid = documents.reduce(
+    (sum, d) => sum + d.payments.reduce((s, p) => s + p.amount, 0),
+    0,
+  );
+  const totalsRow = [
+    "",
+    "",
+    "TOTAL",
+    "",
+    "",
+    totalAmount.toFixed(2),
+    totalPaid.toFixed(2),
+    (totalAmount - totalPaid).toFixed(2),
   ];
 
   const lines = [header, ...rows, totalsRow].map((row) =>

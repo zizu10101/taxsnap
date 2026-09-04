@@ -16,7 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { downloadCsv, receiptsToCsv } from "@/lib/csv";
 import { downloadAccountantExport } from "@/lib/accountant-export";
 import { createClient } from "@/lib/supabase/client";
+import type { DateRange } from "@/lib/date-range";
 import type { Receipt } from "@/lib/database.types";
+import type { BusinessInfo } from "@/components/invoices/document-detail";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -38,6 +40,9 @@ export function ReceiptsList({
   onDeleted,
   onSelect,
   exportFilenameBase,
+  range,
+  business,
+  logoPath,
 }: {
   receipts: Receipt[];
   onDeleted: (id: string) => void;
@@ -47,6 +52,13 @@ export function ReceiptsList({
   // for the same range are obviously a pair (e.g.
   // "taxsnap-receipts-august-2026.csv" / ".zip").
   exportFilenameBase: string;
+  // Scopes the accountant bundle's own invoice fetch to the same period
+  // as `receipts` (already range-filtered by the caller) - not used for
+  // receipts themselves, only so the bundle's invoices.csv/PDFs describe
+  // the same window.
+  range: DateRange;
+  business: BusinessInfo;
+  logoPath: string | null;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingBundle, setExportingBundle] = useState(false);
@@ -78,13 +90,16 @@ export function ReceiptsList({
   }
 
   async function handleExportBundle() {
-    if (receipts.length === 0) {
-      toast.info("No receipts in this range to export");
-      return;
-    }
     setExportingBundle(true);
     try {
-      await downloadAccountantExport(receipts, createClient(), exportFilenameBase);
+      await downloadAccountantExport(
+        receipts,
+        createClient(),
+        exportFilenameBase,
+        range,
+        business,
+        logoPath,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to build export");
     } finally {

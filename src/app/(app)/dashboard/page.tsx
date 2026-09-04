@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, business_type, logo_url, onboarding_completed, needs_business_type_prompt",
+      "subscription_status, business_type, logo_url, onboarding_completed, needs_business_type_prompt, business_name, business_email, business_phone, business_address",
     )
     .eq("id", user.id)
     .single();
@@ -73,6 +73,13 @@ export default async function DashboardPage() {
           initialJobNames={(jobs ?? []).map((j) => j.name)}
           businessType={profile?.business_type ?? "general"}
           subscriptionStatus={profile?.subscription_status ?? "free"}
+          business={{
+            name: profile?.business_name ?? null,
+            email: profile?.business_email || user.email || "",
+            phone: profile?.business_phone ?? null,
+            address: profile?.business_address ?? null,
+          }}
+          logoPath={profile?.logo_url ?? null}
         />
       </main>
     </div>

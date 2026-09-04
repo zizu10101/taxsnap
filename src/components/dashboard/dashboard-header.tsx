@@ -211,16 +211,18 @@ export function DashboardHeader({
                   <FileText className="h-4 w-4" />
                   Invoices
                 </Button>
-                <Button
-                  variant={active === "jobs" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-                  nativeButton={false}
-                  render={<Link href="/dashboard/jobs" />}
-                >
-                  <Briefcase className="h-4 w-4" />
-                  Jobs
-                </Button>
+                {businessType !== "salon" && (
+                  <Button
+                    variant={active === "jobs" ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                    nativeButton={false}
+                    render={<Link href="/dashboard/jobs" />}
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    Jobs
+                  </Button>
+                )}
                 {businessType !== "salon" && (
                   <Button
                     variant={active === "overview" ? "default" : "outline"}
