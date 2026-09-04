@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, FileText, Loader2, Settings } from "lucide-react";
+import { Check, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import type { BillingTier } from "@/lib/stripe";
 import type { SubscriptionStatus } from "@/lib/database.types";
 import { PRICING_PLANS } from "@/lib/pricing-plans";
@@ -25,7 +26,6 @@ export function PricingCards({
   hasBillingAccount: boolean;
 }) {
   const [loadingTier, setLoadingTier] = useState<BillingTier | null>(null);
-  const [portalLoading, setPortalLoading] = useState(false);
 
   async function handleCheckout(tier: BillingTier) {
     setLoadingTier(tier);
@@ -46,38 +46,9 @@ export function PricingCards({
     }
   }
 
-  async function handlePortal() {
-    setPortalLoading(true);
-    try {
-      const res = await fetch("/api/stripe/portal", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.url) {
-        throw new Error(data.error || "Failed to open billing portal");
-      }
-      window.location.assign(data.url);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-      setPortalLoading(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
-      {hasBillingAccount && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handlePortal}
-          disabled={portalLoading}
-        >
-          {portalLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Settings className="h-4 w-4" />
-          )}
-          Manage billing
-        </Button>
-      )}
+      {hasBillingAccount && <ManageSubscriptionButton className="w-full" />}
 
       <div className="grid items-stretch gap-4 sm:grid-cols-2">
         {PRICING_PLANS.map((plan) => {
