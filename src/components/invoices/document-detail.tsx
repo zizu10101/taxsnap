@@ -68,6 +68,7 @@ export interface BusinessInfo {
 export function DocumentDetail({
   document,
   clients,
+  jobs = [],
   business,
   logoPath,
   basePath,
@@ -75,6 +76,7 @@ export function DocumentDetail({
 }: {
   document: DocumentWithRelations;
   clients: Client[];
+  jobs?: string[];
   business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
@@ -223,6 +225,14 @@ export function DocumentDetail({
           <ArrowLeft className="h-4 w-4" />
           Back to {label.toLowerCase()}s
         </Link>
+        {doc.job && (
+          <Link
+            href={`/dashboard/jobs/${doc.job.id}`}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Job: <span className="font-medium underline underline-offset-2">{doc.job.name}</span>
+          </Link>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={doc.status}
@@ -539,6 +549,7 @@ export function DocumentDetail({
         defaultType={doc.type}
         document={doc}
         clients={allClients}
+        existingJobs={jobs}
         onSaved={(updated) => setDoc(updated)}
         onClientCreated={(client) => setAllClients((prev) => [...prev, client])}
       />

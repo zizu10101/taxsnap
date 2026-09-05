@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: document, error } = await result.supabase
     .from("documents")
-    .select("*, client:clients(*), payments(*), items:document_items(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
     .eq("id", id)
     .eq("user_id", result.user.id)
     .single();
@@ -97,6 +97,54 @@ export async function PATCH(
   }
   if (clientId !== undefined) updates.client_id = clientId;
 
+  // Job link is optional and clearable (unlike client) - an explicit
+  // `job_id: null` un-links the document, so this checks for the key's
+  // presence rather than truthiness.
+  let jobId: string | null | undefined;
+  if ("job_id" in body) {
+    jobId = body.job_id ?? null;
+  } else if (body.job_name?.trim()) {
+    const name = body.job_name.trim();
+    const { data: existingJob } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", name)
+      .maybeSingle();
+
+    if (existingJob) {
+      jobId = existingJob.id;
+    } else {
+      const { data: newJob, error: newJobError } = await supabase
+        .from("jobs")
+        .insert({ user_id: user.id, name })
+        .select("id")
+        .single();
+      if (newJobError) {
+        return NextResponse.json({ error: newJobError.message }, { status: 500 });
+      }
+      jobId = newJob.id;
+    }
+  }
+  if (jobId) {
+    // A FK constraint alone only checks that the row exists, not that it
+    // belongs to this user - re-verify explicitly whenever an id came
+    // straight from the request rather than the find-or-create above
+    // (which is already scoped to user_id).
+    if ("job_id" in body) {
+      const { data: job, error: jobError } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("id", jobId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (jobError || !job) {
+        return NextResponse.json({ error: "Job not found." }, { status: 404 });
+      }
+    }
+  }
+  if (jobId !== undefined) updates.job_id = jobId;
+
   const cleanItems: ItemInput[] | null = Array.isArray(body.items)
     ? body.items.filter((i: ItemInput) => i?.description?.trim())
     : null;
@@ -125,7 +173,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("*, client:clients(*), payments(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();
 
   if (updateError) {

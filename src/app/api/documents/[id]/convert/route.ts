@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireProUser } from "@/lib/require-pro";
 
-// Duplicates an estimate as a new draft invoice, carrying over the client
-// and line items. The original estimate is left untouched.
+// Duplicates an estimate as a new draft invoice, carrying over the client,
+// job link, and line items. The original estimate is left untouched.
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -47,6 +47,7 @@ export async function POST(
     .insert({
       user_id: user.id,
       client_id: estimate.client_id,
+      job_id: estimate.job_id,
       type: "invoice",
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
@@ -56,7 +57,7 @@ export async function POST(
       total_amount: estimate.total_amount,
       converted_from_id: estimate.id,
     })
-    .select("*, client:clients(*), payments(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();
 
   if (insertError) {

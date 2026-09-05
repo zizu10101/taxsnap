@@ -27,6 +27,11 @@ import type { Client, DocumentType, DocumentWithRelations } from "@/lib/database
 
 const NEW_CLIENT = "__new__";
 
+// Sentinel values for the job Select, same inline-create pattern as the
+// client picker above and the receipt job picker in upload-receipt.tsx.
+const NO_JOB = "__no_job__";
+const NEW_JOB = "__new_job__";
+
 interface LineItemDraft {
   description: string;
   quantity: number;
@@ -52,6 +57,7 @@ export function DocumentBuilder({
   defaultType,
   document,
   clients,
+  existingJobs = [],
   onSaved,
   onClientCreated,
 }: {
@@ -60,6 +66,7 @@ export function DocumentBuilder({
   defaultType: DocumentType;
   document?: DocumentWithRelations | null;
   clients: Client[];
+  existingJobs?: string[];
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
@@ -80,6 +87,8 @@ export function DocumentBuilder({
       : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
+  const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
+  const [newJobName, setNewJobName] = useState("");
 
   // Client select's value (a uuid) never matches its displayed label (the
   // client's name), which Base UI's Select can't resolve without an
@@ -89,6 +98,17 @@ export function DocumentBuilder({
     for (const c of clients) map[c.id] = c.name;
     return map;
   }, [clients]);
+
+  const jobSelectItems = useMemo(() => {
+    const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
+    for (const job of existingJobs) map[job] = job;
+    return map;
+  }, [existingJobs]);
+
+  function handleJobModeChange(value: string) {
+    setJobMode(value);
+    if (value === NEW_JOB) setNewJobName("");
+  }
 
   const totals = useMemo(() => {
     const subtotal = items.reduce(
@@ -114,6 +134,9 @@ export function DocumentBuilder({
       return;
     }
 
+    const jobName =
+      jobMode === NO_JOB ? null : jobMode === NEW_JOB ? newJobName.trim() : jobMode;
+
     setSaving(true);
     try {
       const body = {
@@ -122,6 +145,7 @@ export function DocumentBuilder({
         due_date: dueDate || null,
         client_id: clientId === NEW_CLIENT ? null : clientId,
         new_client: clientId === NEW_CLIENT ? newClient : undefined,
+        ...(jobName ? { job_name: jobName } : { job_id: null }),
         items: cleanItems,
       };
 
@@ -223,6 +247,35 @@ export function DocumentBuilder({
               </div>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="doc-job">Job (optional)</Label>
+            <Select
+              items={jobSelectItems}
+              value={jobMode}
+              onValueChange={(v) => v && handleJobModeChange(v)}
+            >
+              <SelectTrigger id="doc-job" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_JOB}>No job</SelectItem>
+                <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
+                {existingJobs.map((job) => (
+                  <SelectItem key={job} value={job}>
+                    {job}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {jobMode === NEW_JOB && (
+              <Input
+                placeholder="e.g. 123 Main St or Job #4521"
+                value={newJobName}
+                onChange={(e) => setNewJobName(e.target.value)}
+              />
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

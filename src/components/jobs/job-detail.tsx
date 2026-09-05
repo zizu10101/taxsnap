@@ -38,12 +38,16 @@ export function JobDetail({
   initialHourEntries,
   employees,
   jobs,
+  linkedInvoiceCount,
+  jobRevenue,
 }: {
   job: Job;
   initialReceipts: JobReceipt[];
   initialHourEntries: HourEntryWithRelations[];
   employees: Employee[];
   jobs: Job[];
+  linkedInvoiceCount: number;
+  jobRevenue: number;
 }) {
   const [hourEntries, setHourEntries] = useState(initialHourEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,6 +56,7 @@ export function JobDetail({
   const totalExpenses = receipts.reduce((sum, r) => sum + r.total_amount, 0);
   const totalLaborCost = hourEntries.reduce((sum, h) => sum + h.labor_cost, 0);
   const totalJobCost = totalExpenses + totalLaborCost;
+  const estProfit = jobRevenue - totalJobCost;
 
   function upsertEntry(entry: HourEntryWithRelations) {
     setHourEntries((prev) => {
@@ -81,6 +86,50 @@ export function JobDetail({
               {formatCurrency(totalJobCost)}
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Est. profit</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {linkedInvoiceCount === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No invoices linked to this job yet — pick this job when
+              creating or editing an invoice to track revenue here.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xs text-muted-foreground">Revenue</p>
+                <p className="font-semibold text-success tabular-nums">
+                  {formatCurrency(jobRevenue)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Cost</p>
+                <p className="font-semibold tabular-nums">
+                  {formatCurrency(totalJobCost)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Est. profit</p>
+                <p
+                  className={`font-semibold tabular-nums ${estProfit >= 0 ? "text-success" : "text-destructive"}`}
+                >
+                  {formatCurrency(estProfit)}
+                </p>
+              </div>
+            </div>
+          )}
+          {linkedInvoiceCount > 0 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Revenue counts only payments actually received on invoices
+              linked to this job, pro-rated for deposits — not the full
+              invoice total.
+            </p>
+          )}
         </CardContent>
       </Card>
 

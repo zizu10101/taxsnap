@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   let query = result.supabase
     .from("documents")
-    .select("*, client:clients(*), payments(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*)")
     .order("issue_date", { ascending: false });
 
   if (type && DOCUMENT_TYPES.includes(type as DocumentType)) {
@@ -54,6 +54,8 @@ export async function POST(request: Request) {
     due_date,
     client_id: clientIdInput,
     new_client,
+    job_id: jobIdInput,
+    job_name,
     items,
   } = body ?? {};
 
@@ -95,6 +97,50 @@ export async function POST(request: Request) {
     clientId = client.id;
   }
 
+  // Job link is entirely optional (unlike client) - find-or-create by
+  // name, same pattern as POST /api/hours, since a job is just a name with
+  // no other fields worth a "new_job" object shape the way new_client has.
+  let jobId: string | null = jobIdInput ?? null;
+  if (!jobId && job_name?.trim()) {
+    const name = job_name.trim();
+    const { data: existingJob } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", name)
+      .maybeSingle();
+
+    if (existingJob) {
+      jobId = existingJob.id;
+    } else {
+      const { data: newJob, error: newJobError } = await supabase
+        .from("jobs")
+        .insert({ user_id: user.id, name })
+        .select("id")
+        .single();
+      if (newJobError) {
+        return NextResponse.json({ error: newJobError.message }, { status: 500 });
+      }
+      jobId = newJob.id;
+    }
+  }
+
+  // A FK constraint alone only checks that the row exists, not that it
+  // belongs to this user (same reasoning as POST /api/hours) - re-verify
+  // explicitly whenever an id came straight from the request rather than
+  // the find-or-create above (which is already scoped to user_id).
+  if (jobIdInput) {
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("id", jobIdInput)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (jobError || !job) {
+      return NextResponse.json({ error: "Job not found." }, { status: 404 });
+    }
+  }
+
   const subtotal = round2(
     cleanItems.reduce(
       (sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
@@ -109,6 +155,7 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       client_id: clientId,
+      job_id: jobId,
       type,
       status: status === "sent" || status === "paid" ? status : "draft",
       issue_date,
@@ -117,7 +164,7 @@ export async function POST(request: Request) {
       hst_amount: hstAmount,
       total_amount: totalAmount,
     })
-    .select("*, client:clients(*), payments(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();
 
   if (documentError) {

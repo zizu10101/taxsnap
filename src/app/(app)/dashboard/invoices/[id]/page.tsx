@@ -34,14 +34,15 @@ export default async function InvoiceDetailPage({
     redirect("/dashboard/invoices");
   }
 
-  const [{ data: document }, { data: clients }] = await Promise.all([
+  const [{ data: document }, { data: clients }, { data: jobs }] = await Promise.all([
     supabase
       .from("documents")
-      .select("*, client:clients(*), payments(*), items:document_items(*)")
+      .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
       .eq("id", id)
       .eq("type", "invoice")
       .single(),
     supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase.from("jobs").select("name").order("name", { ascending: true }),
   ]);
 
   if (!document) notFound();
@@ -59,6 +60,7 @@ export default async function InvoiceDetailPage({
         <DocumentDetail
           document={document as DocumentWithRelations}
           clients={clients ?? []}
+          jobs={(jobs ?? []).map((j) => j.name)}
           business={{
             name: profile?.business_name ?? null,
             email: profile?.business_email || user.email || "",

@@ -154,6 +154,7 @@ export interface Database {
           id: string;
           user_id: string;
           client_id: string | null;
+          job_id: string | null;
           type: DocumentType;
           status: DocumentStatus;
           issue_date: string;
@@ -170,6 +171,7 @@ export interface Database {
           id?: string;
           user_id: string;
           client_id?: string | null;
+          job_id?: string | null;
           type: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;
@@ -186,6 +188,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           client_id?: string | null;
+          job_id?: string | null;
           type?: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;
@@ -204,6 +207,13 @@ export interface Database {
             columns: ["client_id"];
             isOneToOne: false;
             referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "documents_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
             referencedColumns: ["id"];
           },
         ];
@@ -828,6 +838,7 @@ export interface CommissionEntryWithRelations extends CommissionEntry {
 
 export interface DocumentWithClient extends InvoiceDocument {
   client: Client | null;
+  job: Job | null;
   payments: Payment[];
 }
 

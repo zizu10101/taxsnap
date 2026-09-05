@@ -47,6 +47,7 @@ export function DocumentList({
   basePath,
   initialDocuments,
   initialClients,
+  initialJobs = [],
   initialProfile,
   businessType,
   convertedMap = {},
@@ -56,6 +57,7 @@ export function DocumentList({
   basePath: string;
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
+  initialJobs?: string[];
   initialProfile: BusinessProfileFields;
   // Hides the Estimates toggle below for salon accounts - Estimates
   // doesn't apply to that business type and is blocked at the route level
@@ -223,6 +225,7 @@ export function DocumentList({
         onOpenChange={setBuilderOpen}
         defaultType={type}
         clients={clients}
+        existingJobs={initialJobs}
         onSaved={(doc) => setDocuments((prev) => [doc, ...prev])}
         onClientCreated={(client) => setClients((prev) => [...prev, client])}
       />

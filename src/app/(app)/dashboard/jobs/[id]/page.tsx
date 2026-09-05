@@ -5,7 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { JobDetail } from "@/components/jobs/job-detail";
-import type { HourEntryWithRelations } from "@/lib/database.types";
+import { calculateJobRevenue } from "@/lib/job-revenue";
+import type { DocumentWithClient, HourEntryWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
   title: "Job — TaxSnap",
@@ -34,24 +35,39 @@ export default async function JobDetailPage({
     redirect("/dashboard/jobs");
   }
 
-  const [{ data: job }, { data: receipts }, { data: hourEntries }, { data: employees }, { data: jobs }] =
-    await Promise.all([
-      supabase.from("jobs").select("*").eq("id", id).single(),
-      supabase
-        .from("receipts")
-        .select("id, merchant_name, transaction_date, total_amount, tax_category")
-        .eq("job_id", id)
-        .order("transaction_date", { ascending: false }),
-      supabase
-        .from("hour_entries")
-        .select("*, employee:employees(*), job:jobs(*)")
-        .eq("job_id", id)
-        .order("work_date", { ascending: false }),
-      supabase.from("employees").select("*").order("name", { ascending: true }),
-      supabase.from("jobs").select("*").order("name", { ascending: true }),
-    ]);
+  const [
+    { data: job },
+    { data: receipts },
+    { data: hourEntries },
+    { data: employees },
+    { data: jobs },
+    { data: linkedDocuments },
+  ] = await Promise.all([
+    supabase.from("jobs").select("*").eq("id", id).single(),
+    supabase
+      .from("receipts")
+      .select("id, merchant_name, transaction_date, total_amount, tax_category")
+      .eq("job_id", id)
+      .order("transaction_date", { ascending: false }),
+    supabase
+      .from("hour_entries")
+      .select("*, employee:employees(*), job:jobs(*)")
+      .eq("job_id", id)
+      .order("work_date", { ascending: false }),
+    supabase.from("employees").select("*").order("name", { ascending: true }),
+    supabase.from("jobs").select("*").order("name", { ascending: true }),
+    supabase
+      .from("documents")
+      .select("*, client:clients(*), payments(*)")
+      .eq("job_id", id)
+      .order("issue_date", { ascending: false }),
+  ]);
 
   if (!job) notFound();
+
+  const documents = (linkedDocuments ?? []) as unknown as DocumentWithClient[];
+  const invoiceCount = documents.filter((d) => d.type === "invoice").length;
+  const jobRevenue = calculateJobRevenue(documents);
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -81,6 +97,8 @@ export default async function JobDetailPage({
           initialHourEntries={(hourEntries ?? []) as HourEntryWithRelations[]}
           employees={employees ?? []}
           jobs={jobs ?? []}
+          linkedInvoiceCount={invoiceCount}
+          jobRevenue={jobRevenue}
         />
       </main>
     </div>

@@ -65,7 +65,7 @@ export async function DELETE(
     .update({ status: nextStatus, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("*, client:clients(*), payments(*)")
+    .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();
 
   if (updateError) {

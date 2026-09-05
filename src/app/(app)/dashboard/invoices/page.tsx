@@ -35,16 +35,17 @@ export default async function InvoicesPage({
 
   const isPro = profile?.subscription_status === "pro";
 
-  const [{ data: documents }, { data: clients }] = isPro
+  const [{ data: documents }, { data: clients }, { data: jobs }] = isPro
     ? await Promise.all([
         supabase
           .from("documents")
-          .select("*, client:clients(*), payments(*)")
+          .select("*, client:clients(*), job:jobs(*), payments(*)")
           .eq("type", "invoice")
           .order("issue_date", { ascending: false }),
         supabase.from("clients").select("*").order("name", { ascending: true }),
+        supabase.from("jobs").select("name").order("name", { ascending: true }),
       ])
-    : [{ data: null }, { data: null }];
+    : [{ data: null }, { data: null }, { data: null }];
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -77,6 +78,7 @@ export default async function InvoicesPage({
             basePath="/dashboard/invoices"
             initialDocuments={documents ?? []}
             initialClients={clients ?? []}
+            initialJobs={(jobs ?? []).map((j) => j.name)}
             businessType={profile?.business_type ?? "general"}
             initialProfile={{
               logo_url: profile?.logo_url ?? null,
