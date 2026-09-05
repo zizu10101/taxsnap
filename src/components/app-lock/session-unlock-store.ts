@@ -38,8 +38,13 @@ export interface UnlockRecord {
 const STORAGE_KEY = "taxsnap:app-lock";
 
 // Matches AppLockProvider's pre-existing idle window - exported so both
-// files share one definition instead of two copies drifting apart.
-export const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+// files share one definition instead of two copies drifting apart. Kept
+// short deliberately: an unlocked Manager session on a shared front-counter
+// device is a real handoff risk if a staff member (or anyone) picks it up
+// while the owner has stepped away - the manual "Lock now" button
+// (DashboardHeader) is the primary defense, this is just the fallback for
+// when nobody remembers to tap it.
+export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const listeners = new Set<() => void>();
 

@@ -6,6 +6,7 @@ import {
   Briefcase,
   ClipboardList,
   FileText,
+  Lock,
   LogOut,
   Scissors,
   Settings,
@@ -125,7 +126,24 @@ export function DashboardHeader({
               would show a lock screen it can never actually complete -
               see AppLockContext's hasOwnerPin comment). */}
           {businessType === "salon" && hasOwnerPin && (
-            <ModeToggle isStaffMode={isStaffMode} onRequestSwitch={relock} />
+            <>
+              <ModeToggle isStaffMode={isStaffMode} onRequestSwitch={relock} />
+              {/* Explicit lock, independent of the idle timeout - the
+                  owner's own way to protect a shared front-counter device
+                  the moment they step away, rather than relying entirely on
+                  inactivity to eventually catch it. Manager-only: staff
+                  mode has nothing more restrictive to drop into. */}
+              {!isStaffMode && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Lock now"
+                  onClick={relock}
+                >
+                  <Lock className="h-4 w-4" />
+                </Button>
+              )}
+            </>
           )}
           {!isStaffMode && (
             <>

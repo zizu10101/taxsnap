@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PinPad } from "@/components/ui/pin-pad";
 import {
   Card,
@@ -65,6 +66,18 @@ export function LockScreen({ onUnlock }: { onUnlock: (role: AppLockRole) => void
               {error}
             </p>
           )}
+          {/* Routes through email verification (ForgotPinForm), not a
+              plain "forgot PIN" reset in place - anyone sharing this
+              device's already-authenticated browser session (i.e. staff)
+              could otherwise reset the Manager PIN themselves with no
+              extra proof of identity, which would defeat the point of the
+              PIN gate entirely. */}
+          <Link
+            href="/auth/forgot-pin"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Forgot PIN?
+          </Link>
         </CardContent>
       </Card>
     </main>
