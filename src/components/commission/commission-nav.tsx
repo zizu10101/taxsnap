@@ -24,7 +24,6 @@ export function CommissionNav({
   if (role === "staff") return null;
 
   const links = [
-    { key: "log", href: "/dashboard/commission", label: "Log" },
     { key: "services", href: "/dashboard/commission/services", label: "Services" },
     { key: "stylists", href: "/dashboard/commission/stylists", label: "Stylists" },
     { key: "reports", href: "/dashboard/commission/reports", label: "Reports" },
