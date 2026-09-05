@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
+import { ONTARIO_HST_RATE } from "@/lib/hst";
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 
 export async function GET(request: Request) {
   const result = await requireUser();
@@ -57,7 +62,7 @@ export async function POST(request: Request) {
   const { supabase, user } = result;
 
   const body = await request.json();
-  const { stylist_id, service_id, customer_name } = body ?? {};
+  const { stylist_id, service_id, customer_name, payment_method, tax_applied } = body ?? {};
 
   if (!stylist_id || !service_id) {
     return NextResponse.json(
@@ -79,6 +84,8 @@ export async function POST(request: Request) {
   if (!stylist) return NextResponse.json({ error: "Stylist not found." }, { status: 404 });
   if (!service) return NextResponse.json({ error: "Service not found." }, { status: 404 });
 
+  const isTaxApplied = tax_applied === true;
+
   const { data, error } = await supabase
     .from("commission_entries")
     .insert({
@@ -89,6 +96,12 @@ export async function POST(request: Request) {
       customer_name: customer_name?.trim() || null,
       price_charged: service.default_price,
       commission_rate_applied: stylist.commission_rate,
+      payment_method: payment_method?.trim() || null,
+      tax_applied: isTaxApplied,
+      // Reference/reporting only - see 0024_commission_payment_tax.sql.
+      // Not a generated column, so computed here rather than trusting a
+      // client-sent amount.
+      tax_amount: isTaxApplied ? round2(service.default_price * ONTARIO_HST_RATE) : null,
     })
     .select(`*, stylist:stylists!commission_entries_stylist_id_fkey(${STYLIST_PUBLIC_COLUMNS}), service:services!commission_entries_service_id_fkey(*), payout:payouts(id, confirmed_by_stylist, confirmed_at, paid_at, status, total_amount, range_start, range_end)`)
     .single();

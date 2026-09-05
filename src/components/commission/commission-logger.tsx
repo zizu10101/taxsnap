@@ -7,18 +7,29 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { CommissionNav } from "@/components/commission/commission-nav";
 import { FieldTrail, PriceTrail, EditedBadge } from "@/components/commission/entry-trail";
 import { EditEntryDialog } from "@/components/commission/edit-entry-dialog";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
+import { ONTARIO_HST_RATE } from "@/lib/hst";
 import type { CommissionEntryWithRelations, Service, StylistPublic } from "@/lib/database.types";
+
+// Reference/reporting only (see 0024_commission_payment_tax.sql) - not fed
+// into sales/documents/payments or lib/hst.ts's real HST calculation.
+const PAYMENT_METHODS = ["Cash", "Debit", "E-transfer", "Visa", "Mastercard", "Amex"] as const;
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(amount);
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 // Same format as commission-reports.tsx/invoice-pdf.ts's formatDateTime -
@@ -52,7 +63,12 @@ export function CommissionLogger({
   // instead of canceling.
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedStylist, setSelectedStylist] = useState<StylistPublic | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
+  // Defaults off - the till doesn't know a transaction was taxed until
+  // someone actively says so, same "don't assume" reasoning as leaving
+  // customer_name blank rather than guessing.
+  const [taxApplied, setTaxApplied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { role } = useAppLock();
   const isStaffMode = role === "staff";
@@ -113,7 +129,7 @@ export function CommissionLogger({
   }
 
   async function handleSubmit() {
-    if (!selectedService || !selectedStylist) return;
+    if (!selectedService || !selectedStylist || !selectedPaymentMethod) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/commission-entries", {
@@ -123,6 +139,8 @@ export function CommissionLogger({
           stylist_id: selectedStylist.id,
           service_id: selectedService.id,
           customer_name: customerName.trim() || undefined,
+          payment_method: selectedPaymentMethod,
+          tax_applied: taxApplied,
         }),
       });
       const data = await res.json();
@@ -137,7 +155,9 @@ export function CommissionLogger({
 
       setSelectedService(null);
       setSelectedStylist(null);
+      setSelectedPaymentMethod(null);
       setCustomerName("");
+      setTaxApplied(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to log entry");
       // Stay on this step, keep whatever was typed - a failed save shouldn't
@@ -191,19 +211,27 @@ export function CommissionLogger({
     <div className="space-y-4">
       <CommissionNav active="log" isPro={isPro} />
 
-      {selectedService && selectedStylist ? (
+      {selectedService && selectedStylist && selectedPaymentMethod ? (
         <div className="space-y-3">
           <button
             type="button"
-            onClick={() => setSelectedStylist(null)}
+            onClick={() => setSelectedPaymentMethod(null)}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
           >
             <ArrowLeft className="h-4 w-4" />
-            {selectedService.name} → {selectedStylist.name}
+            {selectedService.name} → {selectedStylist.name} → {selectedPaymentMethod}
           </button>
           <p className="text-sm text-muted-foreground">
-            {formatCurrency(selectedService.default_price)}
+            {taxApplied
+              ? `${formatCurrency(selectedService.default_price)} + ${formatCurrency(round2(selectedService.default_price * ONTARIO_HST_RATE))} HST = ${formatCurrency(round2(selectedService.default_price * (1 + ONTARIO_HST_RATE)))}`
+              : formatCurrency(selectedService.default_price)}
           </p>
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5">
+            <Label htmlFor="tax-applied" className="text-sm font-medium">
+              Tax applied (HST)
+            </Label>
+            <Switch id="tax-applied" checked={taxApplied} onCheckedChange={setTaxApplied} />
+          </div>
           <Input
             autoFocus
             placeholder="Customer name (optional)"
@@ -219,6 +247,29 @@ export function CommissionLogger({
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Submit
           </Button>
+        </div>
+      ) : selectedService && selectedStylist ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setSelectedStylist(null)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {selectedService.name} → {selectedStylist.name} — pick a payment method
+          </button>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {PAYMENT_METHODS.map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => setSelectedPaymentMethod(method)}
+                className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-card p-3 text-center font-medium transition-colors hover:bg-muted/50 active:scale-[0.98]"
+              >
+                {method}
+              </button>
+            ))}
+          </div>
         </div>
       ) : selectedService ? (
         <div className="space-y-3">

@@ -357,6 +357,29 @@ export function CommissionReports({
     return [...map.values()].sort((a, b) => b.commission - a.commission);
   }, [entries]);
 
+  // Reference/reporting only (0024_commission_payment_tax.sql) - reflects
+  // whatever `entries` currently holds, so it respects the same
+  // stylist/date-range/paid-unpaid filters as the Transactions/Revenue/
+  // Commission summary above, rather than a separate shop-wide fetch.
+  const paymentMethodTotals = useMemo(() => {
+    const map = new Map<string, { count: number; total: number }>();
+    for (const e of entries) {
+      const key = e.payment_method ?? "Unspecified";
+      const row = map.get(key) ?? { count: 0, total: 0 };
+      row.count += 1;
+      row.total += e.price_charged;
+      map.set(key, row);
+    }
+    return [...map.entries()]
+      .map(([method, row]) => ({ method, ...row }))
+      .sort((a, b) => b.total - a.total);
+  }, [entries]);
+
+  const totalTaxCollected = useMemo(
+    () => entries.reduce((sum, e) => sum + (e.tax_amount ?? 0), 0),
+    [entries],
+  );
+
   const selectedStylist = stylists.find((s) => s.id === stylistId) ?? null;
   const rangeLabel = describeRange(preset, range);
   const commissionLabel =
@@ -545,6 +568,29 @@ export function CommissionReports({
           </div>
         </CardContent>
       </Card>
+
+      {(paymentMethodTotals.length > 0 || totalTaxCollected > 0) && (
+        <Card>
+          <CardContent className="space-y-2 py-4">
+            {paymentMethodTotals.map((row) => (
+              <div key={row.method} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  {row.method} · {row.count} {row.count === 1 ? "transaction" : "transactions"}
+                </span>
+                <span className="font-semibold tabular-nums">{formatCurrency(row.total)}</span>
+              </div>
+            ))}
+            {totalTaxCollected > 0 && (
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-2 text-sm">
+                <span className="text-muted-foreground">Total Tax Collected</span>
+                <span className="font-semibold text-primary tabular-nums">
+                  {formatCurrency(totalTaxCollected)}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {paidFilter === "unpaid" && pendingAdjustments.length > 0 && (
         <Card>

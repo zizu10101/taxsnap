@@ -59,6 +59,8 @@ const EMPTY_DATA: CommissionOverviewData = {
   commissionPaid: 0,
   commissionUnpaid: 0,
   trendPoints: [],
+  paymentMethodTotals: [],
+  totalTaxCollected: 0,
 };
 
 // Route-level Pro-gate happens one level up (dashboard/commission/overview/
@@ -132,6 +134,11 @@ export function CommissionOverview({
           value={data.commissionUnpaid}
           className="col-span-2"
         />
+        <SummaryCard
+          label="Total Tax Collected"
+          value={data.totalTaxCollected}
+          className="col-span-2"
+        />
       </div>
 
       <Card>
@@ -148,6 +155,24 @@ export function CommissionOverview({
           )}
         </CardContent>
       </Card>
+
+      {data.paymentMethodTotals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Payment Methods</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.paymentMethodTotals.map((row) => (
+              <div key={row.method} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  {row.method} · {row.count} {row.count === 1 ? "transaction" : "transactions"}
+                </span>
+                <span className="font-semibold tabular-nums">{formatCurrency(row.total)}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

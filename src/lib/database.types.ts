@@ -482,6 +482,12 @@ export interface Database {
           original_price: number | null;
           original_stylist_id: string | null;
           original_stylist_name: string | null;
+          // Reference/reporting only (0024_commission_payment_tax.sql) -
+          // never wired into sales/documents/payments or lib/hst.ts, same
+          // boundary as commission_owed/labor_cost.
+          payment_method: string | null;
+          tax_applied: boolean;
+          tax_amount: number | null;
           created_at: string;
         };
         Insert: {
@@ -502,6 +508,9 @@ export interface Database {
           original_price?: number | null;
           original_stylist_id?: string | null;
           original_stylist_name?: string | null;
+          payment_method?: string | null;
+          tax_applied?: boolean;
+          tax_amount?: number | null;
           created_at?: string;
         };
         Update: {
@@ -522,6 +531,9 @@ export interface Database {
           original_price?: number | null;
           original_stylist_id?: string | null;
           original_stylist_name?: string | null;
+          payment_method?: string | null;
+          tax_applied?: boolean;
+          tax_amount?: number | null;
           created_at?: string;
         };
         Relationships: [

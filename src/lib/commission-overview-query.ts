@@ -12,6 +12,13 @@ export interface CommissionOverviewData {
   commissionPaid: number;
   commissionUnpaid: number;
   trendPoints: { createdAt: string; priceCharged: number; commissionOwed: number }[];
+  // Reference/reporting only (0024_commission_payment_tax.sql) - not fed
+  // into the real HST Return Helper. paymentMethodTotals is revenue
+  // (price_charged) summed per method, in descending order; entries logged
+  // without a payment method (pre-feature, or the field left unset) are
+  // grouped under "Unspecified" rather than silently dropped.
+  paymentMethodTotals: { method: string; count: number; total: number }[];
+  totalTaxCollected: number;
 }
 
 // Shop-wide rollup across every stylist, shared between GET
@@ -33,7 +40,7 @@ export async function getCommissionOverviewData(
   // payout_id, so there's deliberately no status filter here.
   let entriesQuery = supabase
     .from("commission_entries")
-    .select("created_at, price_charged, commission_owed, payout_id")
+    .select("created_at, price_charged, commission_owed, payout_id, payment_method, tax_amount")
     .eq("is_deleted", false)
     .order("created_at", { ascending: true });
   if (from) entriesQuery = entriesQuery.gte("created_at", from);
@@ -79,6 +86,22 @@ export async function getCommissionOverviewData(
   // real number.
   const commissionUnpaid = round2(unpaidEntriesTotal + unappliedAdjustmentsTotal);
 
+  const methodMap = new Map<string, { count: number; total: number }>();
+  for (const e of entries ?? []) {
+    const key = e.payment_method ?? "Unspecified";
+    const row = methodMap.get(key) ?? { count: 0, total: 0 };
+    row.count += 1;
+    row.total += e.price_charged;
+    methodMap.set(key, row);
+  }
+  const paymentMethodTotals = [...methodMap.entries()]
+    .map(([method, row]) => ({ method, count: row.count, total: round2(row.total) }))
+    .sort((a, b) => b.total - a.total);
+
+  const totalTaxCollected = round2(
+    (entries ?? []).reduce((sum, e) => sum + (e.tax_amount ?? 0), 0),
+  );
+
   return {
     totalSales,
     totalCommissionOwed,
@@ -94,5 +117,7 @@ export async function getCommissionOverviewData(
       priceCharged: e.price_charged,
       commissionOwed: e.commission_owed,
     })),
+    paymentMethodTotals,
+    totalTaxCollected,
   };
 }
