@@ -246,7 +246,7 @@ export function DashboardHeader({
                 render={<Link href="/dashboard/commission" />}
               >
                 <Scissors className="h-4 w-4" />
-                Commission
+                Register
               </Button>
             )}
           </div>

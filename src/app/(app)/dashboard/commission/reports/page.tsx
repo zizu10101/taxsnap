@@ -9,7 +9,7 @@ import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 import type { CommissionEntryWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
-  title: "Commission Reports — TaxSnap",
+  title: "Register Reports — TaxSnap",
 };
 
 // No isPro gate here anymore - a free-tier salon account gets a real,
@@ -69,7 +69,7 @@ export default async function CommissionReportsPage() {
         <BackToDashboardLink />
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Commission Reports</h1>
+          <h1 className="text-2xl font-bold">Register Reports</h1>
           <p className="text-muted-foreground">
             Per-stylist and all-stylists commission totals.
           </p>

@@ -448,7 +448,7 @@ export async function generateCommissionReportPdf(
     pdf,
     marginX,
     y,
-    "COMMISSION REPORT",
+    "REGISTER REPORT",
     `${stylistName} — ${rangeLabel}`,
     logoDataUrl,
   );

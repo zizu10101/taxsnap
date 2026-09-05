@@ -94,7 +94,7 @@ export function OnboardingFlow({
         <PinStep
           stepNumber={3}
           title="Set a staff PIN"
-          description="Unlocks a restricted view - Commission Log only, nothing else. You can change or add this later from Settings."
+          description="Unlocks a restricted view - Register Log only, nothing else. You can change or add this later from Settings."
           endpoint="/api/app-lock/set-staff-pin"
           savedMessage="Staff PIN saved"
           isPro={isPro}

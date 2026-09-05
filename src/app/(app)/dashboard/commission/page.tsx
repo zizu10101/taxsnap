@@ -7,7 +7,7 @@ import { CommissionLogger } from "@/components/commission/commission-logger";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
 export const metadata: Metadata = {
-  title: "Commission — TaxSnap",
+  title: "Register — TaxSnap",
 };
 
 // No isPro gate here anymore - logging and the edit-trail are fully
@@ -58,7 +58,7 @@ export default async function CommissionPage() {
         <BackToDashboardLink />
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Commission</h1>
+          <h1 className="text-2xl font-bold">Register</h1>
           <p className="text-muted-foreground">
             Tap a service, then a stylist, to log a transaction.
           </p>

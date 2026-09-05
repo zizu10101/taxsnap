@@ -144,7 +144,7 @@ export function AppLockSettings({
       />
       <PinCard
         title="Staff PIN"
-        description="Unlocks a restricted view - Commission Log only, no Reports, Stylists, Services, or payout actions."
+        description="Unlocks a restricted view - Register Log only, no Reports, Stylists, Services, or payout actions."
         initialHasPin={hasStaffPin}
         endpoint="/api/app-lock/set-staff-pin"
         savedMessage="Staff PIN saved"

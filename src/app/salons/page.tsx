@@ -170,6 +170,7 @@ export default function SalonsLanding() {
             "Stylist payouts with PIN confirmation",
             "Void, adjustments & full payout history",
             "PDF commission reports",
+            "Track payment method & tax per sale",
             "Professional invoicing & payment tracking",
             "Priority support",
           ],

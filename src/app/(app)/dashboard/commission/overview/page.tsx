@@ -12,7 +12,7 @@ import { getCommissionOverviewData } from "@/lib/commission-overview-query";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 
 export const metadata: Metadata = {
-  title: "Commission Overview — TaxSnap",
+  title: "Register Overview — TaxSnap",
 };
 
 // All-or-nothing Pro gate, same shape as employees/page.tsx - unlike the
@@ -60,7 +60,7 @@ export default async function CommissionOverviewPage() {
         <BackToDashboardLink />
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Commission Overview</h1>
+          <h1 className="text-2xl font-bold">Register Overview</h1>
           <p className="text-muted-foreground">
             Shop-wide totals across every stylist.
           </p>

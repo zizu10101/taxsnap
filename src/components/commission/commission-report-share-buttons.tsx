@@ -47,7 +47,7 @@ export function CommissionReportShareButtons({
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  const filename = `Commission-${stylistName.replace(/\s+/g, "-")}.pdf`;
+  const filename = `Register-${stylistName.replace(/\s+/g, "-")}.pdf`;
 
   async function buildPdf() {
     let logoDataUrl: string | null = null;
@@ -67,7 +67,7 @@ export function CommissionReportShareButtons({
     try {
       const pdfBlob = await buildPdf();
       const file = new File([pdfBlob], filename, { type: "application/pdf" });
-      await navigator.share({ files: [file], title: `Commission report for ${stylistName}` });
+      await navigator.share({ files: [file], title: `Register report for ${stylistName}` });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       toast.error(err instanceof Error ? err.message : "Failed to share");
@@ -89,8 +89,8 @@ export function CommissionReportShareButtons({
   }
 
   function handleEmail() {
-    const subject = `Commission report — ${stylistName} — ${rangeLabel}`;
-    const body = `Hi,\n\nAttached is the commission report for ${stylistName} (${rangeLabel}).\n\nThanks,\n${business.name ?? ""}`;
+    const subject = `Register report — ${stylistName} — ${rangeLabel}`;
+    const body = `Hi,\n\nAttached is the register report for ${stylistName} (${rangeLabel}).\n\nThanks,\n${business.name ?? ""}`;
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     toast.info("Don't forget to attach the PDF - use “Download PDF” and add it to the email.");
   }
