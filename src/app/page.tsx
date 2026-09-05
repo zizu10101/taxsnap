@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { PricingSection } from "@/components/landing/pricing-section";
+import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
 
 const STEPS = [
   {
@@ -20,6 +21,74 @@ const STEPS = [
     icon: FileSpreadsheet,
     title: "Ready for your HST return",
     description: "See exactly what you owe — no spreadsheets, no guessing.",
+  },
+];
+
+// General-business question set - Jobs applies here (hidden entirely for
+// salon accounts elsewhere in the app) and invoicing covers both Invoices
+// and Estimates (also general-only). A salon FAQ would swap Jobs for
+// Commission and drop Estimates from the invoicing answer - not built yet,
+// scoped to this page only for now.
+const FAQ_ITEMS: FaqItem[] = [
+  {
+    question: "How does the AI scanning work?",
+    answer:
+      "Snap or upload a photo of a receipt and TaxSnap's AI reads it automatically - merchant, date, total, tax, and a suggested write-off category are filled in for you to review before saving. No manual data entry.",
+  },
+  {
+    question: "What happens after my free scans run out?",
+    answer:
+      "The Free plan includes 5 receipt scans per month at no cost. Once you hit that limit, upgrade to Basic for unlimited scans - or just wait, since the limit resets automatically at the start of each month either way.",
+  },
+  {
+    question: "Can I use this on my computer, or only my phone?",
+    answer:
+      "Both. TaxSnap is a full web app that works in any browser on your computer, and it's also an installable app (PWA) you can add to your phone's home screen for a native-app-like experience - no app store required either way.",
+  },
+  {
+    question: "How does billing and cancellation work?",
+    answer:
+      "Plans are billed monthly. You can upgrade, downgrade, or cancel anytime yourself from Settings or Billing - no need to contact support. Cancelling keeps your access through the end of the period you already paid for.",
+  },
+  {
+    question: "What does “HST mapping” mean?",
+    answer:
+      "TaxSnap automatically maps your income and expenses to the actual CRA line numbers on the Ontario GST/HST return (Lines 101, 103, and 106), so you get a running estimate of what you owe. It's a planning tool, not a filing service - always confirm final numbers with a bookkeeper or accountant.",
+  },
+  {
+    question: "How do invoices and estimates work?",
+    answer:
+      "Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves.",
+  },
+  {
+    question: "Can I share an estimate or invoice with a client?",
+    answer:
+      "Yes - share a PDF straight from your phone's share sheet (WhatsApp, Messages, email, and more) on mobile, or email or download it directly on desktop.",
+  },
+  {
+    question: "Can I add my business logo?",
+    answer:
+      "Yes. Upload it once in Settings and it appears automatically on every invoice, estimate, and PDF report you generate.",
+  },
+  {
+    question: "What are Jobs?",
+    answer:
+      "Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking.",
+  },
+  {
+    question: "Are there reports for sales and expenses?",
+    answer:
+      "Yes - your dashboard shows running totals for expenses, deductible spend, and estimated tax savings, plus the Ontario HST Return Helper for a real-time view of what you owe. Pro accounts also get an Overview page with trend charts over time.",
+  },
+  {
+    question: "Can I export my reports, and how?",
+    answer:
+      "Yes. Export a plain CSV of your receipts anytime, or download a full accountant-ready package - CSV, receipt images, and invoice PDFs together - in one tap.",
+  },
+  {
+    question: "Can I share reports with my accountant?",
+    answer:
+      "Yes - the accountant export bundle is built exactly for that: hand your accountant a single file with everything they need for tax season, no back-and-forth required.",
   },
 ];
 
@@ -177,6 +246,8 @@ export default function Home() {
           pro: "See true profit per job — materials + labor, automatically.",
         }}
       />
+
+      <FaqSection items={FAQ_ITEMS} />
 
       <InstallPromptCards />
 
