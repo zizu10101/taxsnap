@@ -5,6 +5,62 @@ import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
+import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
+
+// Real screenshots from the real app (test@general.com, real data) - desktop
+// captured via Playwright, mobile composited into a real phone product photo
+// (see PhoneMockup's own comment for why that's baked into the image itself
+// rather than layered live). Mobile images are a placeholder set for now -
+// swap in the user's own device captures per screen as they're provided,
+// same filenames (public/screenshots/<slug>-mobile-framed.webp).
+const SHOWCASE_GROUPS: ShowcaseGroup[] = [
+  {
+    label: "Track everything automatically",
+    screens: [
+      {
+        title: "Home dashboard",
+        description: "Deductible spend, estimated tax savings, and every receipt, at a glance.",
+        mobileSrc: "/screenshots/home-mobile-framed.webp",
+        desktopSrc: "/screenshots/home-desktop.webp",
+      },
+      {
+        title: "Receipt Scan",
+        description: "Snap a photo - merchant, total, tax, and write-off category, filled in automatically.",
+        mobileSrc: "/screenshots/receipt-mobile-framed.webp",
+        desktopSrc: "/screenshots/receipt-desktop.webp",
+      },
+      {
+        title: "HST Summary Helper",
+        description: "A running estimate of what you owe, mapped straight to the real CRA line numbers.",
+        mobileSrc: "/screenshots/hst-mobile-framed.webp",
+        desktopSrc: "/screenshots/hst-desktop.webp",
+      },
+    ],
+  },
+  {
+    label: "Run your whole business",
+    screens: [
+      {
+        title: "Job Analysis",
+        description: "True profit per job - materials, labor, and revenue actually received, netted out automatically.",
+        mobileSrc: "/screenshots/job-mobile-framed.webp",
+        desktopSrc: "/screenshots/job-desktop.webp",
+      },
+      {
+        title: "Overview",
+        description: "Sales, expenses, and deductible write-offs, trended over time.",
+        mobileSrc: "/screenshots/overview-mobile-framed.webp",
+        desktopSrc: "/screenshots/overview-desktop.webp",
+      },
+      {
+        title: "Invoice",
+        description: "Professional, itemized invoices with HST calculated automatically - paid status tracked in real time.",
+        mobileSrc: "/screenshots/invoice-mobile-framed.webp",
+        desktopSrc: "/screenshots/invoice-desktop.webp",
+      },
+    ],
+  },
+];
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
@@ -260,6 +316,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <ScreenShowcase groups={SHOWCASE_GROUPS} />
 
       <PricingSection
         highlightTier="basic"

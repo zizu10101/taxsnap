@@ -1,16 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  BarChart3,
-  Briefcase,
-  ClipboardList,
-  FileText,
-  Lock,
-  LogOut,
-  Scissors,
-  Settings,
-} from "lucide-react";
+import { Lock, LogOut, Scissors, Settings } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -207,37 +198,41 @@ export function DashboardHeader({
           <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
             {subscriptionStatus === "pro" && (
               <>
+                {/* Text-only, no icons - same reasoning as CommissionNav's
+                    own tab row (Log/Services/Stylists/Reports/Overview):
+                    four icon+label flex-1 buttons with nowrap text don't
+                    fit a real ~390px phone viewport (verified - the row
+                    overflowed and clipped "Overview" past the screen edge
+                    on an actual device-emulated capture), so this drops
+                    the icons rather than let it silently overflow. */}
                 {businessType !== "salon" && (
                   <Button
                     variant={active === "estimates" ? "default" : "outline"}
                     size="sm"
-                    className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
                     nativeButton={false}
                     render={<Link href="/dashboard/estimates" />}
                   >
-                    <ClipboardList className="h-4 w-4" />
                     Estimates
                   </Button>
                 )}
                 <Button
                   variant={active === "invoices" ? "default" : "outline"}
                   size="sm"
-                  className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
                   nativeButton={false}
                   render={<Link href="/dashboard/invoices" />}
                 >
-                  <FileText className="h-4 w-4" />
                   Invoices
                 </Button>
                 {businessType !== "salon" && (
                   <Button
                     variant={active === "jobs" ? "default" : "outline"}
                     size="sm"
-                    className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
                     nativeButton={false}
                     render={<Link href="/dashboard/jobs" />}
                   >
-                    <Briefcase className="h-4 w-4" />
                     Jobs
                   </Button>
                 )}
@@ -245,11 +240,10 @@ export function DashboardHeader({
                   <Button
                     variant={active === "overview" ? "default" : "outline"}
                     size="sm"
-                    className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
                     nativeButton={false}
                     render={<Link href="/dashboard/overview" />}
                   >
-                    <BarChart3 className="h-4 w-4" />
                     Overview
                   </Button>
                 )}
