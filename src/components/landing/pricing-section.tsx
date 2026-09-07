@@ -1,9 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, ChevronDown, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
 import type { BillingTier } from "@/lib/stripe";
+
+export interface ComparisonRow {
+  feature: string;
+  free: boolean;
+  basic: boolean;
+  pro: boolean;
+}
 
 // Shared between / and /salons (and any future vertical landing page) -
 // still reads name/price/features straight from pricing-plans.ts, the
@@ -22,6 +32,7 @@ export function PricingSection({
   freeFeatures,
   tierFeatures,
   extraAuthParams,
+  comparisonRows,
 }: {
   // Which paid tiers to show, in order - lets a page drop Basic (e.g.
   // /salons, where it isn't relevant) without forking PRICING_PLANS
@@ -55,9 +66,19 @@ export function PricingSection({
   // carry - e.g. /salons passes { business: "salon" } so signup defaults
   // to the right business type without the visitor picking it manually.
   extraAuthParams?: Record<string, string>;
+  // Full feature-by-feature matrix behind "See all features" - a flat
+  // table (not QuickBooks' collapsible-by-category layout), since this
+  // app has a small enough feature set that categorizing it would be
+  // over-structuring a short list. Optional: a vertical page can omit it
+  // rather than force one. Each row carries all three tiers' values even
+  // when a page only shows two cards (e.g. /salons has no Basic) - the
+  // Basic column is simply never rendered there since it's derived from
+  // `plans`, not from this data.
+  comparisonRows?: ComparisonRow[];
 }) {
   const plans = tiers ? PRICING_PLANS.filter((p) => tiers.includes(p.tier)) : PRICING_PLANS;
   const gridColsClass = plans.length <= 1 ? "sm:grid-cols-2" : "sm:grid-cols-3";
+  const [showComparison, setShowComparison] = useState(false);
 
   function authHref(tier?: BillingTier) {
     const params = new URLSearchParams(extraAuthParams);
@@ -159,6 +180,72 @@ export function PricingSection({
             );
           })}
         </div>
+
+        {comparisonRows && comparisonRows.length > 0 && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setShowComparison((v) => !v)}
+              className="mx-auto flex items-center gap-1.5 text-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+            >
+              {showComparison ? "Hide feature comparison" : "See all features"}
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${showComparison ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {showComparison && (
+              <div className="mt-6 overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[420px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40">
+                      <th className="p-3 text-left font-heading font-bold">Feature</th>
+                      <th className="p-3 text-center font-heading font-bold">Free</th>
+                      {plans.map((plan) => (
+                        <th
+                          key={plan.tier}
+                          className={`p-3 text-center font-heading font-bold ${
+                            plan.tier === highlightTier ? "bg-primary/10 text-primary" : ""
+                          }`}
+                        >
+                          {plan.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {comparisonRows.map((row) => (
+                      <tr key={row.feature}>
+                        <td className="p-3 text-foreground">{row.feature}</td>
+                        <td className="p-3 text-center">
+                          {row.free ? (
+                            <Check className="mx-auto h-4 w-4 text-primary" />
+                          ) : (
+                            <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
+                          )}
+                        </td>
+                        {plans.map((plan) => (
+                          <td
+                            key={plan.tier}
+                            className={`p-3 text-center ${
+                              plan.tier === highlightTier ? "bg-primary/5" : ""
+                            }`}
+                          >
+                            {row[plan.tier] ? (
+                              <Check className="mx-auto h-4 w-4 text-primary" />
+                            ) : (
+                              <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

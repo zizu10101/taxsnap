@@ -3,8 +3,29 @@ import { ArrowRight, Camera, FileSpreadsheet, Scissors, Sparkles } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
-import { PricingSection } from "@/components/landing/pricing-section";
+import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
+
+// Behind the homepage pricing section's "See all features" toggle - a flat
+// list (not QuickBooks' collapsible categories), matching this app's much
+// smaller feature surface. Split into discrete yes/no capabilities rather
+// than one "receipt scanning" row with a quantity caption, so every cell
+// stays a plain check/dash (e.g. "5 free scans" and "Unlimited scans" are
+// two separate rows, not one row with an asterisk).
+const COMPARISON_ROWS: ComparisonRow[] = [
+  { feature: "Receipt scanning & AI categorization", free: true, basic: true, pro: true },
+  { feature: "5 free scans per month", free: true, basic: false, pro: false },
+  { feature: "Unlimited receipt scans", free: false, basic: true, pro: true },
+  { feature: "Ontario HST return estimate", free: true, basic: true, pro: true },
+  { feature: "Maps to CRA Lines 101, 103 & 106", free: false, basic: true, pro: true },
+  { feature: "CSV export for tax season", free: false, basic: true, pro: true },
+  { feature: "Client invoicing & estimates", free: false, basic: false, pro: true },
+  { feature: "Deposits & partial payments", free: false, basic: false, pro: true },
+  { feature: "Send via email, WhatsApp, or SMS", free: false, basic: false, pro: true },
+  { feature: "Job costing (materials + labor)", free: false, basic: false, pro: true },
+  { feature: "Job profitability (Est. Profit)", free: false, basic: false, pro: true },
+  { feature: "Priority support", free: false, basic: false, pro: true },
+];
 
 const STEPS = [
   {
@@ -245,6 +266,7 @@ export default function Home() {
         tierTaglines={{
           pro: "See true profit per job — materials + labor, automatically.",
         }}
+        comparisonRows={COMPARISON_ROWS}
       />
 
       <FaqSection items={FAQ_ITEMS} />

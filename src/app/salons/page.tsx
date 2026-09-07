@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, History, ShieldCheck, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
-import { PricingSection } from "@/components/landing/pricing-section";
+import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 
 export const metadata: Metadata = {
   title: "TaxSnap for Salons — Commission Tracking & Payouts",
@@ -13,6 +13,24 @@ const PAIN_POINTS = [
   "Still tracking commissions on paper or in your head?",
   "Paying stylists in cash with no record either of you can trust?",
   "Staff can't log a sale unless you're standing there?",
+];
+
+// Behind this page's "See all features" toggle - Free/Pro only, no Basic
+// (this page's PricingSection call passes tiers={["pro"]}, so the Basic
+// column never renders regardless of the `basic` value here; it's set to
+// false throughout purely to satisfy ComparisonRow's shape).
+const COMPARISON_ROWS: ComparisonRow[] = [
+  { feature: "Commission logging (3-tap flow)", free: true, basic: false, pro: true },
+  { feature: "Receipt scanning & HST return estimate", free: true, basic: false, pro: true },
+  { feature: "5 free scans per month", free: true, basic: false, pro: false },
+  { feature: "Unlimited receipt scans", free: false, basic: false, pro: true },
+  { feature: "Unlimited services & stylists", free: false, basic: false, pro: true },
+  { feature: "Stylist payouts with PIN confirmation", free: false, basic: false, pro: true },
+  { feature: "Void, adjustments & full payout history", free: false, basic: false, pro: true },
+  { feature: "PDF commission reports", free: false, basic: false, pro: true },
+  { feature: "Payment method & tax tracking per sale", free: false, basic: false, pro: true },
+  { feature: "Professional invoicing & payment tracking", free: false, basic: false, pro: true },
+  { feature: "Priority support", free: false, basic: false, pro: true },
 ];
 
 const FEATURES = [
@@ -176,6 +194,7 @@ export default function SalonsLanding() {
           ],
         }}
         extraAuthParams={{ business: "salon" }}
+        comparisonRows={COMPARISON_ROWS}
       />
 
       <InstallPromptCards />
