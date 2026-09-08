@@ -3,6 +3,7 @@ import { ArrowRight, Camera, FileSpreadsheet, Scissors, Sparkles } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
+import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
 import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
@@ -172,28 +173,7 @@ const FAQ_ITEMS: FaqItem[] = [
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col bg-background">
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight"
-        >
-          <img src="/logo-mark.png" alt="" className="h-7 w-7" />
-          TaxSnap
-        </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/auth" />}
-          >
-            Sign in
-          </Button>
-          <Button size="sm" nativeButton={false} render={<Link href="/auth" />}>
-            Get Started
-          </Button>
-        </div>
-      </header>
+      <LandingHeader />
 
       <section className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-10 px-4 py-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-16">
         <div className="flex flex-col items-start gap-6">

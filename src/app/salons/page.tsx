@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, History, ShieldCheck, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
+import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 
 export const metadata: Metadata = {
@@ -66,32 +67,7 @@ const FEATURES = [
 export default function SalonsLanding() {
   return (
     <main className="flex flex-1 flex-col bg-background">
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight"
-        >
-          <img src="/logo-mark.png" alt="" className="h-7 w-7" />
-          TaxSnap
-        </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/auth" />}
-          >
-            Sign in
-          </Button>
-          <Button
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/auth?business=salon" />}
-          >
-            Get Started
-          </Button>
-        </div>
-      </header>
+      <LandingHeader getStartedHref="/auth?business=salon" />
 
       {/* Hero */}
       <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-start gap-6 px-4 py-8 sm:px-8 lg:py-16">
