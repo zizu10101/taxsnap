@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PhoneMockup } from "@/components/landing/phone-mockup";
-import { LaptopMockup } from "@/components/landing/laptop-mockup";
+import { BrowserMockup } from "@/components/landing/browser-mockup";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export interface ShowcaseScreen {
@@ -85,7 +85,7 @@ export function ScreenShowcase({ groups }: { groups: ShowcaseGroup[] }) {
           Real screens from the real app - on your phone and on your computer.
         </p>
 
-        <div className="mt-6 flex justify-center">
+        <div className="mt-4 flex justify-center">
           <Tabs value={view} onValueChange={(v) => v && setView(v as View)}>
             <TabsList>
               <TabsTrigger value="mobile">Mobile</TabsTrigger>
@@ -96,25 +96,27 @@ export function ScreenShowcase({ groups }: { groups: ShowcaseGroup[] }) {
 
         <div
           ref={stageRef}
-          className="mt-8 flex h-[600px] flex-col items-center justify-center overflow-hidden"
+          className="mt-4 flex h-[640px] flex-col items-center overflow-hidden"
         >
-          <span className="font-heading text-sm font-bold text-primary">
-            {current.groupLabel}
-          </span>
-          <h3 className="mt-1 font-heading text-lg font-bold">{current.title}</h3>
-          <p className="mx-auto mt-0.5 max-w-sm text-center text-sm text-muted-foreground">
-            {current.description}
-          </p>
-          <div className="mt-6">
+          <div className="shrink-0 text-center">
+            <span className="font-heading text-sm font-bold text-primary">
+              {current.groupLabel}
+            </span>
+            <h3 className="mt-0.5 font-heading text-lg font-bold">{current.title}</h3>
+            <p className="mx-auto mt-0.5 max-w-sm text-center text-sm text-muted-foreground">
+              {current.description}
+            </p>
+          </div>
+          <div className="mt-3 flex min-h-0 flex-1 items-center justify-center">
             {view === "mobile" ? (
               <PhoneMockup src={current.mobileSrc} alt={`${current.title} on mobile`} />
             ) : (
-              <LaptopMockup src={current.desktopSrc} alt={`${current.title} on desktop`} />
+              <BrowserMockup src={current.desktopSrc} alt={`${current.title} on desktop`} />
             )}
           </div>
         </div>
 
-        <div className="flex justify-center gap-2">
+        <div className="mt-5 flex justify-center gap-2">
           {flat.map((screen, i) => (
             <button
               key={screen.title}
