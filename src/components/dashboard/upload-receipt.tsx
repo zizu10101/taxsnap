@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImageUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Camera, ImageUp, Loader2, Plus, Sparkles, TriangleAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ import type { Receipt, ReceiptItem } from "@/lib/database.types";
 interface ParsedDraft {
   merchant_name: string;
   transaction_date: string;
+  /** True when the AI had to guess the day/month order - see gemini.ts. */
+  date_ambiguous: boolean;
   total_amount: number;
   tax_amount: number;
   tax_category: string;
@@ -301,15 +303,32 @@ export function UploadReceipt({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="transaction_date">Date</Label>
+                  <Label
+                    htmlFor="transaction_date"
+                    className={draft.date_ambiguous ? "text-destructive" : undefined}
+                  >
+                    Date {draft.date_ambiguous && "- please confirm"}
+                  </Label>
                   <Input
                     id="transaction_date"
                     type="date"
                     value={draft.transaction_date}
+                    aria-invalid={draft.date_ambiguous}
                     onChange={(e) =>
-                      setDraft({ ...draft, transaction_date: e.target.value })
+                      setDraft({
+                        ...draft,
+                        transaction_date: e.target.value,
+                        date_ambiguous: false,
+                      })
                     }
                   />
+                  {draft.date_ambiguous && (
+                    <p className="flex items-start gap-1 text-xs text-destructive">
+                      <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                      The date on this receipt was unclear - double check it
+                      before saving.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tax_category">Category</Label>

@@ -218,15 +218,34 @@ Pro-gating for API routes goes through `requireProUser()` in
 with today's date (`buildSystemPrompt(today)`), because a bare numeric
 receipt date like `26/08/23` is genuinely ambiguous - it could be DD/MM/YY,
 MM/DD/YY, or YY/MM/DD, and there's no reliable single convention across
-receipt printers/POS systems. The prompt resolves the ambiguity by recency:
-prefer whichever valid reading lands closest to today and never in the
-future, unless the receipt has an unambiguous signal (a month name, a
-4-digit year). This is a heuristic, not a guarantee - it will misread a
-receipt that's genuinely years old if the user is scanning it late for a
-catch-up write-off, but that's rare next to "receipt photographed within
-days of purchase." Don't revert to a fixed DD/MM/YY (or any fixed order)
-assumption; that's what caused a real misparse (`26/08/23` read as Aug 26
-2023 instead of Aug 23 2026).
+receipt printers/POS systems. Don't revert to a fixed DD/MM/YY (or any
+fixed order) assumption, and don't make recency the primary/only signal
+either - both were tried and both cause real misreads (a fixed order once
+read `26/08/23` as Aug 26 2023 instead of Aug 23 2026; recency alone
+ignores clues actually printed on the receipt). The prompt instead works
+through an explicit priority chain per date, stopping at the first rule
+that resolves it: (1) an unambiguous signal - a month name, a 4-digit
+year, a labeled format; (2) a >12 value, which can only be a day, never a
+month; (3) other context printed on the receipt - a day-of-week checked
+against the calendar, or the store's evident country/locale (address,
+phone format, language, currency) - Canadian small businesses are
+TaxSnap's primary users, so a Canadian locale cue favors DD/MM or ISO
+order over US-style MM/DD; (4) only as a last resort, a locale-default
+guess (DD/MM). Recency - closest-to-today, never future - is kept as a
+sanity check *after* the above (rejecting a date rules 1-3 would otherwise
+produce if it lands in the future or reads an old year that's also validly
+a recent one), not as the primary disambiguator.
+
+Rule 4 is a genuine guess, so `parseReceiptImage` returns a
+`date_ambiguous: boolean` flag (true whenever rule 4 fired, the model
+couldn't resolve it, or transaction_date came back empty) alongside the
+parsed fields - `UploadReceipt`'s pre-save review dialog surfaces this by
+turning the Date field's label/border red and showing an inline warning,
+specifically so an ambiguous date doesn't slip past the user unnoticed (a
+wrong transaction date silently lands the receipt in the wrong tax
+period). The flag isn't persisted to the `receipts` table - it only needs
+to exist for that one review step, and clears the moment the user edits
+the date field themselves.
 
 ## Tax logic
 
