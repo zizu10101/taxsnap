@@ -17,7 +17,7 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
           <img src="/logo-mark.png" alt="" className="h-9 w-9" />
           TaxSnap
         </Link>
-        <nav className="hidden sm:block">
+        <nav>
           <Link
             href="/features"
             className="text-sm font-medium text-muted-foreground hover:text-foreground"
