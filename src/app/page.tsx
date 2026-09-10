@@ -124,6 +124,11 @@ const FAQ_ITEMS: FaqItem[] = [
       "Both. TaxSnap is a full web app that works in any browser on your computer, and it's also an installable app (PWA) you can add to your phone's home screen for a native-app-like experience - no app store required either way.",
   },
   {
+    question: "Do I need to install any software?",
+    answer:
+      "No - TaxSnap is a Progressive Web App, so it works directly in any browser with nothing to download. If you'd like quicker access, you can optionally install it to your phone or computer's home screen, just like a native app - but it's never required.",
+  },
+  {
     question: "How does billing and cancellation work?",
     answer:
       "Plans are billed monthly. You can upgrade, downgrade, or cancel anytime yourself from Settings or Billing - no need to contact support. Cancelling keeps your access through the end of the period you already paid for.",

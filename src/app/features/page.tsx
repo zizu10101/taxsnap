@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  ArrowRight,
   Briefcase,
   CheckCircle2,
   FileArchive,
@@ -26,30 +27,35 @@ const FEATURES = [
     title: "Automated Expense Tracking",
     description:
       "Snap a photo of any receipt or vendor invoice. TaxSnap reads it, categorizes it, and keeps a digital copy on file — no manual entry, no lost paper.",
+    href: "/features/expense-tracking",
   },
   {
     icon: FileText,
     title: "Invoicing & Estimates",
     description:
       "Build a professional estimate, convert it to an invoice once approved, and record payments as they come in — cash, card, e-transfer, whatever the client used.",
+    href: "/features/invoicing",
   },
   {
     icon: Briefcase,
     title: "Job Costing",
     description:
       "Track profitability per job. Log materials, assign labor hours, link the invoice — see your real margin on every project, not just a guess.",
+    href: "/features/job-costing",
   },
   {
     icon: Landmark,
     title: "HST-Ready, Automatically",
     description:
       "Every receipt and invoice maps to the right CRA line items, so your HST return estimate is always current. No spreadsheets, no manual math — though we always recommend a licensed accountant for final filing.",
+    href: "/features/hst-mapping",
   },
   {
     icon: FileArchive,
     title: "One-Click Accountant Export",
     description:
       "Bundle receipts, invoices, and a period summary into one download — everything your accountant needs, ready to go.",
+    href: "/features/accountant-export",
   },
 ];
 
@@ -74,9 +80,10 @@ export default function FeaturesPage() {
         <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
           <div className="grid gap-4 sm:grid-cols-2">
             {FEATURES.map((feature) => (
-              <div
+              <Link
                 key={feature.title}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
+                href={feature.href}
+                className="group flex flex-col gap-3 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary"
               >
                 <feature.icon className="h-5 w-5 text-primary" />
                 <h2 className="font-heading text-lg font-bold">
@@ -85,7 +92,11 @@ export default function FeaturesPage() {
                 <p className="text-sm text-muted-foreground">
                   {feature.description}
                 </p>
-              </div>
+                <span className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary">
+                  Learn more
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </span>
+              </Link>
             ))}
           </div>
         </div>
