@@ -76,6 +76,15 @@ export function nextTierFor(status: SubscriptionStatus): "basic" | "pro" {
   return status === "free" ? "basic" : "pro";
 }
 
+// Shared "Unlimited" vs. number formatting for a raw PLAN_LIMITS value -
+// used by every UI surface that displays a cap (PlanCapsTable,
+// CurrentPlanCard, the homepage's feature-comparison table) so the exact
+// wording can't drift between them. `suffix` is appended only to a real
+// number (e.g. "/mo"), never to "Unlimited".
+export function formatPlanCap(n: number | null, suffix = ""): string {
+  return n === null ? "Unlimited" : `${n}${suffix}`;
+}
+
 const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Basic", pro: "Pro" };
 
 // Builds the FREE_LIMIT_REACHED error string every capped route returns,

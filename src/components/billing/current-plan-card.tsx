@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import type { SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
@@ -10,10 +10,6 @@ const TIER_LABEL: Record<SubscriptionStatus, string> = {
   basic: "Basic",
   pro: "Pro",
 };
-
-function formatCap(n: number | null): string {
-  return n === null ? "Unlimited" : String(n);
-}
 
 // Compact, single-tier counterpart to PlanCapsTable (the full three-column
 // comparison on /billing) - Settings only needs "what do I actually have
@@ -47,7 +43,7 @@ export function CurrentPlanCard({ tier }: { tier: SubscriptionStatus }) {
           {rows.map((row) => (
             <li key={row.label} className="flex items-center justify-between">
               <span className="text-muted-foreground">{row.label}</span>
-              <span className="font-medium tabular-nums">{formatCap(row.value)}</span>
+              <span className="font-medium tabular-nums">{formatPlanCap(row.value)}</span>
             </li>
           ))}
         </ul>

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import type { SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
@@ -17,10 +17,6 @@ const ROWS: { label: string; key: keyof (typeof PLAN_LIMITS)["free"] }[] = [
   { label: "Active services (salon)", key: "activeServices" },
   { label: "Active stylists (salon)", key: "activeStylists" },
 ];
-
-function formatCap(n: number | null): string {
-  return n === null ? "Unlimited" : String(n);
-}
 
 // The numeric-caps counterpart to the old feature-checkmark comparison -
 // every tier gets every feature now (see src/lib/plan-limits.ts), so a
@@ -67,7 +63,7 @@ export function PlanCapsTable({
                     tier === currentTier && "bg-primary/5 font-medium",
                   )}
                 >
-                  {formatCap(PLAN_LIMITS[tier][row.key])}
+                  {formatPlanCap(PLAN_LIMITS[tier][row.key])}
                 </td>
               ))}
             </tr>

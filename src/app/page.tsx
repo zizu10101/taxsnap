@@ -6,6 +6,7 @@ import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
+import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
 
 // Real screenshots from the real app (test@general.com, real data) - desktop
@@ -65,27 +66,72 @@ const SHOWCASE_GROUPS: ShowcaseGroup[] = [
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
-// smaller feature surface. Every tier now gets every feature (capped-
-// forever-freemium, not feature-locked - see src/lib/plan-limits.ts), so
-// this is no longer a has-it/doesn't-have-it matrix: it's "has it at a
-// capped amount" vs "has it unlimited", split into discrete rows the same
-// way the old scan-count row already worked (e.g. "5 free scans" and
-// "Unlimited scans" as two separate rows, not one row with an asterisk) -
-// exact numbers live in the plan cards themselves (pricing-plans.ts);
-// this table is deliberately coarser (capped vs. unlimited only).
+// smaller feature surface. Every tier gets every feature under the
+// capped-forever-freemium model (see src/lib/plan-limits.ts), so this is
+// no longer a has-it/doesn't-have-it matrix - a capped resource is one row
+// showing all three tiers' actual numbers (e.g. "3/mo, 10/mo, Unlimited")
+// via ComparisonCell's string variant, pulled from PLAN_LIMITS so these
+// can't drift from what the API enforces (same source pricing-plans.ts
+// reads from). A feature with no numeric cap (it either exists or it
+// doesn't, at every tier alike, or - priority support - is a real Pro-only
+// perk) stays a plain boolean row.
 const COMPARISON_ROWS: ComparisonRow[] = [
   { feature: "Receipt scanning & AI categorization", free: true, basic: true, pro: true },
-  { feature: "Capped receipt scans (5/mo on Free)", free: true, basic: false, pro: false },
-  { feature: "Unlimited receipt scans", free: false, basic: true, pro: true },
+  {
+    feature: "Receipt scans",
+    free: formatPlanCap(PLAN_LIMITS.free.scansPerMonth, "/mo"),
+    basic: formatPlanCap(PLAN_LIMITS.basic.scansPerMonth, "/mo"),
+    pro: formatPlanCap(PLAN_LIMITS.pro.scansPerMonth, "/mo"),
+  },
   { feature: "Ontario HST return estimate", free: true, basic: true, pro: true },
-  { feature: "Maps to CRA Lines 101, 103 & 106", free: false, basic: true, pro: true },
-  { feature: "CSV export for tax season", free: false, basic: true, pro: true },
-  { feature: "Client invoicing & estimates", free: true, basic: true, pro: true },
-  { feature: "Unlimited invoices", free: false, basic: false, pro: true },
+  { feature: "Maps to CRA Lines 101, 103 & 106", free: true, basic: true, pro: true },
+  { feature: "CSV export for tax season", free: true, basic: true, pro: true },
+  { feature: "Client invoicing", free: true, basic: true, pro: true },
+  {
+    feature: "Invoices",
+    free: formatPlanCap(PLAN_LIMITS.free.invoicesPerMonth, "/mo"),
+    basic: formatPlanCap(PLAN_LIMITS.basic.invoicesPerMonth, "/mo"),
+    pro: formatPlanCap(PLAN_LIMITS.pro.invoicesPerMonth, "/mo"),
+  },
+  {
+    feature: "Estimates",
+    free: formatPlanCap(null),
+    basic: formatPlanCap(null),
+    pro: formatPlanCap(null),
+  },
+  {
+    feature: "Clients",
+    free: formatPlanCap(PLAN_LIMITS.free.clients),
+    basic: formatPlanCap(PLAN_LIMITS.basic.clients),
+    pro: formatPlanCap(PLAN_LIMITS.pro.clients),
+  },
+  {
+    feature: "Jobs",
+    free: formatPlanCap(PLAN_LIMITS.free.jobs),
+    basic: formatPlanCap(PLAN_LIMITS.basic.jobs),
+    pro: formatPlanCap(PLAN_LIMITS.pro.jobs),
+  },
+  {
+    feature: "Employees",
+    free: formatPlanCap(PLAN_LIMITS.free.employees),
+    basic: formatPlanCap(PLAN_LIMITS.basic.employees),
+    pro: formatPlanCap(PLAN_LIMITS.pro.employees),
+  },
+  {
+    feature: "Active services (salon)",
+    free: formatPlanCap(PLAN_LIMITS.free.activeServices),
+    basic: formatPlanCap(PLAN_LIMITS.basic.activeServices),
+    pro: formatPlanCap(PLAN_LIMITS.pro.activeServices),
+  },
+  {
+    feature: "Active stylists (salon)",
+    free: formatPlanCap(PLAN_LIMITS.free.activeStylists),
+    basic: formatPlanCap(PLAN_LIMITS.basic.activeStylists),
+    pro: formatPlanCap(PLAN_LIMITS.pro.activeStylists),
+  },
   { feature: "Deposits & partial payments", free: true, basic: true, pro: true },
   { feature: "Send via email, WhatsApp, or SMS", free: true, basic: true, pro: true },
   { feature: "Job costing (materials + labor)", free: true, basic: true, pro: true },
-  { feature: "Unlimited jobs & employees", free: false, basic: false, pro: true },
   { feature: "Job profitability (Est. Profit)", free: true, basic: true, pro: true },
   { feature: "Priority support", free: false, basic: false, pro: true },
 ];

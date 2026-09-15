@@ -8,11 +8,34 @@ import { Button } from "@/components/ui/button";
 import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
 import type { BillingTier } from "@/lib/stripe";
 
+// A cell is either a plain yes/no (rendered as check/dash) or a value
+// string for a capped resource (e.g. "3/mo", "Unlimited") - every feature
+// is available at every tier under the capped-forever-freemium model (see
+// src/lib/plan-limits.ts), so most rows differ only in how much, not
+// whether - a value string says that directly instead of forcing a
+// three-way cap into a single checkmark.
+export type ComparisonCell = boolean | string;
+
 export interface ComparisonRow {
   feature: string;
-  free: boolean;
-  basic: boolean;
-  pro: boolean;
+  free: ComparisonCell;
+  basic: ComparisonCell;
+  pro: ComparisonCell;
+}
+
+// A boolean cell keeps the check/dash treatment; a string cell (a cap
+// value like "3/mo" or "Unlimited") renders as plain text instead - a
+// non-empty string is truthy in JS, so this can't just fall through to the
+// boolean branch's ternary.
+function ComparisonCellValue({ value }: { value: ComparisonCell }) {
+  if (typeof value === "string") {
+    return <span className="font-medium tabular-nums">{value}</span>;
+  }
+  return value ? (
+    <Check className="mx-auto h-4 w-4 text-primary" />
+  ) : (
+    <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
+  );
 }
 
 // Shared between / and /salons (and any future vertical landing page) -
@@ -218,11 +241,7 @@ export function PricingSection({
                       <tr key={row.feature}>
                         <td className="p-3 text-foreground">{row.feature}</td>
                         <td className="p-3 text-center">
-                          {row.free ? (
-                            <Check className="mx-auto h-4 w-4 text-primary" />
-                          ) : (
-                            <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
-                          )}
+                          <ComparisonCellValue value={row.free} />
                         </td>
                         {plans.map((plan) => (
                           <td
@@ -231,11 +250,7 @@ export function PricingSection({
                               plan.tier === highlightTier ? "bg-primary/5" : ""
                             }`}
                           >
-                            {row[plan.tier] ? (
-                              <Check className="mx-auto h-4 w-4 text-primary" />
-                            ) : (
-                              <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
-                            )}
+                            <ComparisonCellValue value={row[plan.tier]} />
                           </td>
                         ))}
                       </tr>
