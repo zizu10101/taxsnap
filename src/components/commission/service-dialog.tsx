@@ -53,7 +53,7 @@ export function ServiceDialog({
       const data = await res.json();
       if (!res.ok) {
         // Free-tier salon accounts are capped at 1 active service (see
-        // lib/free-tier-limits.ts) - same upgrade-toast pattern already
+        // lib/plan-limits.ts) - same upgrade-toast pattern already
         // used for the free receipt-scan cap in upload-receipt.tsx.
         if (data.code === "FREE_LIMIT_REACHED") {
           toast.error(data.error, {

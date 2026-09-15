@@ -1,14 +1,24 @@
 import type { BillingTier } from "@/lib/stripe";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 
-export const FREE_SCAN_LIMIT = 5;
+export const FREE_SCAN_LIMIT = PLAN_LIMITS.free.scansPerMonth!;
 
+// Every tier gets every feature now (receipt scanning, HST estimate,
+// invoicing/estimates, jobs, employees, commission) - only the usage caps
+// differ (see src/lib/plan-limits.ts, the single source these numbers are
+// read from so this copy can't drift out of sync with what the API
+// actually enforces). Estimates are always unlimited/free at every tier -
+// only converting one to an invoice counts against the invoice cap, so
+// that's called out explicitly rather than left implicit.
 export const FREE_PLAN = {
   name: "Free",
   price: "$0",
-  description: "Test the scanner.",
+  description: `Try every feature — ${PLAN_LIMITS.free.scansPerMonth} scans/mo, ${PLAN_LIMITS.free.invoicesPerMonth} invoices/mo, ${PLAN_LIMITS.free.clients} clients, ${PLAN_LIMITS.free.jobs} job.`,
   features: [
-    `${FREE_SCAN_LIMIT} free receipt scans per month (no credit card required)`,
-    "AI categorization",
+    `${PLAN_LIMITS.free.scansPerMonth} receipt scans/month`,
+    "Unlimited estimates",
+    `${PLAN_LIMITS.free.invoicesPerMonth} invoices/month`,
+    `${PLAN_LIMITS.free.clients} clients, ${PLAN_LIMITS.free.jobs} job`,
     "HST return estimate",
   ],
 };
@@ -24,25 +34,25 @@ export const PRICING_PLANS: {
     tier: "basic",
     name: "Basic",
     price: "$12 CAD/mo",
-    description: "Complete CRA expense tracking.",
+    description: `More room to grow — unlimited scans, ${PLAN_LIMITS.basic.invoicesPerMonth} invoices/mo, ${PLAN_LIMITS.basic.clients} clients, ${PLAN_LIMITS.basic.jobs} jobs.`,
     features: [
+      "Everything in Free",
       "Unlimited receipt scans",
-      "AI auto-categorization",
-      "Maps to CRA Lines 101, 103 & 106",
-      "CSV export for tax season",
+      `${PLAN_LIMITS.basic.invoicesPerMonth} invoices/month`,
+      `${PLAN_LIMITS.basic.clients} clients, ${PLAN_LIMITS.basic.jobs} jobs`,
+      "CSV export",
     ],
   },
   {
     tier: "pro",
     name: "Pro",
     price: "$29 CAD/mo",
-    description: "Expenses + client invoicing.",
+    description: "No limits — full invoicing, job costing, and accountant tools.",
     features: [
       "Everything in Basic",
-      "Professional PDF client invoicing",
-      "Deposits & partial payments",
-      "Send via email, WhatsApp, or SMS",
-      "Invoice status & payment tracking",
+      "Unlimited invoices, clients, jobs",
+      "Job costing with Est. Profit",
+      "Accountant export bundle",
       "Priority support",
     ],
   },

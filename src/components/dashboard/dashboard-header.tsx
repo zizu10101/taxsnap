@@ -184,19 +184,22 @@ export function DashboardHeader({
       </div>
       {/* Staff mode is only ever navigable to the Commission Log page, so
           the tab row (which links to everything else) is hidden outright
-          rather than left visible-but-blocked. The row itself now renders
-          for a free-tier salon account too - Commission gives Free a
-          capped preview (see lib/free-tier-limits.ts), unlike
-          Estimates/Invoices/Jobs, which stay Pro-only and are individually
-          hidden below rather than gating the whole row. Estimates is
-          additionally hidden for every salon account regardless of tier -
-          it doesn't apply to that business type (see
-          dashboard/estimates/layout.tsx for the matching route-level
-          block). */}
-      {!isStaffMode && (subscriptionStatus === "pro" || businessType === "salon") && (
+          rather than left visible-but-blocked. Every other case renders
+          the row regardless of tier now - Estimates/Invoices/Jobs/
+          Register are capped-per-tier features (see lib/plan-limits.ts),
+          not Pro-only ones, so hiding the tab itself would make a
+          capped-but-allowed feature unreachable rather than just
+          unlimited. Overview is the one tab that's still genuinely
+          Pro-only (api/expenses/overview kept requireProUser - it's a
+          distinct paid feature, not a capped one), so it alone stays
+          gated on subscriptionStatus. Estimates is hidden for every salon
+          account regardless of tier - it doesn't apply to that business
+          type (see dashboard/estimates/layout.tsx for the matching
+          route-level block). */}
+      {!isStaffMode && (
         <nav className="border-t bg-background">
           <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
-            {subscriptionStatus === "pro" && (
+            {businessType !== "salon" && (
               <>
                 {/* Text-only, no icons - same reasoning as CommissionNav's
                     own tab row (Log/Services/Stylists/Reports/Overview):
@@ -205,17 +208,15 @@ export function DashboardHeader({
                     overflowed and clipped "Overview" past the screen edge
                     on an actual device-emulated capture), so this drops
                     the icons rather than let it silently overflow. */}
-                {businessType !== "salon" && (
-                  <Button
-                    variant={active === "estimates" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
-                    nativeButton={false}
-                    render={<Link href="/dashboard/estimates" />}
-                  >
-                    Estimates
-                  </Button>
-                )}
+                <Button
+                  variant={active === "estimates" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/estimates" />}
+                >
+                  Estimates
+                </Button>
                 <Button
                   variant={active === "invoices" ? "default" : "outline"}
                   size="sm"
@@ -225,18 +226,16 @@ export function DashboardHeader({
                 >
                   Invoices
                 </Button>
-                {businessType !== "salon" && (
-                  <Button
-                    variant={active === "jobs" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
-                    nativeButton={false}
-                    render={<Link href="/dashboard/jobs" />}
-                  >
-                    Jobs
-                  </Button>
-                )}
-                {businessType !== "salon" && (
+                <Button
+                  variant={active === "jobs" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/jobs" />}
+                >
+                  Jobs
+                </Button>
+                {subscriptionStatus === "pro" && (
                   <Button
                     variant={active === "overview" ? "default" : "outline"}
                     size="sm"

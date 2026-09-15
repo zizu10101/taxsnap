@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmployeeList } from "@/components/employees/employee-list";
 
 export const metadata: Metadata = {
   title: "Employees — TaxSnap",
 };
 
+// Employees is capped, not Pro-only, at every tier now (1/5/unlimited
+// active - see src/lib/plan-limits.ts) - every tier fetches and renders
+// the real list, the cap only bites in EmployeeList's own create/reactivate
+// flow when it hits the FREE_LIMIT_REACHED response.
 export default async function EmployeesPage() {
   const supabase = await createClient();
   const {
@@ -26,11 +28,10 @@ export default async function EmployeesPage() {
     .eq("id", user.id)
     .single();
 
-  const isPro = profile?.subscription_status === "pro";
-
-  const { data: employees } = isPro
-    ? await supabase.from("employees").select("*").order("name", { ascending: true })
-    : { data: null };
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("*")
+    .order("name", { ascending: true });
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -57,27 +58,10 @@ export default async function EmployeesPage() {
           </p>
         </div>
 
-        {isPro ? (
-          <EmployeeList initialEmployees={employees ?? []} />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">
-                Employee &amp; job cost tracking is a Pro feature
-              </p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to track employees, log
-                hours, and see true per-job costs.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <EmployeeList
+          initialEmployees={employees ?? []}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
+        />
       </main>
     </div>
   );

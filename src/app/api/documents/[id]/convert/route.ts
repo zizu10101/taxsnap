@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
+import { wouldExceedMonthlyLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 // Duplicates an estimate as a new draft invoice, carrying over the client,
 // job link, and line items. The original estimate is left untouched.
@@ -7,7 +8,7 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -39,6 +40,22 @@ export async function POST(
         invoice_id: existingConversion.id,
       },
       { status: 409 },
+    );
+  }
+
+  // A converted estimate inserts as a brand-new `type: 'invoice'` row (see
+  // below), so it counts against the same monthly invoice cap as a
+  // directly-created invoice (see src/lib/plan-limits.ts) - checked here
+  // too, not just in POST /api/documents, since this is a second, separate
+  // invoice-creation path.
+  const monthlyCheck = await wouldExceedMonthlyLimit(supabase, user.id, "invoices");
+  if (monthlyCheck.exceeded) {
+    return NextResponse.json(
+      {
+        error: limitReachedMessage(monthlyCheck, "invoice", "this month"),
+        code: "FREE_LIMIT_REACHED",
+      },
+      { status: 403 },
     );
   }
 

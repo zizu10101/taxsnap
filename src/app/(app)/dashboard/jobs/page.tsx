@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { JobList } from "@/components/jobs/job-list";
 
 export const metadata: Metadata = {
   title: "Jobs — TaxSnap",
 };
 
+// Jobs is capped, not Pro-only, at every tier now (1/5/unlimited - see
+// src/lib/plan-limits.ts) - every tier fetches and renders the real list,
+// the cap only bites in JobList's own create flow when it hits
+// POST /api/jobs's FREE_LIMIT_REACHED response.
 export default async function JobsPage() {
   const supabase = await createClient();
   const {
@@ -26,11 +28,10 @@ export default async function JobsPage() {
     .eq("id", user.id)
     .single();
 
-  const isPro = profile?.subscription_status === "pro";
-
-  const { data: jobs } = isPro
-    ? await supabase.from("jobs").select("*").order("name", { ascending: true })
-    : { data: null };
+  const { data: jobs } = await supabase
+    .from("jobs")
+    .select("*")
+    .order("name", { ascending: true });
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -57,25 +58,10 @@ export default async function JobsPage() {
           </p>
         </div>
 
-        {isPro ? (
-          <JobList initialJobs={jobs ?? []} />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Job cost tracking is a Pro feature</p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to see true per-job cost
-                across expenses and labor.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <JobList
+          initialJobs={jobs ?? []}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
+        />
       </main>
     </div>
   );

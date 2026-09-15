@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
+import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 export async function GET() {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -20,8 +21,15 @@ export async function GET() {
 // pattern in /api/documents - lets the hour entry form create a job on the
 // fly without duplicating a job that already exists (e.g. one auto-created
 // from a receipt's job_name via the DB trigger in 0009_jobs.sql).
+//
+// The job cap below is only enforced on this explicit create path - it
+// deliberately does NOT reach the DB trigger (sync_receipt_job in
+// 0009_jobs.sql) that auto-creates a job row when a receipt's job_name is
+// set to a new name. Blocking that path would mean failing a receipt save
+// over a job cap, which is a worse trade than letting a free account's
+// job count grow past 1 via that specific route.
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -43,6 +51,14 @@ export async function POST(request: Request) {
 
   if (existing) {
     return NextResponse.json({ job: existing });
+  }
+
+  const totalCheck = await wouldExceedTotalLimit(supabase, user.id, "jobs");
+  if (totalCheck.exceeded) {
+    return NextResponse.json(
+      { error: limitReachedMessage(totalCheck, "job"), code: "FREE_LIMIT_REACHED" },
+      { status: 403 },
+    );
   }
 
   const { data, error } = await supabase

@@ -6,6 +6,7 @@ import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
+import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
 
 // Real screenshots from the real app (test@general.com, real data) - desktop
@@ -65,22 +66,73 @@ const SHOWCASE_GROUPS: ShowcaseGroup[] = [
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
-// smaller feature surface. Split into discrete yes/no capabilities rather
-// than one "receipt scanning" row with a quantity caption, so every cell
-// stays a plain check/dash (e.g. "5 free scans" and "Unlimited scans" are
-// two separate rows, not one row with an asterisk).
+// smaller feature surface. Every tier gets every feature under the
+// capped-forever-freemium model (see src/lib/plan-limits.ts), so this is
+// no longer a has-it/doesn't-have-it matrix - a capped resource is one row
+// showing all three tiers' actual numbers (e.g. "3/mo, 10/mo, Unlimited")
+// via ComparisonCell's string variant, pulled from PLAN_LIMITS so these
+// can't drift from what the API enforces (same source pricing-plans.ts
+// reads from). A feature with no numeric cap (it either exists or it
+// doesn't, at every tier alike, or - priority support - is a real Pro-only
+// perk) stays a plain boolean row.
 const COMPARISON_ROWS: ComparisonRow[] = [
   { feature: "Receipt scanning & AI categorization", free: true, basic: true, pro: true },
-  { feature: "5 free scans per month", free: true, basic: false, pro: false },
-  { feature: "Unlimited receipt scans", free: false, basic: true, pro: true },
+  {
+    feature: "Receipt scans",
+    free: formatPlanCap(PLAN_LIMITS.free.scansPerMonth, "/mo"),
+    basic: formatPlanCap(PLAN_LIMITS.basic.scansPerMonth, "/mo"),
+    pro: formatPlanCap(PLAN_LIMITS.pro.scansPerMonth, "/mo"),
+  },
   { feature: "Ontario HST return estimate", free: true, basic: true, pro: true },
-  { feature: "Maps to CRA Lines 101, 103 & 106", free: false, basic: true, pro: true },
-  { feature: "CSV export for tax season", free: false, basic: true, pro: true },
-  { feature: "Client invoicing & estimates", free: false, basic: false, pro: true },
-  { feature: "Deposits & partial payments", free: false, basic: false, pro: true },
-  { feature: "Send via email, WhatsApp, or SMS", free: false, basic: false, pro: true },
-  { feature: "Job costing (materials + labor)", free: false, basic: false, pro: true },
-  { feature: "Job profitability (Est. Profit)", free: false, basic: false, pro: true },
+  { feature: "Maps to CRA Lines 101, 103 & 106", free: true, basic: true, pro: true },
+  { feature: "CSV export for tax season", free: true, basic: true, pro: true },
+  { feature: "Client invoicing", free: true, basic: true, pro: true },
+  {
+    feature: "Invoices",
+    free: formatPlanCap(PLAN_LIMITS.free.invoicesPerMonth, "/mo"),
+    basic: formatPlanCap(PLAN_LIMITS.basic.invoicesPerMonth, "/mo"),
+    pro: formatPlanCap(PLAN_LIMITS.pro.invoicesPerMonth, "/mo"),
+  },
+  {
+    feature: "Estimates",
+    free: formatPlanCap(null),
+    basic: formatPlanCap(null),
+    pro: formatPlanCap(null),
+  },
+  {
+    feature: "Clients",
+    free: formatPlanCap(PLAN_LIMITS.free.clients),
+    basic: formatPlanCap(PLAN_LIMITS.basic.clients),
+    pro: formatPlanCap(PLAN_LIMITS.pro.clients),
+  },
+  {
+    feature: "Jobs",
+    free: formatPlanCap(PLAN_LIMITS.free.jobs),
+    basic: formatPlanCap(PLAN_LIMITS.basic.jobs),
+    pro: formatPlanCap(PLAN_LIMITS.pro.jobs),
+  },
+  {
+    feature: "Employees",
+    free: formatPlanCap(PLAN_LIMITS.free.employees),
+    basic: formatPlanCap(PLAN_LIMITS.basic.employees),
+    pro: formatPlanCap(PLAN_LIMITS.pro.employees),
+  },
+  {
+    feature: "Active services (salon)",
+    free: formatPlanCap(PLAN_LIMITS.free.activeServices),
+    basic: formatPlanCap(PLAN_LIMITS.basic.activeServices),
+    pro: formatPlanCap(PLAN_LIMITS.pro.activeServices),
+  },
+  {
+    feature: "Active stylists (salon)",
+    free: formatPlanCap(PLAN_LIMITS.free.activeStylists),
+    basic: formatPlanCap(PLAN_LIMITS.basic.activeStylists),
+    pro: formatPlanCap(PLAN_LIMITS.pro.activeStylists),
+  },
+  { feature: "Deposits & partial payments", free: true, basic: true, pro: true },
+  { feature: "Send via email, WhatsApp, or SMS", free: true, basic: true, pro: true },
+  { feature: "Job costing (materials + labor)", free: true, basic: true, pro: true },
+  { feature: "Job profitability (Est. Profit)", free: true, basic: true, pro: true },
   { feature: "Priority support", free: false, basic: false, pro: true },
 ];
 
@@ -141,7 +193,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do invoices and estimates work?",
     answer:
-      "Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves.",
+      `Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves. Invoicing is included on every plan - Free covers ${PLAN_LIMITS.free.invoicesPerMonth} invoices a month, Basic ${PLAN_LIMITS.basic.invoicesPerMonth}, and Pro is unlimited. Estimates themselves are always unlimited, no matter your plan.`,
   },
   {
     question: "Can I share an estimate or invoice with a client?",
@@ -156,7 +208,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What are Jobs?",
     answer:
-      "Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking.",
+      `Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking. Every plan includes Jobs - Free covers ${PLAN_LIMITS.free.jobs} job and ${PLAN_LIMITS.free.employees} employee, Basic ${PLAN_LIMITS.basic.jobs} jobs and ${PLAN_LIMITS.basic.employees} employees, and Pro is unlimited.`,
   },
   {
     question: "Are there reports for sales and expenses?",

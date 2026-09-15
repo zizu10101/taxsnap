@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Employee } from "@/lib/database.types";
+import type { Employee, SubscriptionStatus } from "@/lib/database.types";
 import { LogoStep } from "./steps/logo-step";
 import { BusinessInfoStep } from "./steps/business-info-step";
 import { StaffStep } from "./steps/staff-step";
@@ -15,12 +15,12 @@ import { StaffStep } from "./steps/staff-step";
 // normally on revisit, unlike a PIN field which can't), so this is just a
 // plain 0/1/2 cursor.
 export function GeneralOnboardingFlow({
-  isPro,
+  subscriptionStatus,
   initialLogoPath,
   initialProfile,
   initialEmployees,
 }: {
-  isPro: boolean;
+  subscriptionStatus: SubscriptionStatus;
   initialLogoPath: string | null;
   initialProfile: {
     business_name: string | null;
@@ -59,14 +59,17 @@ export function GeneralOnboardingFlow({
     case 1:
       return (
         <BusinessInfoStep
-          isPro={isPro}
           initialProfile={initialProfile}
           onNext={goToNextOrFinish}
         />
       );
     case 2:
       return (
-        <StaffStep isPro={isPro} initialEmployees={initialEmployees} onNext={goToNextOrFinish} />
+        <StaffStep
+          subscriptionStatus={subscriptionStatus}
+          initialEmployees={initialEmployees}
+          onNext={goToNextOrFinish}
+        />
       );
     default:
       return null;

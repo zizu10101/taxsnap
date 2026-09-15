@@ -30,10 +30,6 @@ export default async function EstimateDetailPage({
     .eq("id", user.id)
     .single();
 
-  if (profile?.subscription_status !== "pro") {
-    redirect("/dashboard/estimates");
-  }
-
   const [{ data: document }, { data: clients }, { data: conversion }, { data: jobs }] =
     await Promise.all([
       supabase
@@ -57,7 +53,7 @@ export default async function EstimateDetailPage({
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
-        subscriptionStatus="pro"
+        subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
         logoPath={profile?.logo_url ?? null}
         active="estimates"

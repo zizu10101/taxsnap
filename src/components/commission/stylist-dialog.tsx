@@ -31,7 +31,7 @@ export function StylistDialog({
   // Gates the payout PIN section below - PIN confirmation is a Pro-only
   // feature (same as payouts/void/adjustments), unlike the rest of this
   // dialog which free-tier salon accounts can already reach since Stylists
-  // itself is no longer Pro-gated (see lib/free-tier-limits.ts).
+  // itself is no longer Pro-gated (see lib/plan-limits.ts).
   isPro: boolean;
   onSaved: (stylist: StylistPublic) => void;
 }) {
@@ -82,7 +82,7 @@ export function StylistDialog({
       const data = await res.json();
       if (!res.ok) {
         // Free-tier salon accounts are capped at 1 active stylist (see
-        // lib/free-tier-limits.ts) - same upgrade-toast pattern already
+        // lib/plan-limits.ts) - same upgrade-toast pattern already
         // used for the free receipt-scan cap in upload-receipt.tsx.
         if (data.code === "FREE_LIMIT_REACHED") {
           toast.error(data.error, {

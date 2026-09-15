@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { HoursList } from "@/components/hours/hours-list";
 import type { HourEntryWithRelations } from "@/lib/database.types";
 
@@ -13,6 +11,10 @@ export const metadata: Metadata = {
   title: "Hours — TaxSnap",
 };
 
+// Hours themselves are never capped at any tier (see src/lib/plan-limits.ts
+// - only the employee they're logged against is) - this page was already
+// reachable through Jobs/Employees for a Pro account, so it just drops the
+// old all-or-nothing Pro gate rather than needing any new cap logic here.
 export default async function HoursPage() {
   const supabase = await createClient();
   const {
@@ -27,18 +29,14 @@ export default async function HoursPage() {
     .eq("id", user.id)
     .single();
 
-  const isPro = profile?.subscription_status === "pro";
-
-  const [{ data: entries }, { data: employees }, { data: jobs }] = isPro
-    ? await Promise.all([
-        supabase
-          .from("hour_entries")
-          .select("*, employee:employees(*), job:jobs(*)")
-          .order("work_date", { ascending: false }),
-        supabase.from("employees").select("*").order("name", { ascending: true }),
-        supabase.from("jobs").select("*").order("name", { ascending: true }),
-      ])
-    : [{ data: null }, { data: null }, { data: null }];
+  const [{ data: entries }, { data: employees }, { data: jobs }] = await Promise.all([
+    supabase
+      .from("hour_entries")
+      .select("*, employee:employees(*), job:jobs(*)")
+      .order("work_date", { ascending: false }),
+    supabase.from("employees").select("*").order("name", { ascending: true }),
+    supabase.from("jobs").select("*").order("name", { ascending: true }),
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -65,29 +63,11 @@ export default async function HoursPage() {
           </p>
         </div>
 
-        {isPro ? (
-          <HoursList
-            initialEntries={(entries ?? []) as HourEntryWithRelations[]}
-            initialEmployees={employees ?? []}
-            initialJobs={jobs ?? []}
-          />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Hour tracking is a Pro feature</p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to log employee hours and
-                see true per-job labor cost.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <HoursList
+          initialEntries={(entries ?? []) as HourEntryWithRelations[]}
+          initialEmployees={employees ?? []}
+          initialJobs={jobs ?? []}
+        />
       </main>
     </div>
   );

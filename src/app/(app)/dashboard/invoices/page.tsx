@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DocumentList } from "@/components/invoices/document-list";
 
 export const metadata: Metadata = {
   title: "Invoices — TaxSnap",
 };
 
+// Invoicing is capped, not Pro-only, at every tier now (3/10/unlimited
+// invoices per month - see src/lib/plan-limits.ts). Every tier fetches and
+// renders the real list; the cap only bites in DocumentList's own create
+// flow when POST /api/documents returns FREE_LIMIT_REACHED.
 export default async function InvoicesPage({
   searchParams,
 }: {
@@ -33,19 +35,15 @@ export default async function InvoicesPage({
     .eq("id", user.id)
     .single();
 
-  const isPro = profile?.subscription_status === "pro";
-
-  const [{ data: documents }, { data: clients }, { data: jobs }] = isPro
-    ? await Promise.all([
-        supabase
-          .from("documents")
-          .select("*, client:clients(*), job:jobs(*), payments(*)")
-          .eq("type", "invoice")
-          .order("issue_date", { ascending: false }),
-        supabase.from("clients").select("*").order("name", { ascending: true }),
-        supabase.from("jobs").select("name").order("name", { ascending: true }),
-      ])
-    : [{ data: null }, { data: null }, { data: null }];
+  const [{ data: documents }, { data: clients }, { data: jobs }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("*, client:clients(*), job:jobs(*), payments(*)")
+      .eq("type", "invoice")
+      .order("issue_date", { ascending: false }),
+    supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase.from("jobs").select("name").order("name", { ascending: true }),
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -72,41 +70,24 @@ export default async function InvoicesPage({
           </p>
         </div>
 
-        {isPro ? (
-          <DocumentList
-            type="invoice"
-            basePath="/dashboard/invoices"
-            initialDocuments={documents ?? []}
-            initialClients={clients ?? []}
-            initialJobs={(jobs ?? []).map((j) => j.name)}
-            businessType={profile?.business_type ?? "general"}
-            initialProfile={{
-              logo_url: profile?.logo_url ?? null,
-              business_name: profile?.business_name ?? null,
-              business_address: profile?.business_address ?? null,
-              business_phone: profile?.business_phone ?? null,
-              business_email: profile?.business_email ?? null,
-              business_profile_skipped: profile?.business_profile_skipped ?? false,
-            }}
-            autoOpenNew={newParam === "1"}
-          />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Invoicing is a Pro feature</p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to create invoices and
-                estimates, manage clients, and track payment status.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <DocumentList
+          type="invoice"
+          basePath="/dashboard/invoices"
+          initialDocuments={documents ?? []}
+          initialClients={clients ?? []}
+          initialJobs={(jobs ?? []).map((j) => j.name)}
+          businessType={profile?.business_type ?? "general"}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
+          initialProfile={{
+            logo_url: profile?.logo_url ?? null,
+            business_name: profile?.business_name ?? null,
+            business_address: profile?.business_address ?? null,
+            business_phone: profile?.business_phone ?? null,
+            business_email: profile?.business_email ?? null,
+            business_profile_skipped: profile?.business_profile_skipped ?? false,
+          }}
+          autoOpenNew={newParam === "1"}
+        />
       </main>
     </div>
   );

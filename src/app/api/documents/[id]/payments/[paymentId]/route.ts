@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import type { DocumentStatus } from "@/lib/database.types";
 
 function round2(n: number): number {
@@ -16,7 +16,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string; paymentId: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
+import { CurrentPlanCard } from "@/components/billing/current-plan-card";
 import { APP_SETTINGS_PUBLIC_COLUMNS } from "@/lib/app-settings-columns";
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
       .maybeSingle(),
     supabase
       .from("profiles")
-      .select("business_type, stripe_customer_id")
+      .select("business_type, subscription_status, stripe_customer_id")
       .eq("id", user.id)
       .single(),
   ]);
@@ -53,6 +54,8 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        <CurrentPlanCard tier={profile?.subscription_status ?? "free"} />
+
         {/* Same gate as /billing's own button (hasBillingAccount there) -
             a Stripe customer only exists once someone's actually gone
             through checkout at least once, whether or not they're

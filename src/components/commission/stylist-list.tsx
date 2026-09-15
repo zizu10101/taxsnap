@@ -9,18 +9,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionNav } from "@/components/commission/commission-nav";
 import { StylistDialog } from "@/components/commission/stylist-dialog";
-import type { StylistPublic } from "@/lib/database.types";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import type { StylistPublic, SubscriptionStatus } from "@/lib/database.types";
 
 export function StylistList({
   initialStylists,
   isPro,
+  subscriptionStatus = "free",
   showNav = true,
 }: {
   initialStylists: StylistPublic[];
   // Threaded down to StylistDialog to gate its payout PIN section - free
-  // tier can reach this list/dialog now (see lib/free-tier-limits.ts) but
+  // tier can reach this list/dialog now (see lib/plan-limits.ts) but
   // payout PIN confirmation stays Pro-only.
   isPro: boolean;
+  // Drives the usage bar's cap (1/2/unlimited active stylists - see
+  // src/lib/plan-limits.ts). Defaults to "free" for the onboarding flow,
+  // which doesn't otherwise thread the granular tier through.
+  subscriptionStatus?: SubscriptionStatus;
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Commission section's own tab row.
   showNav?: boolean;
@@ -50,7 +57,7 @@ export function StylistList({
       const data = await res.json();
       if (!res.ok) {
         // Reactivating a deactivated stylist is also capped for free-tier
-        // accounts (see lib/free-tier-limits.ts) - otherwise the 1-active
+        // accounts (see lib/plan-limits.ts) - otherwise the 1-active
         // limit could be bypassed entirely via deactivate-then-reactivate
         // instead of ever using the "New stylist" flow twice.
         if (data.code === "FREE_LIMIT_REACHED") {
@@ -74,6 +81,13 @@ export function StylistList({
   return (
     <div className="space-y-4">
       {showNav && <CommissionNav active="stylists" isPro={isPro} />}
+
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={active.length}
+        limit={PLAN_LIMITS[subscriptionStatus].activeStylists}
+        noun="active stylist"
+      />
 
       <Button
         className="w-full"

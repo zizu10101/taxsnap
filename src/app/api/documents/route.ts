@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
+import {
+  wouldExceedMonthlyLimit,
+  wouldExceedTotalLimit,
+  limitReachedMessage,
+} from "@/lib/plan-limits";
 import type { DocumentType } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -10,7 +15,7 @@ function round2(n: number): number {
 }
 
 export async function GET(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -40,7 +45,7 @@ interface ItemInput {
 }
 
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -68,6 +73,23 @@ export async function POST(request: Request) {
   if (!issue_date) {
     return NextResponse.json({ error: "issue_date is required." }, { status: 400 });
   }
+
+  // Estimates are unlimited/free at every tier - only invoices are capped
+  // (see src/lib/plan-limits.ts). Checked before any client/job
+  // find-or-create side effects run, same "fail fast before side effects"
+  // shape as the scan cap in api/parse-receipt.
+  if (type === "invoice") {
+    const monthlyCheck = await wouldExceedMonthlyLimit(supabase, user.id, "invoices");
+    if (monthlyCheck.exceeded) {
+      return NextResponse.json(
+        {
+          error: limitReachedMessage(monthlyCheck, "invoice", "this month"),
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+  }
   const cleanItems: ItemInput[] = Array.isArray(items)
     ? items.filter((i: ItemInput) => i?.description?.trim())
     : [];
@@ -80,6 +102,20 @@ export async function POST(request: Request) {
 
   let clientId: string | null = clientIdInput ?? null;
   if (!clientId && new_client?.name?.trim()) {
+    // The client cap applies here too, not just POST /api/clients - this
+    // is the "+ Add new client" inline-create path off the invoice/
+    // estimate builder, a second real way to create a client row.
+    const clientTotalCheck = await wouldExceedTotalLimit(supabase, user.id, "clients");
+    if (clientTotalCheck.exceeded) {
+      return NextResponse.json(
+        {
+          error: limitReachedMessage(clientTotalCheck, "client"),
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .insert({

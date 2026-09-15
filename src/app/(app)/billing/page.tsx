@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PricingCards } from "./pricing-cards";
+import { PlanCapsTable } from "@/components/billing/plan-caps-table";
 
 export const metadata: Metadata = {
   title: "Billing — TaxSnap",
@@ -46,6 +47,14 @@ export default async function BillingPage() {
         currentStatus={profile?.subscription_status ?? "free"}
         hasBillingAccount={!!profile?.stripe_customer_id}
       />
+
+      <div className="mt-8 space-y-2">
+        <h2 className="font-heading text-lg font-bold">Plan caps</h2>
+        <p className="text-sm text-muted-foreground">
+          Every plan includes every feature - this is what changes per plan.
+        </p>
+        <PlanCapsTable currentTier={profile?.subscription_status ?? "free"} />
+      </div>
     </div>
   );
 }

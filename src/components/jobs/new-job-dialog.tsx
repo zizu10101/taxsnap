@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export function NewJobDialog({
 }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -41,7 +43,18 @@ export function NewJobDialog({
         body: JSON.stringify({ name }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create");
+      if (!res.ok) {
+        // Every tier gets a capped number of jobs (see
+        // lib/plan-limits.ts) - same upgrade-toast pattern used for
+        // services/stylists.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to create");
+      }
 
       onCreated(data.job as Job);
       setName("");

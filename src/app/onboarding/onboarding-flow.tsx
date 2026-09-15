@@ -102,7 +102,9 @@ export function OnboardingFlow({
         />
       );
     case 3:
-      return <ServicesStep initialServices={initialServices} onNext={goToNextOrFinish} />;
+      return (
+        <ServicesStep isPro={isPro} initialServices={initialServices} onNext={goToNextOrFinish} />
+      );
     case 4:
       return (
         <StylistsStep isPro={isPro} initialStylists={initialStylists} onNext={goToNextOrFinish} />

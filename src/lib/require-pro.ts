@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 // Auth-only guard (no subscription check) for API routes that are usable
 // on every tier - the Commission logging/edit-trail routes, and the
 // services/stylists routes that now give free-tier salon accounts a
-// capped preview (see lib/free-tier-limits.ts) rather than being fully
+// capped preview (see lib/plan-limits.ts) rather than being fully
 // Pro-gated like the rest of Commission still is.
 export async function requireUser() {
   const supabase = await createClient();
