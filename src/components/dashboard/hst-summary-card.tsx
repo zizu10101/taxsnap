@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  ChevronDown,
-  ChevronUp,
-  Info,
-  Landmark,
-  Loader2,
-  Lock,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp, Info, Landmark, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,11 +18,14 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { calculateHSTReturn, type PaidInvoiceInput } from "@/lib/hst";
 import {
   describeRange,
   filterByRange,
   getPresetRange,
+  rangeToUtcBounds,
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
@@ -111,7 +107,9 @@ function HstSummaryCardBody({
   onToggleExcluded,
   saved,
   onSaved,
-  canEnterManualSales,
+  subscriptionStatus,
+  manualSalesLimit,
+  manualSalesCurrent,
 }: {
   rangeLabel: string;
   receipts: Receipt[];
@@ -119,17 +117,19 @@ function HstSummaryCardBody({
   onToggleExcluded: (id: string, excluded: boolean) => void;
   saved: SalesPeriod | undefined;
   onSaved: (record: SalesPeriod) => void;
-  // Manual sales entry (Gross Sales/Cash Deposits below) is unrestricted
-  // for salon accounts at every tier, and Basic-or-higher for general -
-  // see requireSalesAccess in api/sales/route.ts, which enforces the same
-  // rule server-side. This only controls whether the input fields render;
-  // the computed HST lines below always reflect whatever's actually saved
-  // (0 if this account can't enter anything).
-  canEnterManualSales: boolean;
+  subscriptionStatus: SubscriptionStatus;
+  // null for salon accounts at every tier (unrestricted, always has been -
+  // see api/sales/route.ts) or for Pro; otherwise the general-business
+  // monthly cap from src/lib/plan-limits.ts. The input fields themselves
+  // always render regardless - manual sales entry is capped, not locked,
+  // at every tier now.
+  manualSalesLimit: number | null;
+  manualSalesCurrent: number;
 }) {
   const [grossSales, setGrossSales] = useState(saved?.gross_sales ?? 0);
   const [cashDeposits, setCashDeposits] = useState(saved?.cash_deposits ?? 0);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   const paidInvoices: PaidInvoiceInput[] = useMemo(
     () =>
@@ -157,7 +157,19 @@ function HstSummaryCardBody({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
+      if (!res.ok) {
+        // General-business accounts get a capped number of new manual
+        // sales periods per month (see lib/plan-limits.ts) - editing an
+        // already-saved period never hits this, only starting a new one
+        // does. Salon accounts never see this at all (unrestricted).
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to save");
+      }
 
       onSaved(data.sales as SalesPeriod);
       toast.success(`Saved sales figures for ${rangeLabel}`);
@@ -179,48 +191,43 @@ function HstSummaryCardBody({
         filing.
       </p>
 
-      {canEnterManualSales ? (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="gross-sales">Gross Sales ($)</Label>
-              <NumberInput
-                id="gross-sales"
-                step="0.01"
-                value={grossSales}
-                onValueChange={setGrossSales}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cash-deposits">Cash Deposits ($)</Label>
-              <NumberInput
-                id="cash-deposits"
-                step="0.01"
-                value={cashDeposits}
-                onValueChange={setCashDeposits}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                For your own reconciliation - not included in Line 101.
-              </p>
-            </div>
-          </div>
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={manualSalesCurrent}
+        limit={manualSalesLimit}
+        noun="manual sales entry"
+        pluralNoun="manual sales entries"
+        period="this month"
+      />
 
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save for {rangeLabel}
-          </Button>
-        </>
-      ) : (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-3">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Lock className="h-3.5 w-3.5 shrink-0" />
-            Manual sales entry requires the Basic plan or higher.
-          </p>
-          <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/billing" />}>
-            Upgrade
-          </Button>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="gross-sales">Gross Sales ($)</Label>
+          <NumberInput
+            id="gross-sales"
+            step="0.01"
+            value={grossSales}
+            onValueChange={setGrossSales}
+          />
         </div>
-      )}
+        <div className="space-y-1.5">
+          <Label htmlFor="cash-deposits">Cash Deposits ($)</Label>
+          <NumberInput
+            id="cash-deposits"
+            step="0.01"
+            value={cashDeposits}
+            onValueChange={setCashDeposits}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            For your own reconciliation - not included in Line 101.
+          </p>
+        </div>
+      </div>
+
+      <Button size="sm" variant="outline" onClick={handleSave} disabled={saving}>
+        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+        Save for {rangeLabel}
+      </Button>
 
       <div className="space-y-2">
         <LineRow line="101" label="Total Sales & Revenue" value={lines.line101} />
@@ -317,19 +324,10 @@ export function HstSummaryCard({
   const [preset, setPreset] = useState<RangePreset>("this-quarter");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-quarter"));
 
-  // Salon accounts keep unrestricted manual sales entry at every tier;
-  // general-business accounts need Basic-or-higher - see requireSalesAccess
-  // in api/sales/route.ts, which enforces the identical rule server-side.
-  const canEnterManualSales =
-    businessType === "salon" ||
-    subscriptionStatus === "basic" ||
-    subscriptionStatus === "pro";
-
   useEffect(() => {
-    // Skip the request entirely for an account that can't save anything
-    // anyway - GET would just 403 (harmless, but a needless network error).
-    if (!canEnterManualSales) return;
-
+    // Every tier (and business type) can save manual sales entries now -
+    // salon has always been unrestricted, general-business is capped, not
+    // locked (see src/lib/plan-limits.ts) - so this always fetches.
     fetch("/api/sales")
       .then((res) => (res.ok ? res.json() : { sales: [] }))
       .then((data) => {
@@ -339,8 +337,10 @@ export function HstSummaryCard({
         // Non-fatal: the calculator still works with figures entered this session.
       });
 
-    // Non-Pro users get a 403 here (invoicing is a Pro feature) - that's
-    // fine, the calculator just runs with $0 invoiced revenue in that case.
+    // Every tier can fetch this now - invoicing is capped, not Pro-only
+    // (GET /api/documents uses requireUser(), see src/lib/plan-limits.ts) -
+    // so a Free account's real invoiced revenue is included here same as
+    // Basic/Pro's, not just receipts-side ITCs.
     fetch("/api/documents?type=invoice")
       .then((res) => (res.ok ? res.json() : { documents: [] }))
       .then((data) => {
@@ -349,11 +349,8 @@ export function HstSummaryCard({
       .catch(() => {
         // Non-fatal: same as above.
       });
-    // canEnterManualSales is derived from props that don't change for the
-    // life of this component (a tier/business-type change only ever takes
-    // effect after a fresh page load) - deliberately run once on mount,
-    // same as the rest of this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberately run once on mount - nothing this effect depends on
+    // changes for the life of this component.
   }, []);
 
   const filteredReceipts = useMemo(
@@ -394,6 +391,21 @@ export function HstSummaryCard({
   }
 
   const saved = salesRecords.find((s) => s.period_label === rangeLabel);
+
+  // Salon accounts stay fully unrestricted at every tier regardless of
+  // subscriptionStatus - the cap only ever applies to general-business
+  // accounts (matches api/sales/route.ts's own business_type check).
+  const manualSalesLimit =
+    businessType === "salon" ? null : PLAN_LIMITS[subscriptionStatus].manualSalesEntriesPerMonth;
+
+  // Counts distinct periods first saved this calendar month - editing an
+  // already-saved period later never bumps its created_at (see the
+  // upsert in api/sales/route.ts), so this only grows when a genuinely
+  // new period is entered, matching the server-side cap check exactly.
+  const manualSalesEntriesThisMonth = useMemo(() => {
+    const { from } = rangeToUtcBounds(getPresetRange("this-month"));
+    return salesRecords.filter((s) => !from || s.created_at >= from).length;
+  }, [salesRecords]);
 
   function handleSaved(record: SalesPeriod) {
     setSalesRecords((prev) => [
@@ -463,7 +475,9 @@ export function HstSummaryCard({
             onToggleExcluded={handleToggleExcluded}
             saved={saved}
             onSaved={handleSaved}
-            canEnterManualSales={canEnterManualSales}
+            subscriptionStatus={subscriptionStatus}
+            manualSalesLimit={manualSalesLimit}
+            manualSalesCurrent={manualSalesEntriesThisMonth}
           />
         </CardContent>
       )}
