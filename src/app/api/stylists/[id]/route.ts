@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
-import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
+import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 import type { StylistUpdate } from "@/lib/database.types";
 
 // Owner can edit or deactivate a stylist (is_active = false) - never
@@ -25,10 +25,11 @@ export async function PATCH(
   // Same reactivation-cap reasoning as services/[id] - only checked when
   // this PATCH would increase the active count.
   if (is_active === true) {
-    if (await wouldExceedFreeTierActiveLimit(supabase, user.id, "stylists", id)) {
+    const activeCheck = await wouldExceedActiveLimit(supabase, user.id, "stylists", id);
+    if (activeCheck.exceeded) {
       return NextResponse.json(
         {
-          error: "Free accounts can have 1 active stylist. Upgrade to Pro to add more.",
+          error: limitReachedMessage(activeCheck, "active stylist"),
           code: "FREE_LIMIT_REACHED",
         },
         { status: 403 },

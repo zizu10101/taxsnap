@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { nextServiceColor } from "@/lib/service-colors";
-import { wouldExceedFreeTierActiveLimit } from "@/lib/free-tier-limits";
+import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 export async function GET() {
   const result = await requireUser();
@@ -32,13 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Service name is required." }, { status: 400 });
   }
 
-  // Free-tier salon accounts get 1 free active service as a preview - a
-  // new service always inserts as active, so this is checked unconditionally
-  // here rather than only when the caller explicitly passes is_active.
-  if (await wouldExceedFreeTierActiveLimit(supabase, user.id, "services")) {
+  // Every tier gets a capped number of active services (see
+  // src/lib/plan-limits.ts) - a new service always inserts as active, so
+  // this is checked unconditionally here rather than only when the
+  // caller explicitly passes is_active.
+  const activeCheck = await wouldExceedActiveLimit(supabase, user.id, "services");
+  if (activeCheck.exceeded) {
     return NextResponse.json(
       {
-        error: "Free accounts can have 1 active service. Upgrade to Pro to add more.",
+        error: limitReachedMessage(activeCheck, "active service"),
         code: "FREE_LIMIT_REACHED",
       },
       { status: 403 },

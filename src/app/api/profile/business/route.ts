@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import type { ProfileUpdate } from "@/lib/database.types";
 
 export async function PATCH(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

@@ -7,9 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { JobCostNav } from "@/components/jobs/job-cost-nav";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
-import type { Job } from "@/lib/database.types";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import type { Job, SubscriptionStatus } from "@/lib/database.types";
 
-export function JobList({ initialJobs }: { initialJobs: Job[] }) {
+export function JobList({
+  initialJobs,
+  subscriptionStatus,
+}: {
+  initialJobs: Job[];
+  subscriptionStatus: SubscriptionStatus;
+}) {
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -17,6 +25,13 @@ export function JobList({ initialJobs }: { initialJobs: Job[] }) {
   return (
     <div className="space-y-4">
       <JobCostNav active="jobs" />
+
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={jobs.length}
+        limit={PLAN_LIMITS[subscriptionStatus].jobs}
+        noun="job"
+      />
 
       <Button className="w-full" onClick={() => setDialogOpen(true)}>
         <Plus className="h-4 w-4" />

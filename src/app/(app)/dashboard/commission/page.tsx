@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 // No isPro gate here anymore - logging and the edit-trail are fully
-// unrestricted on every tier (see lib/free-tier-limits.ts's own scope,
+// unrestricted on every tier (see lib/plan-limits.ts's own scope,
 // which deliberately doesn't cover commission_entries at all). The only
 // place Pro actually limits anything on this page is indirectly: a free
 // account only ever has up to 1 active service and 1 active stylist to

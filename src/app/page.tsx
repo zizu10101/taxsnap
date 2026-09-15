@@ -65,22 +65,28 @@ const SHOWCASE_GROUPS: ShowcaseGroup[] = [
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
-// smaller feature surface. Split into discrete yes/no capabilities rather
-// than one "receipt scanning" row with a quantity caption, so every cell
-// stays a plain check/dash (e.g. "5 free scans" and "Unlimited scans" are
-// two separate rows, not one row with an asterisk).
+// smaller feature surface. Every tier now gets every feature (capped-
+// forever-freemium, not feature-locked - see src/lib/plan-limits.ts), so
+// this is no longer a has-it/doesn't-have-it matrix: it's "has it at a
+// capped amount" vs "has it unlimited", split into discrete rows the same
+// way the old scan-count row already worked (e.g. "5 free scans" and
+// "Unlimited scans" as two separate rows, not one row with an asterisk) -
+// exact numbers live in the plan cards themselves (pricing-plans.ts);
+// this table is deliberately coarser (capped vs. unlimited only).
 const COMPARISON_ROWS: ComparisonRow[] = [
   { feature: "Receipt scanning & AI categorization", free: true, basic: true, pro: true },
-  { feature: "5 free scans per month", free: true, basic: false, pro: false },
+  { feature: "Capped receipt scans (5/mo on Free)", free: true, basic: false, pro: false },
   { feature: "Unlimited receipt scans", free: false, basic: true, pro: true },
   { feature: "Ontario HST return estimate", free: true, basic: true, pro: true },
   { feature: "Maps to CRA Lines 101, 103 & 106", free: false, basic: true, pro: true },
   { feature: "CSV export for tax season", free: false, basic: true, pro: true },
-  { feature: "Client invoicing & estimates", free: false, basic: false, pro: true },
-  { feature: "Deposits & partial payments", free: false, basic: false, pro: true },
-  { feature: "Send via email, WhatsApp, or SMS", free: false, basic: false, pro: true },
-  { feature: "Job costing (materials + labor)", free: false, basic: false, pro: true },
-  { feature: "Job profitability (Est. Profit)", free: false, basic: false, pro: true },
+  { feature: "Client invoicing & estimates", free: true, basic: true, pro: true },
+  { feature: "Unlimited invoices", free: false, basic: false, pro: true },
+  { feature: "Deposits & partial payments", free: true, basic: true, pro: true },
+  { feature: "Send via email, WhatsApp, or SMS", free: true, basic: true, pro: true },
+  { feature: "Job costing (materials + labor)", free: true, basic: true, pro: true },
+  { feature: "Unlimited jobs & employees", free: false, basic: false, pro: true },
+  { feature: "Job profitability (Est. Profit)", free: true, basic: true, pro: true },
   { feature: "Priority support", free: false, basic: false, pro: true },
 ];
 

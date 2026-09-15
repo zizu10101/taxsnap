@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { toTitleCase } from "@/lib/format-name";
+import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 import type { EmployeeUpdate } from "@/lib/database.types";
 
 // Owner can edit or deactivate an employee (is_active = false) - there is
@@ -10,15 +11,30 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  const { supabase } = result;
+  const { supabase, user } = result;
   const { id } = await params;
 
   const body = await request.json();
   const { name, default_hourly_rate, is_active } = body ?? {};
+
+  // Same reactivation-cap reasoning as services/[id] and stylists/[id] -
+  // only checked when this PATCH would increase the active count
+  // (reactivating a previously-deactivated employee), otherwise the cap
+  // could be evaded by deactivate-then-reactivate instead of ever using
+  // the "add" flow twice.
+  if (is_active === true) {
+    const activeCheck = await wouldExceedActiveLimit(supabase, user.id, "employees", id);
+    if (activeCheck.exceeded) {
+      return NextResponse.json(
+        { error: limitReachedMessage(activeCheck, "active employee"), code: "FREE_LIMIT_REACHED" },
+        { status: 403 },
+      );
+    }
+  }
 
   const update: EmployeeUpdate = {};
   if (name !== undefined) {

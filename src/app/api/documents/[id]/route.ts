@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
+import {
+  wouldExceedMonthlyLimit,
+  wouldExceedTotalLimit,
+  limitReachedMessage,
+} from "@/lib/plan-limits";
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -20,7 +25,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -44,7 +49,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -53,7 +58,7 @@ export async function PATCH(
 
   const { data: existing } = await supabase
     .from("documents")
-    .select("id")
+    .select("id, type")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -67,6 +72,26 @@ export async function PATCH(
     updated_at: new Date().toISOString(),
   };
 
+  // An estimate can be re-typed to "invoice" from this same PATCH (the
+  // builder's Estimate/Invoice tabs stay editable while editing an
+  // existing document) - that's a second way to turn a document into an
+  // invoice besides POST /api/documents and the /convert route, so it
+  // needs the same monthly cap check, but only when the type is actually
+  // changing into invoice (re-saving an already-invoice document's other
+  // fields shouldn't recount against the cap every time).
+  if (body.type === "invoice" && existing.type !== "invoice") {
+    const monthlyCheck = await wouldExceedMonthlyLimit(supabase, user.id, "invoices");
+    if (monthlyCheck.exceeded) {
+      return NextResponse.json(
+        {
+          error: limitReachedMessage(monthlyCheck, "invoice", "this month"),
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   if (body.type && DOCUMENT_TYPES.includes(body.type)) updates.type = body.type;
   if (body.status && DOCUMENT_STATUSES.includes(body.status)) {
     updates.status = body.status;
@@ -79,6 +104,20 @@ export async function PATCH(
 
   let clientId: string | undefined = body.client_id ?? undefined;
   if (!clientId && body.new_client?.name?.trim()) {
+    // Same cap as the inline-create path in POST /api/documents - editing
+    // a document is a second real way to create a client row via
+    // "+ Add new client".
+    const clientTotalCheck = await wouldExceedTotalLimit(supabase, user.id, "clients");
+    if (clientTotalCheck.exceeded) {
+      return NextResponse.json(
+        {
+          error: limitReachedMessage(clientTotalCheck, "client"),
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .insert({
@@ -216,7 +255,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

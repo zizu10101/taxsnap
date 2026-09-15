@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobCostNav } from "@/components/jobs/job-cost-nav";
 import { EmployeeDialog } from "@/components/employees/employee-dialog";
-import type { Employee } from "@/lib/database.types";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import type { Employee, SubscriptionStatus } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -19,9 +22,11 @@ function formatCurrency(amount: number) {
 
 export function EmployeeList({
   initialEmployees,
+  subscriptionStatus,
   showNav = true,
 }: {
   initialEmployees: Employee[];
+  subscriptionStatus: SubscriptionStatus;
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Jobs section's own tab row.
   showNav?: boolean;
@@ -29,6 +34,7 @@ export function EmployeeList({
   const [employees, setEmployees] = useState(initialEmployees);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
+  const router = useRouter();
 
   function upsert(employee: Employee) {
     setEmployees((prev) => {
@@ -48,7 +54,19 @@ export function EmployeeList({
         body: JSON.stringify({ is_active: !employee.is_active }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
+      if (!res.ok) {
+        // Reactivating a deactivated employee is also capped for every
+        // tier (see lib/plan-limits.ts) - otherwise the active-employee
+        // limit could be bypassed via deactivate-then-reactivate instead
+        // of ever using the "New employee" flow twice.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to update");
+      }
       upsert(data.employee as Employee);
       toast.success(employee.is_active ? "Employee deactivated" : "Employee reactivated");
     } catch (err) {
@@ -62,6 +80,13 @@ export function EmployeeList({
   return (
     <div className="space-y-4">
       {showNav && <JobCostNav active="employees" />}
+
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={active.length}
+        limit={PLAN_LIMITS[subscriptionStatus].employees}
+        noun="active employee"
+      />
 
       <Button
         className="w-full"

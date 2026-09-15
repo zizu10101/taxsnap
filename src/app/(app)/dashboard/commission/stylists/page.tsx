@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 // No isPro gate here anymore - a free-tier salon account gets a capped
 // preview (1 active stylist) rather than being locked out entirely. The
 // cap itself is enforced server-side (POST /api/stylists, PATCH
-// /api/stylists/[id] - see lib/free-tier-limits.ts); StylistDialog surfaces
+// /api/stylists/[id] - see lib/plan-limits.ts); StylistDialog surfaces
 // the resulting FREE_LIMIT_REACHED response as an upgrade prompt.
 export default async function StylistsPage() {
   const supabase = await createClient();
@@ -55,6 +55,7 @@ export default async function StylistsPage() {
 
         <StylistList
           initialStylists={stylists ?? []}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
           isPro={profile?.subscription_status === "pro"}
         />
       </main>

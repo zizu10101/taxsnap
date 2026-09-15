@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -9,7 +9,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

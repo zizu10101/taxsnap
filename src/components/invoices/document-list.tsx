@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, CheckCircle2, FileText, Plus } from "lucide-react";
@@ -11,6 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
 import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-summary";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import type {
   BusinessType,
@@ -18,6 +21,7 @@ import type {
   DocumentStatus,
   DocumentType,
   DocumentWithClient,
+  SubscriptionStatus,
 } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -50,6 +54,7 @@ export function DocumentList({
   initialJobs = [],
   initialProfile,
   businessType,
+  subscriptionStatus,
   convertedMap = {},
   autoOpenNew = false,
 }: {
@@ -64,6 +69,10 @@ export function DocumentList({
   // (dashboard/estimates/layout.tsx), so this page's own Invoices/Estimates
   // switcher shouldn't offer a link that only bounces back.
   businessType: BusinessType;
+  // Drives both usage bars below - invoices per month (invoice view only;
+  // estimates are unlimited at every tier) and total clients (both views,
+  // since either can create one via "+ Add new client").
+  subscriptionStatus: SubscriptionStatus;
   /** estimate id -> id of the invoice it was converted into (estimates only) */
   convertedMap?: Record<string, string>;
   autoOpenNew?: boolean;
@@ -76,6 +85,16 @@ export function DocumentList({
 
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
+  // Same "this-month" window POST /api/documents' own cap check uses (see
+  // src/lib/plan-limits.ts) - computed from the already-loaded list so
+  // this stays in sync with optimistic updates (a just-created invoice)
+  // without a second fetch.
+  const invoicesThisMonth = useMemo(() => {
+    if (type !== "invoice") return 0;
+    const { from } = rangeToUtcBounds(getPresetRange("this-month"));
+    return documents.filter((d) => !from || d.created_at >= from).length;
+  }, [documents, type]);
+
   async function handleConvert(id: string) {
     try {
       const res = await fetch(`/api/documents/${id}/convert`, { method: "POST" });
@@ -83,6 +102,15 @@ export function DocumentList({
       if (!res.ok) {
         if (data.invoice_id) {
           setConverted((prev) => ({ ...prev, [id]: data.invoice_id }));
+        }
+        // A converted estimate inserts as a real invoice row, so it's
+        // capped by the same monthly invoice limit as creating one
+        // directly (see src/lib/plan-limits.ts).
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
         }
         throw new Error(data.error || "Failed to convert");
       }
@@ -121,6 +149,23 @@ export function DocumentList({
       <BusinessProfileCard initialProfile={initialProfile} />
 
       {type === "invoice" && <InvoiceBillingSummary documents={documents} />}
+
+      {type === "invoice" && (
+        <UsageLimitBar
+          tier={subscriptionStatus}
+          current={invoicesThisMonth}
+          limit={PLAN_LIMITS[subscriptionStatus].invoicesPerMonth}
+          noun="invoice"
+          period="this month"
+        />
+      )}
+
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={clients.length}
+        limit={PLAN_LIMITS[subscriptionStatus].clients}
+        noun="client"
+      />
 
       <Button className="w-full" onClick={() => setBuilderOpen(true)}>
         <Plus className="h-4 w-4" />

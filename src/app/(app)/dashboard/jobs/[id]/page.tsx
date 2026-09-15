@@ -31,10 +31,6 @@ export default async function JobDetailPage({
     .eq("id", user.id)
     .single();
 
-  if (profile?.subscription_status !== "pro") {
-    redirect("/dashboard/jobs");
-  }
-
   const [
     { data: job },
     { data: receipts },
@@ -73,7 +69,7 @@ export default async function JobDetailPage({
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
-        subscriptionStatus="pro"
+        subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
         logoPath={profile?.logo_url ?? null}
         active="jobs"

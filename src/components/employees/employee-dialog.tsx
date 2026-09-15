@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export function EmployeeDialog({
   const [name, setName] = useState(employee?.name ?? "");
   const [rate, setRate] = useState(employee?.default_hourly_rate ?? 0);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   async function handleSave() {
     if (!name.trim()) {
@@ -49,7 +51,18 @@ export function EmployeeDialog({
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
+      if (!res.ok) {
+        // Every tier gets a capped number of active employees (see
+        // lib/plan-limits.ts) - same upgrade-toast pattern used for
+        // services/stylists/jobs.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to save");
+      }
 
       onSaved(data.employee as Employee);
       toast.success(isEditing ? "Employee updated" : "Employee added");

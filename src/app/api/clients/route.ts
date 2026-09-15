@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireProUser } from "@/lib/require-pro";
+import { requireUser } from "@/lib/require-pro";
+import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 export async function GET() {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -17,16 +18,26 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const result = await requireProUser();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+  const { supabase, user } = result;
 
   const body = await request.json();
   const { name, email, address } = body ?? {};
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Client name is required." }, { status: 400 });
+  }
+
+  // Every tier gets a capped number of clients (see src/lib/plan-limits.ts).
+  const totalCheck = await wouldExceedTotalLimit(supabase, user.id, "clients");
+  if (totalCheck.exceeded) {
+    return NextResponse.json(
+      { error: limitReachedMessage(totalCheck, "client"), code: "FREE_LIMIT_REACHED" },
+      { status: 403 },
+    );
   }
 
   const { data, error } = await result.supabase

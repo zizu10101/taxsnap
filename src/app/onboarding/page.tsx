@@ -76,7 +76,7 @@ export default async function OnboardingPage() {
 
   return (
     <GeneralOnboardingFlow
-      isPro={isPro}
+      subscriptionStatus={profile.subscription_status}
       initialLogoPath={profile.logo_url}
       initialProfile={{
         business_name: profile.business_name,

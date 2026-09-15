@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionNav } from "@/components/commission/commission-nav";
 import { ServiceDialog } from "@/components/commission/service-dialog";
-import type { Service } from "@/lib/database.types";
+import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
+import type { Service, SubscriptionStatus } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -20,10 +22,15 @@ function formatCurrency(amount: number) {
 
 export function ServiceList({
   initialServices,
+  subscriptionStatus = "free",
   showNav = true,
   isPro = false,
 }: {
   initialServices: Service[];
+  // Drives the usage bar's cap (1/3/unlimited active services - see
+  // src/lib/plan-limits.ts). Defaults to "free" for the onboarding flow,
+  // which doesn't otherwise thread the granular tier through.
+  subscriptionStatus?: SubscriptionStatus;
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Commission section's own tab row.
   showNav?: boolean;
@@ -56,7 +63,7 @@ export function ServiceList({
       const data = await res.json();
       if (!res.ok) {
         // Reactivating a deactivated service is also capped for free-tier
-        // accounts (see lib/free-tier-limits.ts) - otherwise the 1-active
+        // accounts (see lib/plan-limits.ts) - otherwise the 1-active
         // limit could be bypassed entirely via deactivate-then-reactivate
         // instead of ever using the "New service" flow twice.
         if (data.code === "FREE_LIMIT_REACHED") {
@@ -80,6 +87,13 @@ export function ServiceList({
   return (
     <div className="space-y-4">
       {showNav && <CommissionNav active="services" isPro={isPro} />}
+
+      <UsageLimitBar
+        tier={subscriptionStatus}
+        current={active.length}
+        limit={PLAN_LIMITS[subscriptionStatus].activeServices}
+        noun="active service"
+      />
 
       <Button
         className="w-full"

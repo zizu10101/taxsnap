@@ -30,10 +30,6 @@ export default async function InvoiceDetailPage({
     .eq("id", user.id)
     .single();
 
-  if (profile?.subscription_status !== "pro") {
-    redirect("/dashboard/invoices");
-  }
-
   const [{ data: document }, { data: clients }, { data: jobs }] = await Promise.all([
     supabase
       .from("documents")
@@ -51,7 +47,7 @@ export default async function InvoiceDetailPage({
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
         email={user.email ?? ""}
-        subscriptionStatus="pro"
+        subscriptionStatus={profile?.subscription_status ?? "free"}
         businessType={profile?.business_type ?? "general"}
         logoPath={profile?.logo_url ?? null}
         active="invoices"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ export function DocumentBuilder({
   const [saving, setSaving] = useState(false);
   const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  const router = useRouter();
 
   // Client select's value (a uuid) never matches its displayed label (the
   // client's name), which Base UI's Select can't resolve without an
@@ -158,7 +160,19 @@ export function DocumentBuilder({
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
+      if (!res.ok) {
+        // Either the monthly invoice cap or the total client cap (see
+        // src/lib/plan-limits.ts) - both surface through this same field,
+        // since the client-create and document-create checks share one
+        // FREE_LIMIT_REACHED shape server-side.
+        if (data.code === "FREE_LIMIT_REACHED") {
+          toast.error(data.error, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          return;
+        }
+        throw new Error(data.error || "Failed to save");
+      }
 
       const saved = data.document as DocumentWithRelations;
       if (saved.client && clientId === NEW_CLIENT) {

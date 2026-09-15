@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // No isPro gate here anymore - a free-tier salon account gets a capped
 // preview (1 active service) rather than being locked out entirely. The
 // cap itself is enforced server-side (POST /api/services, PATCH
-// /api/services/[id] - see lib/free-tier-limits.ts); ServiceDialog surfaces
+// /api/services/[id] - see lib/plan-limits.ts); ServiceDialog surfaces
 // the resulting FREE_LIMIT_REACHED response as an upgrade prompt.
 export default async function ServicesPage() {
   const supabase = await createClient();
@@ -54,6 +54,7 @@ export default async function ServicesPage() {
 
         <ServiceList
           initialServices={services ?? []}
+          subscriptionStatus={profile?.subscription_status ?? "free"}
           isPro={profile?.subscription_status === "pro"}
         />
       </main>
