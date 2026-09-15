@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, FileText } from "lucide-react";
+import { ClipboardList, FileText, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
@@ -11,6 +11,7 @@ import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { HstSummaryCard } from "@/components/dashboard/hst-summary-card";
 import { JobFilter } from "@/components/dashboard/job-filter";
+import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import {
   describeRange,
   filterByRange,
@@ -59,6 +60,7 @@ export function DashboardBody({
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+  const [newClientOpen, setNewClientOpen] = useState(false);
 
   // Union of the jobs table (includes jobs created from the Jobs/Hours
   // pages that have no receipt yet) and any job_name already on a receipt
@@ -96,7 +98,18 @@ export function DashboardBody({
 
   return (
     <div className="space-y-6">
-      <div className={businessType === "salon" ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
+      {/* 4 tiles for a general account (Scan/Estimate/Invoice/Client) go
+          2x2 rather than one row of 4 - CommissionNav and DashboardHeader
+          both hit a verified real-device overflow at exactly that shape
+          (four icon+label flex-1 buttons don't fit a ~390px phone
+          viewport), so this doesn't repeat it. A salon account has one
+          fewer tile (no Estimate) and stays a single row of 3, the same
+          layout already proven to fit at that width. */}
+      <div
+        className={
+          businessType === "salon" ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"
+        }
+      >
         <UploadReceipt
           variant="tile"
           onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
@@ -122,7 +135,30 @@ export function DashboardBody({
           <FileText className="h-5 w-5" />
           New Invoice
         </Button>
+        {/* Opens the same client-creation form as the invoice/estimate
+            builder's "+ Add new client" fields, but standalone - doesn't
+            require starting an invoice/estimate first. Not hidden for
+            salon: New Invoice above already isn't either, even though
+            Invoices has no nav tab for that business type - this follows
+            the same precedent instead of introducing a new inconsistency. */}
+        <Button
+          variant="outline"
+          className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
+          onClick={() => setNewClientOpen(true)}
+        >
+          <UserPlus className="h-5 w-5" />
+          New Client
+        </Button>
       </div>
+
+      {/* No client list lives on this page to update - onCreated only
+          matters to a caller (like DocumentList) that renders one; here
+          the dialog's own success toast is the entire confirmation. */}
+      <NewClientDialog
+        open={newClientOpen}
+        onOpenChange={setNewClientOpen}
+        onCreated={() => {}}
+      />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
