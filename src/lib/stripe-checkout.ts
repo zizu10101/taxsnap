@@ -1,6 +1,11 @@
+import Stripe from "stripe";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { getStripe, STRIPE_PRICE_IDS, type BillingTier } from "@/lib/stripe";
+
+export type CheckoutSessionResult =
+  | { ok: true; url: string }
+  | { ok: false; error: string };
 
 // Shared between POST /api/stripe/checkout (a deliberate click on
 // /billing's own Upgrade button - can fire regardless of current tier,
@@ -15,9 +20,11 @@ export async function createCheckoutSessionUrl(
   user: User,
   tier: BillingTier,
   appUrl: string,
-): Promise<string | null> {
+): Promise<CheckoutSessionResult> {
   const priceId = STRIPE_PRICE_IDS[tier];
-  if (!priceId) return null;
+  if (!priceId) {
+    return { ok: false, error: `Stripe price for '${tier}' is not configured.` };
+  }
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -40,19 +47,49 @@ export async function createCheckoutSessionUrl(
       subscription_data: { metadata: { user_id: user.id, tier } },
     });
 
-    return session.url;
+    if (!session.url) {
+      // Stripe can return a session with no url in edge cases (e.g. an
+      // already-completed/expired session object) - treat that as a
+      // failure too rather than letting a null slip through to a caller
+      // expecting a real redirect target.
+      console.error(
+        `createCheckoutSessionUrl: session ${session.id} for tier '${tier}' (user ${user.id}) has no url`,
+      );
+      return { ok: false, error: "Stripe did not return a checkout URL." };
+    }
+
+    return { ok: true, url: session.url };
   } catch (err) {
     // Most likely cause: profile.stripe_customer_id belongs to a
     // different mode (test vs. live) than the currently-active secret
     // key - test and live customers are entirely separate objects in
-    // Stripe even within the same account. Returning null instead of
-    // letting this throw matters for both callers: the checkout route
-    // already treats a null url as "failed to start checkout" (via the
-    // client's existing !data.url check), and the auth callback already
-    // falls through to a normal dashboard redirect when this comes back
-    // null - neither needs its own try/catch as long as this never
-    // throws past here.
-    console.error("createCheckoutSessionUrl failed:", err);
-    return null;
+    // Stripe even within the same account. A mismatched/stale price id
+    // for one tier only (Stripe returns "No such price") is the other
+    // real case this has actually hit in production - see the session
+    // that diagnosed it.
+    //
+    // Logged with full structured detail (not just the generic message)
+    // specifically so a future failure is traceable from Vercel Runtime
+    // Logs alone, without having to reproduce it against the Stripe API
+    // by hand the way this one had to be. The message (not the raw
+    // Stripe error object) is also returned to the caller so it reaches
+    // the client-facing toast on /billing - authenticated users only,
+    // and Stripe's own error messages don't leak secrets (e.g. "No such
+    // price: 'price_xxx'"), so surfacing it directly beats a generic
+    // "Failed to start checkout" that requires log access to debug.
+    const message = err instanceof Error ? err.message : "Unknown error";
+    if (err instanceof Stripe.errors.StripeError) {
+      console.error("createCheckoutSessionUrl failed:", {
+        tier,
+        userId: user.id,
+        type: err.type,
+        code: err.code,
+        statusCode: err.statusCode,
+        message: err.message,
+      });
+    } else {
+      console.error("createCheckoutSessionUrl failed:", { tier, userId: user.id, err });
+    }
+    return { ok: false, error: message };
   }
 }
