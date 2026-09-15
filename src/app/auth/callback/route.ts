@@ -44,14 +44,18 @@ export async function GET(request: Request) {
           .single();
 
         if (!profile || profile.subscription_status === "free") {
-          const checkoutUrl = await createCheckoutSessionUrl(
+          const checkoutResult = await createCheckoutSessionUrl(
             supabase,
             data.user,
             pendingPlan,
             origin,
           );
-          if (checkoutUrl) {
-            const response = NextResponse.redirect(checkoutUrl);
+          // A failure here is already logged with full detail inside
+          // createCheckoutSessionUrl - this just falls through to the
+          // normal dashboard redirect below rather than stranding a
+          // brand-new signup on an error page over a Stripe hiccup.
+          if (checkoutResult.ok) {
+            const response = NextResponse.redirect(checkoutResult.url);
             response.cookies.delete(POST_AUTH_REDIRECT_COOKIE);
             response.cookies.delete(PENDING_PLAN_COOKIE);
             return response;
