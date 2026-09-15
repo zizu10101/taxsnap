@@ -1,34 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireBasicUser, requireUser } from "@/lib/require-pro";
-
-// Manual sales entry is unrestricted for salon accounts at every tier -
-// it's always been a general-purpose "other revenue" field, and salon
-// accounts have used it unrestricted since day one (their real revenue
-// tracking is Commission; this is just supplementary). Only general-
-// business accounts are newly gated to Basic-or-higher, so business_type
-// is checked first and requireBasicUser() is only invoked (and only pays
-// for its own profile query) when it's actually needed.
-async function requireSalesAccess() {
-  const authResult = await requireUser();
-  if ("error" in authResult) return authResult;
-  const { supabase, user } = authResult;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("business_type")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.business_type !== "salon") {
-    const tierResult = await requireBasicUser();
-    if ("error" in tierResult) return tierResult;
-  }
-
-  return { supabase, user };
-}
+import { requireUser } from "@/lib/require-pro";
+import { wouldExceedMonthlyLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 export async function GET() {
-  const result = await requireSalesAccess();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -44,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const result = await requireSalesAccess();
+  const result = await requireUser();
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -58,6 +33,47 @@ export async function POST(request: Request) {
       { error: "period_label is required." },
       { status: 400 },
     );
+  }
+
+  // Manual sales entry is unrestricted for salon accounts at every tier -
+  // it's always been a general-purpose "other revenue" field, and salon
+  // accounts have used it unrestricted since day one (their real revenue
+  // tracking is Commission; this is just supplementary). General-business
+  // accounts get a capped number of new entries per month instead (see
+  // src/lib/plan-limits.ts) - checked only when this period_label doesn't
+  // already exist, so editing an already-saved period's figures never
+  // counts against the cap, only starting a genuinely new one does.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_type")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.business_type !== "salon") {
+    const { data: existing } = await supabase
+      .from("sales")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("period_label", period_label)
+      .maybeSingle();
+
+    if (!existing) {
+      const monthlyCheck = await wouldExceedMonthlyLimit(supabase, user.id, "sales");
+      if (monthlyCheck.exceeded) {
+        return NextResponse.json(
+          {
+            error: limitReachedMessage(
+              monthlyCheck,
+              "manual sales entry",
+              "this month",
+              "manual sales entries",
+            ),
+            code: "FREE_LIMIT_REACHED",
+          },
+          { status: 403 },
+        );
+      }
+    }
   }
 
   const { data, error } = await supabase

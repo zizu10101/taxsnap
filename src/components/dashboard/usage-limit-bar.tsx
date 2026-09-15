@@ -20,6 +20,7 @@ export function UsageLimitBar({
   current,
   limit,
   noun,
+  pluralNoun,
   period,
 }: {
   tier: SubscriptionStatus;
@@ -28,13 +29,15 @@ export function UsageLimitBar({
   limit: number | null;
   /** Singular noun, e.g. "client", "job", "active employee" - pluralized here when limit !== 1. */
   noun: string;
+  /** Explicit plural form for a noun that doesn't just take an "s" (e.g. "entry" -> "entries"). */
+  pluralNoun?: string;
   /** e.g. "this month", for monthly caps like invoices. */
   period?: string;
 }) {
   if (limit === null) return null;
 
   const atCap = current >= limit;
-  const nounLabel = limit === 1 ? noun : `${noun}s`;
+  const nounLabel = limit === 1 ? noun : (pluralNoun ?? `${noun}s`);
   const nextTier = nextTierFor(tier);
 
   return (

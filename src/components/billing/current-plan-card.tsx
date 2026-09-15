@@ -26,6 +26,10 @@ export function CurrentPlanCard({ tier }: { tier: SubscriptionStatus }) {
     { label: "Employees", value: limits.employees },
     { label: "Active services (salon)", value: limits.activeServices },
     { label: "Active stylists (salon)", value: limits.activeStylists },
+    {
+      label: "Manual sales entries / month (general)",
+      value: limits.manualSalesEntriesPerMonth,
+    },
   ];
 
   return (

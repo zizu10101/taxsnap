@@ -24,6 +24,13 @@ import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 // - employees / activeServices / activeStylists: counts of active rows
 //   only (each table's `is_active` column) - deactivating frees a slot,
 //   matching the pre-existing services/stylists behavior.
+// - manualSalesEntriesPerMonth: rows in `sales`, counted by created_at
+//   (never touched by a later edit to the same period - see the upsert in
+//   api/sales/route.ts) - unlimited/null here still means "no cap", but
+//   only applies to general-business accounts; salon accounts stay fully
+//   unrestricted at every tier regardless of this value (see
+//   api/sales/route.ts's own business_type check, predating this cap and
+//   deliberately untouched by it).
 export const PLAN_LIMITS: Record<
   SubscriptionStatus,
   {
@@ -34,6 +41,7 @@ export const PLAN_LIMITS: Record<
     employees: number | null;
     activeServices: number | null;
     activeStylists: number | null;
+    manualSalesEntriesPerMonth: number | null;
   }
 > = {
   free: {
@@ -44,6 +52,7 @@ export const PLAN_LIMITS: Record<
     employees: 1,
     activeServices: 1,
     activeStylists: 1,
+    manualSalesEntriesPerMonth: 3,
   },
   basic: {
     scansPerMonth: null,
@@ -53,6 +62,7 @@ export const PLAN_LIMITS: Record<
     employees: 5,
     activeServices: 3,
     activeStylists: 2,
+    manualSalesEntriesPerMonth: 15,
   },
   pro: {
     scansPerMonth: null,
@@ -62,6 +72,7 @@ export const PLAN_LIMITS: Record<
     employees: null,
     activeServices: null,
     activeStylists: null,
+    manualSalesEntriesPerMonth: null,
   },
 };
 
@@ -92,16 +103,19 @@ const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Basic", pro: "Pro"
 // tier (see nextTierFor) instead of hardcoding "Upgrade to Pro" - a Basic
 // user hitting a cap needs to be told to upgrade to Pro, not Basic.
 // `singularNoun` is pluralized automatically when the limit isn't 1 (e.g.
-// Basic's "3 active services" vs. Free's "1 active service"). `period`
-// (e.g. "this month") is optional, for monthly caps like invoices.
+// Basic's "3 active services" vs. Free's "1 active service") by appending
+// "s" - pass `pluralNoun` explicitly for a noun that doesn't pluralize
+// that way (e.g. "entry" -> "entries", not "entrys"). `period` (e.g.
+// "this month") is optional, for monthly caps like invoices.
 export function limitReachedMessage(
   check: LimitCheck,
   singularNoun: string,
   period?: string,
+  pluralNoun?: string,
 ): string {
   const tierLabel = TIER_LABEL[nextTierFor(check.tier)];
   const currentTierLabel = check.tier === "free" ? "Free" : "Basic";
-  const noun = check.limit === 1 ? singularNoun : `${singularNoun}s`;
+  const noun = check.limit === 1 ? singularNoun : (pluralNoun ?? `${singularNoun}s`);
   const periodSuffix = period ? ` ${period}` : "";
   return `${currentTierLabel} accounts can have ${check.limit} ${noun}${periodSuffix}. Upgrade to ${tierLabel} to add more.`;
 }
@@ -125,30 +139,45 @@ export interface LimitCheck {
   tier: SubscriptionStatus;
 }
 
-// Monthly-count caps (currently just invoices). Windowed on created_at
-// via the same "this-month" preset the scan cap uses in
+const MONTHLY_LIMIT_KEY = {
+  invoices: "invoicesPerMonth",
+  sales: "manualSalesEntriesPerMonth",
+} as const;
+
+// Monthly-count caps (invoices, manual sales entries). Windowed on
+// created_at via the same "this-month" preset the scan cap uses in
 // api/parse-receipt/route.ts, for the same reason: usage resets monthly,
-// not a lifetime cap.
+// not a lifetime cap. For "sales", the caller is responsible for only
+// invoking this when the request is actually a new period (a plain edit
+// to an already-existing period_label shouldn't count against the cap -
+// see api/sales/route.ts) and for skipping this entirely for salon
+// accounts, which stay unrestricted regardless of this table's value.
 export async function wouldExceedMonthlyLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "invoices",
+  resource: "invoices" | "sales",
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);
-  const limit =
-    resource === "invoices" ? PLAN_LIMITS[tier].invoicesPerMonth : null;
+  const limit = PLAN_LIMITS[tier][MONTHLY_LIMIT_KEY[resource]];
 
   if (limit === null) {
     return { exceeded: false, limit: null, current: 0, tier };
   }
 
   const { from } = rangeToUtcBounds(getPresetRange("this-month"));
-  const { count } = await supabase
-    .from("documents")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("type", "invoice")
-    .gte("created_at", from!);
+  const { count } =
+    resource === "invoices"
+      ? await supabase
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("type", "invoice")
+          .gte("created_at", from!)
+      : await supabase
+          .from("sales")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .gte("created_at", from!);
 
   const current = count ?? 0;
   return { exceeded: current >= limit, limit, current, tier };

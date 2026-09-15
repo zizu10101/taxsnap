@@ -16,6 +16,7 @@ const ROWS: { label: string; key: keyof (typeof PLAN_LIMITS)["free"] }[] = [
   { label: "Employees", key: "employees" },
   { label: "Active services (salon)", key: "activeServices" },
   { label: "Active stylists (salon)", key: "activeStylists" },
+  { label: "Manual sales entries / month (general)", key: "manualSalesEntriesPerMonth" },
 ];
 
 // The numeric-caps counterpart to the old feature-checkmark comparison -
@@ -23,7 +24,12 @@ const ROWS: { label: string; key: keyof (typeof PLAN_LIMITS)["free"] }[] = [
 // checkmark grid no longer says anything useful; what differs is how much
 // of each. Reads straight from PLAN_LIMITS so this can never drift out of
 // sync with what the API actually enforces. Estimates are omitted - they're
-// unlimited/free at every tier, so there's no cap to show.
+// unlimited/free at every tier, so there's no cap to show. Manual sales
+// entries are tagged "(general)" the same way services/stylists are
+// tagged "(salon)" - the cap only applies to general-business accounts;
+// salon has always had unrestricted manual sales entry regardless of tier
+// (see api/sales/route.ts), so this row understates what a salon account
+// actually gets, same caveat the "(salon)" rows already carry in reverse.
 export function PlanCapsTable({
   currentTier,
 }: {
