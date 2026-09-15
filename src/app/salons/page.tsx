@@ -29,7 +29,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
   { feature: "Stylist payouts with PIN confirmation", free: false, basic: false, pro: true },
   { feature: "Void, adjustments & full payout history", free: false, basic: false, pro: true },
   { feature: "PDF commission reports", free: false, basic: false, pro: true },
-  { feature: "Payment method & tax tracking per sale", free: false, basic: false, pro: true },
+  { feature: "Payment method & tax tracking per sale", free: true, basic: false, pro: true },
   { feature: "Client invoicing & estimates (capped)", free: true, basic: false, pro: true },
   { feature: "Unlimited invoicing & payment tracking", free: false, basic: false, pro: true },
   { feature: "Priority support", free: false, basic: false, pro: true },
