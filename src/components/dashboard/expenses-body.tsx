@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
+import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
 import {
   describeRange,
@@ -45,6 +48,7 @@ export function ExpensesBody({
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false);
 
   const existingJobs = useMemo(() => {
     const jobs = new Set<string>(initialJobNames);
@@ -78,9 +82,15 @@ export function ExpensesBody({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
-        <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
+          <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
+        </div>
+        <Button size="sm" onClick={() => setAddExpenseOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Add Expense
+        </Button>
       </div>
 
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
@@ -101,6 +111,13 @@ export function ExpensesBody({
         onOpenChange={(open) => !open && setSelectedReceipt(null)}
         onDeleted={handleDeleted}
         onUpdated={handleUpdated}
+      />
+
+      <ManualExpenseDialog
+        open={addExpenseOpen}
+        onOpenChange={setAddExpenseOpen}
+        existingJobs={existingJobs}
+        onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
       />
     </div>
   );
