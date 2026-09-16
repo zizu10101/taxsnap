@@ -61,6 +61,9 @@ export function HourEntryDialog({
   const [rate, setRate] = useState(
     entry?.rate ?? activeEmployees[0]?.default_hourly_rate ?? 0,
   );
+  const [billableRate, setBillableRate] = useState(
+    entry?.billable_rate ?? activeEmployees[0]?.default_billable_rate ?? 0,
+  );
   const [saving, setSaving] = useState(false);
 
   const employeeSelectItems = useMemo(() => {
@@ -77,9 +80,14 @@ export function HourEntryDialog({
 
   function handleEmployeeChange(id: string) {
     setEmployeeId(id);
-    // Auto-fill rate from the employee's default, but it stays editable.
+    // Auto-fill both rates from the employee's defaults, but they stay
+    // editable - editing billable_rate here for this one entry *is* the
+    // job-specific override, since it's copied not referenced live.
     const employee = activeEmployees.find((e) => e.id === id);
-    if (employee) setRate(employee.default_hourly_rate);
+    if (employee) {
+      setRate(employee.default_hourly_rate);
+      setBillableRate(employee.default_billable_rate);
+    }
   }
 
   async function handleSave() {
@@ -105,6 +113,7 @@ export function HourEntryDialog({
         work_date: workDate,
         hours,
         rate,
+        billable_rate: billableRate,
       };
 
       const res = await fetch(isEditing ? `/api/hours/${entry!.id}` : "/api/hours", {
@@ -205,9 +214,19 @@ export function HourEntryDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="hour-rate">Rate ($/hr)</Label>
-            <NumberInput id="hour-rate" value={rate} onValueChange={setRate} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="hour-rate">Pay rate ($/hr)</Label>
+              <NumberInput id="hour-rate" value={rate} onValueChange={setRate} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hour-billable-rate">Billable rate ($/hr)</Label>
+              <NumberInput
+                id="hour-billable-rate"
+                value={billableRate}
+                onValueChange={setBillableRate}
+              />
+            </div>
           </div>
         </div>
 

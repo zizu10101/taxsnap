@@ -38,6 +38,8 @@ export default async function JobDetailPage({
     { data: employees },
     { data: jobs },
     { data: linkedDocuments },
+    { data: clients },
+    { data: lineItems },
   ] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", id).single(),
     supabase
@@ -57,6 +59,12 @@ export default async function JobDetailPage({
       .select("*, client:clients(*), payments(*)")
       .eq("job_id", id)
       .order("issue_date", { ascending: false }),
+    supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase
+      .from("line_items")
+      .select("*")
+      .eq("is_active", true)
+      .order("description", { ascending: true }),
   ]);
 
   if (!job) notFound();
@@ -93,6 +101,8 @@ export default async function JobDetailPage({
           initialHourEntries={(hourEntries ?? []) as HourEntryWithRelations[]}
           employees={employees ?? []}
           jobs={jobs ?? []}
+          clients={clients ?? []}
+          savedLineItems={lineItems ?? []}
           linkedInvoiceCount={invoiceCount}
           jobRevenue={jobRevenue}
         />

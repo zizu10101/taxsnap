@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     work_date,
     hours,
     rate: rateInput,
+    billable_rate: billableRateInput,
   } = body ?? {};
 
   if (!employee_id) {
@@ -106,10 +107,16 @@ export async function POST(request: Request) {
   }
 
   // Auto-filled from the employee's default rate, but editable per entry
-  // (covers commission workers, raises, job-specific rates).
+  // (covers commission workers, raises, job-specific rates). billable_rate
+  // is the same idea for what's charged to the client - editing it per
+  // entry *is* the job-specific override, since it's copied here rather
+  // than referenced live from the employee.
   const rate = rateInput !== undefined && rateInput !== null
     ? Number(rateInput)
     : employee.default_hourly_rate;
+  const billableRate = billableRateInput !== undefined && billableRateInput !== null
+    ? Number(billableRateInput)
+    : employee.default_billable_rate;
 
   const { data, error } = await supabase
     .from("hour_entries")
@@ -120,6 +127,7 @@ export async function POST(request: Request) {
       work_date: work_date || undefined,
       hours: Number(hours),
       rate,
+      billable_rate: billableRate,
     })
     .select("*, employee:employees(*), job:jobs(*)")
     .single();

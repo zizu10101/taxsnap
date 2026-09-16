@@ -19,7 +19,7 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { name, default_hourly_rate, is_active } = body ?? {};
+  const { name, default_hourly_rate, default_billable_rate, is_active } = body ?? {};
 
   // Same reactivation-cap reasoning as services/[id] and stylists/[id] -
   // only checked when this PATCH would increase the active count
@@ -45,6 +45,9 @@ export async function PATCH(
   }
   if (default_hourly_rate !== undefined) {
     update.default_hourly_rate = Number(default_hourly_rate) || 0;
+  }
+  if (default_billable_rate !== undefined) {
+    update.default_billable_rate = Number(default_billable_rate) || 0;
   }
   if (is_active !== undefined) {
     update.is_active = !!is_active;

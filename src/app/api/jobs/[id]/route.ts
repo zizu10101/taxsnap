@@ -37,6 +37,10 @@ export async function GET(
 
   const totalExpenses = (receipts ?? []).reduce((sum, r) => sum + r.total_amount, 0);
   const totalLaborCost = (hourEntries ?? []).reduce((sum, h) => sum + h.labor_cost, 0);
+  // Reference only, same reasoning as job-detail.tsx - never added into
+  // totalJobCost/revenue here, to avoid double-counting once this labor
+  // is actually invoiced and paid.
+  const totalLaborRevenue = (hourEntries ?? []).reduce((sum, h) => sum + h.labor_revenue, 0);
 
   return NextResponse.json({
     job,
@@ -45,6 +49,7 @@ export async function GET(
     totals: {
       totalExpenses,
       totalLaborCost,
+      totalLaborRevenue,
       totalJobCost: totalExpenses + totalLaborCost,
     },
   });

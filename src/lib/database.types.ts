@@ -408,6 +408,7 @@ export interface Database {
           user_id: string;
           name: string;
           default_hourly_rate: number;
+          default_billable_rate: number;
           is_active: boolean;
           created_at: string;
         };
@@ -416,6 +417,7 @@ export interface Database {
           user_id: string;
           name: string;
           default_hourly_rate?: number;
+          default_billable_rate?: number;
           is_active?: boolean;
           created_at?: string;
         };
@@ -424,6 +426,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           default_hourly_rate?: number;
+          default_billable_rate?: number;
           is_active?: boolean;
           created_at?: string;
         };
@@ -439,6 +442,8 @@ export interface Database {
           hours: number;
           rate: number;
           labor_cost: number;
+          billable_rate: number;
+          labor_revenue: number;
           created_at: string;
         };
         Insert: {
@@ -449,6 +454,7 @@ export interface Database {
           work_date?: string;
           hours: number;
           rate: number;
+          billable_rate?: number;
           created_at?: string;
         };
         Update: {
@@ -459,6 +465,7 @@ export interface Database {
           work_date?: string;
           hours?: number;
           rate?: number;
+          billable_rate?: number;
           created_at?: string;
         };
         Relationships: [

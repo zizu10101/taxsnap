@@ -117,7 +117,8 @@ export function EmployeeList({
                     {!employee.is_active && <Badge variant="outline">Inactive</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatCurrency(employee.default_hourly_rate)}/hr default rate
+                    {formatCurrency(employee.default_hourly_rate)}/hr pay ·{" "}
+                    {formatCurrency(employee.default_billable_rate)}/hr billable
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -147,6 +148,7 @@ export function EmployeeList({
       )}
 
       <EmployeeDialog
+        key={editing?.id ?? "new"}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         employee={editing}

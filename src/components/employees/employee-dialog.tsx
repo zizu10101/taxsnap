@@ -31,6 +31,7 @@ export function EmployeeDialog({
   const isEditing = !!employee;
   const [name, setName] = useState(employee?.name ?? "");
   const [rate, setRate] = useState(employee?.default_hourly_rate ?? 0);
+  const [billableRate, setBillableRate] = useState(employee?.default_billable_rate ?? 0);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
@@ -47,7 +48,11 @@ export function EmployeeDialog({
         {
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, default_hourly_rate: rate }),
+          body: JSON.stringify({
+            name,
+            default_hourly_rate: rate,
+            default_billable_rate: billableRate,
+          }),
         },
       );
       const data = await res.json();
@@ -92,8 +97,21 @@ export function EmployeeDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="emp-rate">Default hourly rate</Label>
+            <Label htmlFor="emp-rate">Default pay rate ($/hr)</Label>
             <NumberInput id="emp-rate" value={rate} onValueChange={setRate} />
+            <p className="text-xs text-muted-foreground">What you pay this employee.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="emp-billable-rate">Default billable rate ($/hr)</Label>
+            <NumberInput
+              id="emp-billable-rate"
+              value={billableRate}
+              onValueChange={setBillableRate}
+            />
+            <p className="text-xs text-muted-foreground">
+              What you charge clients for this employee&apos;s time - separate from pay
+              rate, editable per job when logging hours.
+            </p>
           </div>
         </div>
 

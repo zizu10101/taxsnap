@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookmarkPlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { BookmarkPlus, Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import type {
   Client,
   DocumentType,
   DocumentWithRelations,
+  HourEntryWithRelations,
   LineItem,
 } from "@/lib/database.types";
 
@@ -70,6 +71,7 @@ export function DocumentBuilder({
   clients,
   existingJobs = [],
   savedLineItems = [],
+  presetJob = null,
   onSaved,
   onClientCreated,
 }: {
@@ -80,6 +82,14 @@ export function DocumentBuilder({
   clients: Client[];
   existingJobs?: string[];
   savedLineItems?: LineItem[];
+  // Pre-selects a job with a real, already-known id (e.g. opened from the
+  // Job Detail page's "New Invoice for this job") - the job Select
+  // elsewhere in this dialog only ever carries job *names* for a
+  // brand-new document (the id gets resolved server-side via find-or-
+  // create on save), so this is the one way the "+ Add labor" quick-add
+  // below has a resolvable job_id to fetch hours for before the document
+  // is even saved.
+  presetJob?: { id: string; name: string } | null;
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
@@ -100,9 +110,59 @@ export function DocumentBuilder({
       : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
-  const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
+  const initialJobName = document?.job?.name ?? presetJob?.name ?? null;
+  const initialJobId = document?.job_id ?? presetJob?.id ?? null;
+  const [jobMode, setJobMode] = useState<string>(initialJobName ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  const [loadingLabor, setLoadingLabor] = useState(false);
   const router = useRouter();
+
+  // Only trustworthy while jobMode still matches whatever job the dialog
+  // opened with - the moment the user picks a different job (or types a
+  // new one), there's no resolvable id for it until the document is
+  // actually saved, so the "+ Add labor" button just disappears rather
+  // than risk pulling the wrong job's hours.
+  const effectiveJobId = initialJobId && jobMode === initialJobName ? initialJobId : null;
+
+  async function handleAddLabor() {
+    if (!effectiveJobId) return;
+    setLoadingLabor(true);
+    try {
+      const res = await fetch(`/api/hours?job_id=${effectiveJobId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load logged hours");
+
+      const entries = (data.hourEntries ?? []) as HourEntryWithRelations[];
+      const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
+      const totalRevenue = entries.reduce((sum, e) => sum + e.labor_revenue, 0);
+
+      if (totalHours <= 0) {
+        toast.info("No hours logged for this job yet.");
+        return;
+      }
+
+      // Blended across every entry (different employees/entries can carry
+      // different billable rates) - totalRevenue stays the authoritative
+      // dollar figure either way, this is just for the per-hour display.
+      const blendedRate = Math.round((totalRevenue / totalHours) * 100) / 100;
+
+      setItems((prev) => {
+        const emptyIndex = prev.findIndex((i) => !i.description.trim());
+        const filled = {
+          description: `Labor: ${totalHours} hrs @ ${formatCurrency(blendedRate)}/hr`,
+          quantity: totalHours,
+          unit_price: blendedRate,
+        };
+        if (emptyIndex === -1) return [...prev, filled];
+        return prev.map((it, idx) => (idx === emptyIndex ? filled : it));
+      });
+      toast.success("Labor line item added");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load logged hours");
+    } finally {
+      setLoadingLabor(false);
+    }
+  }
 
   // Client select's value (a uuid) never matches its displayed label (the
   // client's name), which Base UI's Select can't resolve without an
@@ -373,23 +433,46 @@ export function DocumentBuilder({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Line items</Label>
-              {savedLineItems.length > 0 && (
-                <Select value={insertPick} onValueChange={insertSavedItem} items={savedItemSelectItems}>
-                  <SelectTrigger className="h-8 w-auto max-w-[200px] text-xs">
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedLineItems.map((saved) => (
-                      <SelectItem key={saved.id} value={saved.id}>
-                        {saved.description} — {formatCurrency(saved.unit_price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <div className="flex items-center gap-2">
+                {effectiveJobId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={handleAddLabor}
+                    disabled={loadingLabor}
+                  >
+                    {loadingLabor ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Clock className="h-3.5 w-3.5" />
+                    )}
+                    Add labor
+                  </Button>
+                )}
+                {savedLineItems.length > 0 && (
+                  <Select
+                    value={insertPick}
+                    onValueChange={insertSavedItem}
+                    items={savedItemSelectItems}
+                  >
+                    <SelectTrigger className="h-8 w-auto max-w-[200px] text-xs">
+                      <BookmarkPlus className="h-3.5 w-3.5" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedLineItems.map((saved) => (
+                        <SelectItem key={saved.id} value={saved.id}>
+                          {saved.description} — {formatCurrency(saved.unit_price)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             {items.map((item, i) => {
               const lineTotal =

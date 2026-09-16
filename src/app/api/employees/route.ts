@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const { supabase, user } = result;
 
   const body = await request.json();
-  const { name, default_hourly_rate } = body ?? {};
+  const { name, default_hourly_rate, default_billable_rate } = body ?? {};
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Employee name is required." }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       name: toTitleCase(name),
       default_hourly_rate: Number(default_hourly_rate) || 0,
+      default_billable_rate: Number(default_billable_rate) || 0,
     })
     .select()
     .single();

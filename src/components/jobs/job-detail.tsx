@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Receipt as ReceiptIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileText, Plus, Receipt as ReceiptIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HourEntryDialog } from "@/components/hours/hour-entry-dialog";
+import { DocumentBuilder } from "@/components/invoices/document-builder";
 import type {
+  Client,
   Employee,
   HourEntryWithRelations,
   Job,
+  LineItem,
   Receipt,
 } from "@/lib/database.types";
 
@@ -38,6 +42,8 @@ export function JobDetail({
   initialHourEntries,
   employees,
   jobs,
+  clients,
+  savedLineItems,
   linkedInvoiceCount,
   jobRevenue,
 }: {
@@ -46,17 +52,30 @@ export function JobDetail({
   initialHourEntries: HourEntryWithRelations[];
   employees: Employee[];
   jobs: Job[];
+  clients: Client[];
+  savedLineItems: LineItem[];
   linkedInvoiceCount: number;
   jobRevenue: number;
 }) {
   const [hourEntries, setHourEntries] = useState(initialHourEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [invoiceBuilderOpen, setInvoiceBuilderOpen] = useState(false);
   const receipts = initialReceipts;
+  const router = useRouter();
 
   const totalExpenses = receipts.reduce((sum, r) => sum + r.total_amount, 0);
   const totalLaborCost = hourEntries.reduce((sum, h) => sum + h.labor_cost, 0);
   const totalJobCost = totalExpenses + totalLaborCost;
   const estProfit = jobRevenue - totalJobCost;
+
+  // Reference only - deliberately NOT added into jobRevenue/estProfit
+  // above. Once this labor is actually invoiced (a real document_items
+  // line) and the client pays, that payment already flows into jobRevenue
+  // through the real payments pipeline (see lib/job-revenue.ts) - adding
+  // labor_revenue here too would double-count it. This just answers "what
+  // is the labor logged so far worth if billed out."
+  const totalLaborRevenue = hourEntries.reduce((sum, h) => sum + h.labor_revenue, 0);
+  const laborMargin = totalLaborRevenue - totalLaborCost;
 
   function upsertEntry(entry: HourEntryWithRelations) {
     setHourEntries((prev) => {
@@ -89,6 +108,43 @@ export function JobDetail({
         </CardContent>
       </Card>
 
+      {hourEntries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Labor billable value</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Billable value</p>
+              <p className="font-semibold tabular-nums">
+                {formatCurrency(totalLaborRevenue)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Labor cost</p>
+              <p className="font-semibold tabular-nums">{formatCurrency(totalLaborCost)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Margin</p>
+              <p
+                className={`font-semibold tabular-nums ${laborMargin >= 0 ? "text-success" : "text-destructive"}`}
+              >
+                {formatCurrency(laborMargin)}
+              </p>
+            </div>
+          </CardContent>
+          <CardContent className="pt-0">
+            <p className="text-[11px] text-muted-foreground">
+              What this logged labor is worth if billed to the client, at
+              each entry&apos;s billable rate - reference only, not
+              included in Est. profit below (that stays based on actual
+              invoice payments received, so billing this labor out and
+              getting paid isn&apos;t double-counted).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Est. profit</CardTitle>
@@ -96,8 +152,8 @@ export function JobDetail({
         <CardContent>
           {linkedInvoiceCount === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No invoices linked to this job yet — pick this job when
-              creating or editing an invoice to track revenue here.
+              No invoices linked to this job yet — create one below, or
+              pick this job when creating or editing an invoice elsewhere.
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -130,8 +186,29 @@ export function JobDetail({
               invoice total.
             </p>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => setInvoiceBuilderOpen(true)}
+          >
+            <FileText className="h-4 w-4" />
+            New invoice for this job
+          </Button>
         </CardContent>
       </Card>
+
+      <DocumentBuilder
+        open={invoiceBuilderOpen}
+        onOpenChange={setInvoiceBuilderOpen}
+        defaultType="invoice"
+        clients={clients}
+        existingJobs={jobs.map((j) => j.name)}
+        savedLineItems={savedLineItems}
+        presetJob={{ id: job.id, name: job.name }}
+        onSaved={() => router.refresh()}
+        onClientCreated={() => router.refresh()}
+      />
 
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg font-semibold">Hours logged</h2>

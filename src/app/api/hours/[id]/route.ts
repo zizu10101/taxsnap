@@ -14,7 +14,7 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { employee_id, job_id, work_date, hours, rate } = body ?? {};
+  const { employee_id, job_id, work_date, hours, rate, billable_rate } = body ?? {};
 
   const update: HourEntryUpdate = {};
 
@@ -50,6 +50,7 @@ export async function PATCH(
     update.hours = Number(hours);
   }
   if (rate !== undefined) update.rate = Number(rate);
+  if (billable_rate !== undefined) update.billable_rate = Number(billable_rate);
 
   const { data, error } = await supabase
     .from("hour_entries")
