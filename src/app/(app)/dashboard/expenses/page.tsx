@@ -9,9 +9,11 @@ export const metadata: Metadata = {
   title: "Expenses — TaxSnap",
 };
 
-// Open to every business type and tier - receipts/expenses aren't Pro- or
-// salon-gated (unlike Estimates), same reasoning as the main dashboard
-// page's own receipt query below.
+// General-business only, same precedent as dashboard/overview/page.tsx -
+// a salon account hitting this URL directly redirects to /dashboard
+// rather than rendering. Salon accounts already see their own receipts
+// mixed into the main dashboard page and don't get an Expenses nav tab
+// (see dashboard-header.tsx).
 export default async function ExpensesPage() {
   const supabase = await createClient();
   const {
@@ -27,6 +29,10 @@ export default async function ExpensesPage() {
     )
     .eq("id", user.id)
     .single();
+
+  if (profile?.business_type === "salon") {
+    redirect("/dashboard");
+  }
 
   const [{ data: receipts }, { data: jobs }] = await Promise.all([
     supabase

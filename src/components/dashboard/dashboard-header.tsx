@@ -266,27 +266,16 @@ export function DashboardHeader({
               </>
             )}
             {businessType === "salon" && (
-              <>
-                <Button
-                  variant={active === "commission" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1 min-w-[30%] justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-                  nativeButton={false}
-                  render={<Link href="/dashboard/commission" />}
-                >
-                  <Scissors className="h-4 w-4" />
-                  Register
-                </Button>
-                <Button
-                  variant={active === "expenses" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
-                  nativeButton={false}
-                  render={<Link href="/dashboard/expenses" />}
-                >
-                  Expenses
-                </Button>
-              </>
+              <Button
+                variant={active === "commission" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                nativeButton={false}
+                render={<Link href="/dashboard/commission" />}
+              >
+                <Scissors className="h-4 w-4" />
+                Register
+              </Button>
             )}
           </div>
         </nav>
