@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedMonthlyLimit, limitReachedMessage } from "@/lib/plan-limits";
+import { getNextDocumentNumber } from "@/lib/document-number";
 
 // Duplicates an estimate as a new draft invoice, carrying over the client,
 // job link, and line items. The original estimate is left untouched.
@@ -59,6 +60,8 @@ export async function POST(
     );
   }
 
+  const documentNumber = await getNextDocumentNumber(supabase, user.id, "invoice");
+
   const { data: invoice, error: insertError } = await supabase
     .from("documents")
     .insert({
@@ -73,6 +76,7 @@ export async function POST(
       hst_amount: estimate.hst_amount,
       total_amount: estimate.total_amount,
       converted_from_id: estimate.id,
+      document_number: documentNumber,
     })
     .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();

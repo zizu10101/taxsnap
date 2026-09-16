@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { generateDocumentPdf } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
+import { formatDocumentNumber } from "@/lib/document-number";
 import type { DocumentWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
@@ -64,7 +65,7 @@ export function ShareDocumentButton({
   const [downloading, setDownloading] = useState(false);
 
   const label = document.type === "invoice" ? "Invoice" : "Estimate";
-  const shortId = document.id.slice(0, 8).toUpperCase();
+  const shortId = formatDocumentNumber(document.type, document.document_number);
 
   // Uses the Web Share API so the PDF hands off to whatever the user picks
   // in their own device's native share sheet (WhatsApp, Messages, Mail,
@@ -75,7 +76,7 @@ export function ShareDocumentButton({
     setSharing(true);
     try {
       const pdfBlob = await buildPdf(document, business, logoPath);
-      const filename = `${label}-${shortId}.pdf`;
+      const filename = `${shortId}.pdf`;
       const file = new File([pdfBlob], filename, { type: "application/pdf" });
 
       await navigator.share({
@@ -95,7 +96,7 @@ export function ShareDocumentButton({
     setDownloading(true);
     try {
       const pdfBlob = await buildPdf(document, business, logoPath);
-      downloadBlob(`${label}-${shortId}.pdf`, pdfBlob);
+      downloadBlob(`${shortId}.pdf`, pdfBlob);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     } finally {
@@ -108,11 +109,11 @@ export function ShareDocumentButton({
   // sitting right next to it.
   function handleEmail() {
     const to = document.client?.email ?? "";
-    const subject = `${label} #${shortId} from ${business.name ?? "us"}`;
+    const subject = `${label} ${shortId} from ${business.name ?? "us"}`;
     const body = [
       `Hi ${document.client?.name ?? "there"},`,
       "",
-      `Please find your ${label.toLowerCase()} #${shortId} attached.`,
+      `Please find your ${label.toLowerCase()} ${shortId} attached.`,
       "",
       `Total: ${formatCurrency(document.total_amount)}`,
       "",

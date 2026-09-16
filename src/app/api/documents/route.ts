@@ -6,6 +6,7 @@ import {
   wouldExceedTotalLimit,
   limitReachedMessage,
 } from "@/lib/plan-limits";
+import { getNextDocumentNumber } from "@/lib/document-number";
 import type { DocumentType } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -185,6 +186,7 @@ export async function POST(request: Request) {
   );
   const hstAmount = round2(subtotal * ONTARIO_HST_RATE);
   const totalAmount = round2(subtotal + hstAmount);
+  const documentNumber = await getNextDocumentNumber(supabase, user.id, type);
 
   const { data: document, error: documentError } = await supabase
     .from("documents")
@@ -199,6 +201,7 @@ export async function POST(request: Request) {
       subtotal,
       hst_amount: hstAmount,
       total_amount: totalAmount,
+      document_number: documentNumber,
     })
     .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();

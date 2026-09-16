@@ -164,6 +164,7 @@ export interface Database {
           total_amount: number;
           converted_from_id: string | null;
           excluded_from_hst: boolean;
+          document_number: number;
           created_at: string;
           updated_at: string;
         };
@@ -181,6 +182,7 @@ export interface Database {
           total_amount?: number;
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
+          document_number: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -198,6 +200,7 @@ export interface Database {
           total_amount?: number;
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
+          document_number?: number;
           created_at?: string;
           updated_at?: string;
         };

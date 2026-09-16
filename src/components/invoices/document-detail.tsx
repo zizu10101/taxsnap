@@ -32,6 +32,7 @@ import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
+import { formatDocumentNumber } from "@/lib/document-number";
 import type {
   Client,
   DocumentStatus,
@@ -103,7 +104,7 @@ export function DocumentDetail({
   );
 
   const label = doc.type === "invoice" ? "Invoice" : "Estimate";
-  const shortId = doc.id.slice(0, 8).toUpperCase();
+  const shortId = formatDocumentNumber(doc.type, doc.document_number);
   const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = doc.total_amount - paidToDate;
 
@@ -341,7 +342,7 @@ export function DocumentDetail({
               <p className="text-2xl font-bold uppercase tracking-tight">
                 {label}
               </p>
-              <p className="text-sm text-muted-foreground">#{shortId}</p>
+              <p className="text-sm text-muted-foreground">{shortId}</p>
             </div>
             {doc.status !== "paid" && (
               <Badge className="print:hidden">{doc.status}</Badge>

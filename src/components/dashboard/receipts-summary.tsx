@@ -3,12 +3,8 @@
 import { useMemo } from "react";
 import { PiggyBank, Receipt as ReceiptIcon, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { computeExpenseSummary } from "@/lib/expense-summary";
 import type { Receipt } from "@/lib/database.types";
-
-// Rough blended self-employment + federal tax rate used to estimate
-// "money saved" from a deduction. This is an estimate for motivation, not
-// tax advice - actual savings depend on the user's bracket and situation.
-const ESTIMATED_TAX_RATE = 0.3;
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -26,12 +22,19 @@ export function ReceiptsSummary({
   receipts: Receipt[];
   rangeLabel: string;
 }) {
+  // Same computeExpenseSummary() the Overview page and accountant export
+  // use - this card previously summed raw total_amount for "Deductible
+  // spend" and derived "Est. tax savings" from that same unrestricted
+  // figure, which overstated both for a period with Meals expenses (that
+  // category gets only a 50% deduction, same restriction as its HST ITC -
+  // see lib/hst.ts). Using the shared function keeps this card's numbers
+  // from disagreeing with the more detailed views elsewhere in the app.
   const stats = useMemo(() => {
-    const totalDeductible = receipts.reduce((sum, r) => sum + r.total_amount, 0);
+    const summary = computeExpenseSummary(receipts);
     return {
       count: receipts.length,
-      totalDeductible,
-      estimatedSavings: totalDeductible * ESTIMATED_TAX_RATE,
+      deductibleSpend: summary.deductibleSpend,
+      estHstReclaimable: summary.estHstReclaimable,
     };
   }, [receipts]);
 
@@ -50,7 +53,7 @@ export function ReceiptsSummary({
         <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
           <span className="text-xl font-bold tabular-nums">
-            {formatCurrency(stats.totalDeductible)}
+            {formatCurrency(stats.deductibleSpend)}
           </span>
           <span className="text-xs text-muted-foreground">Deductible spend</span>
         </CardContent>
@@ -59,9 +62,9 @@ export function ReceiptsSummary({
         <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
           <PiggyBank className="h-4 w-4 text-success" />
           <span className="text-xl font-bold tabular-nums text-success">
-            {formatCurrency(stats.estimatedSavings)}
+            {formatCurrency(stats.estHstReclaimable)}
           </span>
-          <span className="text-xs text-muted-foreground">Est. tax savings</span>
+          <span className="text-xs text-muted-foreground">Est. HST reclaimable</span>
         </CardContent>
       </Card>
     </div>

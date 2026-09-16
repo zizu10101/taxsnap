@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { formatDocumentNumber } from "@/lib/document-number";
 import type { DocumentWithRelations, CommissionEntryWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
@@ -340,7 +341,7 @@ export async function generateDocumentPdf(
     marginX,
     y,
     label,
-    `#${doc.id.slice(0, 8).toUpperCase()}`,
+    formatDocumentNumber(doc.type, doc.document_number),
     logoDataUrl,
   );
 
