@@ -138,30 +138,59 @@ export function DocumentBuilder({
       if (!res.ok) throw new Error(data.error || "Failed to load logged hours");
 
       const entries = (data.hourEntries ?? []) as HourEntryWithRelations[];
-      const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
-      const totalRevenue = entries.reduce((sum, e) => sum + e.labor_revenue, 0);
-
-      if (totalHours <= 0) {
+      if (entries.length === 0) {
         toast.info("No hours logged for this job yet.");
         return;
       }
 
-      // Blended across every entry (different employees/entries can carry
-      // different billable rates) - totalRevenue stays the authoritative
-      // dollar figure either way, this is just for the per-hour display.
-      const blendedRate = Math.round((totalRevenue / totalHours) * 100) / 100;
+      // Grouped by employee_id (not name - two employees could share a
+      // name) rather than blended across the whole job, so a lead at
+      // $40/hr and a helper at $20/hr each get their own accurate line
+      // instead of averaging into one misleading rate. The rate is still
+      // blended *within* one employee's own entries (revenue/hours),
+      // which correctly handles a rate change mid-job rather than
+      // assuming one employee only ever has one rate.
+      const byEmployee = new Map<string, { name: string; hours: number; revenue: number }>();
+      for (const entry of entries) {
+        const existing = byEmployee.get(entry.employee_id);
+        if (existing) {
+          existing.hours += entry.hours;
+          existing.revenue += entry.labor_revenue;
+        } else {
+          byEmployee.set(entry.employee_id, {
+            name: entry.employee.name,
+            hours: entry.hours,
+            revenue: entry.labor_revenue,
+          });
+        }
+      }
+
+      // Sorted by name for a stable order (so the same employee always
+      // lands on the same "Labor N" across repeated clicks) - the name
+      // itself is never shown on the invoice, real employee names
+      // shouldn't appear on a client-facing document.
+      const perEmployee = [...byEmployee.values()].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      const newRows = perEmployee.map((emp, index) => {
+        const rate = emp.hours > 0 ? Math.round((emp.revenue / emp.hours) * 100) / 100 : 0;
+        return {
+          description: `Labor ${index + 1}: ${emp.hours} hrs @ ${formatCurrency(rate)}/hr`,
+          quantity: emp.hours,
+          unit_price: rate,
+        };
+      });
 
       setItems((prev) => {
         const emptyIndex = prev.findIndex((i) => !i.description.trim());
-        const filled = {
-          description: `Labor: ${totalHours} hrs @ ${formatCurrency(blendedRate)}/hr`,
-          quantity: totalHours,
-          unit_price: blendedRate,
-        };
-        if (emptyIndex === -1) return [...prev, filled];
-        return prev.map((it, idx) => (idx === emptyIndex ? filled : it));
+        if (emptyIndex === -1) return [...prev, ...newRows];
+        const [first, ...rest] = newRows;
+        const withFirstFilled = prev.map((it, idx) => (idx === emptyIndex ? first : it));
+        return [...withFirstFilled, ...rest];
       });
-      toast.success("Labor line item added");
+      toast.success(
+        `${newRows.length} labor line item${newRows.length === 1 ? "" : "s"} added`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load logged hours");
     } finally {
