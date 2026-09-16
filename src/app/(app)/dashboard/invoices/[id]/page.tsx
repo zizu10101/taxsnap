@@ -39,7 +39,7 @@ export default async function InvoiceDetailPage({
         .eq("type", "invoice")
         .single(),
       supabase.from("clients").select("*").order("name", { ascending: true }),
-      supabase.from("jobs").select("name").order("name", { ascending: true }),
+      supabase.from("jobs").select("id, name").order("name", { ascending: true }),
       supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
@@ -58,7 +58,7 @@ export default async function InvoiceDetailPage({
         <DocumentDetail
           document={document as DocumentWithRelations}
           clients={clients ?? []}
-          jobs={(jobs ?? []).map((j) => j.name)}
+          jobs={jobs ?? []}
           lineItems={lineItems ?? []}
           business={{
             name: profile?.business_name ?? null,

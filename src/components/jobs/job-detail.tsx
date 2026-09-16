@@ -203,7 +203,7 @@ export function JobDetail({
         onOpenChange={setInvoiceBuilderOpen}
         defaultType="invoice"
         clients={clients}
-        existingJobs={jobs.map((j) => j.name)}
+        jobs={jobs}
         savedLineItems={savedLineItems}
         presetJob={{ id: job.id, name: job.name }}
         onSaved={() => router.refresh()}

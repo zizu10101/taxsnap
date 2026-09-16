@@ -79,7 +79,7 @@ export function DocumentDetail({
 }: {
   document: DocumentWithRelations;
   clients: Client[];
-  jobs?: string[];
+  jobs?: { id: string; name: string }[];
   lineItems?: LineItem[];
   business: BusinessInfo;
   logoPath: string | null;
@@ -553,7 +553,7 @@ export function DocumentDetail({
         defaultType={doc.type}
         document={doc}
         clients={allClients}
-        existingJobs={jobs}
+        jobs={jobs}
         savedLineItems={lineItems}
         onSaved={(updated) => setDoc(updated)}
         onClientCreated={(client) => setAllClients((prev) => [...prev, client])}

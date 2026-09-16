@@ -69,7 +69,7 @@ export function DocumentBuilder({
   defaultType,
   document,
   clients,
-  existingJobs = [],
+  jobs = [],
   savedLineItems = [],
   presetJob = null,
   onSaved,
@@ -80,15 +80,14 @@ export function DocumentBuilder({
   defaultType: DocumentType;
   document?: DocumentWithRelations | null;
   clients: Client[];
-  existingJobs?: string[];
+  // Real ids, not just names - lets "+ Add labor" below resolve a job's
+  // id (to fetch its hours) the moment the user picks it from this
+  // dialog's own job Select, not only when pre-seeded via presetJob or
+  // when editing an already-saved document.
+  jobs?: { id: string; name: string }[];
   savedLineItems?: LineItem[];
   // Pre-selects a job with a real, already-known id (e.g. opened from the
-  // Job Detail page's "New Invoice for this job") - the job Select
-  // elsewhere in this dialog only ever carries job *names* for a
-  // brand-new document (the id gets resolved server-side via find-or-
-  // create on save), so this is the one way the "+ Add labor" quick-add
-  // below has a resolvable job_id to fetch hours for before the document
-  // is even saved.
+  // Job Detail page's "New Invoice for this job").
   presetJob?: { id: string; name: string } | null;
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
@@ -117,12 +116,18 @@ export function DocumentBuilder({
   const [loadingLabor, setLoadingLabor] = useState(false);
   const router = useRouter();
 
-  // Only trustworthy while jobMode still matches whatever job the dialog
-  // opened with - the moment the user picks a different job (or types a
-  // new one), there's no resolvable id for it until the document is
-  // actually saved, so the "+ Add labor" button just disappears rather
-  // than risk pulling the wrong job's hours.
-  const effectiveJobId = initialJobId && jobMode === initialJobName ? initialJobId : null;
+  // Resolves as soon as jobMode names any real, existing job - not just
+  // the one the dialog opened with. NEW_JOB (a job typed inline that
+  // doesn't exist yet) and NO_JOB both correctly miss this map, so
+  // "+ Add labor" stays unavailable for them - a job with no id can't
+  // have logged hours yet anyway. Falls back to initialJobId for the
+  // presetJob/editing-existing-document case on the off chance that job
+  // isn't present in the `jobs` list passed in (shouldn't normally
+  // happen, since it's fetched from the same table, but costs nothing to
+  // guard against).
+  const jobIdByName = useMemo(() => new Map(jobs.map((j) => [j.name, j.id])), [jobs]);
+  const effectiveJobId =
+    jobIdByName.get(jobMode) ?? (jobMode === initialJobName ? initialJobId : null);
 
   async function handleAddLabor() {
     if (!effectiveJobId) return;
@@ -175,9 +180,9 @@ export function DocumentBuilder({
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
-    for (const job of existingJobs) map[job] = job;
+    for (const job of jobs) map[job.name] = job.name;
     return map;
-  }, [existingJobs]);
+  }, [jobs]);
 
   // Saved-item picker's value (an id) never matches its displayed label
   // (description + price), same fix as the client/job selects above.
@@ -395,9 +400,9 @@ export function DocumentBuilder({
               <SelectContent>
                 <SelectItem value={NO_JOB}>No job</SelectItem>
                 <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
-                {existingJobs.map((job) => (
-                  <SelectItem key={job} value={job}>
-                    {job}
+                {jobs.map((job) => (
+                  <SelectItem key={job.id} value={job.name}>
+                    {job.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -495,7 +500,7 @@ export function DocumentBuilder({
                       onClick={() =>
                         setItems((prev) => prev.filter((_, idx) => idx !== i))
                       }
-                      disabled={items.length === 1}
+                      title="Remove line item"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -64,7 +64,7 @@ export function DocumentList({
   basePath: string;
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
-  initialJobs?: string[];
+  initialJobs?: { id: string; name: string }[];
   initialLineItems?: LineItem[];
   initialProfile: BusinessProfileFields;
   // Hides the Estimates toggle below for salon accounts - Estimates
@@ -273,7 +273,7 @@ export function DocumentList({
         onOpenChange={setBuilderOpen}
         defaultType={type}
         clients={clients}
-        existingJobs={initialJobs}
+        jobs={initialJobs}
         savedLineItems={initialLineItems}
         onSaved={(doc) => setDocuments((prev) => [doc, ...prev])}
         onClientCreated={(client) => setClients((prev) => [...prev, client])}

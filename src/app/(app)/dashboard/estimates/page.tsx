@@ -44,7 +44,7 @@ export default async function EstimatesPage({
         .eq("type", "estimate")
         .order("issue_date", { ascending: false }),
       supabase.from("clients").select("*").order("name", { ascending: true }),
-      supabase.from("jobs").select("name").order("name", { ascending: true }),
+      supabase.from("jobs").select("id, name").order("name", { ascending: true }),
       supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
@@ -99,7 +99,7 @@ export default async function EstimatesPage({
           basePath="/dashboard/estimates"
           initialDocuments={documents ?? []}
           initialClients={clients ?? []}
-          initialJobs={(jobs ?? []).map((j) => j.name)}
+          initialJobs={jobs ?? []}
           initialLineItems={lineItems ?? []}
           businessType={profile?.business_type ?? "general"}
           subscriptionStatus={profile?.subscription_status ?? "free"}
