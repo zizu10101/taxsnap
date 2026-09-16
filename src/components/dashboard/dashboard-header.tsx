@@ -76,7 +76,7 @@ export function DashboardHeader({
   // api/profile/logo/route.ts) with a small "Powered by TaxSnap" line
   // underneath, keeping the brand attributed without crowding it out.
   logoPath: string | null;
-  active?: "estimates" | "invoices" | "jobs" | "commission" | "overview";
+  active?: "estimates" | "invoices" | "jobs" | "commission" | "overview" | "expenses";
 }) {
   const { role, hasOwnerPin, relock } = useAppLock();
   const isStaffMode = role === "staff";
@@ -198,7 +198,15 @@ export function DashboardHeader({
           route-level block). */}
       {!isStaffMode && (
         <nav className="border-t bg-background">
-          <div className="mx-auto flex max-w-2xl gap-2 px-4 py-2">
+          {/* flex-wrap (not a hard 4-max) - a general Pro account now has
+              5 tabs (Estimates/Invoices/Jobs/Expenses/Overview). The old
+              nowrap row only ever verified 4 flex-1 text buttons fit a
+              ~390px phone width; adding a 5th to that same nowrap row
+              would clip past the screen edge the same way icon+label did
+              before this row dropped its icons. Wrapping to two rows
+              (3+2) instead keeps every button readable without touching
+              that already-verified 4-button width. */}
+          <div className="mx-auto flex max-w-2xl flex-wrap gap-2 px-4 py-2">
             {businessType !== "salon" && (
               <>
                 {/* Text-only, no icons - same reasoning as CommissionNav's
@@ -211,7 +219,7 @@ export function DashboardHeader({
                 <Button
                   variant={active === "estimates" ? "default" : "outline"}
                   size="sm"
-                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
                   nativeButton={false}
                   render={<Link href="/dashboard/estimates" />}
                 >
@@ -220,7 +228,7 @@ export function DashboardHeader({
                 <Button
                   variant={active === "invoices" ? "default" : "outline"}
                   size="sm"
-                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
                   nativeButton={false}
                   render={<Link href="/dashboard/invoices" />}
                 >
@@ -229,17 +237,26 @@ export function DashboardHeader({
                 <Button
                   variant={active === "jobs" ? "default" : "outline"}
                   size="sm"
-                  className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
                   nativeButton={false}
                   render={<Link href="/dashboard/jobs" />}
                 >
                   Jobs
                 </Button>
+                <Button
+                  variant={active === "expenses" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/expenses" />}
+                >
+                  Expenses
+                </Button>
                 {subscriptionStatus === "pro" && (
                   <Button
                     variant={active === "overview" ? "default" : "outline"}
                     size="sm"
-                    className="flex-1 justify-center hover:bg-primary/10 hover:text-primary"
+                    className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
                     nativeButton={false}
                     render={<Link href="/dashboard/overview" />}
                   >
@@ -249,16 +266,27 @@ export function DashboardHeader({
               </>
             )}
             {businessType === "salon" && (
-              <Button
-                variant={active === "commission" ? "default" : "outline"}
-                size="sm"
-                className="flex-1 justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
-                nativeButton={false}
-                render={<Link href="/dashboard/commission" />}
-              >
-                <Scissors className="h-4 w-4" />
-                Register
-              </Button>
+              <>
+                <Button
+                  variant={active === "commission" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 min-w-[30%] justify-center gap-1.5 hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/commission" />}
+                >
+                  <Scissors className="h-4 w-4" />
+                  Register
+                </Button>
+                <Button
+                  variant={active === "expenses" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/expenses" />}
+                >
+                  Expenses
+                </Button>
+              </>
             )}
           </div>
         </nav>

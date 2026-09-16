@@ -315,6 +315,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      line_items: {
+        Row: {
+          id: string;
+          user_id: string;
+          description: string;
+          unit_price: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          description: string;
+          unit_price?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          unit_price?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       employees: {
         Row: {
           id: string;
@@ -810,6 +834,7 @@ export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"]
 export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
+export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
 export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
 export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];

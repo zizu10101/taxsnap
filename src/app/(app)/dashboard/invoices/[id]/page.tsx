@@ -30,16 +30,18 @@ export default async function InvoiceDetailPage({
     .eq("id", user.id)
     .single();
 
-  const [{ data: document }, { data: clients }, { data: jobs }] = await Promise.all([
-    supabase
-      .from("documents")
-      .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
-      .eq("id", id)
-      .eq("type", "invoice")
-      .single(),
-    supabase.from("clients").select("*").order("name", { ascending: true }),
-    supabase.from("jobs").select("name").order("name", { ascending: true }),
-  ]);
+  const [{ data: document }, { data: clients }, { data: jobs }, { data: lineItems }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
+        .eq("id", id)
+        .eq("type", "invoice")
+        .single(),
+      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase.from("jobs").select("name").order("name", { ascending: true }),
+      supabase.from("line_items").select("*").order("description", { ascending: true }),
+    ]);
 
   if (!document) notFound();
 
@@ -57,6 +59,7 @@ export default async function InvoiceDetailPage({
           document={document as DocumentWithRelations}
           clients={clients ?? []}
           jobs={(jobs ?? []).map((j) => j.name)}
+          lineItems={lineItems ?? []}
           business={{
             name: profile?.business_name ?? null,
             email: profile?.business_email || user.email || "",

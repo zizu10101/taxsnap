@@ -36,15 +36,17 @@ export default async function EstimatesPage({
     .eq("id", user.id)
     .single();
 
-  const [{ data: documents }, { data: clients }, { data: jobs }] = await Promise.all([
-    supabase
-      .from("documents")
-      .select("*, client:clients(*), job:jobs(*), payments(*)")
-      .eq("type", "estimate")
-      .order("issue_date", { ascending: false }),
-    supabase.from("clients").select("*").order("name", { ascending: true }),
-    supabase.from("jobs").select("name").order("name", { ascending: true }),
-  ]);
+  const [{ data: documents }, { data: clients }, { data: jobs }, { data: lineItems }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("*, client:clients(*), job:jobs(*), payments(*)")
+        .eq("type", "estimate")
+        .order("issue_date", { ascending: false }),
+      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase.from("jobs").select("name").order("name", { ascending: true }),
+      supabase.from("line_items").select("*").order("description", { ascending: true }),
+    ]);
 
   let convertedMap: Record<string, string> = {};
   if (documents?.length) {
@@ -90,6 +92,7 @@ export default async function EstimatesPage({
           initialDocuments={documents ?? []}
           initialClients={clients ?? []}
           initialJobs={(jobs ?? []).map((j) => j.name)}
+          initialLineItems={lineItems ?? []}
           businessType={profile?.business_type ?? "general"}
           subscriptionStatus={profile?.subscription_status ?? "free"}
           initialProfile={{

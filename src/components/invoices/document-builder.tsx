@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { BookmarkPlus, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -24,7 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
-import type { Client, DocumentType, DocumentWithRelations } from "@/lib/database.types";
+import type {
+  Client,
+  DocumentType,
+  DocumentWithRelations,
+  LineItem,
+} from "@/lib/database.types";
 
 const NEW_CLIENT = "__new__";
 
@@ -37,9 +43,13 @@ interface LineItemDraft {
   description: string;
   quantity: number;
   unit_price: number;
+  /** Save this item to the reusable saved-items list on submit. */
+  saveForReuse?: boolean;
 }
 
 const EMPTY_ITEM: LineItemDraft = { description: "", quantity: 1, unit_price: 0 };
+
+const INSERT_SAVED_PLACEHOLDER = "__pick_saved_item__";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -59,6 +69,7 @@ export function DocumentBuilder({
   document,
   clients,
   existingJobs = [],
+  savedLineItems = [],
   onSaved,
   onClientCreated,
 }: {
@@ -68,6 +79,7 @@ export function DocumentBuilder({
   document?: DocumentWithRelations | null;
   clients: Client[];
   existingJobs?: string[];
+  savedLineItems?: LineItem[];
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
@@ -106,6 +118,38 @@ export function DocumentBuilder({
     for (const job of existingJobs) map[job] = job;
     return map;
   }, [existingJobs]);
+
+  // Saved-item picker's value (an id) never matches its displayed label
+  // (description + price), same fix as the client/job selects above.
+  const [insertPick, setInsertPick] = useState(INSERT_SAVED_PLACEHOLDER);
+  const savedItemSelectItems = useMemo(() => {
+    const map: Record<string, string> = {
+      [INSERT_SAVED_PLACEHOLDER]: "Insert a saved item...",
+    };
+    for (const item of savedLineItems) {
+      map[item.id] = `${item.description} — ${formatCurrency(item.unit_price)}`;
+    }
+    return map;
+  }, [savedLineItems]);
+
+  function insertSavedItem(id: string | null) {
+    const saved = savedLineItems.find((i) => i.id === id);
+    if (!saved) return;
+    setItems((prev) => {
+      // Reuse the first still-empty row instead of always appending, so
+      // picking a saved item right after opening the dialog (still just
+      // one blank row) doesn't leave that blank row behind.
+      const emptyIndex = prev.findIndex((i) => !i.description.trim());
+      const filled = {
+        description: saved.description,
+        quantity: 1,
+        unit_price: saved.unit_price,
+      };
+      if (emptyIndex === -1) return [...prev, filled];
+      return prev.map((i, idx) => (idx === emptyIndex ? filled : i));
+    });
+    setInsertPick(INSERT_SAVED_PLACEHOLDER);
+  }
 
   function handleJobModeChange(value: string) {
     setJobMode(value);
@@ -179,6 +223,22 @@ export function DocumentBuilder({
         onClientCreated(saved.client);
       }
       onSaved(saved);
+
+      // Best-effort: save any items the user flagged for reuse. Failures
+      // here (e.g. the saved-items cap) shouldn't block the document save
+      // that already succeeded, so these are fire-and-forget.
+      const toSave = cleanItems.filter((i) => i.saveForReuse);
+      for (const item of toSave) {
+        fetch("/api/line-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: item.description,
+            unit_price: item.unit_price,
+          }),
+        }).catch(() => {});
+      }
+
       toast.success(isEditing ? `${type === "invoice" ? "Invoice" : "Estimate"} updated` : `${type === "invoice" ? "Invoice" : "Estimate"} created`);
       onOpenChange(false);
     } catch (err) {
@@ -313,7 +373,24 @@ export function DocumentBuilder({
           </div>
 
           <div className="space-y-2">
-            <Label>Line items</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Line items</Label>
+              {savedLineItems.length > 0 && (
+                <Select value={insertPick} onValueChange={insertSavedItem} items={savedItemSelectItems}>
+                  <SelectTrigger className="h-8 w-auto max-w-[200px] text-xs">
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedLineItems.map((saved) => (
+                      <SelectItem key={saved.id} value={saved.id}>
+                        {saved.description} — {formatCurrency(saved.unit_price)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             {items.map((item, i) => {
               const lineTotal =
                 (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
@@ -361,6 +438,17 @@ export function DocumentBuilder({
                       {formatCurrency(lineTotal)}
                     </span>
                   </div>
+                  {item.description.trim() && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={!!item.saveForReuse}
+                        onCheckedChange={(checked) =>
+                          updateItem(i, { saveForReuse: !!checked })
+                        }
+                      />
+                      Save for next time
+                    </label>
+                  )}
                 </div>
               );
             })}

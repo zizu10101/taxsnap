@@ -21,6 +21,7 @@ import type {
   DocumentStatus,
   DocumentType,
   DocumentWithClient,
+  LineItem,
   SubscriptionStatus,
 } from "@/lib/database.types";
 
@@ -52,6 +53,7 @@ export function DocumentList({
   initialDocuments,
   initialClients,
   initialJobs = [],
+  initialLineItems = [],
   initialProfile,
   businessType,
   subscriptionStatus,
@@ -63,6 +65,7 @@ export function DocumentList({
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
   initialJobs?: string[];
+  initialLineItems?: LineItem[];
   initialProfile: BusinessProfileFields;
   // Hides the Estimates toggle below for salon accounts - Estimates
   // doesn't apply to that business type and is blocked at the route level
@@ -271,6 +274,7 @@ export function DocumentList({
         defaultType={type}
         clients={clients}
         existingJobs={initialJobs}
+        savedLineItems={initialLineItems}
         onSaved={(doc) => setDocuments((prev) => [doc, ...prev])}
         onClientCreated={(client) => setClients((prev) => [...prev, client])}
       />

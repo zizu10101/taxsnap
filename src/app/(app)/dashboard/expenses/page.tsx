@@ -1,0 +1,72 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { ExpensesBody } from "@/components/dashboard/expenses-body";
+
+export const metadata: Metadata = {
+  title: "Expenses — TaxSnap",
+};
+
+// Open to every business type and tier - receipts/expenses aren't Pro- or
+// salon-gated (unlike Estimates), same reasoning as the main dashboard
+// page's own receipt query below.
+export default async function ExpensesPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/auth");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(
+      "subscription_status, business_type, logo_url, business_name, business_email, business_phone, business_address",
+    )
+    .eq("id", user.id)
+    .single();
+
+  const [{ data: receipts }, { data: jobs }] = await Promise.all([
+    supabase
+      .from("receipts")
+      .select("*")
+      .order("transaction_date", { ascending: false }),
+    supabase.from("jobs").select("name").order("name", { ascending: true }),
+  ]);
+
+  return (
+    <div className="flex min-h-screen flex-col bg-muted/30">
+      <DashboardHeader
+        email={user.email ?? ""}
+        subscriptionStatus={profile?.subscription_status ?? "free"}
+        businessType={profile?.business_type ?? "general"}
+        logoPath={profile?.logo_url ?? null}
+        active="expenses"
+      />
+      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
+        <BackToDashboardLink />
+
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Expenses</h1>
+          <p className="text-muted-foreground">
+            Every scanned receipt, filtered by date range.
+          </p>
+        </div>
+
+        <ExpensesBody
+          initialReceipts={receipts ?? []}
+          initialJobNames={(jobs ?? []).map((j) => j.name)}
+          business={{
+            name: profile?.business_name ?? null,
+            email: profile?.business_email || user.email || "",
+            phone: profile?.business_phone ?? null,
+            address: profile?.business_address ?? null,
+          }}
+          logoPath={profile?.logo_url ?? null}
+        />
+      </main>
+    </div>
+  );
+}

@@ -30,22 +30,28 @@ export default async function EstimateDetailPage({
     .eq("id", user.id)
     .single();
 
-  const [{ data: document }, { data: clients }, { data: conversion }, { data: jobs }] =
-    await Promise.all([
-      supabase
-        .from("documents")
-        .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
-        .eq("id", id)
-        .eq("type", "estimate")
-        .single(),
-      supabase.from("clients").select("*").order("name", { ascending: true }),
-      supabase
-        .from("documents")
-        .select("id")
-        .eq("converted_from_id", id)
-        .maybeSingle(),
-      supabase.from("jobs").select("name").order("name", { ascending: true }),
-    ]);
+  const [
+    { data: document },
+    { data: clients },
+    { data: conversion },
+    { data: jobs },
+    { data: lineItems },
+  ] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
+      .eq("id", id)
+      .eq("type", "estimate")
+      .single(),
+    supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase
+      .from("documents")
+      .select("id")
+      .eq("converted_from_id", id)
+      .maybeSingle(),
+    supabase.from("jobs").select("name").order("name", { ascending: true }),
+    supabase.from("line_items").select("*").order("description", { ascending: true }),
+  ]);
 
   if (!document) notFound();
 
@@ -63,6 +69,7 @@ export default async function EstimateDetailPage({
           document={document as DocumentWithRelations}
           clients={clients ?? []}
           jobs={(jobs ?? []).map((j) => j.name)}
+          lineItems={lineItems ?? []}
           business={{
             name: profile?.business_name ?? null,
             email: profile?.business_email || user.email || "",

@@ -19,8 +19,12 @@ import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 //   (POST /api/documents/[id]/convert) inserts a brand-new invoice row,
 //   so it's counted automatically - estimates themselves are never
 //   counted, since they're a different `type` value.
-// - clients / jobs: lifetime row counts (neither table has an is_active
-//   column), so deleting a row frees a slot.
+// - clients / jobs / lineItems: lifetime row counts (none of these tables
+//   has an is_active column), so deleting a row frees a slot. lineItems
+//   (general-business invoicing's reusable saved items) has no downstream
+//   foreign key from document_items - which already snapshots its own
+//   description/unit_price at add time - so a deleted saved item leaves
+//   nothing orphaned, same reasoning as clients/jobs.
 // - employees / activeServices / activeStylists: counts of active rows
 //   only (each table's `is_active` column) - deactivating frees a slot,
 //   matching the pre-existing services/stylists behavior.
@@ -38,6 +42,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: number | null;
     clients: number | null;
     jobs: number | null;
+    lineItems: number | null;
     employees: number | null;
     activeServices: number | null;
     activeStylists: number | null;
@@ -49,6 +54,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: 3,
     clients: 3,
     jobs: 1,
+    lineItems: 3,
     employees: 1,
     activeServices: 1,
     activeStylists: 1,
@@ -59,6 +65,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: 10,
     clients: 10,
     jobs: 5,
+    lineItems: 10,
     employees: 5,
     activeServices: 3,
     activeStylists: 2,
@@ -69,6 +76,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: null,
     clients: null,
     jobs: null,
+    lineItems: null,
     employees: null,
     activeServices: null,
     activeStylists: null,
@@ -185,10 +193,16 @@ export async function wouldExceedMonthlyLimit(
 
 // Lifetime total-row caps (clients, jobs) - no is_active column on either
 // table, so a deleted row frees a slot back up.
+const TOTAL_LIMIT_TABLE = {
+  clients: "clients",
+  jobs: "jobs",
+  lineItems: "line_items",
+} as const;
+
 export async function wouldExceedTotalLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "clients" | "jobs",
+  resource: "clients" | "jobs" | "lineItems",
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);
   const limit = PLAN_LIMITS[tier][resource];
@@ -198,7 +212,7 @@ export async function wouldExceedTotalLimit(
   }
 
   const { count } = await supabase
-    .from(resource)
+    .from(TOTAL_LIMIT_TABLE[resource])
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId);
 

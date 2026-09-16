@@ -36,6 +36,7 @@ import type {
   Client,
   DocumentStatus,
   DocumentWithRelations,
+  LineItem,
   Payment,
 } from "@/lib/database.types";
 
@@ -69,6 +70,7 @@ export function DocumentDetail({
   document,
   clients,
   jobs = [],
+  lineItems = [],
   business,
   logoPath,
   basePath,
@@ -77,6 +79,7 @@ export function DocumentDetail({
   document: DocumentWithRelations;
   clients: Client[];
   jobs?: string[];
+  lineItems?: LineItem[];
   business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
@@ -550,6 +553,7 @@ export function DocumentDetail({
         document={doc}
         clients={allClients}
         existingJobs={jobs}
+        savedLineItems={lineItems}
         onSaved={(updated) => setDoc(updated)}
         onClientCreated={(client) => setAllClients((prev) => [...prev, client])}
       />
