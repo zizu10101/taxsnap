@@ -14,6 +14,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/webp",
   "image/heic",
   "image/heif",
+  "application/pdf",
 ]);
 
 export async function POST(request: Request) {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
 
   if (!ALLOWED_MIME_TYPES.has(file.type)) {
     return NextResponse.json(
-      { error: `Unsupported image type: ${file.type}` },
+      { error: `Unsupported file type: ${file.type}` },
       { status: 400 },
     );
   }

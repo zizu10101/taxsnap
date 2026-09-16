@@ -2,7 +2,16 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImageUp, Loader2, Plus, Sparkles, TriangleAlert, Trash2 } from "lucide-react";
+import {
+  Camera,
+  FileText,
+  ImageUp,
+  Loader2,
+  Plus,
+  Sparkles,
+  TriangleAlert,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +82,7 @@ export function UploadReceipt({
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<ParsedDraft | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [jobMode, setJobMode] = useState<string>(NO_JOB);
   const [newJobName, setNewJobName] = useState("");
 
@@ -107,10 +117,14 @@ export function UploadReceipt({
     setParsing(true);
 
     try {
-      const compressed = await compressImage(file, { maxWidth: 1024 }).catch(
-        () => file,
-      );
+      const isPdf = file.type === "application/pdf";
+      // PDFs can't be decoded by <img>/canvas, so compressing one would just
+      // fail and fall back to the original anyway - skip the wasted attempt.
+      const compressed = isPdf
+        ? file
+        : await compressImage(file, { maxWidth: 1024 }).catch(() => file);
       setPreviewImage(URL.createObjectURL(compressed));
+      setPreviewIsPdf(isPdf);
 
       const formData = new FormData();
       formData.append("image", compressed);
@@ -127,6 +141,7 @@ export function UploadReceipt({
             action: { label: "Upgrade", onClick: () => router.push("/billing") },
           });
           setPreviewImage(null);
+          setPreviewIsPdf(false);
           return;
         }
         throw new Error(data.error || "Failed to parse receipt");
@@ -144,6 +159,7 @@ export function UploadReceipt({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setPreviewImage(null);
+      setPreviewIsPdf(false);
     } finally {
       setParsing(false);
       if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -185,6 +201,7 @@ export function UploadReceipt({
   function closeModal() {
     setDraft(null);
     setPreviewImage(null);
+    setPreviewIsPdf(false);
   }
 
   function updateItem(index: number, patch: Partial<ReceiptItem>) {
@@ -208,7 +225,7 @@ export function UploadReceipt({
       <input
         ref={libraryInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -261,7 +278,7 @@ export function UploadReceipt({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => libraryInputRef.current?.click()}>
             <ImageUp className="h-4 w-4" />
-            Choose from Library
+            Choose Photo or PDF
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -279,7 +296,13 @@ export function UploadReceipt({
             </DialogDescription>
           </DialogHeader>
 
-          {previewImage && (
+          {previewImage && previewIsPdf && (
+            <div className="flex max-h-48 w-full items-center gap-2 rounded-md border bg-muted p-4 text-sm text-muted-foreground">
+              <FileText className="h-5 w-5 shrink-0" />
+              PDF receipt uploaded
+            </div>
+          )}
+          {previewImage && !previewIsPdf && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewImage}
