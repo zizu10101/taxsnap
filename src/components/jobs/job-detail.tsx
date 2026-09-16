@@ -205,7 +205,7 @@ export function JobDetail({
         clients={clients}
         jobs={jobs}
         savedLineItems={savedLineItems}
-        presetJob={{ id: job.id, name: job.name }}
+        presetJob={{ name: job.name }}
         onSaved={() => router.refresh()}
         onClientCreated={() => router.refresh()}
       />

@@ -29,7 +29,6 @@ import type {
   Client,
   DocumentType,
   DocumentWithRelations,
-  HourEntryWithRelations,
   LineItem,
 } from "@/lib/database.types";
 
@@ -80,15 +79,17 @@ export function DocumentBuilder({
   defaultType: DocumentType;
   document?: DocumentWithRelations | null;
   clients: Client[];
-  // Real ids, not just names - lets "+ Add labor" below resolve a job's
-  // id (to fetch its hours) the moment the user picks it from this
-  // dialog's own job Select, not only when pre-seeded via presetJob or
-  // when editing an already-saved document.
+  // Carries real ids, not just names, even though nothing in this
+  // component currently reads them (an earlier "+ Add labor" version
+  // used them to resolve a job's id and fetch its hours - since removed
+  // in favor of a plain placeholder row). Left as-is rather than
+  // unwound back to name-only, in case a future feature wants a real
+  // job id here again.
   jobs?: { id: string; name: string }[];
   savedLineItems?: LineItem[];
-  // Pre-selects a job with a real, already-known id (e.g. opened from the
-  // Job Detail page's "New Invoice for this job").
-  presetJob?: { id: string; name: string } | null;
+  // Pre-selects a job by name (e.g. opened from the Job Detail page's
+  // "New Invoice for this job").
+  presetJob?: { name: string } | null;
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
@@ -110,92 +111,25 @@ export function DocumentBuilder({
   );
   const [saving, setSaving] = useState(false);
   const initialJobName = document?.job?.name ?? presetJob?.name ?? null;
-  const initialJobId = document?.job_id ?? presetJob?.id ?? null;
   const [jobMode, setJobMode] = useState<string>(initialJobName ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
-  const [loadingLabor, setLoadingLabor] = useState(false);
   const router = useRouter();
 
-  // Resolves as soon as jobMode names any real, existing job - not just
-  // the one the dialog opened with. NEW_JOB (a job typed inline that
-  // doesn't exist yet) and NO_JOB both correctly miss this map, so
-  // "+ Add labor" stays unavailable for them - a job with no id can't
-  // have logged hours yet anyway. Falls back to initialJobId for the
-  // presetJob/editing-existing-document case on the off chance that job
-  // isn't present in the `jobs` list passed in (shouldn't normally
-  // happen, since it's fetched from the same table, but costs nothing to
-  // guard against).
-  const jobIdByName = useMemo(() => new Map(jobs.map((j) => [j.name, j.id])), [jobs]);
-  const effectiveJobId =
-    jobIdByName.get(jobMode) ?? (jobMode === initialJobName ? initialJobId : null);
-
-  async function handleAddLabor() {
-    if (!effectiveJobId) return;
-    setLoadingLabor(true);
-    try {
-      const res = await fetch(`/api/hours?job_id=${effectiveJobId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load logged hours");
-
-      const entries = (data.hourEntries ?? []) as HourEntryWithRelations[];
-      if (entries.length === 0) {
-        toast.info("No hours logged for this job yet.");
-        return;
-      }
-
-      // Grouped by employee_id (not name - two employees could share a
-      // name) rather than blended across the whole job, so a lead at
-      // $40/hr and a helper at $20/hr each get their own accurate line
-      // instead of averaging into one misleading rate. The rate is still
-      // blended *within* one employee's own entries (revenue/hours),
-      // which correctly handles a rate change mid-job rather than
-      // assuming one employee only ever has one rate.
-      const byEmployee = new Map<string, { name: string; hours: number; revenue: number }>();
-      for (const entry of entries) {
-        const existing = byEmployee.get(entry.employee_id);
-        if (existing) {
-          existing.hours += entry.hours;
-          existing.revenue += entry.labor_revenue;
-        } else {
-          byEmployee.set(entry.employee_id, {
-            name: entry.employee.name,
-            hours: entry.hours,
-            revenue: entry.labor_revenue,
-          });
-        }
-      }
-
-      // Sorted by name for a stable order (so the same employee always
-      // lands on the same "Labor N" across repeated clicks) - the name
-      // itself is never shown on the invoice, real employee names
-      // shouldn't appear on a client-facing document.
-      const perEmployee = [...byEmployee.values()].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      );
-      const newRows = perEmployee.map((emp, index) => {
-        const rate = emp.hours > 0 ? Math.round((emp.revenue / emp.hours) * 100) / 100 : 0;
-        return {
-          description: `Labor ${index + 1}: ${emp.hours} hrs @ ${formatCurrency(rate)}/hr`,
-          quantity: emp.hours,
-          unit_price: rate,
-        };
-      });
-
-      setItems((prev) => {
-        const emptyIndex = prev.findIndex((i) => !i.description.trim());
-        if (emptyIndex === -1) return [...prev, ...newRows];
-        const [first, ...rest] = newRows;
-        const withFirstFilled = prev.map((it, idx) => (idx === emptyIndex ? first : it));
-        return [...withFirstFilled, ...rest];
-      });
-      toast.success(
-        `${newRows.length} labor line item${newRows.length === 1 ? "" : "s"} added`,
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load logged hours");
-    } finally {
-      setLoadingLabor(false);
-    }
+  // Inserts a generic "Labor" placeholder row - the user fills in hours
+  // and rate themselves. Deliberately not pulled from the Hours system:
+  // an earlier version fetched the job's logged hours and pre-filled
+  // real numbers, but that needed a resolved job_id, couldn't show real
+  // employee names on a client-facing invoice, and coupled invoicing to
+  // however hours happened to be logged. This is simpler and gives the
+  // user full control, same as typing any other line item - just
+  // pre-labeled instead of blank.
+  function handleAddLabor() {
+    setItems((prev) => {
+      const emptyIndex = prev.findIndex((i) => !i.description.trim());
+      const filled = { description: "Labor", quantity: 1, unit_price: 0 };
+      if (emptyIndex === -1) return [...prev, filled];
+      return prev.map((it, idx) => (idx === emptyIndex ? filled : it));
+    });
   }
 
   // Client select's value (a uuid) never matches its displayed label (the
@@ -470,23 +404,16 @@ export function DocumentBuilder({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Line items</Label>
               <div className="flex items-center gap-2">
-                {effectiveJobId && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={handleAddLabor}
-                    disabled={loadingLabor}
-                  >
-                    {loadingLabor ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Clock className="h-3.5 w-3.5" />
-                    )}
-                    Add labor
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={handleAddLabor}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Add labor
+                </Button>
                 {savedLineItems.length > 0 && (
                   <Select
                     value={insertPick}
