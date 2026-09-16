@@ -19,19 +19,20 @@ import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 //   (POST /api/documents/[id]/convert) inserts a brand-new invoice row,
 //   so it's counted automatically - estimates themselves are never
 //   counted, since they're a different `type` value.
-// - clients / jobs / lineItems / expenseTemplates: lifetime row counts
-//   (none of these tables has an is_active column), so deleting a row
-//   frees a slot. lineItems (general-business invoicing's reusable saved
-//   items) has no downstream foreign key from document_items - which
-//   already snapshots its own description/unit_price at add time - so a
-//   deleted saved item leaves nothing orphaned, same reasoning as
-//   clients/jobs. expenseTemplates is the same shape - receipts.
-//   source_template_id is nullable/on-delete-set-null purely for
-//   optional traceability, so deleting a template never orphans a past
-//   expense logged from it.
-// - employees / activeServices / activeStylists: counts of active rows
-//   only (each table's `is_active` column) - deactivating frees a slot,
-//   matching the pre-existing services/stylists behavior.
+// - clients / jobs / expenseTemplates: lifetime row counts (none of
+//   these tables has an is_active column), so deleting a row frees a
+//   slot. expenseTemplates - receipts.source_template_id is nullable/
+//   on-delete-set-null purely for optional traceability, so deleting a
+//   template never orphans a past expense logged from it.
+// - employees / activeServices / activeStylists / lineItems: counts of
+//   active rows only (each table's `is_active` column) - deactivating
+//   frees a slot, matching the pre-existing services/stylists behavior.
+//   lineItems switched to this shape (was a total-count cap) once a
+//   management view needed a way to hide an item from future invoices
+//   without losing it - document_items still snapshots its own
+//   description/unit_price at add time either way, so this was never
+//   forced by a downstream reference, just by wanting Deactivate/
+//   Reactivate instead of a permanent delete.
 // - manualSalesEntriesPerMonth: rows in `sales`, counted by created_at
 //   (never touched by a later edit to the same period - see the upsert in
 //   api/sales/route.ts) - unlimited/null here still means "no cap", but
@@ -59,7 +60,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: 3,
     clients: 3,
     jobs: 1,
-    lineItems: 3,
+    lineItems: 1,
     expenseTemplates: 3,
     employees: 1,
     activeServices: 1,
@@ -71,7 +72,7 @@ export const PLAN_LIMITS: Record<
     invoicesPerMonth: 10,
     clients: 10,
     jobs: 5,
-    lineItems: 10,
+    lineItems: 3,
     expenseTemplates: 10,
     employees: 5,
     activeServices: 3,
@@ -204,14 +205,13 @@ export async function wouldExceedMonthlyLimit(
 const TOTAL_LIMIT_TABLE = {
   clients: "clients",
   jobs: "jobs",
-  lineItems: "line_items",
   expenseTemplates: "expense_templates",
 } as const;
 
 export async function wouldExceedTotalLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "clients" | "jobs" | "lineItems" | "expenseTemplates",
+  resource: "clients" | "jobs" | "expenseTemplates",
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);
   const limit = PLAN_LIMITS[tier][resource];
@@ -233,12 +233,14 @@ const ACTIVE_LIMIT_TABLE = {
   employees: "employees",
   services: "services",
   stylists: "stylists",
+  lineItems: "line_items",
 } as const;
 
 const ACTIVE_LIMIT_KEY = {
   employees: "employees",
   services: "activeServices",
   stylists: "activeStylists",
+  lineItems: "lineItems",
 } as const;
 
 // Active-row caps (employees, services, stylists) - generalizes the old
@@ -253,7 +255,7 @@ const ACTIVE_LIMIT_KEY = {
 export async function wouldExceedActiveLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "employees" | "services" | "stylists",
+  resource: "employees" | "services" | "stylists" | "lineItems",
   excludeId?: string,
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);

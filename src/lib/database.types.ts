@@ -334,6 +334,7 @@ export interface Database {
           user_id: string;
           description: string;
           unit_price: number;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
@@ -341,6 +342,7 @@ export interface Database {
           user_id: string;
           description: string;
           unit_price?: number;
+          is_active?: boolean;
           created_at?: string;
         };
         Update: {
@@ -348,6 +350,7 @@ export interface Database {
           user_id?: string;
           description?: string;
           unit_price?: number;
+          is_active?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -895,6 +898,7 @@ export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
+export type LineItemUpdate = Database["public"]["Tables"]["line_items"]["Update"];
 export type ExpenseTemplate = Database["public"]["Tables"]["expense_templates"]["Row"];
 export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];

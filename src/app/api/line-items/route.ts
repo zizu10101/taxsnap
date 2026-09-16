@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
+import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 
 export async function GET() {
   const result = await requireUser();
@@ -31,11 +31,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Item description is required." }, { status: 400 });
   }
 
-  // Every tier gets a capped number of saved items (see src/lib/plan-limits.ts).
-  const totalCheck = await wouldExceedTotalLimit(supabase, user.id, "lineItems");
-  if (totalCheck.exceeded) {
+  // Every tier gets a capped number of active saved items (see
+  // src/lib/plan-limits.ts) - a new item always inserts as active, so
+  // this is checked unconditionally here, same as services' own POST.
+  const activeCheck = await wouldExceedActiveLimit(supabase, user.id, "lineItems");
+  if (activeCheck.exceeded) {
     return NextResponse.json(
-      { error: limitReachedMessage(totalCheck, "saved item"), code: "FREE_LIMIT_REACHED" },
+      { error: limitReachedMessage(activeCheck, "active saved item"), code: "FREE_LIMIT_REACHED" },
       { status: 403 },
     );
   }

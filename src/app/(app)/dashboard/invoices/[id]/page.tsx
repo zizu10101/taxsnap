@@ -40,7 +40,7 @@ export default async function InvoiceDetailPage({
         .single(),
       supabase.from("clients").select("*").order("name", { ascending: true }),
       supabase.from("jobs").select("name").order("name", { ascending: true }),
-      supabase.from("line_items").select("*").order("description", { ascending: true }),
+      supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
   if (!document) notFound();

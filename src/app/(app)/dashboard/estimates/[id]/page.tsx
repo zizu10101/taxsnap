@@ -50,7 +50,7 @@ export default async function EstimateDetailPage({
       .eq("converted_from_id", id)
       .maybeSingle(),
     supabase.from("jobs").select("name").order("name", { ascending: true }),
-    supabase.from("line_items").select("*").order("description", { ascending: true }),
+    supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
   ]);
 
   if (!document) notFound();

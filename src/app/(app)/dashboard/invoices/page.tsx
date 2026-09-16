@@ -44,7 +44,7 @@ export default async function InvoicesPage({
         .order("issue_date", { ascending: false }),
       supabase.from("clients").select("*").order("name", { ascending: true }),
       supabase.from("jobs").select("name").order("name", { ascending: true }),
-      supabase.from("line_items").select("*").order("description", { ascending: true }),
+      supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
   return (
@@ -65,11 +65,19 @@ export default async function InvoicesPage({
           Back to dashboard
         </Link>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Invoices</h1>
-          <p className="text-muted-foreground">
-            Bill your clients directly from TaxSnap.
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-bold">Invoices</h1>
+            <p className="text-muted-foreground">
+              Bill your clients directly from TaxSnap.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/line-items"
+            className="mt-1 shrink-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Saved items
+          </Link>
         </div>
 
         <DocumentList
