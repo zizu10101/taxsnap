@@ -68,13 +68,19 @@ function TotalsRow({
   );
 }
 
-const EMPTY_DATA: ExpenseOverviewData = {
+const EMPTY_SUMMARY = {
   totalExpenses: 0,
   deductibleSpend: 0,
   estHstReclaimable: 0,
   nonDeductibleSpend: 0,
+};
+
+const EMPTY_DATA: ExpenseOverviewData = {
+  ...EMPTY_SUMMARY,
   totalSales: 0,
   estProfit: 0,
+  jobExpenses: { ...EMPTY_SUMMARY },
+  overheadExpenses: { ...EMPTY_SUMMARY },
   trendPoints: [],
   salesTrendPoints: [],
 };
@@ -172,6 +178,18 @@ export function ExpenseOverview({
           <div className="mt-2 rounded-lg bg-primary/10 p-3">
             <TotalsRow label="Est. Profit" value={data.estProfit} emphasize />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* job_id set vs. null - same split as the Expenses tab's Job/
+          Overhead sections, just totaled instead of listed line-by-line. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Job vs. Overhead</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <TotalsRow label="Job Expenses" value={data.jobExpenses.totalExpenses} />
+          <TotalsRow label="Overhead Expenses" value={data.overheadExpenses.totalExpenses} />
         </CardContent>
       </Card>
     </div>

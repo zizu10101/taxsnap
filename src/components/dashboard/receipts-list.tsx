@@ -37,6 +37,8 @@ function formatDate(dateStr: string) {
 
 export function ReceiptsList({
   receipts,
+  title = "Receipts",
+  emptyLabel = "No receipts in this date range.",
   onDeleted,
   onSelect,
   exportFilenameBase,
@@ -45,6 +47,11 @@ export function ReceiptsList({
   logoPath,
 }: {
   receipts: Receipt[];
+  // Lets a caller render more than one list on the same page (e.g. the
+  // Expenses tab's Job/Overhead split) with its own heading instead of
+  // always saying "Receipts".
+  title?: string;
+  emptyLabel?: string;
   onDeleted: (id: string) => void;
   onSelect: (receipt: Receipt) => void;
   // Extension-less - both the plain CSV export and the accountant bundle
@@ -62,6 +69,8 @@ export function ReceiptsList({
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingBundle, setExportingBundle] = useState(false);
+
+  const subtotal = receipts.reduce((sum, r) => sum + r.total_amount, 0);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -109,8 +118,14 @@ export function ReceiptsList({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle>Receipts</CardTitle>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <CardTitle>{title}</CardTitle>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {receipts.length} item{receipts.length === 1 ? "" : "s"} ·{" "}
+            {formatCurrency(subtotal)}
+          </span>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4" />
@@ -135,7 +150,7 @@ export function ReceiptsList({
         {receipts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
             <ReceiptIcon className="h-8 w-8" />
-            <p className="text-sm">No receipts in this date range.</p>
+            <p className="text-sm">{emptyLabel}</p>
           </div>
         ) : (
           <ul className="divide-y">

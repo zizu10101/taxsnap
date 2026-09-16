@@ -218,12 +218,18 @@ export function ManualExpenseDialog({
                 ))}
               </SelectContent>
             </Select>
-            {jobMode === NEW_JOB && (
+            {jobMode === NEW_JOB ? (
               <Input
                 placeholder="e.g. 123 Main St or Job #4521"
                 value={newJobName}
                 onChange={(e) => setNewJobName(e.target.value)}
               />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Leave as &quot;No job&quot; for overhead costs like rent, phone, or
+                insurance - it&apos;ll show up under Overhead Expenses instead of
+                a specific job.
+              </p>
             )}
           </div>
         </div>

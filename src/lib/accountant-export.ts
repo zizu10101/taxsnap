@@ -19,6 +19,8 @@ function escapeCsvField(value: string | number): string {
 
 function summaryToCsv(receipts: Receipt[]): string {
   const summary = computeExpenseSummary(receipts);
+  const jobReceipts = receipts.filter((r) => r.job_id);
+  const overheadReceipts = receipts.filter((r) => !r.job_id);
   const rows: (string | number)[][] = [
     ["Period Summary", ""],
     ["Receipt Count", receipts.length],
@@ -26,6 +28,10 @@ function summaryToCsv(receipts: Receipt[]): string {
     ["Deductible Spend", summary.deductibleSpend.toFixed(2)],
     ["Est. HST Reclaimable", summary.estHstReclaimable.toFixed(2)],
     ["Non-Deductible Spend", summary.nonDeductibleSpend.toFixed(2)],
+    ["", ""],
+    ["Job vs. Overhead", ""],
+    ["Job Expenses", computeExpenseSummary(jobReceipts).totalExpenses.toFixed(2)],
+    ["Overhead Expenses", computeExpenseSummary(overheadReceipts).totalExpenses.toFixed(2)],
   ];
   return rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
 }

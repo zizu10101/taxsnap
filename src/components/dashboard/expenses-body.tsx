@@ -61,6 +61,18 @@ export function ExpensesBody({
     return jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
   }, [receipts, range, jobFilter]);
 
+  // job_id set = tied to a specific job, null = general overhead - the
+  // same nullable column job costing already reads, just grouped here
+  // instead of joined against a job's cost rollup.
+  const jobExpenses = useMemo(
+    () => filteredReceipts.filter((r) => r.job_id),
+    [filteredReceipts],
+  );
+  const overheadExpenses = useMemo(
+    () => filteredReceipts.filter((r) => !r.job_id),
+    [filteredReceipts],
+  );
+
   const rangeLabel = useMemo(() => describeRange(preset, range), [preset, range]);
   const scopeLabel = jobFilter ? `${jobFilter} — ${rangeLabel}` : rangeLabel;
 
@@ -96,10 +108,24 @@ export function ExpensesBody({
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
 
       <ReceiptsList
-        receipts={filteredReceipts}
+        receipts={jobExpenses}
+        title="Job Expenses"
+        emptyLabel="No job expenses in this date range."
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
-        exportFilenameBase={exportFilenameBase}
+        exportFilenameBase={`${exportFilenameBase}-job`}
+        range={range}
+        business={business}
+        logoPath={logoPath}
+      />
+
+      <ReceiptsList
+        receipts={overheadExpenses}
+        title="Overhead Expenses"
+        emptyLabel="No overhead expenses in this date range."
+        onDeleted={handleDeleted}
+        onSelect={setSelectedReceipt}
+        exportFilenameBase={`${exportFilenameBase}-overhead`}
         range={range}
         business={business}
         logoPath={logoPath}

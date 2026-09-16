@@ -19,6 +19,12 @@ export interface ExpenseOverviewData extends ExpenseSummary {
   // payroll, etc. factored in), just what the two numbers already on this
   // page net to. See totalSales' own comment for what "sales" means here.
   estProfit: number;
+  // Same totals as the top-level ExpenseSummary fields, just split by
+  // whether the receipt has a job_id - the same nullable column job
+  // costing already reads. Always sums back to the top-level totals
+  // (every receipt is either job-tagged or overhead, never both/neither).
+  jobExpenses: ExpenseSummary;
+  overheadExpenses: ExpenseSummary;
   trendPoints: ExpenseTrendPoint[];
   salesTrendPoints: SalesTrendPoint[];
 }
@@ -57,7 +63,7 @@ export async function getExpenseOverviewData(
 ): Promise<ExpenseOverviewData> {
   let receiptsQuery = supabase
     .from("receipts")
-    .select("transaction_date, total_amount, tax_amount, tax_category")
+    .select("transaction_date, total_amount, tax_amount, tax_category, job_id")
     .order("transaction_date", { ascending: true });
   if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
   if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
@@ -106,11 +112,15 @@ export async function getExpenseOverviewData(
   totalSales = round2(totalSales);
 
   const summary = computeExpenseSummary(receiptRows);
+  const jobExpenses = computeExpenseSummary(receiptRows.filter((r) => r.job_id));
+  const overheadExpenses = computeExpenseSummary(receiptRows.filter((r) => !r.job_id));
 
   return {
     ...summary,
     totalSales,
     estProfit: round2(totalSales - summary.totalExpenses),
+    jobExpenses,
+    overheadExpenses,
     // Minimal per-receipt/per-payment points for the trend chart - summed
     // into day/week/month buckets client-side (see
     // lib/expense-overview.ts), same convention as Commission Overview's
