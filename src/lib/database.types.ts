@@ -81,6 +81,7 @@ export interface Database {
           tax_category: string;
           job_name: string | null;
           job_id: string | null;
+          source_template_id: string | null;
           items: ReceiptItem[] | null;
           created_at: string;
         };
@@ -95,6 +96,7 @@ export interface Database {
           tax_category: string;
           job_name?: string | null;
           job_id?: string | null;
+          source_template_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -109,6 +111,7 @@ export interface Database {
           tax_category?: string;
           job_name?: string | null;
           job_id?: string | null;
+          source_template_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -118,6 +121,13 @@ export interface Database {
             columns: ["job_id"];
             isOneToOne: false;
             referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "receipts_source_template_id_fkey";
+            columns: ["source_template_id"];
+            isOneToOne: false;
+            referencedRelation: "expense_templates";
             referencedColumns: ["id"];
           },
         ];
@@ -341,6 +351,53 @@ export interface Database {
           created_at?: string;
         };
         Relationships: [];
+      };
+      expense_templates: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string;
+          default_amount: number;
+          default_tax_amount: number;
+          default_tax_category: string;
+          job_id: string | null;
+          recurrence_hint: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          description: string;
+          default_amount?: number;
+          default_tax_amount?: number;
+          default_tax_category?: string;
+          job_id?: string | null;
+          recurrence_hint?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          description?: string;
+          default_amount?: number;
+          default_tax_amount?: number;
+          default_tax_category?: string;
+          job_id?: string | null;
+          recurrence_hint?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_templates_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       employees: {
         Row: {
@@ -838,6 +895,7 @@ export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
+export type ExpenseTemplate = Database["public"]["Tables"]["expense_templates"]["Row"];
 export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
 export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];
@@ -884,6 +942,10 @@ export interface DocumentWithClient extends InvoiceDocument {
 
 export interface DocumentWithRelations extends DocumentWithClient {
   items: DocumentItem[];
+}
+
+export interface ExpenseTemplateWithJob extends ExpenseTemplate {
+  job: { name: string } | null;
 }
 
 export interface HourEntryWithRelations extends HourEntry {

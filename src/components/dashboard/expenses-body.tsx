@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
+import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
 import {
   describeRange,
@@ -16,7 +17,7 @@ import {
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
-import type { Receipt } from "@/lib/database.types";
+import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
 function slugify(label: string): string {
@@ -35,20 +36,25 @@ function slugify(label: string): string {
 export function ExpensesBody({
   initialReceipts,
   initialJobNames,
+  initialTemplates,
   business,
   logoPath,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
+  initialTemplates: ExpenseTemplateWithJob[];
   business: BusinessInfo;
   logoPath: string | null;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
+  const [templates, setTemplates] = useState(initialTemplates);
   const [preset, setPreset] = useState<RangePreset>("this-month");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [expenseTemplate, setExpenseTemplate] = useState<ExpenseTemplateWithJob | null>(null);
 
   const existingJobs = useMemo(() => {
     const jobs = new Set<string>(initialJobNames);
@@ -99,10 +105,22 @@ export function ExpensesBody({
           <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
           <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
         </div>
-        <Button size="sm" onClick={() => setAddExpenseOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Expense
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTemplatesDialogOpen(true)}>
+            <Repeat className="h-4 w-4" />
+            From Template
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setExpenseTemplate(null);
+              setAddExpenseOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add Expense
+          </Button>
+        </div>
       </div>
 
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
@@ -140,10 +158,32 @@ export function ExpensesBody({
       />
 
       <ManualExpenseDialog
+        key={expenseTemplate?.id ?? "new"}
         open={addExpenseOpen}
-        onOpenChange={setAddExpenseOpen}
+        onOpenChange={(open) => {
+          setAddExpenseOpen(open);
+          if (!open) setExpenseTemplate(null);
+        }}
         existingJobs={existingJobs}
+        template={expenseTemplate}
         onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+        onTemplateSaved={(template) => setTemplates((prev) => [...prev, template])}
+      />
+
+      <ExpenseTemplatesDialog
+        open={templatesDialogOpen}
+        onOpenChange={setTemplatesDialogOpen}
+        templates={templates}
+        existingJobs={existingJobs}
+        onUse={(template) => {
+          setTemplatesDialogOpen(false);
+          setExpenseTemplate(template);
+          setAddExpenseOpen(true);
+        }}
+        onUpdated={(updated) =>
+          setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+        }
+        onDeleted={(id) => setTemplates((prev) => prev.filter((t) => t.id !== id))}
       />
     </div>
   );

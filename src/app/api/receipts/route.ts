@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     items,
     image_path,
     job_name,
+    source_template_id,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -43,6 +44,21 @@ export async function POST(request: Request) {
   }
 
   const category = TAX_CATEGORIES.includes(tax_category) ? tax_category : "Other";
+
+  // Re-verify ownership rather than trust the id as-is - same reasoning
+  // as every other client-supplied foreign id in this app (e.g. job_id in
+  // POST /api/documents). Traceability only (see 0027_expense_templates.
+  // sql) - never affects how the expense itself is logged.
+  let templateId: string | null = null;
+  if (source_template_id) {
+    const { data: template } = await supabase
+      .from("expense_templates")
+      .select("id")
+      .eq("id", source_template_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    templateId = template?.id ?? null;
+  }
 
   const { data, error } = await supabase
     .from("receipts")
@@ -55,6 +71,7 @@ export async function POST(request: Request) {
       tax_amount: Number(tax_amount) || 0,
       tax_category: category,
       job_name: job_name?.trim() || null,
+      source_template_id: templateId,
       items: sanitizeItems(items),
     })
     .select()

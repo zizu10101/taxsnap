@@ -34,12 +34,16 @@ export default async function ExpensesPage() {
     redirect("/dashboard");
   }
 
-  const [{ data: receipts }, { data: jobs }] = await Promise.all([
+  const [{ data: receipts }, { data: jobs }, { data: templates }] = await Promise.all([
     supabase
       .from("receipts")
       .select("*")
       .order("transaction_date", { ascending: false }),
     supabase.from("jobs").select("name").order("name", { ascending: true }),
+    supabase
+      .from("expense_templates")
+      .select("*, job:jobs(name)")
+      .order("name", { ascending: true }),
   ]);
 
   return (
@@ -64,6 +68,7 @@ export default async function ExpensesPage() {
         <ExpensesBody
           initialReceipts={receipts ?? []}
           initialJobNames={(jobs ?? []).map((j) => j.name)}
+          initialTemplates={templates ?? []}
           business={{
             name: profile?.business_name ?? null,
             email: profile?.business_email || user.email || "",
