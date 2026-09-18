@@ -148,14 +148,19 @@ export function ProgressBillingList({
                   <div className="space-y-1.5 border-t pt-3">
                     <p className="text-xs font-medium text-muted-foreground">Draws</p>
                     {draws.map((draw) => {
-                      // Per-draw received % - distinct from the job-level
-                      // Received to Date stat above, which rolls up every
-                      // invoice on the job. This is just this one draw's
-                      // own payments against its own total.
+                      // Per-draw received % and remaining balance -
+                      // distinct from the job-level Received to
+                      // Date/Remaining Balance stats above, which roll up
+                      // every invoice on the job. These are just this one
+                      // draw's own payments against its own total.
                       const receivedPercent =
                         draw.totalAmount > 0
                           ? Math.round((draw.receivedAmount / draw.totalAmount) * 100)
                           : 0;
+                      const remainingAmount =
+                        Math.round(
+                          (draw.totalAmount - draw.receivedAmount + Number.EPSILON) * 100,
+                        ) / 100;
                       return (
                         <Link
                           key={draw.id}
@@ -175,6 +180,9 @@ export function ProgressBillingList({
                             <p className="text-xs text-muted-foreground">
                               {formatDate(draw.issueDate)}
                             </p>
+                            <p className="text-xs font-medium text-success">
+                              {formatCurrency(draw.receivedAmount)} received ({receivedPercent}%)
+                            </p>
                           </div>
                           {/* Mirrors the job-level summary grid's
                               label-over-value column shape above, just
@@ -187,12 +195,9 @@ export function ProgressBillingList({
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Received</p>
-                              <p className="font-semibold tabular-nums text-success">
-                                {formatCurrency(draw.receivedAmount)}{" "}
-                                <span className="text-xs font-normal text-muted-foreground">
-                                  ({receivedPercent}%)
-                                </span>
+                              <p className="text-xs text-muted-foreground">Remaining</p>
+                              <p className="font-semibold tabular-nums">
+                                {formatCurrency(remainingAmount)}
                               </p>
                             </div>
                           </div>
