@@ -118,12 +118,22 @@ export function DocumentDetail({
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(
     null,
   );
+  // Set while editing an existing payment - the same amount/date/method/
+  // note fields double as the edit form, PATCHing instead of POSTing on
+  // save. Null means the form is in its normal "add a new payment" mode.
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
 
   const label = doc.is_progress_draw
     ? "Progress Invoice"
     : doc.type === "invoice"
       ? "Invoice"
       : "Estimate";
+  // A progress draw was opened from the Progress Billing tab, not the
+  // regular Invoices list basePath always points at - back navigation
+  // (and the post-delete redirect) should return there instead, not to
+  // Invoices.
+  const backHref = doc.is_progress_draw ? "/dashboard/progress-billing" : basePath;
+  const backLabel = doc.is_progress_draw ? "Progress Billing" : `${label.toLowerCase()}s`;
   const shortId = doc.is_progress_draw
     ? `${formatDocumentNumber(doc.type, doc.document_number)} — Draw #${doc.draw_number}`
     : formatDocumentNumber(doc.type, doc.document_number);
@@ -134,6 +144,15 @@ export function DocumentDetail({
     Math.round(((paymentPercent / 100) * doc.total_amount + Number.EPSILON) * 100) / 100;
   const effectivePaymentAmount =
     paymentMode === "percent" ? paymentAmountFromPercent : paymentAmount;
+
+  // While editing an existing payment, that payment's current amount is
+  // still counted in paidToDate/balanceDue above - add it back so editing
+  // a payment doesn't immediately read as "over the balance" against its
+  // own prior value.
+  const paymentBeingEdited = editingPaymentId
+    ? (doc.payments.find((p) => p.id === editingPaymentId) ?? null)
+    : null;
+  const effectiveBalanceDue = balanceDue + (paymentBeingEdited?.amount ?? 0);
 
   // Same pre-tax (subtotal) math as generateDocumentPdf's Progress
   // Billing Summary, kept in sync by hand since one is jsPDF drawing
@@ -181,7 +200,27 @@ export function DocumentDetail({
     }
   }
 
-  async function handleAddPayment() {
+  function startEditPayment(payment: Payment) {
+    setEditingPaymentId(payment.id);
+    setPaymentMode("dollar");
+    setPaymentAmount(payment.amount);
+    setPaymentPercent(0);
+    setPaymentDate(payment.paid_date);
+    setPaymentMethod(payment.method ?? "");
+    setPaymentNote(payment.note ?? "");
+  }
+
+  function cancelEditPayment() {
+    setEditingPaymentId(null);
+    setPaymentAmount(0);
+    setPaymentPercent(0);
+    setPaymentDate(toIsoDate(new Date()));
+    setPaymentMethod("");
+    setPaymentNote("");
+  }
+
+  async function handleSavePayment() {
+    const isEditing = !!editingPaymentId;
     if (effectivePaymentAmount <= 0) {
       toast.error(
         paymentMode === "percent"
@@ -192,9 +231,9 @@ export function DocumentDetail({
     }
     // Instant feedback before the round trip - the server enforces this
     // too (authoritative, catches a stale balanceDue or a direct API
-    // call), see POST /api/documents/[id]/payments's own comment.
-    if (effectivePaymentAmount > balanceDue + 0.001) {
-      const over = effectivePaymentAmount - balanceDue;
+    // call), see POST/PATCH /api/documents/[id]/payments's own comment.
+    if (effectivePaymentAmount > effectiveBalanceDue + 0.001) {
+      const over = effectivePaymentAmount - effectiveBalanceDue;
       toast.error(
         `This payment would exceed the invoice total by ${formatCurrency(over)} — edit the invoice or adjust the payment amount.`,
       );
@@ -202,24 +241,27 @@ export function DocumentDetail({
     }
     setAddingPayment(true);
     try {
-      const res = await fetch(`/api/documents/${doc.id}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: effectivePaymentAmount,
-          paid_date: paymentDate,
-          method: paymentMethod,
-          note: paymentNote,
-        }),
-      });
+      const res = await fetch(
+        isEditing
+          ? `/api/documents/${doc.id}/payments/${editingPaymentId}`
+          : `/api/documents/${doc.id}/payments`,
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: effectivePaymentAmount,
+            paid_date: paymentDate,
+            method: paymentMethod,
+            note: paymentNote,
+          }),
+        },
+      );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to record payment");
+      if (!res.ok)
+        throw new Error(data.error || `Failed to ${isEditing ? "update" : "record"} payment`);
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
-      setPaymentAmount(0);
-      setPaymentPercent(0);
-      setPaymentMethod("");
-      setPaymentNote("");
-      toast.success("Payment recorded");
+      cancelEditPayment();
+      toast.success(isEditing ? "Payment updated" : "Payment recorded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -237,6 +279,7 @@ export function DocumentDetail({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete payment");
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
+      if (editingPaymentId === paymentId) cancelEditPayment();
       toast.success("Payment removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -254,7 +297,7 @@ export function DocumentDetail({
         throw new Error(data.error || "Failed to delete");
       }
       toast.success(`${label} deleted`);
-      router.push(basePath);
+      router.push(backHref);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setDeleting(false);
@@ -265,11 +308,11 @@ export function DocumentDetail({
     <div className="mx-auto w-full max-w-2xl p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link
-          href={basePath}
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to {label.toLowerCase()}s
+          Back to {backLabel}
         </Link>
         {doc.job && (
           <Link
@@ -553,7 +596,9 @@ export function DocumentDetail({
                   .map((payment: Payment) => (
                     <div
                       key={payment.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm"
+                      className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm ${
+                        editingPaymentId === payment.id ? "border-primary bg-primary/5" : ""
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="font-medium tabular-nums">
@@ -565,19 +610,30 @@ export function DocumentDetail({
                           {payment.note && ` · ${payment.note}`}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
-                        onClick={() => handleDeletePayment(payment.id)}
-                        disabled={deletingPaymentId === payment.id}
-                      >
-                        {deletingPaymentId === payment.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => startEditPayment(payment)}
+                          disabled={deletingPaymentId === payment.id}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => handleDeletePayment(payment.id)}
+                          disabled={deletingPaymentId === payment.id}
+                        >
+                          {deletingPaymentId === payment.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -655,15 +711,27 @@ export function DocumentDetail({
                 />
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleAddPayment}
-              disabled={addingPayment}
-            >
-              {addingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
-              Record Payment
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSavePayment}
+                disabled={addingPayment}
+              >
+                {addingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editingPaymentId ? "Update Payment" : "Record Payment"}
+              </Button>
+              {editingPaymentId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={cancelEditPayment}
+                  disabled={addingPayment}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

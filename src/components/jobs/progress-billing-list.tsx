@@ -34,6 +34,12 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+export interface ProgressDrawPayment {
+  id: string;
+  amount: number;
+  paidDate: string;
+}
+
 export interface ProgressDrawSummary {
   id: string;
   documentNumber: number;
@@ -42,6 +48,7 @@ export interface ProgressDrawSummary {
   issueDate: string;
   totalAmount: number;
   receivedAmount: number;
+  payments: ProgressDrawPayment[];
 }
 
 export interface ProgressJobSummary {
@@ -165,38 +172,55 @@ export function ProgressBillingList({
                         <Link
                           key={draw.id}
                           href={`/dashboard/invoices/${draw.id}`}
-                          className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
+                          className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
                         >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-medium">
-                                Draw #{draw.drawNumber ?? "?"} —{" "}
-                                {formatDocumentNumber("invoice", draw.documentNumber)}
-                              </p>
-                              <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
-                                {draw.status}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDate(draw.issueDate)}
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium">
+                              Draw #{draw.drawNumber ?? "?"} —{" "}
+                              {formatDocumentNumber("invoice", draw.documentNumber)} ·{" "}
+                              {formatCurrency(draw.totalAmount)}
                             </p>
-                            <p className="text-xs font-medium text-success">
-                              {formatCurrency(draw.receivedAmount)} received ({receivedPercent}%)
-                            </p>
+                            <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
+                              {draw.status}
+                            </Badge>
                           </div>
-                          {/* Mirrors the job-level summary grid's
-                              label-over-value column shape above, just
-                              scoped to this one draw. */}
-                          <div className="flex shrink-0 gap-3 text-right">
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(draw.issueDate)}
+                          </p>
+                          {/* Same 4-column grid (and gap) as the job
+                              summary above, on an equal-width container -
+                              that's what actually lines Received/Remaining
+                              up under "Received to Date"/"Remaining
+                              Balance", not just right-alignment. Columns
+                              1-2 stay empty on purpose (Contract Value and
+                              Invoiced to Date have no per-draw equivalent);
+                              since they're empty divs their row collapses
+                              to ~0 height at the mobile 2-column
+                              breakpoint. */}
+                          <div className="mt-1 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+                            <div />
+                            <div />
                             <div>
-                              <p className="text-xs text-muted-foreground">Total</p>
-                              <p className="font-semibold tabular-nums">
-                                {formatCurrency(draw.totalAmount)}
-                              </p>
+                              {draw.payments.length > 1 ? (
+                                <div className="space-y-0.5">
+                                  {draw.payments.map((payment) => (
+                                    <p
+                                      key={payment.id}
+                                      className="text-xs font-medium text-success"
+                                    >
+                                      {formatDate(payment.paidDate)} ·{" "}
+                                      {formatCurrency(payment.amount)}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs font-medium text-success">
+                                  {formatCurrency(draw.receivedAmount)} ({receivedPercent}%)
+                                </p>
+                              )}
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Remaining</p>
-                              <p className="font-semibold tabular-nums">
+                              <p className="text-xs font-medium">
                                 {formatCurrency(remainingAmount)}
                               </p>
                             </div>

@@ -69,7 +69,7 @@ export default async function ProgressBillingPage() {
       const { data: documents } = await supabase
         .from("documents")
         .select(
-          "id, job_id, type, document_number, status, issue_date, subtotal, total_amount, is_progress_draw, draw_number, payments(amount)",
+          "id, job_id, type, document_number, status, issue_date, subtotal, total_amount, is_progress_draw, draw_number, payments(id, amount, paid_date)",
         )
         .eq("type", "invoice")
         .in(
@@ -109,6 +109,12 @@ export default async function ProgressBillingPage() {
             // above, which rolls up every invoice on the job. This is
             // just this one draw's own payments.
             receivedAmount: d.payments.reduce((sum, p) => sum + p.amount, 0),
+            // Individual payments, oldest first - when a draw has more
+            // than one, the list shows each rather than only the summed
+            // total (see progress-billing-list.tsx).
+            payments: [...d.payments]
+              .sort((a, b) => (a.paid_date < b.paid_date ? -1 : 1))
+              .map((p) => ({ id: p.id, amount: p.amount, paidDate: p.paid_date })),
           }));
         return { job, invoicedToDate, receivedToDate, remainingBalance, draws };
       });
