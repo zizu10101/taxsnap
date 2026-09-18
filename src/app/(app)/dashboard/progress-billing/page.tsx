@@ -88,9 +88,13 @@ export default async function ProgressBillingPage() {
         // been billed *as a draw* against the contract.
         const receivedToDate = calculateJobRevenue(jobDocs);
         const invoicedToDate = calculateInvoicedToDate(jobDocs);
+        // Contract value minus money actually *received* - not minus
+        // invoicedToDate (that would answer "how much is left to bill,"
+        // a different question from "how much is left to collect," which
+        // is what this stat is meant to show here).
         const remainingBalance = calculateRemainingBalance(
           job.contract_value ?? 0,
-          invoicedToDate,
+          receivedToDate,
         );
         // The individual draws themselves - the summary numbers above
         // roll these up, but each one also needs its own link to its

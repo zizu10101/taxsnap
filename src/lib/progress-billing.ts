@@ -22,14 +22,18 @@ export function calculateInvoicedToDate(draws: DrawDocument[]): number {
   return round2(total);
 }
 
-// "How much of the contract is left to bill" - not contract value minus
-// money *received* (that's a separate, already-answered question via
-// calculateJobRevenue). Can go negative if a job is billed past its
-// original contract value (e.g. an unrecorded change order) - callers
-// decide how to display that rather than this function hiding it.
+// Generic contractValue-minus-x - the caller decides what "remaining"
+// means by what it passes as the second argument: the Progress Billing
+// tab's job-level stat passes receivedToDate ("how much is left to
+// collect"), while a single progress invoice's own on-document summary
+// passes totalBilledToDate ("how much of the contract is left to bill" as
+// of that invoice - see document-detail.tsx). Can go negative if a job is
+// billed/paid past its original contract value (e.g. an unrecorded change
+// order) - callers decide how to display that rather than this function
+// hiding it.
 export function calculateRemainingBalance(
   contractValue: number,
-  invoicedToDate: number,
+  amountToDate: number,
 ): number {
-  return round2(contractValue - invoicedToDate);
+  return round2(contractValue - amountToDate);
 }

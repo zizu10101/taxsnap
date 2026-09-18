@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Receipt } from "lucide-react";
+import { ClipboardList, FileText, Plus, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -112,17 +112,28 @@ export function ProgressBillingList({
                   >
                     {job.name}
                   </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setDrawJob({ name: job.name });
-                      setDrawOpen(true);
-                    }}
-                  >
-                    <FileText className="h-4 w-4" />
-                    New Draw
-                  </Button>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/dashboard/progress-billing/${job.id}`} />}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Summary
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setDrawJob({ name: job.name });
+                        setDrawOpen(true);
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      New Draw
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                   <div>
@@ -172,58 +183,51 @@ export function ProgressBillingList({
                         <Link
                           key={draw.id}
                           href={`/dashboard/invoices/${draw.id}`}
-                          className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
+                          className="grid grid-cols-2 items-center gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 sm:grid-cols-4"
                         >
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-medium">
-                              Draw #{draw.drawNumber ?? "?"} —{" "}
-                              {formatDocumentNumber("invoice", draw.documentNumber)} ·{" "}
-                              {formatCurrency(draw.totalAmount)}
-                            </p>
-                            <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
-                              {draw.status}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(draw.issueDate)}
-                          </p>
-                          {/* Same 4-column grid (and gap) as the job
-                              summary above, on an equal-width container -
-                              that's what actually lines Received/Remaining
-                              up under "Received to Date"/"Remaining
-                              Balance", not just right-alignment. Columns
-                              1-2 stay empty on purpose (Contract Value and
-                              Invoiced to Date have no per-draw equivalent);
-                              since they're empty divs their row collapses
-                              to ~0 height at the mobile 2-column
-                              breakpoint. */}
-                          <div className="mt-1 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-                            <div />
-                            <div />
-                            <div>
-                              {draw.payments.length > 1 ? (
-                                <div className="space-y-0.5">
-                                  {draw.payments.map((payment) => (
-                                    <p
-                                      key={payment.id}
-                                      className="text-xs font-medium text-success"
-                                    >
-                                      {formatDate(payment.paidDate)} ·{" "}
-                                      {formatCurrency(payment.amount)}
-                                    </p>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-xs font-medium text-success">
-                                  {formatCurrency(draw.receivedAmount)} ({receivedPercent}%)
-                                </p>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium">
-                                {formatCurrency(remainingAmount)}
+                          {/* Title+date live inside the same grid as
+                              Received/Remaining (columns 1-2, matching
+                              Contract Value + Invoiced to Date's combined
+                              width) rather than stacked above it as a
+                              separate block - that's what keeps this row
+                              vertically centered against Received/Remaining
+                              instead of sitting below them, while the grid
+                              itself (same columns/gap as the job summary
+                              above) is what lines Received up under
+                              "Received to Date" and Remaining under
+                              "Remaining Balance". */}
+                          <div className="col-span-2 min-w-0 text-left">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-medium">
+                                Draw #{draw.drawNumber ?? "?"} —{" "}
+                                {formatDocumentNumber("invoice", draw.documentNumber)} ·{" "}
+                                {formatCurrency(draw.totalAmount)}
                               </p>
+                              <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
+                                {draw.status}
+                              </Badge>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(draw.issueDate)}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            {draw.payments.length > 1 ? (
+                              <div className="space-y-0.5">
+                                {draw.payments.map((payment) => (
+                                  <p key={payment.id} className="text-xs font-medium text-success">
+                                    {formatDate(payment.paidDate)} · {formatCurrency(payment.amount)}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs font-medium text-success">
+                                {formatCurrency(draw.receivedAmount)} ({receivedPercent}%)
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-medium">{formatCurrency(remainingAmount)}</p>
                           </div>
                         </Link>
                       );
