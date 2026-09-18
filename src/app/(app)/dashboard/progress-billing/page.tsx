@@ -69,13 +69,14 @@ export default async function ProgressBillingPage() {
       const { data: documents } = await supabase
         .from("documents")
         .select(
-          "job_id, type, subtotal, total_amount, is_progress_draw, draw_number, payments(amount)",
+          "id, job_id, type, document_number, status, issue_date, subtotal, total_amount, is_progress_draw, draw_number, payments(amount)",
         )
         .eq("type", "invoice")
         .in(
           "job_id",
           progressJobs.map((j) => j.id),
-        );
+        )
+        .order("draw_number", { ascending: true });
 
       summaries = progressJobs.map((job) => {
         const jobDocs = (documents ?? []).filter((d) => d.job_id === job.id);
@@ -91,7 +92,21 @@ export default async function ProgressBillingPage() {
           job.contract_value ?? 0,
           invoicedToDate,
         );
-        return { job, invoicedToDate, receivedToDate, remainingBalance };
+        // The individual draws themselves - the summary numbers above
+        // roll these up, but each one also needs its own link to its
+        // invoice detail/PDF page (there was previously no way to open
+        // a draw once created, only see it counted in the totals).
+        const draws = jobDocs
+          .filter((d) => d.is_progress_draw)
+          .map((d) => ({
+            id: d.id,
+            documentNumber: d.document_number,
+            drawNumber: d.draw_number,
+            status: d.status,
+            issueDate: d.issue_date,
+            totalAmount: d.total_amount,
+          }));
+        return { job, invoicedToDate, receivedToDate, remainingBalance, draws };
       });
     }
   }

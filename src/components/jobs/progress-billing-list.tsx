@@ -4,11 +4,28 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Receipt } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { StartProgressBillingDialog } from "@/components/jobs/start-progress-billing-dialog";
-import type { Client, Job, LineItem } from "@/lib/database.types";
+import { formatDocumentNumber } from "@/lib/document-number";
+import type { Client, DocumentStatus, Job, LineItem } from "@/lib/database.types";
+
+const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
+  draft: "outline",
+  sent: "secondary",
+  partial: "secondary",
+  paid: "default",
+};
+
+function formatDate(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -17,11 +34,21 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+export interface ProgressDrawSummary {
+  id: string;
+  documentNumber: number;
+  drawNumber: number | null;
+  status: DocumentStatus;
+  issueDate: string;
+  totalAmount: number;
+}
+
 export interface ProgressJobSummary {
   job: Job;
   invoicedToDate: number;
   receivedToDate: number;
   remainingBalance: number;
+  draws: ProgressDrawSummary[];
 }
 
 export function ProgressBillingList({
@@ -67,7 +94,7 @@ export function ProgressBillingList({
         </Card>
       ) : (
         <div className="space-y-3">
-          {initialSummaries.map(({ job, invoicedToDate, receivedToDate, remainingBalance }) => (
+          {initialSummaries.map(({ job, invoicedToDate, receivedToDate, remainingBalance, draws }) => (
             <Card key={job.id}>
               <CardContent className="space-y-3 py-4">
                 <div className="flex items-center justify-between gap-2">
@@ -115,6 +142,37 @@ export function ProgressBillingList({
                     </p>
                   </div>
                 </div>
+
+                {draws.length > 0 && (
+                  <div className="space-y-1.5 border-t pt-3">
+                    <p className="text-xs font-medium text-muted-foreground">Draws</p>
+                    {draws.map((draw) => (
+                      <Link
+                        key={draw.id}
+                        href={`/dashboard/invoices/${draw.id}`}
+                        className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium">
+                              Draw #{draw.drawNumber ?? "?"} —{" "}
+                              {formatDocumentNumber("invoice", draw.documentNumber)}
+                            </p>
+                            <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
+                              {draw.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(draw.issueDate)}
+                          </p>
+                        </div>
+                        <span className="shrink-0 font-semibold tabular-nums">
+                          {formatCurrency(draw.totalAmount)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
