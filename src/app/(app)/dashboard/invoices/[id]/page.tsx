@@ -45,6 +45,21 @@ export default async function InvoiceDetailPage({
 
   if (!document) notFound();
 
+  // Only fetched when actually needed - depends on this document's own
+  // job_id, so it can't join the parallel fetch above. Every *other*
+  // draw on the same job, for the "Previous Billed" figure (see
+  // lib/progress-billing.ts / generateDocumentPdf's own comment).
+  let priorDraws: { draw_number: number | null; subtotal: number }[] = [];
+  if (document.is_progress_draw && document.job_id) {
+    const { data } = await supabase
+      .from("documents")
+      .select("draw_number, subtotal")
+      .eq("job_id", document.job_id)
+      .eq("is_progress_draw", true)
+      .neq("id", document.id);
+    priorDraws = data ?? [];
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
@@ -60,6 +75,7 @@ export default async function InvoiceDetailPage({
           clients={clients ?? []}
           jobs={jobs ?? []}
           lineItems={lineItems ?? []}
+          priorDraws={priorDraws}
           business={{
             name: profile?.business_name ?? null,
             email: profile?.business_email || user.email || "",

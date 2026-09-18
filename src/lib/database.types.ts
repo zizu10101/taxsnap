@@ -175,6 +175,10 @@ export interface Database {
           converted_from_id: string | null;
           excluded_from_hst: boolean;
           document_number: number;
+          is_progress_draw: boolean;
+          draw_number: number | null;
+          draw_description: string | null;
+          draw_percent_complete: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -193,6 +197,10 @@ export interface Database {
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
           document_number: number;
+          is_progress_draw?: boolean;
+          draw_number?: number | null;
+          draw_description?: string | null;
+          draw_percent_complete?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -211,6 +219,10 @@ export interface Database {
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
           document_number?: number;
+          is_progress_draw?: boolean;
+          draw_number?: number | null;
+          draw_description?: string | null;
+          draw_percent_complete?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -312,18 +324,21 @@ export interface Database {
           id: string;
           user_id: string;
           name: string;
+          contract_value: number | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           user_id: string;
           name: string;
+          contract_value?: number | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           user_id?: string;
           name?: string;
+          contract_value?: number | null;
           created_at?: string;
         };
         Relationships: [];
@@ -904,6 +919,7 @@ export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"]
 export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
+export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
 export type LineItemUpdate = Database["public"]["Tables"]["line_items"]["Update"];
 export type ExpenseTemplate = Database["public"]["Tables"]["expense_templates"]["Row"];

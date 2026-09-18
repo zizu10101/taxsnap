@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import type { JobUpdate } from "@/lib/database.types";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -53,4 +54,40 @@ export async function GET(
       totalJobCost: totalExpenses + totalLaborCost,
     },
   });
+}
+
+// No general job-rename/edit UI exists yet - this is scoped to just
+// contract_value, the one field progress billing needs to set (via the
+// Progress Billing tab's own "Start Progress Billing" flow). Setting it
+// on an already-capped job doesn't consume a new job slot - it's an edit
+// to an existing row, not a create.
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await requireUser();
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  const { supabase, user } = result;
+  const { id } = await params;
+
+  const body = await request.json();
+  const { contract_value } = body ?? {};
+
+  const update: JobUpdate = {};
+  if (contract_value !== undefined) {
+    update.contract_value = contract_value === null ? null : Number(contract_value) || 0;
+  }
+
+  const { data, error } = await supabase
+    .from("jobs")
+    .update(update)
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ job: data });
 }

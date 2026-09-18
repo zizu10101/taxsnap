@@ -33,6 +33,8 @@ import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { calculateRemainingBalance } from "@/lib/progress-billing";
+import type { PriorDraw } from "@/lib/invoice-pdf";
 import type {
   Client,
   DocumentStatus,
@@ -72,6 +74,7 @@ export function DocumentDetail({
   clients,
   jobs = [],
   lineItems = [],
+  priorDraws = [],
   business,
   logoPath,
   basePath,
@@ -81,6 +84,10 @@ export function DocumentDetail({
   clients: Client[];
   jobs?: { id: string; name: string }[];
   lineItems?: LineItem[];
+  // Other draws on the same job - for the "Previous Billed" figure in
+  // both the on-screen and PDF progress-billing summary. Only meaningful
+  // when document.is_progress_draw.
+  priorDraws?: PriorDraw[];
   business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
@@ -103,10 +110,26 @@ export function DocumentDetail({
     null,
   );
 
-  const label = doc.type === "invoice" ? "Invoice" : "Estimate";
-  const shortId = formatDocumentNumber(doc.type, doc.document_number);
+  const label = doc.is_progress_draw
+    ? "Progress Invoice"
+    : doc.type === "invoice"
+      ? "Invoice"
+      : "Estimate";
+  const shortId = doc.is_progress_draw
+    ? `${formatDocumentNumber(doc.type, doc.document_number)} — Draw #${doc.draw_number}`
+    : formatDocumentNumber(doc.type, doc.document_number);
   const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = doc.total_amount - paidToDate;
+
+  // Same pre-tax (subtotal) math as generateDocumentPdf's Progress
+  // Billing Summary, kept in sync by hand since one is jsPDF drawing
+  // calls and the other JSX - not worth a shared renderer for five rows.
+  const contractValue = doc.job?.contract_value ?? 0;
+  const previousBilled = priorDraws
+    .filter((d) => (d.draw_number ?? 0) < (doc.draw_number ?? 0))
+    .reduce((sum, d) => sum + d.subtotal, 0);
+  const totalBilledToDate = previousBilled + doc.subtotal;
+  const remainingBalance = calculateRemainingBalance(contractValue, totalBilledToDate);
 
   async function handleStatusChange(status: DocumentStatus) {
     setStatusSaving(true);
@@ -287,7 +310,12 @@ export function DocumentDetail({
             <Printer className="h-4 w-4" />
             Print
           </Button>
-          <ShareDocumentButton document={doc} business={business} logoPath={logoPath} />
+          <ShareDocumentButton
+            document={doc}
+            business={business}
+            logoPath={logoPath}
+            priorDraws={priorDraws}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -445,6 +473,48 @@ export function DocumentDetail({
               </>
             )}
           </div>
+
+          {doc.is_progress_draw && (
+            <>
+              <Separator />
+              <div className="space-y-2 text-sm">
+                <p className="font-heading font-semibold">Progress Billing Summary</p>
+                <div className="grid max-w-xs gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Original Contract Value</span>
+                    <span className="tabular-nums">{formatCurrency(contractValue)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Previous Billed</span>
+                    <span className="tabular-nums">{formatCurrency(previousBilled)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">This Invoice</span>
+                    <span className="tabular-nums">{formatCurrency(doc.subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>Total Billed to Date</span>
+                    <span className="tabular-nums">{formatCurrency(totalBilledToDate)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>Remaining Balance</span>
+                    <span className="tabular-nums">{formatCurrency(remainingBalance)}</span>
+                  </div>
+                </div>
+                {doc.draw_percent_complete !== null && (
+                  <p>Progress: {doc.draw_percent_complete}% complete</p>
+                )}
+                {doc.draw_description && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">
+                      Work completed for this draw
+                    </p>
+                    <p>{doc.draw_description}</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

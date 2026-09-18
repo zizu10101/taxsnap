@@ -5,7 +5,7 @@ import { Download, Loader2, Mail, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { generateDocumentPdf } from "@/lib/invoice-pdf";
+import { generateDocumentPdf, type PriorDraw } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
 import { formatDocumentNumber } from "@/lib/document-number";
 import type { DocumentWithRelations } from "@/lib/database.types";
@@ -38,7 +38,12 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-async function buildPdf(document: DocumentWithRelations, business: BusinessInfo, logoPath: string | null) {
+async function buildPdf(
+  document: DocumentWithRelations,
+  business: BusinessInfo,
+  logoPath: string | null,
+  priorDraws: PriorDraw[],
+) {
   let logoDataUrl: string | null = null;
   if (logoPath) {
     const supabase = createClient();
@@ -48,17 +53,22 @@ async function buildPdf(document: DocumentWithRelations, business: BusinessInfo,
       logoDataUrl = await blobToDataUrl(await resp.blob());
     }
   }
-  return generateDocumentPdf(document, business, logoDataUrl);
+  return generateDocumentPdf(document, business, logoDataUrl, priorDraws);
 }
 
 export function ShareDocumentButton({
   document,
   business,
   logoPath,
+  priorDraws = [],
 }: {
   document: DocumentWithRelations;
   business: BusinessInfo;
   logoPath: string | null;
+  // Other draws on the same job, for the PDF's "Previous Billed" figure -
+  // only meaningful when document.is_progress_draw, harmless/unused
+  // otherwise.
+  priorDraws?: PriorDraw[];
 }) {
   const canShare = useSyncExternalStore(noSubscription, canShareFiles, getServerFalse);
   const [sharing, setSharing] = useState(false);
@@ -75,7 +85,7 @@ export function ShareDocumentButton({
   async function handleShare() {
     setSharing(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath);
+      const pdfBlob = await buildPdf(document, business, logoPath, priorDraws);
       const filename = `${shortId}.pdf`;
       const file = new File([pdfBlob], filename, { type: "application/pdf" });
 
@@ -95,7 +105,7 @@ export function ShareDocumentButton({
   async function handleDownload() {
     setDownloading(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath);
+      const pdfBlob = await buildPdf(document, business, logoPath, priorDraws);
       downloadBlob(`${shortId}.pdf`, pdfBlob);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");

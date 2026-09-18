@@ -58,7 +58,7 @@ export async function PATCH(
 
   const { data: existing } = await supabase
     .from("documents")
-    .select("id, type")
+    .select("id, type, is_progress_draw")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -100,6 +100,19 @@ export async function PATCH(
   if (body.due_date !== undefined) updates.due_date = body.due_date || null;
   if (typeof body.excluded_from_hst === "boolean") {
     updates.excluded_from_hst = body.excluded_from_hst;
+  }
+  // is_progress_draw/draw_number are deliberately not editable here -
+  // flipping whether a document counts as a draw after creation would
+  // desync the job-scoped draw_number sequence (see lib/document-
+  // number.ts). Only the free-text work-completed fields can change.
+  if (existing.is_progress_draw) {
+    if (body.draw_description !== undefined) {
+      updates.draw_description = body.draw_description?.trim() || null;
+    }
+    if (body.draw_percent_complete !== undefined) {
+      updates.draw_percent_complete =
+        body.draw_percent_complete === null ? null : Number(body.draw_percent_complete);
+    }
   }
 
   let clientId: string | undefined = body.client_id ?? undefined;

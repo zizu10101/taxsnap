@@ -1,7 +1,27 @@
 import { jsPDF } from "jspdf";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type { DocumentWithRelations, CommissionEntryWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// One other draw on the same job - just enough to compute "Previous
+// Billed" for the draw currently being rendered. Fetched by the caller
+// (this module does no data access of its own, same as every other PDF
+// helper here) - optional and defaults to empty, so a caller that hasn't
+// fetched sibling draws (e.g. the accountant export's bulk PDF pass,
+// generating many invoices from a period at once) still gets a valid PDF,
+// just with "Previous Billed" reading $0 rather than the real prior
+// total. That's an accepted simplification for that one bulk path, not a
+// bug - the Progress Billing tab and a single draw's own detail page/
+// download both fetch this properly.
+export interface PriorDraw {
+  draw_number: number | null;
+  subtotal: number;
+}
 
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -331,19 +351,20 @@ export async function generateDocumentPdf(
   doc: DocumentWithRelations,
   business: BusinessInfo,
   logoDataUrl: string | null,
+  priorDraws: PriorDraw[] = [],
 ): Promise<Blob> {
   const { pdf, marginX, rightX } = newPdf();
   let y = 56;
 
-  const label = doc.type === "invoice" ? "INVOICE" : "ESTIMATE";
-  y = await drawPdfHeader(
-    pdf,
-    marginX,
-    y,
-    label,
-    formatDocumentNumber(doc.type, doc.document_number),
-    logoDataUrl,
-  );
+  const label = doc.is_progress_draw
+    ? "PROGRESS INVOICE"
+    : doc.type === "invoice"
+      ? "INVOICE"
+      : "ESTIMATE";
+  const subLabel = doc.is_progress_draw
+    ? `${formatDocumentNumber(doc.type, doc.document_number)} — Draw #${doc.draw_number}`
+    : formatDocumentNumber(doc.type, doc.document_number);
+  y = await drawPdfHeader(pdf, marginX, y, label, subLabel, logoDataUrl);
 
   // Estimates never carry a payment status worth stamping - only an
   // invoice's own status (derived server-side from its payments, see
@@ -422,11 +443,68 @@ export async function generateDocumentPdf(
   pdf.line(marginX, y, rightX, y);
   y += 20;
 
-  drawTotalsBlock(pdf, rightX, y, [
+  y = drawTotalsBlock(pdf, rightX, y, [
     { label: "Subtotal", value: formatCurrency(doc.subtotal) },
     { label: "HST (13%)", value: formatCurrency(doc.hst_amount) },
     { label: "Total", value: formatCurrency(doc.total_amount), bold: true },
   ]);
+
+  if (doc.is_progress_draw) {
+    y += 16;
+    pdf.setDrawColor(210);
+    pdf.line(marginX, y, rightX, y);
+    y += 24;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text("Progress Billing Summary", marginX, y);
+    pdf.setFont("helvetica", "normal");
+    y += 20;
+
+    // Pre-tax (subtotal) throughout - contract values are typically
+    // quoted pre-tax, and comparing against total_amount would make a
+    // job look "over-billed" purely from HST accumulating across draws.
+    const contractValue = doc.job?.contract_value ?? 0;
+    const previousBilled = round2(
+      priorDraws
+        .filter((d) => (d.draw_number ?? 0) < (doc.draw_number ?? 0))
+        .reduce((sum, d) => sum + d.subtotal, 0),
+    );
+    const totalBilledToDate = round2(previousBilled + doc.subtotal);
+    const remainingBalance = calculateRemainingBalance(contractValue, totalBilledToDate);
+
+    pdf.setFontSize(10);
+    const valueX = marginX + 200;
+    for (const [rowLabel, value] of [
+      ["Original Contract Value", formatCurrency(contractValue)],
+      ["Previous Billed", formatCurrency(previousBilled)],
+      ["This Invoice", formatCurrency(doc.subtotal)],
+      ["Total Billed to Date", formatCurrency(totalBilledToDate)],
+      ["Remaining Balance", formatCurrency(remainingBalance)],
+    ]) {
+      pdf.setTextColor(120);
+      pdf.text(rowLabel, marginX, y);
+      pdf.setTextColor(0);
+      pdf.text(value, valueX, y);
+      y += 16;
+    }
+    y += 8;
+
+    if (doc.draw_percent_complete !== null) {
+      pdf.setFontSize(10);
+      pdf.text(`Progress: ${doc.draw_percent_complete}% complete`, marginX, y);
+      y += 18;
+    }
+    if (doc.draw_description) {
+      pdf.setFontSize(9);
+      pdf.setTextColor(120);
+      pdf.text("Work completed for this draw:", marginX, y);
+      pdf.setTextColor(0);
+      y += 14;
+      pdf.setFontSize(10);
+      pdf.text(doc.draw_description, marginX, y, { maxWidth: rightX - marginX });
+    }
+  }
 
   return pdf.output("blob");
 }

@@ -76,7 +76,14 @@ export function DashboardHeader({
   // api/profile/logo/route.ts) with a small "Powered by TaxSnap" line
   // underneath, keeping the brand attributed without crowding it out.
   logoPath: string | null;
-  active?: "estimates" | "invoices" | "jobs" | "commission" | "overview" | "expenses";
+  active?:
+    | "estimates"
+    | "invoices"
+    | "jobs"
+    | "commission"
+    | "overview"
+    | "expenses"
+    | "progress-billing";
 }) {
   const { role, hasOwnerPin, relock } = useAppLock();
   const isStaffMode = role === "staff";
@@ -253,15 +260,26 @@ export function DashboardHeader({
                   Expenses
                 </Button>
                 {subscriptionStatus === "pro" && (
-                  <Button
-                    variant={active === "overview" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
-                    nativeButton={false}
-                    render={<Link href="/dashboard/overview" />}
-                  >
-                    Overview
-                  </Button>
+                  <>
+                    <Button
+                      variant={active === "progress-billing" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
+                      nativeButton={false}
+                      render={<Link href="/dashboard/progress-billing" />}
+                    >
+                      Progress Billing
+                    </Button>
+                    <Button
+                      variant={active === "overview" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 min-w-[30%] justify-center hover:bg-primary/10 hover:text-primary"
+                      nativeButton={false}
+                      render={<Link href="/dashboard/overview" />}
+                    >
+                      Overview
+                    </Button>
+                  </>
                 )}
               </>
             )}

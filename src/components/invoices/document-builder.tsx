@@ -71,6 +71,7 @@ export function DocumentBuilder({
   jobs = [],
   savedLineItems = [],
   presetJob = null,
+  progressDrawJob = null,
   onSaved,
   onClientCreated,
 }: {
@@ -87,15 +88,28 @@ export function DocumentBuilder({
   // job id here again.
   jobs?: { id: string; name: string }[];
   savedLineItems?: LineItem[];
-  // Pre-selects a job by name (e.g. opened from the Job Detail page's
-  // "New Invoice for this job").
+  // Pre-selects a job by name, editable (e.g. opened from the Job
+  // Detail page's "New Invoice for this job").
   presetJob?: { name: string } | null;
+  // Opens in progress-draw mode, locked to this job (not just pre-
+  // filled - a draw's job_id can't be reassigned, since draw_number is
+  // scoped to it). Distinct from presetJob: this also forces type to
+  // "invoice" and hides the Estimate/Invoice toggle, since a draw is
+  // never an estimate, and reveals the work-completed/% complete
+  // fields.
+  progressDrawJob?: { name: string } | null;
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
   const isEditing = !!document;
+  // Covers both creating a new draw (progressDrawJob) and editing one
+  // that already exists (document.is_progress_draw) - same UI treatment
+  // either way.
+  const isDraw = !!document?.is_progress_draw || !!progressDrawJob;
 
-  const [type, setType] = useState<DocumentType>(document?.type ?? defaultType);
+  const [type, setType] = useState<DocumentType>(
+    progressDrawJob ? "invoice" : (document?.type ?? defaultType),
+  );
   const [clientId, setClientId] = useState<string>(document?.client_id ?? NEW_CLIENT);
   const [newClient, setNewClient] = useState({ name: "", email: "", address: "" });
   const [issueDate, setIssueDate] = useState(document?.issue_date ?? todayIso());
@@ -110,9 +124,18 @@ export function DocumentBuilder({
       : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
-  const initialJobName = document?.job?.name ?? presetJob?.name ?? null;
+  const initialJobName =
+    document?.job?.name ?? presetJob?.name ?? progressDrawJob?.name ?? null;
   const [jobMode, setJobMode] = useState<string>(initialJobName ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  const [drawDescription, setDrawDescription] = useState(document?.draw_description ?? "");
+  // NumberInput takes a plain number (0 already displays as an empty
+  // field, same convention as every other dollar/qty input in this app)
+  // - 0 is sent to the API as "not provided" (null) on save, since 0%
+  // complete isn't a meaningful value to record deliberately.
+  const [drawPercentComplete, setDrawPercentComplete] = useState(
+    document?.draw_percent_complete ?? 0,
+  );
   const router = useRouter();
 
   // Inserts a generic "Labor" placeholder row - the user fills in hours
@@ -221,6 +244,11 @@ export function DocumentBuilder({
         new_client: clientId === NEW_CLIENT ? newClient : undefined,
         ...(jobName ? { job_name: jobName } : { job_id: null }),
         items: cleanItems,
+        ...(isDraw && {
+          is_progress_draw: true,
+          draw_description: drawDescription,
+          draw_percent_complete: drawPercentComplete || null,
+        }),
       };
 
       const res = await fetch(
@@ -281,17 +309,21 @@ export function DocumentBuilder({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Edit" : "New"} {type === "invoice" ? "Invoice" : "Estimate"}
+            {isDraw
+              ? `${isEditing ? "Edit" : "New"} Progress Draw`
+              : `${isEditing ? "Edit" : "New"} ${type === "invoice" ? "Invoice" : "Estimate"}`}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4">
-          <Tabs value={type} onValueChange={(v) => v && setType(v as DocumentType)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="estimate">Estimate</TabsTrigger>
-              <TabsTrigger value="invoice">Invoice</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {!isDraw && (
+            <Tabs value={type} onValueChange={(v) => v && setType(v as DocumentType)}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="estimate">Estimate</TabsTrigger>
+                <TabsTrigger value="invoice">Invoice</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="doc-client">Client</Label>
@@ -351,33 +383,71 @@ export function DocumentBuilder({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="doc-job">Job (optional)</Label>
-            <Select
-              items={jobSelectItems}
-              value={jobMode}
-              onValueChange={(v) => v && handleJobModeChange(v)}
-            >
-              <SelectTrigger id="doc-job" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_JOB}>No job</SelectItem>
-                <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
-                {jobs.map((job) => (
-                  <SelectItem key={job.id} value={job.name}>
-                    {job.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {jobMode === NEW_JOB && (
-              <Input
-                placeholder="e.g. 123 Main St or Job #4521"
-                value={newJobName}
-                onChange={(e) => setNewJobName(e.target.value)}
-              />
+            <Label htmlFor="doc-job">Job{isDraw ? "" : " (optional)"}</Label>
+            {isDraw ? (
+              // Locked, not just pre-filled - a draw's job can't be
+              // reassigned once created, since draw_number is scoped to
+              // it (see lib/document-number.ts). Shown as plain text
+              // rather than a disabled Select, so it doesn't look like a
+              // dead control the user should be able to click.
+              <p
+                id="doc-job"
+                className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm"
+              >
+                {jobMode}
+              </p>
+            ) : (
+              <>
+                <Select
+                  items={jobSelectItems}
+                  value={jobMode}
+                  onValueChange={(v) => v && handleJobModeChange(v)}
+                >
+                  <SelectTrigger id="doc-job" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_JOB}>No job</SelectItem>
+                    <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.name}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {jobMode === NEW_JOB && (
+                  <Input
+                    placeholder="e.g. 123 Main St or Job #4521"
+                    value={newJobName}
+                    onChange={(e) => setNewJobName(e.target.value)}
+                  />
+                )}
+              </>
             )}
           </div>
+
+          {isDraw && (
+            <div className="grid gap-3 rounded-lg border p-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="draw-description">What was completed for this draw</Label>
+                <Input
+                  id="draw-description"
+                  placeholder="e.g. Framing and rough electrical complete"
+                  value={drawDescription}
+                  onChange={(e) => setDrawDescription(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="draw-percent">% of project complete (optional)</Label>
+                <NumberInput
+                  id="draw-percent"
+                  value={drawPercentComplete}
+                  onValueChange={setDrawPercentComplete}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

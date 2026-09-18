@@ -6,7 +6,7 @@ import {
   wouldExceedTotalLimit,
   limitReachedMessage,
 } from "@/lib/plan-limits";
-import { getNextDocumentNumber } from "@/lib/document-number";
+import { getNextDocumentNumber, getNextDrawNumber } from "@/lib/document-number";
 import type { DocumentType } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -63,6 +63,9 @@ export async function POST(request: Request) {
     job_id: jobIdInput,
     job_name,
     items,
+    is_progress_draw,
+    draw_description,
+    draw_percent_complete,
   } = body ?? {};
 
   if (!DOCUMENT_TYPES.includes(type)) {
@@ -73,6 +76,21 @@ export async function POST(request: Request) {
   }
   if (!issue_date) {
     return NextResponse.json({ error: "issue_date is required." }, { status: 400 });
+  }
+  // A progress draw is always an invoice tied to a specific job - it
+  // makes no sense as an estimate, and its draw_number (job-scoped, see
+  // lib/document-number.ts) has nothing to count against without one.
+  if (is_progress_draw && type !== "invoice") {
+    return NextResponse.json(
+      { error: "A progress draw must be an invoice." },
+      { status: 400 },
+    );
+  }
+  if (is_progress_draw && !jobIdInput && !job_name?.trim()) {
+    return NextResponse.json(
+      { error: "A progress draw requires a job." },
+      { status: 400 },
+    );
   }
 
   // Estimates are unlimited/free at every tier - only invoices are capped
@@ -187,6 +205,7 @@ export async function POST(request: Request) {
   const hstAmount = round2(subtotal * ONTARIO_HST_RATE);
   const totalAmount = round2(subtotal + hstAmount);
   const documentNumber = await getNextDocumentNumber(supabase, user.id, type);
+  const drawNumber = is_progress_draw && jobId ? await getNextDrawNumber(supabase, jobId) : null;
 
   const { data: document, error: documentError } = await supabase
     .from("documents")
@@ -202,6 +221,13 @@ export async function POST(request: Request) {
       hst_amount: hstAmount,
       total_amount: totalAmount,
       document_number: documentNumber,
+      is_progress_draw: !!is_progress_draw,
+      draw_number: drawNumber,
+      draw_description: is_progress_draw ? draw_description?.trim() || null : null,
+      draw_percent_complete:
+        is_progress_draw && draw_percent_complete !== undefined && draw_percent_complete !== null
+          ? Number(draw_percent_complete)
+          : null,
     })
     .select("*, client:clients(*), job:jobs(*), payments(*)")
     .single();

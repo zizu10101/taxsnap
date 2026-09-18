@@ -34,3 +34,25 @@ export function formatDocumentNumber(type: DocumentType, documentNumber: number)
   const prefix = type === "invoice" ? "INV" : "EST";
   return `${prefix}-${documentNumber}`;
 }
+
+// Separate, job-scoped counter from document_number above - a progress
+// draw gets both: its real sequential invoice number (INV-1004, for
+// accounting continuity) and a small "Draw #1/#2/#3" number scoped to
+// just this job's draws, starting at 1 (not 1000 - a draw number is a
+// human-friendly progress counter shown to the client, not an invoice
+// identifier that needs to look established).
+export async function getNextDrawNumber(
+  supabase: SupabaseClient<Database>,
+  jobId: string,
+): Promise<number> {
+  const { data } = await supabase
+    .from("documents")
+    .select("draw_number")
+    .eq("job_id", jobId)
+    .eq("is_progress_draw", true)
+    .order("draw_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data?.draw_number ?? 0) + 1;
+}
