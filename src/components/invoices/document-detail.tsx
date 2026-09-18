@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
@@ -102,6 +103,14 @@ export function DocumentDetail({
   const [deleting, setDeleting] = useState(false);
 
   const [paymentAmount, setPaymentAmount] = useState(0);
+  // % mode is a separate entry field, not a live conversion of
+  // paymentAmount - switching modes doesn't try to reverse-derive one
+  // from the other, it just enters the other one blank. The % basis is
+  // this document's own total_amount (a draw's total, not the overall
+  // contract value - "90%" means 90% of *this invoice*, matching how an
+  // owner actually talks about a partial payment).
+  const [paymentMode, setPaymentMode] = useState<"dollar" | "percent">("dollar");
+  const [paymentPercent, setPaymentPercent] = useState(0);
   const [paymentDate, setPaymentDate] = useState(() => toIsoDate(new Date()));
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
@@ -120,6 +129,11 @@ export function DocumentDetail({
     : formatDocumentNumber(doc.type, doc.document_number);
   const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = doc.total_amount - paidToDate;
+
+  const paymentAmountFromPercent =
+    Math.round(((paymentPercent / 100) * doc.total_amount + Number.EPSILON) * 100) / 100;
+  const effectivePaymentAmount =
+    paymentMode === "percent" ? paymentAmountFromPercent : paymentAmount;
 
   // Same pre-tax (subtotal) math as generateDocumentPdf's Progress
   // Billing Summary, kept in sync by hand since one is jsPDF drawing
@@ -168,15 +182,19 @@ export function DocumentDetail({
   }
 
   async function handleAddPayment() {
-    if (paymentAmount <= 0) {
-      toast.error("Enter a payment amount greater than $0.");
+    if (effectivePaymentAmount <= 0) {
+      toast.error(
+        paymentMode === "percent"
+          ? "Enter a percentage greater than 0%."
+          : "Enter a payment amount greater than $0.",
+      );
       return;
     }
     // Instant feedback before the round trip - the server enforces this
     // too (authoritative, catches a stale balanceDue or a direct API
     // call), see POST /api/documents/[id]/payments's own comment.
-    if (paymentAmount > balanceDue + 0.001) {
-      const over = paymentAmount - balanceDue;
+    if (effectivePaymentAmount > balanceDue + 0.001) {
+      const over = effectivePaymentAmount - balanceDue;
       toast.error(
         `This payment would exceed the invoice total by ${formatCurrency(over)} — edit the invoice or adjust the payment amount.`,
       );
@@ -188,7 +206,7 @@ export function DocumentDetail({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: paymentAmount,
+          amount: effectivePaymentAmount,
           paid_date: paymentDate,
           method: paymentMethod,
           note: paymentNote,
@@ -198,6 +216,7 @@ export function DocumentDetail({
       if (!res.ok) throw new Error(data.error || "Failed to record payment");
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
       setPaymentAmount(0);
+      setPaymentPercent(0);
       setPaymentMethod("");
       setPaymentNote("");
       toast.success("Payment recorded");
@@ -568,13 +587,45 @@ export function DocumentDetail({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="payment-amount">Amount ($)</Label>
-                <NumberInput
-                  id="payment-amount"
-                  step="0.01"
-                  value={paymentAmount}
-                  onValueChange={setPaymentAmount}
-                />
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="payment-amount">
+                    {paymentMode === "percent" ? "Amount (%)" : "Amount ($)"}
+                  </Label>
+                  <Tabs
+                    value={paymentMode}
+                    onValueChange={(v) => v && setPaymentMode(v as "dollar" | "percent")}
+                  >
+                    <TabsList className="h-6 p-[2px]">
+                      <TabsTrigger value="dollar" className="h-5 px-2 text-xs">
+                        $
+                      </TabsTrigger>
+                      <TabsTrigger value="percent" className="h-5 px-2 text-xs">
+                        %
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                {paymentMode === "percent" ? (
+                  <>
+                    <NumberInput
+                      id="payment-amount"
+                      step="0.1"
+                      value={paymentPercent}
+                      onValueChange={setPaymentPercent}
+                    />
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      = {formatCurrency(paymentAmountFromPercent)} of{" "}
+                      {formatCurrency(doc.total_amount)}
+                    </p>
+                  </>
+                ) : (
+                  <NumberInput
+                    id="payment-amount"
+                    step="0.01"
+                    value={paymentAmount}
+                    onValueChange={setPaymentAmount}
+                  />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="payment-date">Date</Label>
