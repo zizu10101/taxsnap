@@ -41,6 +41,7 @@ export interface ProgressDrawSummary {
   status: DocumentStatus;
   issueDate: string;
   totalAmount: number;
+  receivedAmount: number;
 }
 
 export interface ProgressJobSummary {
@@ -146,31 +147,45 @@ export function ProgressBillingList({
                 {draws.length > 0 && (
                   <div className="space-y-1.5 border-t pt-3">
                     <p className="text-xs font-medium text-muted-foreground">Draws</p>
-                    {draws.map((draw) => (
-                      <Link
-                        key={draw.id}
-                        href={`/dashboard/invoices/${draw.id}`}
-                        className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-medium">
-                              Draw #{draw.drawNumber ?? "?"} —{" "}
-                              {formatDocumentNumber("invoice", draw.documentNumber)}
+                    {draws.map((draw) => {
+                      // Per-draw received % - distinct from the job-level
+                      // Received to Date stat above, which rolls up every
+                      // invoice on the job. This is just this one draw's
+                      // own payments against its own total.
+                      const receivedPercent =
+                        draw.totalAmount > 0
+                          ? Math.round((draw.receivedAmount / draw.totalAmount) * 100)
+                          : 0;
+                      return (
+                        <Link
+                          key={draw.id}
+                          href={`/dashboard/invoices/${draw.id}`}
+                          className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-medium">
+                                Draw #{draw.drawNumber ?? "?"} —{" "}
+                                {formatDocumentNumber("invoice", draw.documentNumber)}
+                              </p>
+                              <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
+                                {draw.status}
+                              </Badge>
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {formatDate(draw.issueDate)} ·{" "}
+                              <span className="text-success">
+                                {formatCurrency(draw.receivedAmount)} received
+                              </span>{" "}
+                              ({receivedPercent}%)
                             </p>
-                            <Badge variant={STATUS_VARIANT[draw.status]} className="shrink-0">
-                              {draw.status}
-                            </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(draw.issueDate)}
-                          </p>
-                        </div>
-                        <span className="shrink-0 font-semibold tabular-nums">
-                          {formatCurrency(draw.totalAmount)}
-                        </span>
-                      </Link>
-                    ))}
+                          <span className="shrink-0 font-semibold tabular-nums">
+                            {formatCurrency(draw.totalAmount)}
+                          </span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

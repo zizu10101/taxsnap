@@ -105,6 +105,10 @@ export default async function ProgressBillingPage() {
             status: d.status,
             issueDate: d.issue_date,
             totalAmount: d.total_amount,
+            // Per-draw received amount - distinct from receivedToDate
+            // above, which rolls up every invoice on the job. This is
+            // just this one draw's own payments.
+            receivedAmount: d.payments.reduce((sum, p) => sum + p.amount, 0),
           }));
         return { job, invoicedToDate, receivedToDate, remainingBalance, draws };
       });
