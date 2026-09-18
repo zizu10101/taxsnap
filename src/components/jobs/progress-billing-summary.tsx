@@ -1,12 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CircleDollarSign, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { formatDocumentNumber } from "@/lib/document-number";
-import type { DocumentStatus } from "@/lib/database.types";
+import type { Client, DocumentStatus, LineItem } from "@/lib/database.types";
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 
 const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
   draft: "outline",
@@ -57,13 +64,32 @@ export function ProgressBillingSummary({
   receivedToDate,
   remainingBalance,
   draws,
+  jobs,
+  clients,
+  lineItems,
 }: {
   job: { id: string; name: string; contractValue: number };
   invoicedToDate: number;
   receivedToDate: number;
   remainingBalance: number;
   draws: SummaryDraw[];
+  // DocumentBuilder's own requirements for the "Bill Remaining Balance"
+  // draw it opens - same three lists the parent tab's New Draw already
+  // needs.
+  jobs: { id: string; name: string }[];
+  clients: Client[];
+  lineItems: LineItem[];
 }) {
+  const router = useRouter();
+  const [billOpen, setBillOpen] = useState(false);
+  // The part of the contract that's never been invoiced at all - not
+  // remainingBalance above (contractValue - receivedToDate), which also
+  // includes any already-invoiced draw that's just sitting unpaid.
+  // Billing that portion again as a *new* draw would double-invoice it;
+  // an unpaid existing draw still gets collected by opening that draw
+  // itself, not through this button.
+  const notYetInvoiced = round2(job.contractValue - invoicedToDate);
+
   return (
     <div className="mx-auto w-full max-w-2xl p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
@@ -107,6 +133,16 @@ export function ProgressBillingSummary({
               <p className="font-semibold tabular-nums">{formatCurrency(remainingBalance)}</p>
             </div>
           </div>
+          {notYetInvoiced > 0.01 && (
+            <Button
+              className="mt-4 w-full print:hidden"
+              variant="outline"
+              onClick={() => setBillOpen(true)}
+            >
+              <CircleDollarSign className="h-4 w-4" />
+              Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -179,6 +215,21 @@ export function ProgressBillingSummary({
           )}
         </CardContent>
       </Card>
+
+      <DocumentBuilder
+        open={billOpen}
+        onOpenChange={setBillOpen}
+        defaultType="invoice"
+        clients={clients}
+        jobs={jobs}
+        savedLineItems={lineItems}
+        progressDrawJob={{ name: job.name }}
+        presetItems={[
+          { description: "Remaining balance", quantity: 1, unit_price: notYetInvoiced },
+        ]}
+        onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
+        onClientCreated={() => router.refresh()}
+      />
     </div>
   );
 }

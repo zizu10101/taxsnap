@@ -51,14 +51,28 @@ export default async function ProgressBillingSummaryPage({
   if (!job || job.contract_value === null) notFound();
   const contractValue = job.contract_value;
 
-  const { data: documents } = await supabase
-    .from("documents")
-    .select(
-      "id, document_number, status, issue_date, subtotal, total_amount, is_progress_draw, draw_number, draw_description, draw_percent_complete, payments(id, amount, paid_date)",
-    )
-    .eq("type", "invoice")
-    .eq("job_id", jobId)
-    .order("draw_number", { ascending: true });
+  // Documents alongside clients/jobs/line_items - the latter three are
+  // only needed for the DocumentBuilder that "Bill Remaining Balance"
+  // opens (same requirements as the parent tab's own New Draw), not for
+  // the read-only summary itself.
+  const [{ data: documents }, { data: allJobs }, { data: clientRows }, { data: lineItemRows }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select(
+          "id, document_number, status, issue_date, subtotal, total_amount, is_progress_draw, draw_number, draw_description, draw_percent_complete, payments(id, amount, paid_date)",
+        )
+        .eq("type", "invoice")
+        .eq("job_id", jobId)
+        .order("draw_number", { ascending: true }),
+      supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase
+        .from("line_items")
+        .select("*")
+        .eq("is_active", true)
+        .order("description", { ascending: true }),
+    ]);
 
   const jobDocs = documents ?? [];
   const invoicedToDate = calculateInvoicedToDate(jobDocs);
@@ -116,6 +130,9 @@ export default async function ProgressBillingSummaryPage({
           receivedToDate={receivedToDate}
           remainingBalance={remainingBalance}
           draws={draws}
+          jobs={allJobs ?? []}
+          clients={clientRows ?? []}
+          lineItems={lineItemRows ?? []}
         />
       </main>
     </div>

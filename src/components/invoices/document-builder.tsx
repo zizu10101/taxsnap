@@ -72,6 +72,7 @@ export function DocumentBuilder({
   savedLineItems = [],
   presetJob = null,
   progressDrawJob = null,
+  presetItems,
   onSaved,
   onClientCreated,
 }: {
@@ -98,6 +99,11 @@ export function DocumentBuilder({
   // never an estimate, and reveals the work-completed/% complete
   // fields.
   progressDrawJob?: { name: string } | null;
+  // Seeds the item rows for a brand-new document (ignored when editing
+  // an existing one, where document.items always wins) - e.g. "Bill
+  // Remaining Balance" opens a new draw with one line item already
+  // filled in instead of the usual blank row.
+  presetItems?: { description: string; quantity: number; unit_price: number }[];
   onSaved: (document: DocumentWithRelations) => void;
   onClientCreated: (client: Client) => void;
 }) {
@@ -121,7 +127,9 @@ export function DocumentBuilder({
           quantity: i.quantity,
           unit_price: i.unit_price,
         }))
-      : [{ ...EMPTY_ITEM }],
+      : presetItems?.length
+        ? presetItems.map((i) => ({ ...i }))
+        : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
   const initialJobName =
