@@ -172,17 +172,30 @@ export function ProgressBillingList({
                                 {draw.status}
                               </Badge>
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {formatDate(draw.issueDate)} ·{" "}
-                              <span className="text-success">
-                                {formatCurrency(draw.receivedAmount)} received
-                              </span>{" "}
-                              ({receivedPercent}%)
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(draw.issueDate)}
                             </p>
                           </div>
-                          <span className="shrink-0 font-semibold tabular-nums">
-                            {formatCurrency(draw.totalAmount)}
-                          </span>
+                          {/* Mirrors the job-level summary grid's
+                              label-over-value column shape above, just
+                              scoped to this one draw. */}
+                          <div className="flex shrink-0 gap-3 text-right">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Total</p>
+                              <p className="font-semibold tabular-nums">
+                                {formatCurrency(draw.totalAmount)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Received</p>
+                              <p className="font-semibold tabular-nums text-success">
+                                {formatCurrency(draw.receivedAmount)}{" "}
+                                <span className="text-xs font-normal text-muted-foreground">
+                                  ({receivedPercent}%)
+                                </span>
+                              </p>
+                            </div>
+                          </div>
                         </Link>
                       );
                     })}
