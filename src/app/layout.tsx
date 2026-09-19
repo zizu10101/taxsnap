@@ -1,8 +1,26 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Barlow_Semi_Condensed, IBM_Plex_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import "./globals.css";
+
+// Resolves and applies the theme class before hydration, so there's no
+// flash of the wrong theme. Deliberately not imported from lib/theme.ts -
+// this has to be a standalone string with zero module dependencies,
+// since it runs via strategy="beforeInteractive" before any app code
+// exists. Keep this logic in sync with lib/theme.ts's resolveIsDark by
+// hand if either one changes.
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var stored = localStorage.getItem("theme");
+    var pref = stored === "light" || stored === "dark" || stored === "system" ? stored : "light";
+    var isDark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (isDark) document.documentElement.classList.add("dark");
+  } catch (e) {}
+})();
+`;
 
 const bodySans = Inter({
   variable: "--font-sans",
@@ -57,6 +75,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${bodySans.variable} ${headingSans.variable} ${numberMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
         {children}
         <Toaster />
         <RegisterServiceWorker />

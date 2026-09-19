@@ -9,6 +9,7 @@ export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
 export type PayType = "commission" | "hourly" | "salary";
 export type PayoutStatus = "active" | "voided";
 export type AppLockRole = "owner" | "staff";
+export type ThemePreference = "light" | "dark" | "system";
 
 export interface ReceiptItem {
   name: string;
@@ -33,6 +34,7 @@ export interface Database {
           business_profile_skipped: boolean;
           onboarding_completed: boolean;
           needs_business_type_prompt: boolean;
+          theme_preference: ThemePreference;
           created_at: string;
         };
         Insert: {
@@ -49,6 +51,7 @@ export interface Database {
           business_profile_skipped?: boolean;
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
+          theme_preference?: ThemePreference;
           created_at?: string;
         };
         Update: {
@@ -65,6 +68,7 @@ export interface Database {
           business_profile_skipped?: boolean;
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
+          theme_preference?: ThemePreference;
           created_at?: string;
         };
         Relationships: [];

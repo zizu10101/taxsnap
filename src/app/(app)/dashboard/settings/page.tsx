@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
+import { ThemeSettings } from "@/components/settings/theme-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import { CurrentPlanCard } from "@/components/billing/current-plan-card";
@@ -54,6 +55,8 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        <ThemeSettings />
+
         <CurrentPlanCard tier={profile?.subscription_status ?? "free"} />
 
         {/* Same gate as /billing's own button (hasBillingAccount there) -

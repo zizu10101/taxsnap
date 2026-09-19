@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppLockProvider } from "@/components/app-lock/app-lock-provider";
+import { ThemeSync } from "@/components/theme-sync";
 import { APP_SETTINGS_PUBLIC_COLUMNS } from "@/lib/app-settings-columns";
 
 // A route group (no "(app)" segment in the actual URL) so /dashboard/** and
@@ -32,14 +33,18 @@ export default async function AppLayout({
   // No row yet means the owner has never set a PIN - has_owner_pin reads as
   // false, and AppLockProvider skips the gate entirely rather than forcing
   // PIN setup on someone who hasn't opted in.
-  const { data: settings } = await supabase
-    .from("app_settings")
-    .select(APP_SETTINGS_PUBLIC_COLUMNS)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: settings }, { data: profile }] = await Promise.all([
+    supabase
+      .from("app_settings")
+      .select(APP_SETTINGS_PUBLIC_COLUMNS)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase.from("profiles").select("theme_preference").eq("id", user.id).maybeSingle(),
+  ]);
 
   return (
     <AppLockProvider userId={user.id} hasOwnerPin={settings?.has_owner_pin ?? false}>
+      <ThemeSync preference={profile?.theme_preference ?? "light"} />
       {children}
     </AppLockProvider>
   );
