@@ -343,6 +343,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      contract_changes: {
+        Row: {
+          id: string;
+          job_id: string;
+          amount: number;
+          reason: string;
+          changed_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          job_id: string;
+          amount: number;
+          reason: string;
+          changed_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          amount?: number;
+          reason?: string;
+          changed_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       line_items: {
         Row: {
           id: string;
@@ -920,6 +947,7 @@ export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
 export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
+export type ContractChange = Database["public"]["Tables"]["contract_changes"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
 export type LineItemUpdate = Database["public"]["Tables"]["line_items"]["Update"];
 export type ExpenseTemplate = Database["public"]["Tables"]["expense_templates"]["Row"];

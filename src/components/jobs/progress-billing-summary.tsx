@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
-import { EditContractValueDialog } from "@/components/jobs/edit-contract-value-dialog";
+import { LogContractChangeDialog } from "@/components/jobs/log-contract-change-dialog";
 import { formatDocumentNumber } from "@/lib/document-number";
-import type { Client, DocumentStatus, LineItem } from "@/lib/database.types";
+import type { Client, ContractChange, DocumentStatus, LineItem } from "@/lib/database.types";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -66,6 +66,7 @@ export function ProgressBillingSummary({
   receivedToDate,
   remainingBalance,
   draws,
+  changes,
   jobs,
   clients,
   lineItems,
@@ -75,6 +76,7 @@ export function ProgressBillingSummary({
   receivedToDate: number;
   remainingBalance: number;
   draws: SummaryDraw[];
+  changes: ContractChange[];
   // DocumentBuilder's own requirements for the "Bill Remaining Balance"
   // draw it opens - same three lists the parent tab's New Draw already
   // needs.
@@ -84,7 +86,7 @@ export function ProgressBillingSummary({
 }) {
   const router = useRouter();
   const [billOpen, setBillOpen] = useState(false);
-  const [editValueOpen, setEditValueOpen] = useState(false);
+  const [logChangeOpen, setLogChangeOpen] = useState(false);
   // The part of the contract that's never been invoiced at all - not
   // remainingBalance above (contractValue - receivedToDate), which also
   // includes any already-invoiced draw that's just sitting unpaid.
@@ -115,9 +117,10 @@ export function ProgressBillingSummary({
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="mb-4 grid w-full grid-cols-2 print:hidden">
+        <TabsList className="mb-4 grid w-full grid-cols-3 print:hidden">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ledger">Ledger</TabsTrigger>
+          <TabsTrigger value="changes">Change Orders</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -129,9 +132,9 @@ export function ProgressBillingSummary({
                     <p className="text-xs text-muted-foreground">Contract Value</p>
                     <button
                       type="button"
-                      onClick={() => setEditValueOpen(true)}
+                      onClick={() => setLogChangeOpen(true)}
                       className="text-muted-foreground hover:text-foreground print:hidden"
-                      title="Edit contract value"
+                      title="Log a change order"
                     >
                       <Pencil className="h-3 w-3" />
                     </button>
@@ -307,11 +310,48 @@ export function ProgressBillingSummary({
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="changes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Change Orders</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {changes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No change orders logged yet.
+                </p>
+              ) : (
+                changes.map((change) => (
+                  <div
+                    key={change.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{change.reason}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(change.changed_at)}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 font-semibold tabular-nums ${
+                        change.amount >= 0 ? "text-success" : "text-destructive"
+                      }`}
+                    >
+                      {change.amount >= 0 ? "+" : ""}
+                      {formatCurrency(change.amount)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
-      <EditContractValueDialog
-        open={editValueOpen}
-        onOpenChange={setEditValueOpen}
+      <LogContractChangeDialog
+        open={logChangeOpen}
+        onOpenChange={setLogChangeOpen}
         jobId={job.id}
         currentValue={job.contractValue}
         onSaved={() => router.refresh()}
