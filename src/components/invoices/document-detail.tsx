@@ -139,6 +139,11 @@ export function DocumentDetail({
     : formatDocumentNumber(doc.type, doc.document_number);
   const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = doc.total_amount - paidToDate;
+  // Same lock as PATCH/DELETE /api/documents/[id] - once sent or paid at
+  // all, the document's content is a real financial record and stays
+  // permanent. Status changes and payments still go through their own
+  // dedicated routes/controls, unaffected by this.
+  const isLocked = doc.status !== "draft" || doc.payments.length > 0;
 
   const paymentAmountFromPercent =
     Math.round(((paymentPercent / 100) * doc.total_amount + Number.EPSILON) * 100) / 100;
@@ -337,7 +342,17 @@ export function DocumentDetail({
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditorOpen(true)}
+            disabled={isLocked}
+            title={
+              isLocked
+                ? "Sent or has payments recorded - content can no longer be edited"
+                : undefined
+            }
+          >
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
@@ -382,7 +397,12 @@ export function DocumentDetail({
             variant="outline"
             size="sm"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || isLocked}
+            title={
+              isLocked
+                ? "Sent or has payments recorded - can no longer be deleted"
+                : undefined
+            }
             className="text-destructive hover:text-destructive"
           >
             {deleting ? (

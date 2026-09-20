@@ -58,7 +58,7 @@ export async function PATCH(
 
   const { data: existing } = await supabase
     .from("documents")
-    .select("id, type, is_progress_draw")
+    .select("id, type, is_progress_draw, status, payments(id)")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -68,6 +68,35 @@ export async function PATCH(
   }
 
   const body = await request.json();
+
+  // Once a document has been sent (status past draft) or has any payment
+  // recorded, its actual content (amounts, line items, client, job,
+  // dates) is locked - same "permanent once real money/commitment is
+  // involved" principle as payouts/commission entries and the progress-
+  // billing change-order log. Status transitions (draft -> sent -> paid),
+  // the HST-exclusion toggle, and a progress draw's own work-completed
+  // notes are lifecycle/descriptive metadata, not content, so they stay
+  // editable regardless.
+  const isLocked = existing.status !== "draft" || existing.payments.length > 0;
+  const CONTENT_KEYS = [
+    "type",
+    "issue_date",
+    "due_date",
+    "client_id",
+    "new_client",
+    "job_id",
+    "job_name",
+    "items",
+  ];
+  if (isLocked && CONTENT_KEYS.some((key) => key in body)) {
+    return NextResponse.json(
+      {
+        error:
+          "This document has been sent or has payments recorded, so its content can no longer be edited.",
+      },
+      { status: 403 },
+    );
+  }
   const updates: DocumentUpdate = {
     updated_at: new Date().toISOString(),
   };
@@ -272,13 +301,34 @@ export async function DELETE(
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+  const { supabase, user } = result;
   const { id } = await params;
 
-  const { error } = await result.supabase
+  const { data: existing } = await supabase
     .from("documents")
-    .delete()
+    .select("id, status, payments(id)")
     .eq("id", id)
-    .eq("user_id", result.user.id);
+    .eq("user_id", user.id)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  }
+
+  // Same lock as PATCH above - a draft with no payments can still be
+  // freely deleted; anything sent or with payments recorded is a real
+  // financial record and stays permanent.
+  if (existing.status !== "draft" || existing.payments.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "This document has been sent or has payments recorded, so it can no longer be deleted.",
+      },
+      { status: 403 },
+    );
+  }
+
+  const { error } = await supabase.from("documents").delete().eq("id", id).eq("user_id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
