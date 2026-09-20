@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   Pencil,
+  Plus,
   Printer,
   Table2,
 } from "lucide-react";
@@ -494,13 +495,18 @@ export function ProgressBillingSummary({
 
         <TabsContent value="changes">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-base">Change Orders</CardTitle>
+              <Button size="sm" onClick={() => setLogChangeOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Change Order
+              </Button>
             </CardHeader>
             <CardContent className="space-y-2">
               {changes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No change orders logged yet.
+                  No change orders logged yet. Add one when the client approves a scope
+                  change (e.g. &ldquo;add a deck&rdquo;) that adjusts the contract value.
                 </p>
               ) : (
                 changes.map((change) => (
