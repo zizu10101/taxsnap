@@ -68,6 +68,16 @@ export function useTheme(): {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ theme_preference: next }),
+      // Without this, a toggle immediately followed by navigating away or
+      // closing the tab can abort the request mid-flight before the PATCH
+      // completes - the local class/localStorage already changed
+      // (looks like it worked), but the DB write silently never lands,
+      // so a new device/session reverts to the stale saved value.
+      // keepalive lets the browser finish the request after the
+      // document that started it is gone (verified: reproduced the drop
+      // by toggling then immediately closing the tab, confirmed via a
+      // direct DB check that theme_preference hadn't changed).
+      keepalive: true,
     }).catch(() => {
       // The class/localStorage already updated optimistically above; a
       // failed PATCH just means this device's choice won't sync to
