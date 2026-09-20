@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CircleDollarSign,
   FileEdit,
+  FileText,
   LayoutDashboard,
   Pencil,
   Printer,
@@ -58,12 +59,22 @@ function StatBox({
   tone = "default",
   size = "sm",
   action,
+  subtitle,
+  badge,
 }: {
   label: string;
   value: string;
   tone?: "default" | "success";
   size?: "sm" | "lg";
   action?: React.ReactNode;
+  // Secondary breakdown line below the main figure (e.g. "Original:
+  // $50,000 · COs: +$3,000"), set off by its own divider - the reference
+  // layout's "big number, then supporting detail" pattern.
+  subtitle?: React.ReactNode;
+  // A small pill restating a related figure (e.g. "Not Yet Invoiced:
+  // $X" under Remaining Balance) - same "restate the headline as a
+  // badge" pattern the reference uses for its own remaining-balance card.
+  badge?: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg border bg-muted/30 p-2.5 text-center">
@@ -82,6 +93,10 @@ function StatBox({
       >
         {value}
       </p>
+      {subtitle && (
+        <div className="mt-1.5 border-t pt-1.5 text-[10px] text-muted-foreground">{subtitle}</div>
+      )}
+      {badge && <div className="mt-1.5">{badge}</div>}
     </div>
   );
 }
@@ -144,6 +159,7 @@ export function ProgressBillingSummary({
 }) {
   const router = useRouter();
   const [billOpen, setBillOpen] = useState(false);
+  const [newDrawOpen, setNewDrawOpen] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
   // The part of the contract that's never been invoiced at all - not
   // remainingBalance above (contractValue - receivedToDate), which also
@@ -152,6 +168,16 @@ export function ProgressBillingSummary({
   // an unpaid existing draw still gets collected by opening that draw
   // itself, not through this button.
   const notYetInvoiced = round2(job.contractValue - invoicedToDate);
+
+  // Original contract value + the change-order breakdown shown under
+  // the Contract Value stat - derived from the same changes[] the
+  // Change Orders tab lists, not a separate query.
+  const totalChanges = round2(changes.reduce((sum, c) => sum + c.amount, 0));
+  const originalContractValue = round2(job.contractValue - totalChanges);
+  const percentInvoiced =
+    job.contractValue > 0 ? Math.round((invoicedToDate / job.contractValue) * 100) : 0;
+  const nextDrawNumber =
+    (draws.length > 0 ? Math.max(...draws.map((d) => d.drawNumber ?? 0)) : 0) + 1;
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4">
@@ -221,16 +247,85 @@ export function ProgressBillingSummary({
                   <Pencil className="h-3 w-3" />
                 </button>
               }
+              subtitle={
+                <>
+                  Original: {formatCurrency(originalContractValue)}
+                  {totalChanges !== 0 && (
+                    <span
+                      className={cn(
+                        "ml-1 font-medium",
+                        totalChanges > 0 ? "text-primary" : "text-destructive",
+                      )}
+                    >
+                      · COs: {totalChanges > 0 ? "+" : ""}
+                      {formatCurrency(totalChanges)}
+                    </span>
+                  )}
+                </>
+              }
             />
-            <StatBox label="Invoiced to Date" value={formatCurrency(invoicedToDate)} size="lg" />
+            <StatBox
+              label="Invoiced to Date"
+              value={formatCurrency(invoicedToDate)}
+              size="lg"
+              subtitle={`${percentInvoiced}% of contract`}
+            />
             <StatBox
               label="Received to Date"
               value={formatCurrency(receivedToDate)}
               size="lg"
               tone="success"
             />
-            <StatBox label="Remaining Balance" value={formatCurrency(remainingBalance)} size="lg" />
+            <StatBox
+              label="Remaining Balance"
+              value={formatCurrency(remainingBalance)}
+              size="lg"
+              badge={
+                notYetInvoiced > 0.01 ? (
+                  <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    Not Yet Invoiced: {formatCurrency(notYetInvoiced)}
+                  </span>
+                ) : undefined
+              }
+            />
           </div>
+
+          <Card className="mt-4">
+            <CardContent className="py-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold">Contract Billing Progress</p>
+                  <p className="text-xs text-muted-foreground">{job.name}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
+                  {percentInvoiced}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.min(Math.max(percentInvoiced, 0), 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-4 border-primary/30 bg-primary/5">
+            <CardContent className="py-4">
+              <div className="mb-2 flex items-center gap-2">
+                <FileEdit className="h-4 w-4 text-primary" />
+                <p className="font-semibold">Create Progress Billing Draw</p>
+              </div>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Start the next sequential draw against this contract, using the same
+                invoice builder as any other draw.
+              </p>
+              <Button className="w-full print:hidden" onClick={() => setNewDrawOpen(true)}>
+                <FileText className="h-4 w-4" />
+                Create Draw #{nextDrawNumber}
+              </Button>
+            </CardContent>
+          </Card>
 
           <Card className="mt-4">
             <CardHeader>
@@ -448,6 +543,23 @@ export function ProgressBillingSummary({
         presetItems={[
           { description: "Remaining balance", quantity: 1, unit_price: notYetInvoiced },
         ]}
+        onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
+        onClientCreated={() => router.refresh()}
+      />
+
+      {/* Separate instance from the Bill Remaining Balance one above -
+          each needs its own open state and presetItems (none here, a
+          blank draw), and since neither is remounted via key on open,
+          sharing one instance would leak stale preset items between the
+          two flows. */}
+      <DocumentBuilder
+        open={newDrawOpen}
+        onOpenChange={setNewDrawOpen}
+        defaultType="invoice"
+        clients={clients}
+        jobs={jobs}
+        savedLineItems={lineItems}
+        progressDrawJob={{ name: job.name }}
         onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
         onClientCreated={() => router.refresh()}
       />
