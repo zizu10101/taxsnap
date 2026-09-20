@@ -358,6 +358,7 @@ export interface Database {
           reason: string;
           changed_at: string;
           created_at: string;
+          billed_document_id: string | null;
         };
         Insert: {
           id?: string;
@@ -366,6 +367,7 @@ export interface Database {
           reason: string;
           changed_at?: string;
           created_at?: string;
+          billed_document_id?: string | null;
         };
         Update: {
           id?: string;
@@ -374,8 +376,55 @@ export interface Database {
           reason?: string;
           changed_at?: string;
           created_at?: string;
+          billed_document_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "contract_changes_billed_document_id_fkey";
+            columns: ["billed_document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      contract_change_items: {
+        Row: {
+          id: string;
+          contract_change_id: string;
+          description: string;
+          quantity: number;
+          unit_price: number;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          contract_change_id: string;
+          description: string;
+          quantity?: number;
+          unit_price?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          contract_change_id?: string;
+          description?: string;
+          quantity?: number;
+          unit_price?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contract_change_items_contract_change_id_fkey";
+            columns: ["contract_change_id"];
+            isOneToOne: false;
+            referencedRelation: "contract_changes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       line_items: {
         Row: {

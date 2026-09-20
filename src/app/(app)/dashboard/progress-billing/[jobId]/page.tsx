@@ -79,7 +79,9 @@ export default async function ProgressBillingSummaryPage({
       .order("description", { ascending: true }),
     supabase
       .from("contract_changes")
-      .select("*")
+      .select(
+        "*, items:contract_change_items(*), billed_document:documents(id, document_number, draw_number)",
+      )
       .eq("job_id", jobId)
       .order("changed_at", { ascending: false }),
   ]);
@@ -124,6 +126,21 @@ export default async function ProgressBillingSummaryPage({
     };
   });
 
+  const changes = (contractChanges ?? []).map((c) => ({
+    id: c.id,
+    reason: c.reason,
+    amount: c.amount,
+    changedAt: c.changed_at,
+    items: c.items.map((i) => ({
+      description: i.description,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+    })),
+    billedDocumentId: c.billed_document_id,
+    billedDocumentNumber: c.billed_document?.document_number ?? null,
+    billedDrawNumber: c.billed_document?.draw_number ?? null,
+  }));
+
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <DashboardHeader
@@ -140,7 +157,7 @@ export default async function ProgressBillingSummaryPage({
           receivedToDate={receivedToDate}
           remainingBalance={remainingBalance}
           draws={draws}
-          changes={contractChanges ?? []}
+          changes={changes}
           jobs={allJobs ?? []}
           clients={clientRows ?? []}
           lineItems={lineItemRows ?? []}

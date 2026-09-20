@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Banknote,
@@ -10,10 +11,12 @@ import {
   FileEdit,
   FileText,
   LayoutDashboard,
+  Loader2,
   Pencil,
   Plus,
   Printer,
   Table2,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +28,7 @@ import { RecordContractPaymentDialog } from "@/components/jobs/record-contract-p
 import { formatDocumentNumber } from "@/lib/document-number";
 import { formatContractNumber } from "@/lib/contract-number";
 import { cn } from "@/lib/utils";
-import type { Client, ContractChange, DocumentStatus, LineItem } from "@/lib/database.types";
+import type { Client, DocumentStatus, LineItem } from "@/lib/database.types";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -137,6 +140,23 @@ export interface SummaryDraw {
   runningRemainingBalance: number;
 }
 
+export interface SummaryChangeItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface SummaryChange {
+  id: string;
+  reason: string;
+  amount: number;
+  changedAt: string;
+  items: SummaryChangeItem[];
+  billedDocumentId: string | null;
+  billedDocumentNumber: number | null;
+  billedDrawNumber: number | null;
+}
+
 export function ProgressBillingSummary({
   job,
   invoicedToDate,
@@ -153,7 +173,7 @@ export function ProgressBillingSummary({
   receivedToDate: number;
   remainingBalance: number;
   draws: SummaryDraw[];
-  changes: ContractChange[];
+  changes: SummaryChange[];
   // DocumentBuilder's own requirements for the "Bill Remaining Balance"
   // draw it opens - same three lists the parent tab's New Draw already
   // needs.
@@ -165,6 +185,10 @@ export function ProgressBillingSummary({
   const [billOpen, setBillOpen] = useState(false);
   const [newDrawOpen, setNewDrawOpen] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  const [editingChangeTarget, setEditingChangeTarget] = useState<SummaryChange | null>(null);
+  const [deletingChangeId, setDeletingChangeId] = useState<string | null>(null);
+  const [billingChange, setBillingChange] = useState<SummaryChange | null>(null);
+  const [billChangeOpen, setBillChangeOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   // The part of the contract that's never been invoiced at all - not
   // remainingBalance above (contractValue - receivedToDate), which also
@@ -183,6 +207,23 @@ export function ProgressBillingSummary({
     job.contractValue > 0 ? Math.round((invoicedToDate / job.contractValue) * 100) : 0;
   const nextDrawNumber =
     (draws.length > 0 ? Math.max(...draws.map((d) => d.drawNumber ?? 0)) : 0) + 1;
+
+  async function handleDeleteChange(changeId: string) {
+    setDeletingChangeId(changeId);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/contract-changes/${changeId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete change order");
+      toast.success("Change order deleted");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setDeletingChangeId(null);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4">
@@ -256,7 +297,10 @@ export function ProgressBillingSummary({
               action={
                 <button
                   type="button"
-                  onClick={() => setLogChangeOpen(true)}
+                  onClick={() => {
+                    setEditingChangeTarget(null);
+                    setLogChangeOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground print:hidden"
                   title="Log a change order"
                 >
@@ -512,7 +556,13 @@ export function ProgressBillingSummary({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-base">Change Orders</CardTitle>
-              <Button size="sm" onClick={() => setLogChangeOpen(true)}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingChangeTarget(null);
+                  setLogChangeOpen(true);
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Add Change Order
               </Button>
@@ -524,27 +574,93 @@ export function ProgressBillingSummary({
                   change (e.g. &ldquo;add a deck&rdquo;) that adjusts the contract value.
                 </p>
               ) : (
-                changes.map((change) => (
-                  <div
-                    key={change.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium">{change.reason}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(change.changed_at)}
-                      </p>
+                changes.map((change) => {
+                  const isBilled = change.billedDocumentId !== null;
+                  return (
+                    <div key={change.id} className="space-y-2 rounded-lg border p-3 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">{change.reason}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(change.changedAt)}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 font-semibold tabular-nums",
+                            change.amount >= 0 ? "text-success" : "text-destructive",
+                          )}
+                        >
+                          {change.amount >= 0 ? "+" : ""}
+                          {formatCurrency(change.amount)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5 border-t pt-2">
+                        {change.items.map((item, i) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {item.description} — {item.quantity} ×{" "}
+                            {formatCurrency(item.unit_price)}
+                          </p>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 border-t pt-2 print:hidden">
+                        {isBilled ? (
+                          <Link
+                            href={`/dashboard/invoices/${change.billedDocumentId}`}
+                            className="text-xs text-success hover:underline"
+                          >
+                            Billed via{" "}
+                            {change.billedDocumentNumber !== null &&
+                              formatDocumentNumber("invoice", change.billedDocumentNumber)}
+                            {change.billedDrawNumber !== null &&
+                              ` — Draw #${change.billedDrawNumber}`}
+                          </Link>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setBillingChange(change);
+                                setBillChangeOpen(true);
+                              }}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Bill this Change Order
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingChangeTarget(change);
+                                setLogChangeOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteChange(change.id)}
+                              disabled={deletingChangeId === change.id}
+                            >
+                              {deletingChangeId === change.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <span
-                      className={`shrink-0 font-semibold tabular-nums ${
-                        change.amount >= 0 ? "text-success" : "text-destructive"
-                      }`}
-                    >
-                      {change.amount >= 0 ? "+" : ""}
-                      {formatCurrency(change.amount)}
-                    </span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>
@@ -552,10 +668,21 @@ export function ProgressBillingSummary({
       </Tabs>
 
       <LogContractChangeDialog
+        key={editingChangeTarget?.id ?? "new"}
         open={logChangeOpen}
         onOpenChange={setLogChangeOpen}
         jobId={job.id}
-        currentValue={job.contractValue}
+        currentContractValue={job.contractValue}
+        savedLineItems={lineItems}
+        editingChange={
+          editingChangeTarget && {
+            id: editingChangeTarget.id,
+            reason: editingChangeTarget.reason,
+            changedAt: editingChangeTarget.changedAt,
+            amount: editingChangeTarget.amount,
+            items: editingChangeTarget.items,
+          }
+        }
         onSaved={() => router.refresh()}
       />
 
@@ -595,6 +722,38 @@ export function ProgressBillingSummary({
         savedLineItems={lineItems}
         progressDrawJob={{ name: job.name }}
         onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
+        onClientCreated={() => router.refresh()}
+      />
+
+      {/* "Bill this Change Order" - keyed by the target change's id so a
+          different change order's items don't leak into presetItems
+          (only read at mount by DocumentBuilder's own useState
+          initializer). Links the change order to the new draw via
+          PATCH .../contract-changes/[changeId] right after it saves. */}
+      <DocumentBuilder
+        key={billingChange?.id ?? "none"}
+        open={billChangeOpen}
+        onOpenChange={setBillChangeOpen}
+        defaultType="invoice"
+        clients={clients}
+        jobs={jobs}
+        savedLineItems={lineItems}
+        progressDrawJob={{ name: job.name }}
+        presetItems={billingChange?.items.map((i) => ({
+          description: i.description,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+        }))}
+        onSaved={async (saved) => {
+          if (billingChange) {
+            await fetch(`/api/jobs/${job.id}/contract-changes/${billingChange.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ billed_document_id: saved.id }),
+            }).catch(() => {});
+          }
+          router.push(`/dashboard/invoices/${saved.id}`);
+        }}
         onClientCreated={() => router.refresh()}
       />
     </div>

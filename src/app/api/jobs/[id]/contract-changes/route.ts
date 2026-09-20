@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { round2 } from "@/lib/payments";
 
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+interface ItemInput {
+  description: string;
+  quantity: number;
+  unit_price: number;
 }
 
-// Logs a change order (+/- delta) against an already-progress-billed
-// job, then applies that same delta to jobs.contract_value - the one
-// place contract_value is ever adjusted after the initial "Start
-// Progress Billing" set (see PATCH /api/jobs/[id]). The log row is
-// inserted first, then the job total is updated - if the update step
-// ever failed, the log entry staying in place is the safer half to keep
-// (the audit trail), matching how POST /api/documents/[id]/payments
-// orders its own insert-then-roll-up-update.
+// Logs a change order against an already-progress-billed job, then
+// applies its total to jobs.contract_value - the one place
+// contract_value is ever adjusted after the initial "Start Progress
+// Billing" set (see PATCH /api/jobs/[id]). Real line items now (same
+// shape as document_items), not a single typed amount - the total is
+// computed from them, same "store the computed total, derive it from
+// items on every write" pattern documents.subtotal already uses. A
+// reduction/credit is just a negative unit_price on an item.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -39,33 +42,58 @@ export async function POST(
   }
 
   const body = await request.json();
-  const amount = round2(Number(body.amount));
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-  const changedAt = typeof body.changed_at === "string" && body.changed_at ? body.changed_at : undefined;
+  const changedAt =
+    typeof body.changed_at === "string" && body.changed_at ? body.changed_at : undefined;
+  const items: ItemInput[] = Array.isArray(body.items)
+    ? body.items.filter((i: ItemInput) => i?.description?.trim())
+    : [];
 
-  if (!Number.isFinite(amount) || amount === 0) {
+  if (!reason) {
+    return NextResponse.json({ error: "Enter a reason for this change." }, { status: 400 });
+  }
+  if (items.length === 0) {
     return NextResponse.json(
-      { error: "Enter a non-zero amount (positive to add, negative to reduce)." },
+      { error: "Add at least one line item." },
       { status: 400 },
     );
   }
-  if (!reason) {
-    return NextResponse.json({ error: "Enter a reason for this change." }, { status: 400 });
+
+  const amount = round2(
+    items.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0),
+  );
+  if (amount === 0) {
+    return NextResponse.json(
+      { error: "The line items must total a non-zero amount." },
+      { status: 400 },
+    );
   }
 
   const { data: change, error: changeError } = await supabase
     .from("contract_changes")
-    .insert({
-      job_id: id,
-      amount,
-      reason,
-      changed_at: changedAt,
-    })
+    .insert({ job_id: id, amount, reason, changed_at: changedAt })
     .select()
     .single();
 
   if (changeError) {
     return NextResponse.json({ error: changeError.message }, { status: 500 });
+  }
+
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from("contract_change_items")
+    .insert(
+      items.map((item, index) => ({
+        contract_change_id: change.id,
+        description: item.description.trim(),
+        quantity: Number(item.quantity) || 0,
+        unit_price: Number(item.unit_price) || 0,
+        sort_order: index,
+      })),
+    )
+    .select();
+
+  if (itemsError) {
+    return NextResponse.json({ error: itemsError.message }, { status: 500 });
   }
 
   const newContractValue = round2(job.contract_value + amount);
@@ -81,5 +109,8 @@ export async function POST(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ change, job: updatedJob }, { status: 201 });
+  return NextResponse.json(
+    { change: { ...change, items: insertedItems }, job: updatedJob },
+    { status: 201 },
+  );
 }
