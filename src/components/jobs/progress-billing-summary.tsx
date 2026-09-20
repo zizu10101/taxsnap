@@ -310,22 +310,28 @@ export function ProgressBillingSummary({
             </CardContent>
           </Card>
 
-          <Card className="mt-4 border-primary/30 bg-primary/5">
-            <CardContent className="py-4">
-              <div className="mb-2 flex items-center gap-2">
-                <FileEdit className="h-4 w-4 text-primary" />
-                <p className="font-semibold">Create Progress Billing Draw</p>
-              </div>
-              <p className="mb-3 text-sm text-muted-foreground">
-                Start the next sequential draw against this contract, using the same
-                invoice builder as any other draw.
-              </p>
-              <Button className="w-full print:hidden" onClick={() => setNewDrawOpen(true)}>
-                <FileText className="h-4 w-4" />
-                Create Draw #{nextDrawNumber}
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Same gate as Bill Remaining Balance above - once the whole
+              contract is invoiced (notYetInvoiced <= 0), there's nothing
+              left to put on a new draw. Creating one anyway would over-bill
+              the contract past its own value. */}
+          {notYetInvoiced > 0.01 && (
+            <Card className="mt-4 border-primary/30 bg-primary/5">
+              <CardContent className="py-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <FileEdit className="h-4 w-4 text-primary" />
+                  <p className="font-semibold">Create Progress Billing Draw</p>
+                </div>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Start the next sequential draw against this contract, using the same
+                  invoice builder as any other draw.
+                </p>
+                <Button className="w-full print:hidden" onClick={() => setNewDrawOpen(true)}>
+                  <FileText className="h-4 w-4" />
+                  Create Draw #{nextDrawNumber}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="mt-4">
             <CardHeader>
