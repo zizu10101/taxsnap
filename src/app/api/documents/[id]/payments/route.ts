@@ -1,19 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import type { DocumentStatus } from "@/lib/database.types";
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-// Recomputes a document's status from its payment total rather than
-// trusting the client - a deposit only ever brings it to "partial", and it
-// only reaches "paid" once payments cover the full total.
-function statusFromPaid(paid: number, total: number): DocumentStatus {
-  if (paid <= 0) return "sent";
-  if (paid >= total) return "paid";
-  return "partial";
-}
+import { round2, statusFromPaid } from "@/lib/payments";
 
 export async function POST(
   request: Request,

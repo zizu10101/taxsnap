@@ -329,6 +329,7 @@ export interface Database {
           user_id: string;
           name: string;
           contract_value: number | null;
+          contract_number: number | null;
           created_at: string;
         };
         Insert: {
@@ -336,6 +337,7 @@ export interface Database {
           user_id: string;
           name: string;
           contract_value?: number | null;
+          contract_number?: number | null;
           created_at?: string;
         };
         Update: {
@@ -343,6 +345,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           contract_value?: number | null;
+          contract_number?: number | null;
           created_at?: string;
         };
         Relationships: [];

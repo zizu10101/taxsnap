@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { StartProgressBillingDialog } from "@/components/jobs/start-progress-billing-dialog";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { formatContractNumber } from "@/lib/contract-number";
 import type { Client, DocumentStatus, Job, LineItem } from "@/lib/database.types";
 
 const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
@@ -106,12 +107,19 @@ export function ProgressBillingList({
             <Card key={job.id}>
               <CardContent className="space-y-3 py-4">
                 <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`/dashboard/jobs/${job.id}`}
-                    className="min-w-0 truncate font-medium hover:underline"
-                  >
-                    {job.name}
-                  </Link>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/jobs/${job.id}`}
+                      className="block truncate font-medium hover:underline"
+                    >
+                      {job.name}
+                    </Link>
+                    {job.contract_number !== null && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatContractNumber(job.contract_number)}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex shrink-0 gap-2">
                     <Button
                       variant="outline"

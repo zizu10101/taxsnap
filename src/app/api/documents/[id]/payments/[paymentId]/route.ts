@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import type { DocumentStatus } from "@/lib/database.types";
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-function statusFromPaid(paid: number, total: number): DocumentStatus {
-  if (paid <= 0) return "sent";
-  if (paid >= total) return "paid";
-  return "partial";
-}
+import { round2, statusFromPaid } from "@/lib/payments";
 
 export async function PATCH(
   request: Request,

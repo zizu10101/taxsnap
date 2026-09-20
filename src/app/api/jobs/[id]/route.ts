@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { getNextContractNumber } from "@/lib/contract-number";
 import type { JobUpdate } from "@/lib/database.types";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
@@ -78,6 +79,22 @@ export async function PATCH(
   const update: JobUpdate = {};
   if (contract_value !== undefined) {
     update.contract_value = contract_value === null ? null : Number(contract_value) || 0;
+  }
+
+  // Assigned exactly once, the moment a job becomes progress-billed
+  // (contract_value going from null to a real value) - never reassigned
+  // after, same as document_number.
+  if (update.contract_value !== undefined && update.contract_value !== null) {
+    const { data: current } = await supabase
+      .from("jobs")
+      .select("contract_value, contract_number")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (current && current.contract_value === null && current.contract_number === null) {
+      update.contract_number = await getNextContractNumber(supabase, user.id);
+    }
   }
 
   const { data, error } = await supabase

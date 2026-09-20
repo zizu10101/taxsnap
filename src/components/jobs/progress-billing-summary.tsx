@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Banknote,
   CircleDollarSign,
   FileEdit,
   FileText,
@@ -20,7 +21,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogContractChangeDialog } from "@/components/jobs/log-contract-change-dialog";
+import { RecordContractPaymentDialog } from "@/components/jobs/record-contract-payment-dialog";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { formatContractNumber } from "@/lib/contract-number";
 import { cn } from "@/lib/utils";
 import type { Client, ContractChange, DocumentStatus, LineItem } from "@/lib/database.types";
 
@@ -145,7 +148,7 @@ export function ProgressBillingSummary({
   clients,
   lineItems,
 }: {
-  job: { id: string; name: string; contractValue: number };
+  job: { id: string; name: string; contractValue: number; contractNumber: number | null };
   invoicedToDate: number;
   receivedToDate: number;
   remainingBalance: number;
@@ -162,6 +165,7 @@ export function ProgressBillingSummary({
   const [billOpen, setBillOpen] = useState(false);
   const [newDrawOpen, setNewDrawOpen] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   // The part of the contract that's never been invoiced at all - not
   // remainingBalance above (contractValue - receivedToDate), which also
   // includes any already-invoiced draw that's just sitting unpaid.
@@ -199,15 +203,26 @@ export function ProgressBillingSummary({
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
-            <p className="text-sm text-muted-foreground">Progress Billing Summary</p>
+            <p className="text-sm text-muted-foreground">
+              Progress Billing Summary
+              {job.contractNumber !== null && ` · ${formatContractNumber(job.contractNumber)}`}
+            </p>
             <h1 className="text-xl font-bold sm:text-2xl">{job.name}</h1>
           </div>
-          {notYetInvoiced > 0.01 && (
-            <Button variant="outline" className="print:hidden" onClick={() => setBillOpen(true)}>
-              <CircleDollarSign className="h-4 w-4" />
-              Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2 print:hidden">
+            {draws.length > 0 && (
+              <Button variant="outline" onClick={() => setRecordPaymentOpen(true)}>
+                <Banknote className="h-4 w-4" />
+                Record Payment
+              </Button>
+            )}
+            {notYetInvoiced > 0.01 && (
+              <Button variant="outline" onClick={() => setBillOpen(true)}>
+                <CircleDollarSign className="h-4 w-4" />
+                Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -541,6 +556,13 @@ export function ProgressBillingSummary({
         onOpenChange={setLogChangeOpen}
         jobId={job.id}
         currentValue={job.contractValue}
+        onSaved={() => router.refresh()}
+      />
+
+      <RecordContractPaymentDialog
+        open={recordPaymentOpen}
+        onOpenChange={setRecordPaymentOpen}
+        jobId={job.id}
         onSaved={() => router.refresh()}
       />
 
