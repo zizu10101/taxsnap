@@ -3,7 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CircleDollarSign, Pencil, Printer } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleDollarSign,
+  FileEdit,
+  LayoutDashboard,
+  Pencil,
+  Printer,
+  Table2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogContractChangeDialog } from "@/components/jobs/log-contract-change-dialog";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { cn } from "@/lib/utils";
 import type { Client, ContractChange, DocumentStatus, LineItem } from "@/lib/database.types";
 
 function round2(n: number): number {
@@ -37,6 +46,55 @@ function formatDate(dateStr: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// Boxed stat treatment (bordered/tinted mini-card, bold figure, uppercase
+// tracked label) used for both the job-level stat row and each draw
+// card's own sub-stats - "lg" for the former (more prominent), "sm" for
+// the latter (secondary detail inside a draw card).
+function StatBox({
+  label,
+  value,
+  tone = "default",
+  size = "sm",
+  action,
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "success";
+  size?: "sm" | "lg";
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-2.5 text-center">
+      <div className="flex items-center justify-center gap-1">
+        <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+          {label}
+        </p>
+        {action}
+      </div>
+      <p
+        className={cn(
+          "mt-0.5 font-semibold tabular-nums",
+          size === "lg" ? "text-lg" : "text-sm",
+          tone === "success" && "text-success",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// The small numbered chip identifying a draw - replaces plain "Draw #2"
+// text with a colored badge, same idea as the reference layout's
+// numbered pay-application chip.
+function DrawChip({ n }: { n: number | null }) {
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-bold text-primary">
+      {n ?? "?"}
+    </span>
+  );
 }
 
 export interface SummaryDrawPayment {
@@ -111,63 +169,68 @@ export function ProgressBillingSummary({
         </Button>
       </div>
 
-      <div className="mb-4">
-        <p className="text-sm text-muted-foreground">Progress Billing Summary</p>
-        <h1 className="text-2xl font-bold">{job.name}</h1>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Progress Billing Summary</p>
+            <h1 className="text-xl font-bold sm:text-2xl">{job.name}</h1>
+          </div>
+          {notYetInvoiced > 0.01 && (
+            <Button variant="outline" className="print:hidden" onClick={() => setBillOpen(true)}>
+              <CircleDollarSign className="h-4 w-4" />
+              Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="overview">
-        <TabsList className="mb-4 grid w-full grid-cols-3 print:hidden">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="ledger">Ledger</TabsTrigger>
-          <TabsTrigger value="changes">Change Orders</TabsTrigger>
+        <TabsList className="mb-4 grid h-11 w-full grid-cols-3 gap-1 p-1 print:hidden">
+          <TabsTrigger value="overview" className="gap-1.5">
+            <LayoutDashboard className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="ledger" className="gap-1.5">
+            <Table2 className="h-4 w-4" />
+            Ledger
+          </TabsTrigger>
+          <TabsTrigger value="changes" className="gap-1.5">
+            <FileEdit className="h-4 w-4" />
+            Change Orders
+            {changes.length > 0 && (
+              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                {changes.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
-          <Card>
-            <CardContent className="py-4">
-              <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-                <div>
-                  <div className="flex items-center justify-center gap-1">
-                    <p className="text-xs text-muted-foreground">Contract Value</p>
-                    <button
-                      type="button"
-                      onClick={() => setLogChangeOpen(true)}
-                      className="text-muted-foreground hover:text-foreground print:hidden"
-                      title="Log a change order"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <p className="font-semibold tabular-nums">{formatCurrency(job.contractValue)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Invoiced to Date</p>
-                  <p className="font-semibold tabular-nums">{formatCurrency(invoicedToDate)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Received to Date</p>
-                  <p className="font-semibold tabular-nums text-success">
-                    {formatCurrency(receivedToDate)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Remaining Balance</p>
-                  <p className="font-semibold tabular-nums">{formatCurrency(remainingBalance)}</p>
-                </div>
-              </div>
-              {notYetInvoiced > 0.01 && (
-                <Button
-                  className="mt-4 w-full print:hidden"
-                  variant="outline"
-                  onClick={() => setBillOpen(true)}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <StatBox
+              label="Contract Value"
+              value={formatCurrency(job.contractValue)}
+              size="lg"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setLogChangeOpen(true)}
+                  className="text-muted-foreground hover:text-foreground print:hidden"
+                  title="Log a change order"
                 >
-                  <CircleDollarSign className="h-4 w-4" />
-                  Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+                  <Pencil className="h-3 w-3" />
+                </button>
+              }
+            />
+            <StatBox label="Invoiced to Date" value={formatCurrency(invoicedToDate)} size="lg" />
+            <StatBox
+              label="Received to Date"
+              value={formatCurrency(receivedToDate)}
+              size="lg"
+              tone="success"
+            />
+            <StatBox label="Remaining Balance" value={formatCurrency(remainingBalance)} size="lg" />
+          </div>
 
           <Card className="mt-4">
             <CardHeader>
@@ -177,66 +240,83 @@ export function ProgressBillingSummary({
               {draws.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No draws recorded yet.</p>
               ) : (
-                draws.map((draw) => (
-                  <div key={draw.id} className="space-y-2 rounded-lg border p-3 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Link
-                        href={`/dashboard/invoices/${draw.id}`}
-                        className="font-medium hover:underline print:no-underline"
-                      >
-                        Draw #{draw.drawNumber ?? "?"} —{" "}
-                        {formatDocumentNumber("invoice", draw.documentNumber)}
-                      </Link>
-                      <Badge variant={STATUS_VARIANT[draw.status]}>{draw.status}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{formatDate(draw.issueDate)}</p>
-
-                    <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">This Draw</p>
-                        <p className="font-medium tabular-nums">
-                          {formatCurrency(draw.totalAmount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Received</p>
-                        <p className="font-medium tabular-nums text-success">
-                          {formatCurrency(draw.receivedAmount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Received to Date</p>
-                        <p className="font-medium tabular-nums">
-                          {formatCurrency(draw.runningReceivedToDate)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Remaining</p>
-                        <p className="font-medium tabular-nums">
-                          {formatCurrency(draw.runningRemainingBalance)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {draw.payments.length > 0 && (
-                      <div className="border-t pt-2">
-                        <p className="text-xs font-medium text-muted-foreground">Payments</p>
-                        {draw.payments.map((payment) => (
-                          <p key={payment.id} className="text-xs text-success">
-                            {formatDate(payment.paidDate)} · {formatCurrency(payment.amount)}
+                draws.map((draw) => {
+                  const drawRemaining = round2(draw.totalAmount - draw.receivedAmount);
+                  const isSettled = drawRemaining <= 0.01;
+                  return (
+                    <div key={draw.id} className="overflow-hidden rounded-lg border">
+                      <div className="flex flex-wrap items-start justify-between gap-3 p-3">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <DrawChip n={draw.drawNumber} />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link
+                                href={`/dashboard/invoices/${draw.id}`}
+                                className="font-medium hover:underline print:no-underline"
+                              >
+                                {formatDocumentNumber("invoice", draw.documentNumber)}
+                              </Link>
+                              <Badge variant={STATUS_VARIANT[draw.status]}>{draw.status}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(draw.issueDate)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                            Remaining
                           </p>
-                        ))}
+                          <p
+                            className={cn(
+                              "text-2xl font-bold tabular-nums",
+                              isSettled ? "text-success" : "text-primary",
+                            )}
+                          >
+                            {formatCurrency(drawRemaining)}
+                          </p>
+                        </div>
                       </div>
-                    )}
 
-                    {(draw.description || draw.percentComplete !== null) && (
-                      <div className="border-t pt-2 text-xs text-muted-foreground">
-                        {draw.percentComplete !== null && <p>{draw.percentComplete}% complete</p>}
-                        {draw.description && <p>{draw.description}</p>}
+                      <div className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-4">
+                        <StatBox label="This Draw" value={formatCurrency(draw.totalAmount)} />
+                        <StatBox
+                          label="Received"
+                          value={formatCurrency(draw.receivedAmount)}
+                          tone="success"
+                        />
+                        <StatBox
+                          label="Received to Date"
+                          value={formatCurrency(draw.runningReceivedToDate)}
+                        />
+                        <StatBox
+                          label="Remaining to Date"
+                          value={formatCurrency(draw.runningRemainingBalance)}
+                        />
                       </div>
-                    )}
-                  </div>
-                ))
+
+                      {draw.payments.length > 0 && (
+                        <div className="border-t p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Payments</p>
+                          {draw.payments.map((payment) => (
+                            <p key={payment.id} className="text-xs text-success">
+                              {formatDate(payment.paidDate)} · {formatCurrency(payment.amount)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      {(draw.description || draw.percentComplete !== null) && (
+                        <div className="border-t p-3 text-xs text-muted-foreground">
+                          {draw.percentComplete !== null && (
+                            <p>{draw.percentComplete}% complete</p>
+                          )}
+                          {draw.description && <p>{draw.description}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </CardContent>
           </Card>
