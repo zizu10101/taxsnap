@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, LogOut, Scissors, Settings } from "lucide-react";
+import { Lock, LogOut, Moon, Scissors, Settings, Sun } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
+import { useTheme } from "@/components/theme-sync";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { cn } from "@/lib/utils";
 import type { BusinessType, SubscriptionStatus } from "@/lib/database.types";
@@ -87,6 +88,7 @@ export function DashboardHeader({
 }) {
   const { role, hasOwnerPin, relock } = useAppLock();
   const isStaffMode = role === "staff";
+  const { resolvedTheme, setPreference } = useTheme();
 
   return (
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
@@ -118,6 +120,24 @@ export function DashboardHeader({
           </span>
         </Link>
         <div className="flex items-center gap-1">
+          {/* Quick light/dark toggle - always visible regardless of
+              staff/manager mode, unlike everything else in this cluster.
+              Sets an explicit light/dark preference (moving off "system"
+              if that was active), same source of truth as the full
+              Light/Dark/System picker in Settings - see
+              components/theme-sync.tsx. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            onClick={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
           {/* The only mode-switching control anywhere - hidden for a
               general business (no staff-facing restricted view to switch
               into) or an account that never set a Manager PIN (relock()

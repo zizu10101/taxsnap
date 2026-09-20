@@ -17,6 +17,31 @@ function getServerSnapshot(): ThemePreference {
   return "light";
 }
 
+// The theme actually being displayed right now, as distinct from the
+// raw stored preference - when preference is "system" this is whatever
+// the OS currently resolves to, not "system" itself. A header toggle
+// needs this (which icon to show, which direction "switch" means),
+// where Settings' three-way picker only ever needed the raw preference.
+function subscribeToResolvedTheme(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("theme-preference-change", callback);
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("theme-preference-change", callback);
+    media.removeEventListener("change", callback);
+  };
+}
+
+function getResolvedTheme(): "light" | "dark" {
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
+function getServerResolvedTheme(): "light" | "dark" {
+  return "light";
+}
+
 // Reads the same localStorage value the blocking init script
 // (src/app/layout.tsx) already resolved before paint - this is just
 // what the rest of the React tree (Settings' theme picker) reads back to
@@ -25,9 +50,15 @@ function getServerSnapshot(): ThemePreference {
 // install-prompt-cards.tsx) rather than useState+useEffect.
 export function useTheme(): {
   preference: ThemePreference;
+  resolvedTheme: "light" | "dark";
   setPreference: (next: ThemePreference) => void;
 } {
   const preference = useSyncExternalStore(subscribe, readStoredPreference, getServerSnapshot);
+  const resolvedTheme = useSyncExternalStore(
+    subscribeToResolvedTheme,
+    getResolvedTheme,
+    getServerResolvedTheme,
+  );
 
   function setPreference(next: ThemePreference) {
     writeStoredPreference(next);
@@ -45,7 +76,7 @@ export function useTheme(): {
     });
   }
 
-  return { preference, setPreference };
+  return { preference, resolvedTheme, setPreference };
 }
 
 // Mounted once in (app)/layout.tsx with the account's actual
