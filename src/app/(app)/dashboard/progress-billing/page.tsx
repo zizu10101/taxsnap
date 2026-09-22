@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressBillingList, type ProgressJobSummary } from "@/components/jobs/progress-billing-list";
@@ -126,50 +126,38 @@ export default async function ProgressBillingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="progress-billing"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Progress Billing"
+        subtitle="Track draws against a job's contract value."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Progress Billing</h1>
-          <p className="text-muted-foreground">
-            Track draws against a job&apos;s contract value.
-          </p>
-        </div>
-
-        {isPro ? (
-          <ProgressBillingList
-            initialSummaries={summaries}
-            eligibleJobs={eligibleJobs}
-            jobs={allJobs}
-            clients={clients}
-            lineItems={lineItems}
-          />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Progress Billing is a Pro feature</p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to track draws against a
-                contract value.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+      {isPro ? (
+        <ProgressBillingList
+          initialSummaries={summaries}
+          eligibleJobs={eligibleJobs}
+          jobs={allJobs}
+          clients={clients}
+          lineItems={lineItems}
+        />
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="font-medium">Progress Billing is a Pro feature</p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Upgrade to the Pro plan ($29/mo) to track draws against a
+              contract value.
+            </p>
+            <Button nativeButton={false} render={<Link href="/billing" />}>
+              Upgrade to Pro
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { LineItemList } from "@/components/invoices/line-item-list";
 
 export const metadata: Metadata = {
@@ -33,30 +33,17 @@ export default async function LineItemsPage() {
     .order("description", { ascending: true });
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="invoices"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Saved Items"
+        subtitle="Reusable line items you can pick from when building an invoice or estimate."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Saved Items</h1>
-          <p className="text-muted-foreground">
-            Reusable line items you can pick from when building an invoice
-            or estimate.
-          </p>
-        </div>
-
-        <LineItemList
-          initialLineItems={lineItems ?? []}
-          subscriptionStatus={profile?.subscription_status ?? "free"}
-        />
-      </main>
+      <LineItemList
+        initialLineItems={lineItems ?? []}
+        subscriptionStatus={profile?.subscription_status ?? "free"}
+      />
     </div>
   );
 }

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { JobDetail } from "@/components/jobs/job-detail";
 import { calculateJobRevenue } from "@/lib/job-revenue";
 import type { DocumentWithClient, HourEntryWithRelations } from "@/lib/database.types";
@@ -24,12 +22,6 @@ export default async function JobDetailPage({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("subscription_status, business_type, logo_url")
-    .eq("id", user.id)
-    .single();
 
   const [
     { data: job },
@@ -74,39 +66,26 @@ export default async function JobDetailPage({
   const jobRevenue = calculateJobRevenue(documents);
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="jobs"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        eyebrow="Job"
+        title={job.name}
+        subtitle={`${invoiceCount} linked invoice${invoiceCount === 1 ? "" : "s"}`}
+        backHref="/dashboard/jobs"
+        backLabel="Back to jobs"
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <Link
-          href="/dashboard/jobs"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to jobs
-        </Link>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">{job.name}</h1>
-        </div>
-
-        <JobDetail
-          job={job}
-          initialReceipts={receipts ?? []}
-          initialHourEntries={(hourEntries ?? []) as HourEntryWithRelations[]}
-          employees={employees ?? []}
-          jobs={jobs ?? []}
-          clients={clients ?? []}
-          savedLineItems={lineItems ?? []}
-          linkedInvoiceCount={invoiceCount}
-          jobRevenue={jobRevenue}
-        />
-      </main>
+      <JobDetail
+        job={job}
+        initialReceipts={receipts ?? []}
+        initialHourEntries={(hourEntries ?? []) as HourEntryWithRelations[]}
+        employees={employees ?? []}
+        jobs={jobs ?? []}
+        clients={clients ?? []}
+        savedLineItems={lineItems ?? []}
+        linkedInvoiceCount={invoiceCount}
+        jobRevenue={jobRevenue}
+      />
     </div>
   );
 }

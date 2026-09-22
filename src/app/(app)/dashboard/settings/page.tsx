@@ -14,10 +14,10 @@ export const metadata: Metadata = {
   title: "Settings — TaxSnap",
 };
 
-// Not Pro-gated and not wrapped in DashboardHeader - same bare
-// back-link-plus-content shape as /billing, since both are account-level
-// pages reached via the header rather than the four-tab nav, and the app
-// lock isn't a subscription-tier feature.
+// Not Pro-gated. Reached via the top bar's Settings icon rather than the
+// sidebar/bottom-nav (it has no nav item of its own - see nav-config.ts),
+// since it's an account-level page like /billing, not one of the tabbed
+// sections, and the app lock isn't a subscription-tier feature.
 export default async function SettingsPage() {
   const supabase = await createClient();
   const {
@@ -40,7 +40,7 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 p-4">
+    <div className="mx-auto w-full max-w-2xl">
       <Link
         href="/dashboard"
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

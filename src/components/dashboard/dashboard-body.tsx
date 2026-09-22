@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, FileText, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
@@ -42,7 +43,7 @@ export function DashboardBody({
   // Hides the "New Estimate" quick-action tile below for salon accounts -
   // Estimates doesn't apply to that business type (see
   // dashboard/estimates/layout.tsx for the matching route-level block and
-  // dashboard-header.tsx for the matching nav-tab hide). Also threaded into
+  // nav-config.ts for the matching nav-item hide). Also threaded into
   // HstSummaryCard below to gate manual sales entry.
   businessType: BusinessType;
   // Threaded into HstSummaryCard to gate manual sales entry (Basic-or-
@@ -82,6 +83,12 @@ export function DashboardBody({
 
   const exportFilenameBase = `taxsnap-receipts-${slugify(scopeLabel)}`;
 
+  const monthEyebrow = useMemo(
+    () =>
+      new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }).toUpperCase(),
+    [],
+  );
+
   function handleRangeChange(nextPreset: RangePreset, nextRange: DateRange) {
     setPreset(nextPreset);
     setRange(nextRange);
@@ -98,16 +105,47 @@ export function DashboardBody({
 
   return (
     <div className="space-y-6">
-      {/* 4 tiles for a general account (Scan/Estimate/Invoice/Client) go
-          2x2 rather than one row of 4 - CommissionNav and DashboardHeader
-          both hit a verified real-device overflow at exactly that shape
-          (four icon+label flex-1 buttons don't fit a ~390px phone
-          viewport), so this doesn't repeat it. A salon account has one
-          fewer tile (no Estimate) and stays a single row of 3, the same
-          layout already proven to fit at that width. */}
+      {/* The eyebrow/title/actions pattern comes from the Claude Design
+          dashboard mockup; the subtitle uses real data (this period's
+          receipt count) rather than the mockup's fabricated "last sync"
+          line, since there's no sync-timestamp concept in this app's data
+          model. PageHeader itself is shared with the rest of /dashboard/**
+          - see page-header.tsx. */}
+      <PageHeader
+        eyebrow={monthEyebrow}
+        title="Dashboard"
+        subtitle={
+          <>
+            {filteredReceipts.length} receipt{filteredReceipts.length === 1 ? "" : "s"} captured ·{" "}
+            {rangeLabel}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="outline" nativeButton={false} render={<Link href="/dashboard/invoices/new" />}>
+              New Invoice
+            </Button>
+            <UploadReceipt
+              variant="hero"
+              onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+              existingJobs={existingJobs}
+            />
+          </>
+        }
+      />
+
+      {/* Quick actions - 4 equal tiles for a general account (Scan/
+          Estimate/Invoice/Client), 2x2 on phone widths, 4-across from sm
+          up. A salon account has one fewer tile (no Estimate) and stays a
+          fixed single row of 3 at every width - that 3-tile row was
+          already verified to fit a ~390px phone viewport (see
+          CommissionNav's own tab row), unlike a bare 4-across row, which is
+          why general only goes 4-across from sm up rather than always. */}
       <div
         className={
-          businessType === "salon" ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"
+          businessType === "salon"
+            ? "grid grid-cols-3 gap-2"
+            : "grid grid-cols-2 gap-2 sm:grid-cols-4"
         }
       >
         <UploadReceipt
@@ -120,7 +158,7 @@ export function DashboardBody({
             variant="outline"
             className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
             nativeButton={false}
-            render={<Link href="/dashboard/estimates?new=1" />}
+            render={<Link href="/dashboard/estimates/new" />}
           >
             <ClipboardList className="h-5 w-5" />
             New Estimate
@@ -130,7 +168,7 @@ export function DashboardBody({
           variant="outline"
           className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
           nativeButton={false}
-          render={<Link href="/dashboard/invoices?new=1" />}
+          render={<Link href="/dashboard/invoices/new" />}
         >
           <FileText className="h-5 w-5" />
           New Invoice

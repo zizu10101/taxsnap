@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DocumentDetail } from "@/components/invoices/document-detail";
+import { DocumentEditor } from "@/components/invoices/document-editor";
 import type { DocumentWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
-  title: "Invoice — TaxSnap",
+  title: "Edit Invoice — TaxSnap",
 };
 
-export default async function InvoiceDetailPage({
+export default async function EditInvoicePage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -23,9 +23,7 @@ export default async function InvoiceDetailPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "subscription_status, business_type, logo_url, business_name, business_address, business_phone, business_email",
-    )
+    .select("logo_url, business_name, business_address, business_phone, business_email")
     .eq("id", user.id)
     .single();
 
@@ -44,28 +42,22 @@ export default async function InvoiceDetailPage({
 
   if (!document) notFound();
 
-  // Only fetched when actually needed - depends on this document's own
-  // job_id, so it can't join the parallel fetch above. Every *other*
-  // draw on the same job, for the "Previous Billed" figure (see
-  // lib/progress-billing.ts / generateDocumentPdf's own comment).
-  let priorDraws: { draw_number: number | null; subtotal: number }[] = [];
-  if (document.is_progress_draw && document.job_id) {
-    const { data } = await supabase
-      .from("documents")
-      .select("draw_number, subtotal")
-      .eq("job_id", document.job_id)
-      .eq("is_progress_draw", true)
-      .neq("id", document.id);
-    priorDraws = data ?? [];
+  // Progress draws have no full-page editor - locked job, draw
+  // description, and % complete fields have no design reference (see
+  // document-editor.tsx's own comment). They still edit through the
+  // original DocumentBuilder dialog from the detail page's Edit button.
+  if (document.is_progress_draw) {
+    redirect(`/dashboard/invoices/${id}`);
   }
 
   return (
-    <DocumentDetail
+    <DocumentEditor
+      defaultType="invoice"
       document={document as DocumentWithRelations}
+      basePath="/dashboard/invoices"
       clients={clients ?? []}
       jobs={jobs ?? []}
-      lineItems={lineItems ?? []}
-      priorDraws={priorDraws}
+      savedLineItems={lineItems ?? []}
       business={{
         name: profile?.business_name ?? null,
         email: profile?.business_email || user.email || "",
@@ -73,7 +65,6 @@ export default async function InvoiceDetailPage({
         address: profile?.business_address ?? null,
       }}
       logoPath={profile?.logo_url ?? null}
-      basePath="/dashboard/invoices"
     />
   );
 }

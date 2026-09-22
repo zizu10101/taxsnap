@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ProgressBillingSummary } from "@/components/jobs/progress-billing-summary";
 import { calculateJobRevenue } from "@/lib/job-revenue";
 import { calculateInvoicedToDate, calculateRemainingBalance } from "@/lib/progress-billing";
@@ -142,27 +141,16 @@ export default async function ProgressBillingSummaryPage({
   }));
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="progress-billing"
-      />
-      <main className="flex-1">
-        <ProgressBillingSummary
-          job={{ id: job.id, name: job.name, contractValue, contractNumber: job.contract_number }}
-          invoicedToDate={invoicedToDate}
-          receivedToDate={receivedToDate}
-          remainingBalance={remainingBalance}
-          draws={draws}
-          changes={changes}
-          jobs={allJobs ?? []}
-          clients={clientRows ?? []}
-          lineItems={lineItemRows ?? []}
-        />
-      </main>
-    </div>
+    <ProgressBillingSummary
+      job={{ id: job.id, name: job.name, contractValue, contractNumber: job.contract_number }}
+      invoicedToDate={invoicedToDate}
+      receivedToDate={receivedToDate}
+      remainingBalance={remainingBalance}
+      draws={draws}
+      changes={changes}
+      jobs={allJobs ?? []}
+      clients={clientRows ?? []}
+      lineItems={lineItemRows ?? []}
+    />
   );
 }

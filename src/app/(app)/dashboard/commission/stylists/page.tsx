@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { StylistList } from "@/components/commission/stylist-list";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
 
@@ -35,30 +35,18 @@ export default async function StylistsPage() {
     .order("name", { ascending: true });
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="commission"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Stylists"
+        subtitle="Manage stylists and their commission rate."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Stylists</h1>
-          <p className="text-muted-foreground">
-            Manage stylists and their commission rate.
-          </p>
-        </div>
-
-        <StylistList
-          initialStylists={stylists ?? []}
-          subscriptionStatus={profile?.subscription_status ?? "free"}
-          isPro={profile?.subscription_status === "pro"}
-        />
-      </main>
+      <StylistList
+        initialStylists={stylists ?? []}
+        subscriptionStatus={profile?.subscription_status ?? "free"}
+        isPro={profile?.subscription_status === "pro"}
+      />
     </div>
   );
 }

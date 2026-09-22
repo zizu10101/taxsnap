@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogContractChangeDialog } from "@/components/jobs/log-contract-change-dialog";
 import { RecordContractPaymentDialog } from "@/components/jobs/record-contract-payment-dialog";
@@ -241,31 +242,28 @@ export function ProgressBillingSummary({
         </Button>
       </div>
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Progress Billing Summary
-              {job.contractNumber !== null && ` · ${formatContractNumber(job.contractNumber)}`}
-            </p>
-            <h1 className="text-xl font-bold sm:text-2xl">{job.name}</h1>
-          </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
-            {draws.length > 0 && (
-              <Button variant="outline" onClick={() => setRecordPaymentOpen(true)}>
-                <Banknote className="h-4 w-4" />
-                Record Payment
-              </Button>
-            )}
-            {notYetInvoiced > 0.01 && (
-              <Button variant="outline" onClick={() => setBillOpen(true)}>
-                <CircleDollarSign className="h-4 w-4" />
-                Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="mb-6">
+        <PageHeader
+          eyebrow={`Progress Billing Summary${job.contractNumber !== null ? ` · ${formatContractNumber(job.contractNumber)}` : ""}`}
+          title={job.name}
+          actions={
+            <div className="flex flex-wrap gap-2 print:hidden">
+              {draws.length > 0 && (
+                <Button variant="outline" onClick={() => setRecordPaymentOpen(true)}>
+                  <Banknote className="h-4 w-4" />
+                  Record Payment
+                </Button>
+              )}
+              {notYetInvoiced > 0.01 && (
+                <Button variant="outline" onClick={() => setBillOpen(true)}>
+                  <CircleDollarSign className="h-4 w-4" />
+                  Bill Remaining Balance ({formatCurrency(notYetInvoiced)})
+                </Button>
+              )}
+            </div>
+          }
+        />
+      </div>
 
       <Tabs defaultValue="overview">
         <TabsList className="mb-4 grid h-11 w-full grid-cols-3 gap-1 p-1 print:hidden">

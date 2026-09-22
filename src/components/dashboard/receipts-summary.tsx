@@ -34,37 +34,72 @@ export function ReceiptsSummary({
     return {
       count: receipts.length,
       deductibleSpend: summary.deductibleSpend,
+      totalExpenses: summary.totalExpenses,
       estHstReclaimable: summary.estHstReclaimable,
     };
   }, [receipts]);
 
+  // Meals & entertainment's 50% restriction (see lib/hst.ts) is the only
+  // reason this can be under 100% - real, computed from the same shared
+  // summary the HST card and accountant export use, not a fabricated
+  // "awaiting category" figure (no such status exists on a receipt row).
+  const claimablePct =
+    stats.totalExpenses > 0 ? Math.round((stats.deductibleSpend / stats.totalExpenses) * 100) : 100;
+
   return (
-    <div className="grid grid-cols-3 gap-3">
-      <Card>
-        <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-          <ReceiptIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xl font-bold tabular-nums">{stats.count}</span>
-          <span className="text-xs text-muted-foreground">
-            Receipts in {rangeLabel}
-          </span>
+    // Mobile: HST full-width hero on top, Receipts/Deductible 2-up below
+    // (order-1/2/3 puts HST first in source-independent order). Desktop
+    // (sm+): three equal columns, HST last/right like the mockup's
+    // 3-column stat row - same cards, same data, just re-flowed via grid
+    // placement instead of two separate layouts.
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <Card className="order-1 col-span-2 border-success/30 bg-success/5 sm:order-3 sm:col-span-1">
+        <CardContent className="flex items-center gap-3 p-4 sm:flex-col sm:items-start sm:gap-1">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/15 sm:hidden">
+            <PiggyBank className="h-5 w-5 text-success" />
+          </div>
+          <div className="hidden items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-success/70 sm:flex">
+            <PiggyBank className="h-3.5 w-3.5" />
+            EST. HST RECLAIMABLE
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground sm:hidden">Est. HST reclaimable</p>
+            <p className="truncate text-2xl font-bold tabular-nums text-success sm:text-3xl">
+              {formatCurrency(stats.estHstReclaimable)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {rangeLabel} · {stats.count} receipt{stats.count === 1 ? "" : "s"}
+            </p>
+          </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xl font-bold tabular-nums">
-            {formatCurrency(stats.deductibleSpend)}
-          </span>
-          <span className="text-xs text-muted-foreground">Deductible spend</span>
+      <Card className="order-2 sm:order-1">
+        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+          <ReceiptIcon className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
+          <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+            RECEIPTS THIS PERIOD
+          </p>
+          <div className="min-w-0">
+            <p className="font-semibold tabular-nums sm:text-3xl">{stats.count}</p>
+            <p className="text-[11px] text-muted-foreground sm:hidden">Receipts</p>
+          </div>
         </CardContent>
       </Card>
-      <Card className="border-success/30 bg-success/5">
-        <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-          <PiggyBank className="h-4 w-4 text-success" />
-          <span className="text-xl font-bold tabular-nums text-success">
-            {formatCurrency(stats.estHstReclaimable)}
-          </span>
-          <span className="text-xs text-muted-foreground">Est. HST reclaimable</span>
+      <Card className="order-3 sm:order-2">
+        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+          <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
+          <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+            DEDUCTIBLE SPEND
+          </p>
+          <div className="min-w-0">
+            <p className="truncate font-semibold tabular-nums sm:text-3xl">
+              {formatCurrency(stats.deductibleSpend)}
+            </p>
+            <p className="text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">
+              <span className="sm:hidden">Deductible spend · </span>
+              of {formatCurrency(stats.totalExpenses)} logged · {claimablePct}% claimable
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

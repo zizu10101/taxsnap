@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 // Server-side gate for the whole Commission route subtree (this page, plus
-// reports/services/stylists underneath it). DashboardHeader already hides
-// the nav button for a non-salon account, but that alone doesn't stop
+// reports/services/stylists underneath it). The sidebar/bottom-nav shell in
+// dashboard/layout.tsx already hides the nav item for a non-salon account,
+// but that alone doesn't stop
 // direct URL entry or back/forward navigation - same gap AppLockProvider
 // closes for staff mode and /billing. That guard is client-only because
 // app-lock role has no server-side representation; business_type is a real

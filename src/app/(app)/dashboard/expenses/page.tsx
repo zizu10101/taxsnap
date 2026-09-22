@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { ExpensesBody } from "@/components/dashboard/expenses-body";
 
 export const metadata: Metadata = {
@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 // General-business only, same precedent as dashboard/overview/page.tsx -
 // a salon account hitting this URL directly redirects to /dashboard
 // rather than rendering. Salon accounts already see their own receipts
-// mixed into the main dashboard page and don't get an Expenses nav tab
-// (see dashboard-header.tsx).
+// mixed into the main dashboard page and don't get an Expenses nav item
+// (see nav-config.ts).
 export default async function ExpensesPage() {
   const supabase = await createClient();
   const {
@@ -47,37 +47,25 @@ export default async function ExpensesPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="expenses"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Expenses"
+        subtitle="Every scanned receipt, filtered by date range."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Expenses</h1>
-          <p className="text-muted-foreground">
-            Every scanned receipt, filtered by date range.
-          </p>
-        </div>
-
-        <ExpensesBody
-          initialReceipts={receipts ?? []}
-          initialJobNames={(jobs ?? []).map((j) => j.name)}
-          initialTemplates={templates ?? []}
-          business={{
-            name: profile?.business_name ?? null,
-            email: profile?.business_email || user.email || "",
-            phone: profile?.business_phone ?? null,
-            address: profile?.business_address ?? null,
-          }}
-          logoPath={profile?.logo_url ?? null}
-        />
-      </main>
+      <ExpensesBody
+        initialReceipts={receipts ?? []}
+        initialJobNames={(jobs ?? []).map((j) => j.name)}
+        initialTemplates={templates ?? []}
+        business={{
+          name: profile?.business_name ?? null,
+          email: profile?.business_email || user.email || "",
+          phone: profile?.business_phone ?? null,
+          address: profile?.business_address ?? null,
+        }}
+        logoPath={profile?.logo_url ?? null}
+      />
     </div>
   );
 }

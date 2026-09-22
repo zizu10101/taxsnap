@@ -60,32 +60,55 @@ export function InvoiceBillingSummary({
     <div className="space-y-3">
       <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
 
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-            <FileStack className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xl font-bold tabular-nums">{stats.count}</span>
-            <span className="text-xs text-muted-foreground">
-              Invoices in {rangeLabel}
-            </span>
+      {/* Same responsive hero/3-column pattern as the Dashboard's
+          ReceiptsSummary - mobile: Collected full-width hero on top
+          (money-positive figure, ledger green), the other two 2-up below;
+          desktop (sm+): three equal columns, Collected last. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <Card className="order-1 col-span-2 border-success/30 bg-success/5 sm:order-3 sm:col-span-1">
+          <CardContent className="flex items-center gap-3 p-4 sm:flex-col sm:items-start sm:gap-1">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/15 sm:hidden">
+              <CheckCircle2 className="h-5 w-5 text-success" />
+            </div>
+            <div className="hidden items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-success/70 sm:flex">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              COLLECTED
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground sm:hidden">Collected</p>
+              <p className="truncate text-2xl font-bold tabular-nums text-success sm:text-3xl">
+                {formatCurrency(stats.collected)}
+              </p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xl font-bold tabular-nums">
-              {formatCurrency(stats.billed)}
-            </span>
-            <span className="text-xs text-muted-foreground">Total billed</span>
+        <Card className="order-2 sm:order-1">
+          <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+            <FileStack className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
+            <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+              INVOICES THIS PERIOD
+            </p>
+            <div className="min-w-0">
+              <p className="font-semibold tabular-nums sm:text-3xl">{stats.count}</p>
+              <p className="text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">
+                <span className="sm:hidden">Invoices · </span>
+                {rangeLabel}
+              </p>
+            </div>
           </CardContent>
         </Card>
-        <Card className="border-success/30 bg-success/5">
-          <CardContent className="flex flex-col items-center gap-1 p-4 text-center">
-            <CheckCircle2 className="h-4 w-4 text-success" />
-            <span className="text-xl font-bold tabular-nums text-success">
-              {formatCurrency(stats.collected)}
-            </span>
-            <span className="text-xs text-muted-foreground">Collected</span>
+        <Card className="order-3 sm:order-2">
+          <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+            <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
+            <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+              TOTAL BILLED
+            </p>
+            <div className="min-w-0">
+              <p className="truncate font-semibold tabular-nums sm:text-3xl">
+                {formatCurrency(stats.billed)}
+              </p>
+              <p className="text-[11px] text-muted-foreground sm:hidden">Total billed</p>
+            </div>
           </CardContent>
         </Card>
       </div>

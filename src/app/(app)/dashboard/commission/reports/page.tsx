@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { CommissionReports } from "@/components/commission/commission-reports";
 import { getPresetRange } from "@/lib/date-range";
 import { STYLIST_PUBLIC_COLUMNS } from "@/lib/stylist-columns";
@@ -57,38 +57,26 @@ export default async function CommissionReportsPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="commission"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Register Reports"
+        subtitle="Per-stylist and all-stylists commission totals."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Register Reports</h1>
-          <p className="text-muted-foreground">
-            Per-stylist and all-stylists commission totals.
-          </p>
-        </div>
-
-        <CommissionReports
-          isPro={isPro}
-          stylists={stylists ?? []}
-          services={services ?? []}
-          initialEntries={(entries ?? []) as CommissionEntryWithRelations[]}
-          business={{
-            name: profile?.business_name ?? null,
-            email: profile?.business_email || user.email || "",
-            phone: profile?.business_phone ?? null,
-            address: profile?.business_address ?? null,
-          }}
-          logoPath={profile?.logo_url ?? null}
-        />
-      </main>
+      <CommissionReports
+        isPro={isPro}
+        stylists={stylists ?? []}
+        services={services ?? []}
+        initialEntries={(entries ?? []) as CommissionEntryWithRelations[]}
+        business={{
+          name: profile?.business_name ?? null,
+          email: profile?.business_email || user.email || "",
+          phone: profile?.business_phone ?? null,
+          address: profile?.business_address ?? null,
+        }}
+        logoPath={profile?.logo_url ?? null}
+      />
     </div>
   );
 }

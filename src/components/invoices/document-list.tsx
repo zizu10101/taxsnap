@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
 import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-summary";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
@@ -21,7 +20,6 @@ import type {
   DocumentStatus,
   DocumentType,
   DocumentWithClient,
-  LineItem,
   SubscriptionStatus,
 } from "@/lib/database.types";
 
@@ -52,20 +50,15 @@ export function DocumentList({
   basePath,
   initialDocuments,
   initialClients,
-  initialJobs = [],
-  initialLineItems = [],
   initialProfile,
   businessType,
   subscriptionStatus,
   convertedMap = {},
-  autoOpenNew = false,
 }: {
   type: DocumentType;
   basePath: string;
   initialDocuments: DocumentWithClient[];
   initialClients: Client[];
-  initialJobs?: { id: string; name: string }[];
-  initialLineItems?: LineItem[];
   initialProfile: BusinessProfileFields;
   // Hides the Estimates toggle below for salon accounts - Estimates
   // doesn't apply to that business type and is blocked at the route level
@@ -78,13 +71,14 @@ export function DocumentList({
   subscriptionStatus: SubscriptionStatus;
   /** estimate id -> id of the invoice it was converted into (estimates only) */
   convertedMap?: Record<string, string>;
-  autoOpenNew?: boolean;
 }) {
   const router = useRouter();
-  const [documents, setDocuments] = useState(initialDocuments);
-  const [clients, setClients] = useState(initialClients);
+  // Never mutated locally anymore - creating now navigates to its own
+  // page (see the "New {label}" button below) instead of appending to
+  // this list in place, so this can just read the server-fetched value
+  // directly rather than needing its own state.
+  const documents = initialDocuments;
   const [converted, setConverted] = useState(convertedMap);
-  const [builderOpen, setBuilderOpen] = useState(autoOpenNew);
 
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
@@ -165,12 +159,12 @@ export function DocumentList({
 
       <UsageLimitBar
         tier={subscriptionStatus}
-        current={clients.length}
+        current={initialClients.length}
         limit={PLAN_LIMITS[subscriptionStatus].clients}
         noun="client"
       />
 
-      <Button className="w-full" onClick={() => setBuilderOpen(true)}>
+      <Button className="w-full" nativeButton={false} render={<Link href={`${basePath}/new`} />}>
         <Plus className="h-4 w-4" />
         New {label}
       </Button>
@@ -267,17 +261,6 @@ export function DocumentList({
           })}
         </div>
       )}
-
-      <DocumentBuilder
-        open={builderOpen}
-        onOpenChange={setBuilderOpen}
-        defaultType={type}
-        clients={clients}
-        jobs={initialJobs}
-        savedLineItems={initialLineItems}
-        onSaved={(doc) => setDocuments((prev) => [doc, ...prev])}
-        onClientCreated={(client) => setClients((prev) => [...prev, client])}
-      />
     </div>
   );
 }

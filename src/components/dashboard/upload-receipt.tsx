@@ -73,6 +73,9 @@ export function UploadReceipt({
 }: {
   onSaved: (receipt: Receipt) => void;
   existingJobs?: string[];
+  // "tile" = quick-actions grid tile (flex-col, icon over label). "hero" =
+  // the page header's own compact primary action, sized to sit inline next
+  // to a secondary button rather than full-width.
   variant?: "hero" | "tile";
 }) {
   const router = useRouter();
@@ -239,11 +242,7 @@ export function UploadReceipt({
                 disabled={parsing}
               />
             ) : (
-              <Button
-                size="lg"
-                className="h-16 w-full text-base font-semibold shadow-md"
-                disabled={parsing}
-              />
+              <Button size="lg" className="font-semibold" disabled={parsing} />
             )
           }
         >
@@ -261,13 +260,13 @@ export function UploadReceipt({
             )
           ) : parsing ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Reading receipt...
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Reading...
             </>
           ) : (
             <>
-              <Camera className="h-5 w-5" />
-              Snap / Upload Receipt
+              <Camera className="h-4 w-4" />
+              Scan Receipt
             </>
           )}
         </DropdownMenuTrigger>

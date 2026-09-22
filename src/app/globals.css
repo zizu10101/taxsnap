@@ -84,13 +84,19 @@
   --chart-4: #b8863f;
   --chart-5: #7a7266;
   --radius: 0.5rem;
-  --sidebar: #fffdfa;
-  --sidebar-foreground: #211d18;
+  /* The nav shell (desktop sidebar / mobile app bar + bottom nav) is a
+     fixed dark "ink" surface by design - it reads as the toolkit's dark
+     hardware against the warm paper page, not as a light-mode card, so
+     these stay dark even under :root. .dark below gives it a distinct
+     (not identical) dark tone so it doesn't flatten into an equally-dark
+     page background once real dark mode is active. */
+  --sidebar: #1c1917;
+  --sidebar-foreground: #f5f5f4;
   --sidebar-primary: #c2410c;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efe8dc;
-  --sidebar-accent-foreground: #211d18;
-  --sidebar-border: #e4dcc9;
+  --sidebar-primary-foreground: #fff7ed;
+  --sidebar-accent: #292524;
+  --sidebar-accent-foreground: #f5f5f4;
+  --sidebar-border: #292524;
   --sidebar-ring: #c2410c;
 }
 
@@ -120,11 +126,11 @@
   --chart-3: #7a8d99;
   --chart-4: #d3a35f;
   --chart-5: #b4a996;
-  --sidebar: #241f18;
+  --sidebar: #0f0d0b;
   --sidebar-foreground: #f3eee3;
   --sidebar-primary: #e8703a;
   --sidebar-primary-foreground: #1b1712;
-  --sidebar-accent: #332c22;
+  --sidebar-accent: #241f18;
   --sidebar-accent-foreground: #f3eee3;
   --sidebar-border: #3a3225;
   --sidebar-ring: #e8703a;

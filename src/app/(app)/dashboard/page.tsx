@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DashboardBody } from "@/components/dashboard/dashboard-body";
 
 export const metadata: Metadata = {
@@ -60,28 +59,18 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-      />
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-4">
-        <DashboardBody
-          initialReceipts={receipts ?? []}
-          initialJobNames={(jobs ?? []).map((j) => j.name)}
-          businessType={profile?.business_type ?? "general"}
-          subscriptionStatus={profile?.subscription_status ?? "free"}
-          business={{
-            name: profile?.business_name ?? null,
-            email: profile?.business_email || user.email || "",
-            phone: profile?.business_phone ?? null,
-            address: profile?.business_address ?? null,
-          }}
-          logoPath={profile?.logo_url ?? null}
-        />
-      </main>
-    </div>
+    <DashboardBody
+      initialReceipts={receipts ?? []}
+      initialJobNames={(jobs ?? []).map((j) => j.name)}
+      businessType={profile?.business_type ?? "general"}
+      subscriptionStatus={profile?.subscription_status ?? "free"}
+      business={{
+        name: profile?.business_name ?? null,
+        email: profile?.business_email || user.email || "",
+        phone: profile?.business_phone ?? null,
+        address: profile?.business_address ?? null,
+      }}
+      logoPath={profile?.logo_url ?? null}
+    />
   );
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DocumentDetail } from "@/components/invoices/document-detail";
 import type { DocumentWithRelations } from "@/lib/database.types";
 
@@ -56,31 +55,20 @@ export default async function EstimateDetailPage({
   if (!document) notFound();
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="estimates"
-      />
-      <main className="flex-1">
-        <DocumentDetail
-          document={document as DocumentWithRelations}
-          clients={clients ?? []}
-          jobs={jobs ?? []}
-          lineItems={lineItems ?? []}
-          business={{
-            name: profile?.business_name ?? null,
-            email: profile?.business_email || user.email || "",
-            phone: profile?.business_phone ?? null,
-            address: profile?.business_address ?? null,
-          }}
-          logoPath={profile?.logo_url ?? null}
-          basePath="/dashboard/estimates"
-          convertedToInvoiceId={conversion?.id ?? null}
-        />
-      </main>
-    </div>
+    <DocumentDetail
+      document={document as DocumentWithRelations}
+      clients={clients ?? []}
+      jobs={jobs ?? []}
+      lineItems={lineItems ?? []}
+      business={{
+        name: profile?.business_name ?? null,
+        email: profile?.business_email || user.email || "",
+        phone: profile?.business_phone ?? null,
+        address: profile?.business_address ?? null,
+      }}
+      logoPath={profile?.logo_url ?? null}
+      basePath="/dashboard/estimates"
+      convertedToInvoiceId={conversion?.id ?? null}
+    />
   );
 }

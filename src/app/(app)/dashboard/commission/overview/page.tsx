@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommissionOverview } from "@/components/commission/commission-overview";
@@ -48,44 +48,32 @@ export default async function CommissionOverviewPage() {
     : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
-      <DashboardHeader
-        email={user.email ?? ""}
-        subscriptionStatus={profile?.subscription_status ?? "free"}
-        businessType={profile?.business_type ?? "general"}
-        logoPath={profile?.logo_url ?? null}
-        active="commission"
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        back={<BackToDashboardLink />}
+        title="Register Overview"
+        subtitle="Shop-wide totals across every stylist."
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <BackToDashboardLink />
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Register Overview</h1>
-          <p className="text-muted-foreground">
-            Shop-wide totals across every stylist.
-          </p>
-        </div>
-
-        {isPro && initialRangeData ? (
-          <CommissionOverview isPro={isPro} initialRangeData={initialRangeData} />
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="font-medium">Overview is a Pro feature</p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Upgrade to the Pro plan ($29/mo) to see shop-wide sales,
-                commission, and payout totals across every stylist.
-              </p>
-              <Button nativeButton={false} render={<Link href="/billing" />}>
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+      {isPro && initialRangeData ? (
+        <CommissionOverview isPro={isPro} initialRangeData={initialRangeData} />
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="font-medium">Overview is a Pro feature</p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Upgrade to the Pro plan ($29/mo) to see shop-wide sales,
+              commission, and payout totals across every stylist.
+            </p>
+            <Button nativeButton={false} render={<Link href="/billing" />}>
+              Upgrade to Pro
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

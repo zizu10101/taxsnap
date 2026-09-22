@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 
 // Server-side gate for the whole Estimates route subtree (this page, plus
 // [id] underneath it) - mirrors commission/layout.tsx's shape but inverted:
-// Estimates doesn't apply to salon accounts (DashboardHeader already hides
-// the nav button for them), but that alone doesn't stop direct URL entry
+// Estimates doesn't apply to salon accounts (the sidebar/bottom-nav shell
+// in dashboard/layout.tsx already hides the nav item for them), but that
+// alone doesn't stop direct URL entry
 // or back/forward navigation, so this redirects before any Estimates page
 // ever renders instead of flashing content and correcting client-side
 // afterward.

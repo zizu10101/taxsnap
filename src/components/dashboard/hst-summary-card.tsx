@@ -287,16 +287,16 @@ function HstSummaryCardBody({
 
       <Separator />
 
-      <div className="flex items-center justify-between rounded-lg bg-success/10 p-4">
+      <div className="flex items-center justify-between rounded-lg bg-sidebar p-4 text-sidebar-foreground">
         <div className="flex items-center gap-2">
-          <Badge className="border-transparent bg-success text-success-foreground">
+          <Badge className="border-transparent bg-sidebar-primary text-sidebar-primary-foreground">
             Line 109
           </Badge>
-          <span className="font-semibold">
+          <span className="font-semibold text-sidebar-primary">
             {isRefund ? "Refund" : "Net Tax Payable"}
           </span>
         </div>
-        <span className="text-xl font-bold tabular-nums text-success">
+        <span className="text-xl font-bold tabular-nums text-sidebar-primary">
           {formatCurrency(Math.abs(lines.line109))}
         </span>
       </div>
@@ -438,7 +438,14 @@ export function HstSummaryCard({
   }
 
   return (
-    <Card className="font-sans">
+    // Dark "ink" card, matching the mockup's HST Return Helper treatment -
+    // same collapsible/independent-quarter-picker/editable-inputs behavior
+    // as before (see HstSummaryCardBody), just restyled. The mockup shows
+    // this always expanded with a "FILING DUE OCT 31" date next to the
+    // title - dropped here rather than faked, since filing frequency
+    // (monthly/quarterly/annual) isn't tracked anywhere in this app's data
+    // model, so there's no real due date to compute.
+    <Card className="overflow-hidden border-sidebar-border bg-sidebar font-sans text-sidebar-foreground">
       <CardHeader
         role="button"
         tabIndex={0}
@@ -449,23 +456,32 @@ export function HstSummaryCard({
             setCollapsed((prev) => !prev);
           }
         }}
-        className="flex cursor-pointer flex-row items-center justify-between outline-none"
+        className="flex cursor-pointer flex-row items-center justify-between border-b border-sidebar-border bg-sidebar-accent/40 outline-none"
       >
         <div>
-          <CardTitle className="flex items-center gap-2">
-            <Landmark className="h-4 w-4 text-success" />
+          <CardTitle className="flex items-center gap-2 font-mono text-xs font-semibold tracking-[0.12em] text-sidebar-foreground uppercase">
+            <Landmark className="h-4 w-4 text-sidebar-primary" />
             Ontario HST Return Helper
           </CardTitle>
-          <CardDescription>{rangeLabel}</CardDescription>
+          <CardDescription className="text-sidebar-foreground/50">{rangeLabel}</CardDescription>
         </div>
         {collapsed ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-4 w-4 text-sidebar-foreground/60" />
         ) : (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          <ChevronUp className="h-4 w-4 text-sidebar-foreground/60" />
         )}
       </CardHeader>
       {!collapsed && (
-        <CardContent className="space-y-4">
+        // The editable/interactive parts of this card (date picker, Gross
+        // Sales/Cash Deposits inputs, usage bar, per-payment checklist)
+        // stay on the normal light card surface - Input/Select/Checkbox
+        // aren't themed for a dark background, and re-theming every form
+        // control just for this one card isn't worth the risk of an
+        // unreadable field. Only the header strip above and the final
+        // Line 109 summary bar (inside HstSummaryCardBody) get the dark
+        // treatment - still a real visual match to the mockup's dark card
+        // identity without touching form-control theming.
+        <CardContent className="space-y-4 bg-card text-card-foreground">
           <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
           <HstSummaryCardBody
             key={rangeLabel}

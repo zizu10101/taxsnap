@@ -153,63 +153,120 @@ export function ReceiptsList({
             <p className="text-sm">{emptyLabel}</p>
           </div>
         ) : (
-          <ul className="divide-y">
-            {receipts.map((r) => (
-              <li
-                key={r.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(r)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelect(r);
-                  }
-                }}
-                className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{r.merchant_name}</p>
-                    <Badge variant="secondary" className="shrink-0 text-xs">
-                      {r.tax_category}
-                    </Badge>
+          <>
+            {/* Desktop: a real MERCHANT/CATEGORY/DATE/AMOUNT column table,
+                matching the mockup - a plain header row, not part of the
+                scrolling list. Hidden below sm; the mobile card-row list
+                below (unchanged from before this redesign) takes over
+                there instead of squeezing this grid into a narrow column. */}
+            <div className="mb-1 hidden grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] gap-3 border-b px-1 pb-2 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+              <span>Merchant</span>
+              <span>Category</span>
+              <span>Date</span>
+              <span className="text-right">Amount</span>
+              <span />
+            </div>
+            <ul className="divide-y">
+              {receipts.map((r) => (
+                <li
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelect(r)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelect(r);
+                    }
+                  }}
+                  className="cursor-pointer rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 sm:grid sm:grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] sm:items-center sm:gap-3 sm:px-1"
+                >
+                  {/* Mobile row (below sm) - unchanged two-line card shape. */}
+                  <div className="flex items-center justify-between gap-3 sm:hidden">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium">{r.merchant_name}</p>
+                        <Badge variant="secondary" className="shrink-0 text-xs">
+                          {r.tax_category}
+                        </Badge>
+                      </div>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        {formatDate(r.transaction_date)}
+                        {r.job_name && (
+                          <span className="flex items-center gap-0.5 truncate">
+                            <span aria-hidden>·</span>
+                            <Briefcase className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{r.job_name}</span>
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold tabular-nums">
+                        {formatCurrency(r.total_amount)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(r.id);
+                        }}
+                        disabled={deletingId === r.id}
+                      >
+                        {deletingId === r.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {formatDate(r.transaction_date)}
+
+                  {/* Desktop row (sm+) - one grid cell per column, same data. */}
+                  <div className="hidden min-w-0 sm:block">
+                    <p className="truncate text-sm font-medium">{r.merchant_name}</p>
                     {r.job_name && (
-                      <span className="flex items-center gap-0.5 truncate">
-                        <span aria-hidden>·</span>
+                      <p className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
                         <Briefcase className="h-3 w-3 shrink-0" />
                         <span className="truncate">{r.job_name}</span>
-                      </span>
+                      </p>
                     )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold tabular-nums">
+                  </div>
+                  <span className="hidden sm:block">
+                    <Badge variant="secondary" className="text-xs">
+                      {r.tax_category}
+                    </Badge>
+                  </span>
+                  <span className="hidden font-mono text-xs text-muted-foreground sm:block">
+                    {formatDate(r.transaction_date)}
+                  </span>
+                  <span className="hidden text-right text-sm font-semibold tabular-nums sm:block">
                     {formatCurrency(r.total_amount)}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(r.id);
-                    }}
-                    disabled={deletingId === r.id}
-                  >
-                    {deletingId === r.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <span className="hidden justify-self-end sm:block">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(r.id);
+                      }}
+                      disabled={deletingId === r.id}
+                    >
+                      {deletingId === r.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </CardContent>
     </Card>

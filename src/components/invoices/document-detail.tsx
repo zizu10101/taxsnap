@@ -14,7 +14,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
@@ -43,6 +43,17 @@ import type {
   LineItem,
   Payment,
 } from "@/lib/database.types";
+
+// Pill colors for the status Select trigger next to the title - same
+// four statuses DocumentList's STATUS_VARIANT badges use, just mapped to
+// solid pill backgrounds instead of badge outlines (see the mockup's
+// title-adjacent status pill).
+const STATUS_PILL_CLASS: Record<DocumentStatus, string> = {
+  draft: "border-transparent bg-primary text-primary-foreground",
+  sent: "border-transparent bg-secondary text-secondary-foreground",
+  partial: "border-transparent bg-secondary text-secondary-foreground",
+  paid: "border-transparent bg-success text-success-foreground",
+};
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -310,8 +321,12 @@ export function DocumentDetail({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
+    <div className="mx-auto w-full max-w-4xl space-y-4 p-4">
+      {/* Breadcrumb row - back-link left, job-link right, matching the
+          mockup's "BACK TO X / JOB · Y" strip. Kept separate from
+          PageHeader itself since neither is a page-level action, just
+          navigation context. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link
           href={backHref}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -327,12 +342,26 @@ export function DocumentDetail({
             Job: <span className="font-medium underline underline-offset-2">{doc.job.name}</span>
           </Link>
         )}
-        <div className="flex flex-wrap items-center gap-2">
+      </div>
+
+      <PageHeader
+        eyebrow={label}
+        title={doc.client?.name ?? "No client"}
+        // Status is real, editable data (manual override, still recomputed
+        // by the payments API - see hst-summary-card.tsx's own CLAUDE.md
+        // note on this), not a static pill like the mockup shows - kept as
+        // the same Select as before, just restyled to sit inline with the
+        // title as a colored pill trigger instead of a plain dropdown in
+        // the toolbar.
+        titleBadge={
           <Select
             value={doc.status}
             onValueChange={(v) => v && handleStatusChange(v as DocumentStatus)}
           >
-            <SelectTrigger className="h-8 w-28" disabled={statusSaving}>
+            <SelectTrigger
+              className={`h-7 rounded-full border px-3 text-xs font-semibold capitalize ${STATUS_PILL_CLASS[doc.status]}`}
+              disabled={statusSaving}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -342,81 +371,108 @@ export function DocumentDetail({
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditorOpen(true)}
-            disabled={isLocked}
-            title={
-              isLocked
-                ? "Sent or has payments recorded - content can no longer be edited"
-                : undefined
-            }
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-          {doc.type === "estimate" &&
-            (convertedToInvoiceId ? (
+        }
+        subtitle={`${shortId} · ${formatDate(doc.issue_date)}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            {/* A progress draw has no full-page editor (see
+                document-editor.tsx) - it keeps opening the original
+                DocumentBuilder dialog below. A plain invoice/estimate
+                navigates to the new page instead. */}
+            {doc.is_progress_draw ? (
               <Button
                 variant="outline"
                 size="sm"
-                className="text-success hover:text-success"
-                nativeButton={false}
-                render={<Link href={`/dashboard/invoices/${convertedToInvoiceId}`} />}
+                onClick={() => setEditorOpen(true)}
+                disabled={isLocked}
+                title={
+                  isLocked
+                    ? "Sent or has payments recorded - content can no longer be edited"
+                    : undefined
+                }
               >
-                <CheckCircle2 className="h-4 w-4" />
-                View Invoice
+                <Pencil className="h-4 w-4" />
+                Edit
               </Button>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleConvert}
-                disabled={converting}
+                disabled={isLocked}
+                title={
+                  isLocked
+                    ? "Sent or has payments recorded - content can no longer be edited"
+                    : undefined
+                }
+                nativeButton={!isLocked ? false : undefined}
+                render={!isLocked ? <Link href={`${basePath}/${doc.id}/edit`} /> : undefined}
               >
-                {converting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRightLeft className="h-4 w-4" />
-                )}
-                Convert to Invoice
+                <Pencil className="h-4 w-4" />
+                Edit
               </Button>
-            ))}
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-          <ShareDocumentButton
-            document={doc}
-            business={business}
-            logoPath={logoPath}
-            priorDraws={priorDraws}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            disabled={deleting || isLocked}
-            title={
-              isLocked
-                ? "Sent or has payments recorded - can no longer be deleted"
-                : undefined
-            }
-            className="text-destructive hover:text-destructive"
-          >
-            {deleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
             )}
-            Delete
-          </Button>
-        </div>
-      </div>
+            {doc.type === "estimate" &&
+              (convertedToInvoiceId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-success hover:text-success"
+                  nativeButton={false}
+                  render={<Link href={`/dashboard/invoices/${convertedToInvoiceId}`} />}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  View Invoice
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleConvert}
+                  disabled={converting}
+                >
+                  {converting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRightLeft className="h-4 w-4" />
+                  )}
+                  Convert to Invoice
+                </Button>
+              ))}
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            <ShareDocumentButton
+              document={doc}
+              business={business}
+              logoPath={logoPath}
+              priorDraws={priorDraws}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting || isLocked}
+              title={
+                isLocked
+                  ? "Sent or has payments recorded - can no longer be deleted"
+                  : undefined
+              }
+              className="text-destructive hover:text-destructive"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </div>
+        }
+      />
 
       {convertedToInvoiceId && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success print:hidden">
+        <div className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success print:hidden">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           This estimate was converted to{" "}
           <Link
@@ -429,12 +485,15 @@ export function DocumentDetail({
         </div>
       )}
 
+      {/* Two-column layout matching the mockup - paper on the left, a
+          sticky rail (progress-billing summary + payment history) on the
+          right at lg+; both just stack in source order below that. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-start">
       <Card className="print:border-none print:shadow-none">
         <CardContent className="relative space-y-6 p-6 print:p-0">
           {/* Same stamp graphic as the downloaded PDF (see PaidStamp's own
-              comment) - not print:hidden like the plain status badge below,
-              since this one is meant to look like it's actually on the
-              page, on screen or printed, matching the PDF either way. */}
+              comment) - always shown for a paid document, on screen or
+              printed, matching the PDF either way. */}
           {doc.status === "paid" && (
             <PaidStamp className="pointer-events-none absolute top-2 right-2 h-20 w-20 sm:h-28 sm:w-28" />
           )}
@@ -447,16 +506,14 @@ export function DocumentDetail({
             />
           )}
 
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-2xl font-bold uppercase tracking-tight">
-                {label}
-              </p>
-              <p className="text-sm text-muted-foreground">{shortId}</p>
-            </div>
-            {doc.status !== "paid" && (
-              <Badge className="print:hidden">{doc.status}</Badge>
-            )}
+          {/* No status badge here anymore - the title-area pill above
+              (PageHeader's titleBadge) is the one place status shows and
+              is edited now, instead of duplicating it a second time on the
+              paper itself. PaidStamp above still covers the "paid" case
+              for anyone printing this page. */}
+          <div>
+            <p className="text-2xl font-bold uppercase tracking-tight">{label}</p>
+            <p className="font-mono text-sm text-primary">{shortId}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -494,21 +551,31 @@ export function DocumentDetail({
 
           <Separator />
 
+          {/* Unit Price drops below sm and moves under the description as a
+              small mono line instead - 4 columns at once was overlapping
+              at phone width (QTY/UNIT PRICE headers wider than their
+              column). Matches the mockup's own mobile note for this exact
+              table. */}
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase">
                 <th className="pb-2">Description</th>
                 <th className="pb-2 text-right">Qty</th>
-                <th className="pb-2 text-right">Unit Price</th>
+                <th className="hidden pb-2 text-right sm:table-cell">Unit Price</th>
                 <th className="pb-2 text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
               {doc.items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="py-2">{item.description}</td>
+                <tr key={item.id} className="border-t align-top">
+                  <td className="py-2">
+                    {item.description}
+                    <span className="block font-mono text-[10px] text-muted-foreground sm:hidden">
+                      {formatCurrency(item.unit_price)}/unit
+                    </span>
+                  </td>
                   <td className="py-2 text-right tabular-nums">{item.quantity}</td>
-                  <td className="py-2 text-right tabular-nums">
+                  <td className="hidden py-2 text-right tabular-nums sm:table-cell">
                     {formatCurrency(item.unit_price)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
@@ -532,9 +599,9 @@ export function DocumentDetail({
                 {formatCurrency(doc.hst_amount)}
               </span>
             </div>
-            <div className="flex items-center justify-between text-base font-semibold">
+            <div className="flex items-center justify-between border-t pt-1 text-base font-bold">
               <span>Total</span>
-              <span className="tabular-nums">
+              <span className="font-mono tabular-nums text-primary">
                 {formatCurrency(doc.total_amount)}
               </span>
             </div>
@@ -555,53 +622,73 @@ export function DocumentDetail({
               </>
             )}
           </div>
-
-          {doc.is_progress_draw && (
-            <>
-              <Separator />
-              <div className="space-y-2 text-sm">
-                <p className="font-heading font-semibold">Progress Billing Summary</p>
-                <div className="grid max-w-xs gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Original Contract Value</span>
-                    <span className="tabular-nums">{formatCurrency(contractValue)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Previous Billed</span>
-                    <span className="tabular-nums">{formatCurrency(previousBilled)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">This Invoice</span>
-                    <span className="tabular-nums">{formatCurrency(doc.subtotal)}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-semibold">
-                    <span>Total Billed to Date</span>
-                    <span className="tabular-nums">{formatCurrency(totalBilledToDate)}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-semibold">
-                    <span>Remaining Balance</span>
-                    <span className="tabular-nums">{formatCurrency(remainingBalance)}</span>
-                  </div>
-                </div>
-                {doc.draw_percent_complete !== null && (
-                  <p>Progress: {doc.draw_percent_complete}% complete</p>
-                )}
-                {doc.draw_description && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase">
-                      Work completed for this draw
-                    </p>
-                    <p>{doc.draw_description}</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </CardContent>
       </Card>
 
-      {doc.type === "invoice" && (
-        <Card className="mt-4 print:hidden">
+      <div className="space-y-4 lg:sticky lg:top-4">
+        {/* Dark rail panel, restyled out of the paper card it used to live
+            inside - same figures (contractValue/previousBilled/
+            totalBilledToDate/remainingBalance computed above), still
+            included in the printed page (no print:hidden) since this is
+            the only on-screen place these numbers show; the standalone PDF
+            download has its own separate progress-billing section (see
+            generateDocumentPdf) that isn't affected either way. */}
+        {doc.is_progress_draw && (
+          <Card className="gap-0 overflow-hidden border-sidebar-border bg-sidebar py-0 text-sidebar-foreground">
+            <CardHeader className="gap-0 border-b border-sidebar-border bg-sidebar-accent/40 py-3">
+              <CardTitle className="font-mono text-xs font-semibold tracking-[0.12em] text-sidebar-foreground uppercase">
+                Progress Billing Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 py-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sidebar-foreground/60">Original contract value</span>
+                <span className="font-mono tabular-nums">{formatCurrency(contractValue)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sidebar-foreground/60">Previously billed</span>
+                <span className="font-mono tabular-nums">{formatCurrency(previousBilled)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sidebar-foreground/60">This invoice</span>
+                <span className="font-mono tabular-nums">{formatCurrency(doc.subtotal)}</span>
+              </div>
+              <Separator className="bg-sidebar-border" />
+              <div className="flex items-center justify-between font-semibold">
+                <span>Total billed to date</span>
+                <span className="font-mono tabular-nums">{formatCurrency(totalBilledToDate)}</span>
+              </div>
+              <div className="flex items-center justify-between font-semibold text-sidebar-primary">
+                <span>Remaining balance</span>
+                <span className="font-mono tabular-nums">{formatCurrency(remainingBalance)}</span>
+              </div>
+              {doc.draw_percent_complete !== null && (
+                <div className="space-y-1 pt-2">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="text-sidebar-foreground/60">Progress</span>
+                    <span className="text-sidebar-primary">
+                      {doc.draw_percent_complete}% complete
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-sidebar-border">
+                    <div
+                      className="h-full rounded-full bg-sidebar-primary"
+                      style={{ width: `${Math.min(doc.draw_percent_complete, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {doc.draw_description && (
+                <p className="pt-1 text-xs text-sidebar-foreground/60">
+                  Work completed for this draw: {doc.draw_description}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {doc.type === "invoice" && (
+        <Card className="print:hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <DollarSign className="h-4 w-4 text-success" />
@@ -754,7 +841,9 @@ export function DocumentDetail({
             </div>
           </CardContent>
         </Card>
-      )}
+        )}
+      </div>
+      </div>
 
       <DocumentBuilder
         open={editorOpen}
