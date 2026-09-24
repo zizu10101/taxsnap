@@ -7,16 +7,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { JobCostNav } from "@/components/jobs/job-cost-nav";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
+import { JobWorkstation } from "@/components/jobs/job-workstation";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { Job, SubscriptionStatus } from "@/lib/database.types";
+import type { JobCostSummary } from "@/lib/job-revenue";
 
 export function JobList({
   initialJobs,
   subscriptionStatus,
+  costSummaries,
 }: {
   initialJobs: Job[];
   subscriptionStatus: SubscriptionStatus;
+  costSummaries: Record<string, JobCostSummary>;
 }) {
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
@@ -33,6 +37,7 @@ export function JobList({
         noun="job"
       />
 
+      <div className="space-y-3 lg:hidden">
       <Button className="w-full" onClick={() => setDialogOpen(true)}>
         <Plus className="h-4 w-4" />
         New job
@@ -71,6 +76,15 @@ export function JobList({
           ))}
         </div>
       )}
+      </div>
+
+      <div className="hidden lg:block">
+        <Button className="mb-3 w-full max-w-xs" onClick={() => setDialogOpen(true)}>
+          <Plus className="h-4 w-4" />
+          New job
+        </Button>
+        <JobWorkstation jobs={jobs} costSummaries={costSummaries} />
+      </div>
 
       <NewJobDialog
         open={dialogOpen}

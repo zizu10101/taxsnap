@@ -28,3 +28,79 @@ export function calculateJobRevenue(documents: RevenueDocument[]): number {
   }
   return round2(total);
 }
+
+export interface JobCostSummary {
+  totalExpenses: number;
+  totalLaborCost: number;
+  totalLaborRevenue: number;
+  linkedInvoiceCount: number;
+  jobRevenue: number;
+  totalJobCost: number;
+  estProfit: number;
+}
+
+type RevenueDocumentWithJob = RevenueDocument & { job_id: string | null };
+
+// Same per-job figures as JobDetail's own math (see job-detail.tsx), just
+// computed for every job at once from three flat, job_id-grouped fetches
+// (receipts/hour_entries/documents-with-payments) instead of one job's
+// already-scoped queries - lets the Jobs list's lg+ workstation preview
+// switch between jobs instantly with no per-click fetch, matching how the
+// Invoices/Estimates workstation already has every document's numbers
+// on hand up front.
+export function buildJobCostSummaries(
+  jobIds: string[],
+  receipts: { job_id: string | null; total_amount: number }[],
+  hourEntries: { job_id: string; labor_cost: number; labor_revenue: number }[],
+  documents: RevenueDocumentWithJob[],
+): Map<string, JobCostSummary> {
+  const summaries = new Map<string, JobCostSummary>();
+  for (const id of jobIds) {
+    summaries.set(id, {
+      totalExpenses: 0,
+      totalLaborCost: 0,
+      totalLaborRevenue: 0,
+      linkedInvoiceCount: 0,
+      jobRevenue: 0,
+      totalJobCost: 0,
+      estProfit: 0,
+    });
+  }
+
+  for (const r of receipts) {
+    const s = r.job_id && summaries.get(r.job_id);
+    if (s) s.totalExpenses = round2(s.totalExpenses + r.total_amount);
+  }
+
+  for (const h of hourEntries) {
+    const s = summaries.get(h.job_id);
+    if (s) {
+      s.totalLaborCost = round2(s.totalLaborCost + h.labor_cost);
+      s.totalLaborRevenue = round2(s.totalLaborRevenue + h.labor_revenue);
+    }
+  }
+
+  const documentsByJob = new Map<string, RevenueDocumentWithJob[]>();
+  for (const doc of documents) {
+    if (!doc.job_id) continue;
+    if (doc.type === "invoice") {
+      const s = summaries.get(doc.job_id);
+      if (s) s.linkedInvoiceCount += 1;
+    }
+    const list = documentsByJob.get(doc.job_id) ?? [];
+    list.push(doc);
+    documentsByJob.set(doc.job_id, list);
+  }
+
+  for (const [jobId, docs] of documentsByJob) {
+    const s = summaries.get(jobId);
+    if (s) s.jobRevenue = calculateJobRevenue(docs);
+  }
+
+  for (const s of summaries.values()) {
+    s.totalJobCost = round2(s.totalExpenses + s.totalLaborCost);
+    s.estProfit = round2(s.jobRevenue - s.totalJobCost);
+  }
+
+  return summaries;
+}

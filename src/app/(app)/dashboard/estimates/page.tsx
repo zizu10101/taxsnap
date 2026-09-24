@@ -33,7 +33,7 @@ export default async function EstimatesPage() {
   const [{ data: documents }, { data: clients }] = await Promise.all([
     supabase
       .from("documents")
-      .select("*, client:clients(*), job:jobs(*), payments(*)")
+      .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
       .eq("type", "estimate")
       .order("issue_date", { ascending: false }),
     supabase.from("clients").select("*").order("name", { ascending: true }),
@@ -52,7 +52,7 @@ export default async function EstimatesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
       <PageHeader
         backHref="/dashboard"
         title="Estimates"

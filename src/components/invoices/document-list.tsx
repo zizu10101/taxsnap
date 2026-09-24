@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
 import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-summary";
+import { DocumentWorkstation } from "@/components/invoices/document-workstation";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
@@ -19,7 +20,7 @@ import type {
   Client,
   DocumentStatus,
   DocumentType,
-  DocumentWithClient,
+  DocumentWithRelations,
   SubscriptionStatus,
 } from "@/lib/database.types";
 
@@ -57,7 +58,9 @@ export function DocumentList({
 }: {
   type: DocumentType;
   basePath: string;
-  initialDocuments: DocumentWithClient[];
+  // Widened from DocumentWithClient to also carry line items - needed by
+  // the lg+ DocumentWorkstation's live preview below (see that file).
+  initialDocuments: DocumentWithRelations[];
   initialClients: Client[];
   initialProfile: BusinessProfileFields;
   // Hides the Estimates toggle below for salon accounts - Estimates
@@ -164,6 +167,7 @@ export function DocumentList({
         noun="client"
       />
 
+      <div className="space-y-4 lg:hidden">
       <Button className="w-full" nativeButton={false} render={<Link href={`${basePath}/new`} />}>
         <Plus className="h-4 w-4" />
         New {label}
@@ -261,6 +265,24 @@ export function DocumentList({
           })}
         </div>
       )}
+      </div>
+
+      <div className="hidden lg:block">
+        <DocumentWorkstation
+          type={type}
+          documents={documents}
+          business={{
+            name: initialProfile.business_name,
+            email: initialProfile.business_email ?? "",
+            phone: initialProfile.business_phone,
+            address: initialProfile.business_address,
+          }}
+          logoPath={initialProfile.logo_url}
+          basePath={basePath}
+          convertedMap={converted}
+          onConvert={handleConvert}
+        />
+      </div>
     </div>
   );
 }
