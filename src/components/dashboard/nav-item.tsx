@@ -29,9 +29,20 @@ export function NavItemButton({
       )}
     >
       <Icon className={size === "sidebar" ? "h-5 w-5" : "h-5 w-5"} strokeWidth={1.6} />
+      {/* whitespace-normal overrides whitespace-nowrap, which the Button's
+          own base classes set and which this span inherits by default
+          (white-space is an inherited CSS property) - without it, a
+          two-word label like "Progress Billing" (the only multi-word one
+          in the nav) is barred from wrapping at all regardless of width,
+          and renders on one unbroken line that overflows past the
+          button's own w-full background, so the active pill's highlight
+          doesn't reach the overflowing text. min-w-0 additionally
+          overrides the flex item default of min-width: auto, which would
+          otherwise still refuse to shrink the span below its unwrapped
+          preferred width even once wrapping is allowed. */}
       <span
         className={cn(
-          "text-center leading-tight",
+          "w-full min-w-0 text-center leading-tight whitespace-normal",
           size === "sidebar" ? "text-[11px]" : "text-[10px]",
           active ? "font-semibold" : "font-medium",
         )}

@@ -145,6 +145,13 @@
   }
   html {
     @apply font-sans;
+    /* Reserves the scrollbar's width at all times, so a dialog/sheet
+       locking body scroll (removing the actual scrollbar) never changes
+       the page's available width - without this, every open/close of a
+       modal or the receipt/draw slide-over shifts all page content (and
+       the sheet's own right-anchored edge) sideways by the scrollbar's
+       width, which reads as a jarring flicker right as it opens. */
+    scrollbar-gutter: stable;
   }
   h1,
   h2,
