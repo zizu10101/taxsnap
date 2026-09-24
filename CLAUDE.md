@@ -65,6 +65,89 @@ if you copy Radix-style shadcn patterns from memory or training data:
   See `src/components/install-prompt-cards.tsx` (standalone-display-mode and
   iOS detection) for the pattern - also used in
   `share-document-button.tsx`'s mobile-vs-desktop share button check.
+- shadcn's `Sheet` (`src/components/ui/sheet.tsx`) wraps one Base UI Dialog
+  behind two `side` variants: `side="bottom"` (default, dark `bg-sidebar`
+  surface) is the mobile nav's "More" overflow sheet; `side="right"` (light
+  `bg-card` surface, full height) is for content drawers like the Expenses
+  receipt detail. Two Base UI gotchas surfaced building the `side="right"`
+  drawer, worth checking before adding another one: (1) leave `modal` at
+  Base UI's default `true` and its full modal scroll-lock effect fires via
+  a deferred `setTimeout(0)` (`@base-ui/utils/useScrollLock`) - that lands a
+  tick after the popup's own CSS entrance animation has already started
+  painting, forcing a layout recalc mid-slide that reads as a flicker on
+  open. Pass `modal="trap-focus"` instead for a slide-over drawer - it
+  still traps keyboard focus (behaves like a real modal) but never invokes
+  that scroll-lock path. (2) Don't gate the drawer's content on the same
+  nullable value that closes it (e.g. `{receipt && <Content receipt={receipt} />}`)
+  - the parent nulls that value the instant you close, but the popup itself
+  stays mounted for its own ~200ms exit animation, so the content would
+  unmount a full animation-length before the panel visually finishes
+  leaving - an empty panel sliding away. Keep a `displayedX` state that only
+  updates when the incoming value is non-null (render-time "adjust state
+  from props", not an effect) and render off that instead - see
+  `receipt-detail-dialog.tsx`.
+- `NavItemButton` (`src/components/dashboard/nav-item.tsx`) is a shadcn
+  `Button` in `flex-col` icon-over-label form. The label span needs both
+  `min-w-0` (overriding the flex-item default of `min-width: auto`, which
+  otherwise refuses to shrink text below its unwrapped width) *and*
+  `whitespace-normal` (overriding `whitespace-nowrap` from the Button's own
+  base classes, which the span inherits since `white-space` is an inherited
+  CSS property) - without both, a multi-word label (e.g. "Progress
+  Billing", the only two-word one in the nav) renders on one unbroken line
+  that overflows past the button's own background, so the active pill's
+  orange highlight doesn't reach the overflowing text. Single-word labels
+  never hit this, which is why it went unnoticed until Progress Billing
+  shipped.
+- `globals.css`'s `html` sets `scrollbar-gutter: stable` - reserves the
+  scrollbar's width at all times so a dialog/sheet locking body scroll
+  (removing the rendered scrollbar) never shifts page content, or a
+  right-anchored drawer's own edge, sideways. Don't remove it.
+
+## Desktop layout (general business type)
+
+`DashboardShell`'s `<main>` uses `lg:w-[90%]` (not a fixed `max-w-*`), so
+pages scale with the monitor instead of capping at a fixed pixel width -
+each page opts in by dropping its own inner cap to `lg:max-w-none`
+(`w-full max-w-2xl lg:max-w-none` is the standard pattern; mobile still
+gets the narrower `max-w-2xl` reading width). Detail/record pages that
+only ever show one document (Job/Invoice/Estimate detail, Progress Billing
+Summary) get this too, not just list pages - "wide vs. narrow" is a
+mobile-vs-desktop split here, not a list-vs-detail one, per explicit user
+direction. Two things deliberately kept their narrower `max-w-2xl` cap:
+Settings/Billing (single-column forms with nothing to spread wider into -
+widening the shell doesn't change how a centered narrow form looks) and
+the salon-only Commission/Register screens (a tap-to-log POS-style grid,
+not a data list - forcing 90% width would spread out the tap targets and
+make it worse).
+
+Invoices, Estimates, and Jobs each get an `lg+` "workstation": a list on
+one side and a live preview panel on the other, so browsing/previewing a
+record needs no page navigation (`DocumentWorkstation` in
+`src/components/invoices/document-workstation.tsx`, shared by Invoices and
+Estimates via its `type` prop, including the Estimate-only
+Convert-to-Invoice affordance; `JobWorkstation` in
+`src/components/jobs/job-workstation.tsx`). Both only ever replace the
+*list* rendering at `lg+` - creating, editing, recording payments, and
+deleting all still go through the exact same New/Edit/Detail pages and
+dialogs as the mobile flow; the workstation's "View full details" link is
+the only way in from there. `DocumentList` (shared by Invoices/Estimates)
+renders its `DocumentWorkstation` internally rather than accepting it from
+the page as a prop, specifically because `BusinessProfileCard` auto-opens
+its edit dialog on first visit - mounting two copies of the whole list
+component across a breakpoint split (one CSS-hidden, not unmounted) risked
+both popping that dialog open at once. `JobWorkstation`'s per-job
+cost/revenue numbers come from `buildJobCostSummaries()` in
+`lib/job-revenue.ts`, computed once for every job from three flat,
+job_id-grouped queries so switching the selected job in the list is
+instant with no per-click fetch - same underlying math `JobDetail`'s own
+per-job page already used, just batched across every job at once.
+
+Progress Billing didn't get the list+preview treatment - each job's own
+card on `/dashboard/progress-billing` already shows its full draw history
+inline (unlike Jobs, there's no separate detail click needed to see the
+numbers), so at `lg+` it's just a 2-column card grid instead of a single
+full-width stack; a separate preview panel would only have duplicated what
+the card already shows.
 
 ## Design system
 
@@ -246,6 +329,19 @@ wrong transaction date silently lands the receipt in the wrong tax
 period). The flag isn't persisted to the `receipts` table - it only needs
 to exist for that one review step, and clears the moment the user edits
 the date field themselves.
+
+The Expenses list's receipt detail (`receipt-detail-dialog.tsx`) is a
+right-side `Sheet` drawer (see Stack quirks above) with two tabs: Extracted
+Items (the pre-existing summary/edit form) and Original Receipt, which
+renders the actual scanned photo via `ReceiptImage`
+(`src/components/dashboard/receipt-image.tsx`) - same keyed-remount
+signed-URL pattern as `LogoImage`, pointed at the `receipts` bucket.
+`createSignedUrl` can resolve successfully even when the underlying object
+doesn't exist (e.g. seed/demo data that was never actually uploaded) - it
+only 404s once the browser requests the file - so `ReceiptImage` has to
+catch that via the `<img>`'s own `onError`, not just the signing call's
+`error` field, or a missing photo renders as a broken-image icon instead of
+the "Couldn't load the original photo" fallback.
 
 ## Tax logic
 
