@@ -159,7 +159,7 @@ export function ReceiptsList({
                 scrolling list. Hidden below sm; the mobile card-row list
                 below (unchanged from before this redesign) takes over
                 there instead of squeezing this grid into a narrow column. */}
-            <div className="mb-1 hidden grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] gap-3 border-b px-1 pb-2 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+            <div className="mb-1 hidden grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] gap-3 rounded-md border-b bg-muted/40 px-3 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
               <span>Merchant</span>
               <span>Category</span>
               <span>Date</span>
@@ -179,7 +179,7 @@ export function ReceiptsList({
                       onSelect(r);
                     }
                   }}
-                  className="cursor-pointer rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 sm:grid sm:grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] sm:items-center sm:gap-3 sm:px-1"
+                  className="cursor-pointer rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 sm:grid sm:grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] sm:items-center sm:gap-3 sm:px-3"
                 >
                   {/* Mobile row (below sm) - unchanged two-line card shape. */}
                   <div className="flex items-center justify-between gap-3 sm:hidden">

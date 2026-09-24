@@ -39,23 +39,33 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
   )
 }
 
+// `side="bottom"` (default) is the original dark mobile nav-overflow sheet.
+// `side="right"` is a light-surface full-height panel for content drawers
+// (e.g. the receipt detail slide-over) - same Base UI Dialog underneath,
+// just anchored/animated from the trailing edge instead of the bottom, and
+// using card/foreground tokens since it holds page content, not nav chrome.
 function SheetContent({
   className,
   children,
+  side = "bottom",
   ...props
-}: DialogPrimitive.Popup.Props) {
+}: DialogPrimitive.Popup.Props & { side?: "bottom" | "right" }) {
   return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col gap-1 rounded-t-2xl border-t bg-sidebar p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-sidebar-foreground shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.4)] outline-none duration-150 data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom",
+          side === "bottom"
+            ? "fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col gap-1 rounded-t-2xl border-t bg-sidebar p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-sidebar-foreground shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.4)] outline-none duration-150 data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom"
+            : "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col gap-0 border-l bg-card text-card-foreground shadow-[-8px_0_24px_-8px_rgba(0,0,0,0.25)] outline-none duration-200 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right",
           className
         )}
         {...props}
       >
-        <div className="mx-auto mb-1 h-1 w-9 shrink-0 rounded-full bg-sidebar-foreground/25" />
+        {side === "bottom" && (
+          <div className="mx-auto mb-1 h-1 w-9 shrink-0 rounded-full bg-sidebar-foreground/25" />
+        )}
         {children}
       </DialogPrimitive.Popup>
     </SheetPortal>

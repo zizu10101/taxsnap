@@ -53,13 +53,13 @@ export function ReceiptsSummary({
     // 3-column stat row - same cards, same data, just re-flowed via grid
     // placement instead of two separate layouts.
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      <Card className="order-1 col-span-2 border-success/30 bg-success/5 sm:order-3 sm:col-span-1">
+      <Card className="relative order-1 col-span-2 overflow-hidden border-success/30 bg-success/5 sm:order-3 sm:col-span-1">
+        <div className="absolute inset-y-0 right-0 hidden w-1.5 bg-success sm:block" />
         <CardContent className="flex items-center gap-3 p-4 sm:flex-col sm:items-start sm:gap-1">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/15 sm:hidden">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/15">
             <PiggyBank className="h-5 w-5 text-success" />
           </div>
-          <div className="hidden items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-success/70 sm:flex">
-            <PiggyBank className="h-3.5 w-3.5" />
+          <div className="hidden items-center gap-1.5 pt-1 font-mono text-[11px] font-semibold tracking-wider text-success/70 sm:flex">
             EST. HST RECLAIMABLE
           </div>
           <div className="min-w-0">
@@ -74,9 +74,12 @@ export function ReceiptsSummary({
         </CardContent>
       </Card>
       <Card className="order-2 sm:order-1">
-        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1.5 sm:p-5">
+          <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted sm:flex">
+            <ReceiptIcon className="h-4 w-4 text-muted-foreground" />
+          </div>
           <ReceiptIcon className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
-          <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+          <p className="hidden pt-1 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
             RECEIPTS THIS PERIOD
           </p>
           <div className="min-w-0">
@@ -85,10 +88,14 @@ export function ReceiptsSummary({
           </div>
         </CardContent>
       </Card>
-      <Card className="order-3 sm:order-2">
-        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1 sm:p-5">
+      <Card className="relative order-3 overflow-hidden border-primary/20 sm:order-2">
+        <div className="absolute inset-y-0 right-0 hidden w-1.5 bg-primary sm:block" />
+        <CardContent className="flex items-center gap-2 p-3 sm:flex-col sm:items-start sm:gap-1.5 sm:p-5">
+          <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 sm:flex">
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </div>
           <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" />
-          <p className="hidden font-mono text-[11px] font-semibold tracking-wider text-muted-foreground sm:block">
+          <p className="hidden pt-1 font-mono text-[11px] font-semibold tracking-wider text-primary sm:block">
             DEDUCTIBLE SPEND
           </p>
           <div className="min-w-0">

@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import {
   Briefcase,
+  ImageIcon,
+  ListChecks,
   Loader2,
   Pencil,
   Plus,
   Receipt as ReceiptIcon,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +19,8 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -31,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
@@ -199,12 +198,20 @@ function ReceiptSummaryContent({
     const subtotal = form.total_amount - form.tax_amount;
 
     return (
-      <>
-        <DialogHeader>
-          <DialogTitle>Edit receipt</DialogTitle>
-        </DialogHeader>
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="font-heading text-base font-semibold">Edit receipt</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
-        <div className="grid gap-4">
+        <div className="grid flex-1 gap-4 overflow-y-auto p-5">
           <div className="space-y-2">
             <Label htmlFor="edit-merchant">Merchant</Label>
             <Input
@@ -352,7 +359,7 @@ function ReceiptSummaryContent({
           </p>
         </div>
 
-        <DialogFooter>
+        <div className="flex items-center justify-end gap-2 border-t p-4">
           <Button
             variant="outline"
             onClick={() => {
@@ -370,8 +377,8 @@ function ReceiptSummaryContent({
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Save changes
           </Button>
-        </DialogFooter>
-      </>
+        </div>
+      </div>
     );
   }
 
@@ -379,72 +386,117 @@ function ReceiptSummaryContent({
   const subtotal = receipt.total_amount - receipt.tax_amount;
 
   return (
-    <>
-      <DialogHeader>
-        <div className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          <ReceiptIcon className="h-3.5 w-3.5" />
-          Receipt Summary
+    <div className="flex h-full flex-col">
+      <div className="border-b px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              <ReceiptIcon className="h-3.5 w-3.5" />
+              Receipt Summary
+            </div>
+            <h2 className="truncate font-heading text-xl font-semibold">
+              {receipt.merchant_name}
+            </h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        <DialogTitle className="text-xl">{receipt.merchant_name}</DialogTitle>
-        <div className="flex items-center justify-between pt-1">
+        <div className="mt-1 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
             {formatDate(receipt.transaction_date)}
           </span>
           <Badge variant="secondary">{receipt.tax_category}</Badge>
         </div>
         {receipt.job_name && (
-          <div className="flex items-center gap-1.5 pt-1 text-sm text-muted-foreground">
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Briefcase className="h-3.5 w-3.5" />
             {receipt.job_name}
           </div>
         )}
-      </DialogHeader>
-
-      <div className="rounded-lg border">
-        <div className="space-y-1.5 p-4">
-          <p className="text-xs text-muted-foreground">Items purchased</p>
-          {items.length > 0 ? (
-            <ul className="space-y-1 text-sm">
-              {items.map((item, i) => (
-                <li key={i} className="flex items-center justify-between gap-3">
-                  <span className="truncate">{item.name}</span>
-                  <span className="shrink-0 tabular-nums">
-                    {formatCurrency(item.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">—</p>
-          )}
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2 p-4 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span className="tabular-nums">{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Sales tax</span>
-            <span className="tabular-nums">
-              {formatCurrency(receipt.tax_amount)}
-            </span>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="flex items-center justify-between p-4">
-          <span className="font-semibold">Total</span>
-          <span className="text-lg font-semibold tabular-nums">
-            {formatCurrency(receipt.total_amount)}
-          </span>
-        </div>
       </div>
 
-      <DialogFooter>
+      <Tabs defaultValue="items" className="min-h-0 flex-1">
+        <TabsList variant="line" className="mx-5 mt-3 h-auto border-b pb-0">
+          <TabsTrigger value="items" className="gap-1.5 pb-2.5">
+            <ListChecks className="h-4 w-4" />
+            Extracted Items
+          </TabsTrigger>
+          <TabsTrigger value="photo" className="gap-1.5 pb-2.5">
+            <ImageIcon className="h-4 w-4" />
+            Original Receipt
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="items" className="flex-1 overflow-y-auto p-5">
+          <div className="rounded-lg border">
+            <div className="space-y-1.5 p-4">
+              <p className="text-xs text-muted-foreground">Items purchased</p>
+              {items.length > 0 ? (
+                <ul className="space-y-1 text-sm">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex items-center justify-between gap-3">
+                      <span className="truncate">{item.name}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">—</p>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2 p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Sales tax</span>
+                <span className="tabular-nums">
+                  {formatCurrency(receipt.tax_amount)}
+                </span>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between p-4">
+              <span className="font-semibold">Total</span>
+              <span className="text-lg font-semibold tabular-nums">
+                {formatCurrency(receipt.total_amount)}
+              </span>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="photo" className="flex-1 overflow-y-auto p-5">
+          {receipt.image_url ? (
+            <ReceiptImage
+              key={receipt.image_url}
+              path={receipt.image_url}
+              className="flex min-h-[320px] items-center justify-center rounded-lg border bg-muted/30 p-3"
+              imgClassName="max-h-[420px] w-full rounded-md object-contain"
+            />
+          ) : (
+            <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 rounded-lg border bg-muted/30 text-center text-muted-foreground">
+              <ImageIcon className="h-8 w-8" />
+              <p className="text-sm">No photo was saved with this receipt.</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex items-center justify-between gap-2 border-t p-4">
         <Button
           variant="outline"
           onClick={handleDelete}
@@ -462,9 +514,8 @@ function ReceiptSummaryContent({
           <Pencil className="h-4 w-4" />
           Edit
         </Button>
-        <Button onClick={() => onOpenChange(false)}>Close</Button>
-      </DialogFooter>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -481,20 +532,43 @@ export function ReceiptDetailDialog({
   onDeleted: (id: string) => void;
   onUpdated: (receipt: Receipt) => void;
 }) {
+  // The parent nulls `receipt` out the instant closing starts, but the
+  // Sheet's own popup stays mounted for its ~200ms slide-out animation
+  // (Base UI's data-closed/data-ending-style exit transition). Rendering
+  // content straight off `receipt` would unmount it in that same tick,
+  // so the panel visibly slides away empty - a flicker right on close.
+  // Keeping the last non-null receipt here (render-time "adjust state
+  // from props", not an effect, per this codebase's own convention) lets
+  // the content stay put for the full close animation; it's harmless for
+  // it to still hold stale data once the panel is actually gone.
+  const [displayedReceipt, setDisplayedReceipt] = useState<Receipt | null>(receipt);
+  if (receipt && receipt !== displayedReceipt) {
+    setDisplayedReceipt(receipt);
+  }
+
   return (
-    <Dialog open={!!receipt} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-        {receipt && (
+    // "trap-focus" instead of the default `true`: full modal mode locks
+    // document scroll via a scroll-lock effect that Base UI defers with a
+    // setTimeout(0) (see @base-ui/utils/useScrollLock) - that fires one
+    // tick after this popup's own CSS slide-in animation has already
+    // started painting, forcing a layout recalculation mid-transition,
+    // which is what actually reads as a flicker/jank on open, not the
+    // animation itself. "trap-focus" keeps keyboard focus trapped inside
+    // the drawer (still behaves like a real modal drawer) without ever
+    // invoking that scroll-lock path.
+    <Sheet open={!!receipt} onOpenChange={onOpenChange} modal="trap-focus">
+      <SheetContent side="right">
+        {displayedReceipt && (
           <ReceiptSummaryContent
-            key={receipt.id}
-            receipt={receipt}
+            key={displayedReceipt.id}
+            receipt={displayedReceipt}
             existingJobs={existingJobs}
             onOpenChange={onOpenChange}
             onDeleted={onDeleted}
             onUpdated={onUpdated}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
