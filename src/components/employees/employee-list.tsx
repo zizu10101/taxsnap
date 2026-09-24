@@ -106,6 +106,99 @@ export function EmployeeList({
             <p className="text-sm">No employees yet.</p>
           </CardContent>
         </Card>
+      ) : showNav ? (
+        // Desktop table (this page only - see the `showNav` note above).
+        // EmployeeList's other caller, the onboarding staff step, sits in a
+        // max-w-sm column regardless of viewport width, and Tailwind's sm:
+        // breakpoint is a viewport query, not a container query - a
+        // sm:grid table there would render a squeezed 5-column grid inside
+        // a 384px box. Keeping that caller on the plain card list below
+        // avoids relying on a container query for what's really a
+        // per-page decision.
+        <Card className="gap-0 py-0">
+          <CardContent className="p-0">
+            <div className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_100px_auto] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+              <span>Name</span>
+              <span>Pay rate</span>
+              <span>Billable rate</span>
+              <span>Status</span>
+              <span />
+            </div>
+            <div className="divide-y">
+              {[...active, ...inactive].map((employee) => (
+                <div
+                  key={employee.id}
+                  className={`px-4 py-3 sm:grid sm:grid-cols-[minmax(0,2fr)_1fr_1fr_100px_auto] sm:items-center sm:gap-3 ${
+                    !employee.is_active ? "opacity-60" : ""
+                  }`}
+                >
+                  {/* Mobile row (below sm) - same card-style layout as the
+                      plain list below. */}
+                  <div className="flex items-center justify-between gap-3 sm:hidden">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium">{employee.name}</p>
+                        {!employee.is_active && <Badge variant="outline">Inactive</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {formatCurrency(employee.default_hourly_rate)}/hr pay ·{" "}
+                        {formatCurrency(employee.default_billable_rate)}/hr billable
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Edit"
+                        onClick={() => {
+                          setEditing(employee);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => toggleActive(employee)}>
+                        {employee.is_active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Desktop row (sm+) - one grid cell per column, same data. */}
+                  <p className="hidden truncate text-sm font-medium sm:block">{employee.name}</p>
+                  <span className="hidden text-sm tabular-nums sm:block">
+                    {formatCurrency(employee.default_hourly_rate)}/hr
+                  </span>
+                  <span className="hidden text-sm tabular-nums sm:block">
+                    {formatCurrency(employee.default_billable_rate)}/hr
+                  </span>
+                  <span className="hidden sm:block">
+                    {employee.is_active ? (
+                      <Badge variant="secondary">Active</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
+                  </span>
+                  <div className="hidden items-center justify-end gap-1 sm:flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Edit"
+                      onClick={() => {
+                        setEditing(employee);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => toggleActive(employee)}>
+                      {employee.is_active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
           {[...active, ...inactive].map((employee) => (
@@ -133,11 +226,7 @@ export function EmployeeList({
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleActive(employee)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => toggleActive(employee)}>
                     {employee.is_active ? "Deactivate" : "Reactivate"}
                   </Button>
                 </div>

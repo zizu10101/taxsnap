@@ -227,7 +227,7 @@ export function ProgressBillingSummary({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl p-4">
+    <div className="mx-auto w-full max-w-2xl p-4 lg:max-w-none">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link
           href="/dashboard/progress-billing"

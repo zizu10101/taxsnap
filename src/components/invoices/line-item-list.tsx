@@ -98,39 +98,88 @@ export function LineItemList({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {[...active, ...inactive].map((item) => (
-            <Card key={item.id} className={!item.is_active ? "opacity-60" : undefined}>
-              <CardContent className="flex items-center justify-between gap-3 py-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{item.description}</p>
-                    {!item.is_active && <Badge variant="outline">Inactive</Badge>}
+        <Card className="gap-0 py-0">
+          <CardContent className="p-0">
+            {/* Desktop: a real DESCRIPTION/PRICE/STATUS table, same
+                sm:grid/mobile-card split ReceiptsList uses. */}
+            <div className="hidden grid-cols-[minmax(0,2fr)_1fr_100px_auto] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+              <span>Description</span>
+              <span>Price</span>
+              <span>Status</span>
+              <span />
+            </div>
+            <div className="divide-y">
+              {[...active, ...inactive].map((item) => (
+                <div
+                  key={item.id}
+                  className={`px-4 py-3 sm:grid sm:grid-cols-[minmax(0,2fr)_1fr_100px_auto] sm:items-center sm:gap-3 ${
+                    !item.is_active ? "opacity-60" : ""
+                  }`}
+                >
+                  {/* Mobile row (below sm) - unchanged card-style layout. */}
+                  <div className="flex items-center justify-between gap-3 sm:hidden">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium">{item.description}</p>
+                        {!item.is_active && <Badge variant="outline">Inactive</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {formatCurrency(item.unit_price)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Edit"
+                        onClick={() => {
+                          setEditing(item);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => toggleActive(item)}>
+                        {item.is_active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatCurrency(item.unit_price)}
+
+                  {/* Desktop row (sm+) - one grid cell per column, same data. */}
+                  <p className="hidden truncate text-sm font-medium sm:block">
+                    {item.description}
                   </p>
+                  <span className="hidden text-sm tabular-nums sm:block">
+                    {formatCurrency(item.unit_price)}
+                  </span>
+                  <span className="hidden sm:block">
+                    {item.is_active ? (
+                      <Badge variant="secondary">Active</Badge>
+                    ) : (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
+                  </span>
+                  <div className="hidden items-center justify-end gap-1 sm:flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Edit"
+                      onClick={() => {
+                        setEditing(item);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => toggleActive(item)}>
+                      {item.is_active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Edit"
-                    onClick={() => {
-                      setEditing(item);
-                      setDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => toggleActive(item)}>
-                    {item.is_active ? "Deactivate" : "Reactivate"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <LineItemDialog

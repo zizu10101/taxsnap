@@ -58,7 +58,7 @@ export function DashboardShell({
             businessType={businessType}
           />
         </div>
-        <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 lg:p-7">
+        <main className="mx-auto w-full flex-1 space-y-6 p-4 lg:w-[90%] lg:p-7">
           {children}
         </main>
       </div>

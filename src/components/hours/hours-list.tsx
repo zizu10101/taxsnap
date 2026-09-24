@@ -74,34 +74,79 @@ export function HoursList({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {entries.map((entry) => (
-            <Card key={entry.id}>
-              <CardContent className="flex items-center justify-between gap-3 py-4">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{entry.employee.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {entry.job.name} · {formatDate(entry.work_date)} · {entry.hours}h @{" "}
-                    {formatCurrency(entry.rate)}/hr
+        <Card className="gap-0 py-0">
+          <CardContent className="p-0">
+            {/* Desktop: a real EMPLOYEE/JOB/DATE/HOURS/COST table, same
+                sm:grid/mobile-card split ReceiptsList uses. */}
+            <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_110px_130px_110px_auto] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+              <span>Employee</span>
+              <span>Job</span>
+              <span>Date</span>
+              <span>Hours</span>
+              <span className="text-right">Cost</span>
+              <span />
+            </div>
+            <div className="divide-y">
+              {entries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="px-4 py-3 sm:grid sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_110px_130px_110px_auto] sm:items-center sm:gap-3"
+                >
+                  {/* Mobile row (below sm) - unchanged card-style layout. */}
+                  <div className="flex items-center justify-between gap-3 sm:hidden">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{entry.employee.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {entry.job.name} · {formatDate(entry.work_date)} · {entry.hours}h @{" "}
+                        {formatCurrency(entry.rate)}/hr
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold tabular-nums">
+                        {formatCurrency(entry.labor_cost)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Delete"
+                        onClick={() => handleDelete(entry.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Desktop row (sm+) - one grid cell per column, same data. */}
+                  <p className="hidden truncate text-sm font-medium sm:block">
+                    {entry.employee.name}
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold tabular-nums">
+                  <p className="hidden truncate text-sm text-muted-foreground sm:block">
+                    {entry.job.name}
+                  </p>
+                  <span className="hidden font-mono text-xs text-muted-foreground sm:block">
+                    {formatDate(entry.work_date)}
+                  </span>
+                  <span className="hidden text-sm tabular-nums sm:block">
+                    {entry.hours}h @ {formatCurrency(entry.rate)}/hr
+                  </span>
+                  <span className="hidden text-right text-sm font-semibold tabular-nums sm:block">
                     {formatCurrency(entry.labor_cost)}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Delete"
-                    onClick={() => handleDelete(entry.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <span className="hidden justify-self-end sm:block">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Delete"
+                      onClick={() => handleDelete(entry.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <HourEntryDialog

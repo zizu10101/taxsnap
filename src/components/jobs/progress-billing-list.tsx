@@ -86,7 +86,7 @@ export function ProgressBillingList({
 
   return (
     <div className="space-y-4">
-      <Button className="w-full" onClick={() => setStartOpen(true)}>
+      <Button className="w-full lg:max-w-xs" onClick={() => setStartOpen(true)}>
         <Plus className="h-4 w-4" />
         Start Progress Billing
       </Button>
@@ -102,7 +102,12 @@ export function ProgressBillingList({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        // Each card already shows its own full draw history inline (no
+        // separate list+preview split needed, unlike Jobs/Invoices) - at
+        // lg+ this just lays multiple progress-billed jobs out two per
+        // row instead of one long single-width stack, so the wider page
+        // doesn't leave a card floating in a mostly-empty row.
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {initialSummaries.map(({ job, invoicedToDate, receivedToDate, remainingBalance, draws }) => (
             <Card key={job.id}>
               <CardContent className="space-y-3 py-4">

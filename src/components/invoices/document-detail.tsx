@@ -321,7 +321,7 @@ export function DocumentDetail({
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-4xl space-y-4 p-4 lg:max-w-none">
       {/* Breadcrumb row - back-link left, job-link right, matching the
           mockup's "BACK TO X / JOB · Y" strip. Kept separate from
           PageHeader itself since neither is a page-level action, just

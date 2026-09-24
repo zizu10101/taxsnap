@@ -143,55 +143,66 @@ export function ExpenseOverview({
     <div className="space-y-4">
       <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryCard label="Total Sales" value={data.totalSales} />
         <SummaryCard label="Total Expenses" value={data.totalExpenses} />
         <SummaryCard label="Deductible Spend" value={data.deductibleSpend} highlight />
         <SummaryCard label="Est. HST Reclaimable" value={data.estHstReclaimable} />
-        <SummaryCard label="Non-Deductible Spend" value={data.nonDeductibleSpend} className="col-span-2" />
+        <SummaryCard
+          label="Non-Deductible Spend"
+          value={data.nonDeductibleSpend}
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Expense Trend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <ExpenseTrendChart buckets={buckets} />
-          )}
-        </CardContent>
-      </Card>
+      {/* Chart on one side, totals/job-vs-overhead stacked on the other at
+          lg+ - same two-column "paper + sticky rail" split document-detail
+          uses, instead of one long single column of full-width cards. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-start">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Expense Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex h-40 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ExpenseTrendChart buckets={buckets} />
+            )}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Totals Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <TotalsRow label="Total Sales" value={data.totalSales} />
-          <TotalsRow label="Total Expenses" value={data.totalExpenses} />
-          <TotalsRow label="Est. HST Reclaimable" value={data.estHstReclaimable} />
-          <TotalsRow label="Non-Deductible Spend" value={data.nonDeductibleSpend} />
-          <div className="mt-2 rounded-lg bg-primary/10 p-3">
-            <TotalsRow label="Est. Profit" value={data.estProfit} emphasize />
-          </div>
-        </CardContent>
-      </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Totals Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <TotalsRow label="Total Sales" value={data.totalSales} />
+              <TotalsRow label="Total Expenses" value={data.totalExpenses} />
+              <TotalsRow label="Est. HST Reclaimable" value={data.estHstReclaimable} />
+              <TotalsRow label="Non-Deductible Spend" value={data.nonDeductibleSpend} />
+              <div className="mt-2 rounded-lg bg-primary/10 p-3">
+                <TotalsRow label="Est. Profit" value={data.estProfit} emphasize />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* job_id set vs. null - same split as the Expenses tab's Job/
-          Overhead sections, just totaled instead of listed line-by-line. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Job vs. Overhead</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <TotalsRow label="Job Expenses" value={data.jobExpenses.totalExpenses} />
-          <TotalsRow label="Overhead Expenses" value={data.overheadExpenses.totalExpenses} />
-        </CardContent>
-      </Card>
+          {/* job_id set vs. null - same split as the Expenses tab's Job/
+              Overhead sections, just totaled instead of listed line-by-line. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Job vs. Overhead</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <TotalsRow label="Job Expenses" value={data.jobExpenses.totalExpenses} />
+              <TotalsRow label="Overhead Expenses" value={data.overheadExpenses.totalExpenses} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

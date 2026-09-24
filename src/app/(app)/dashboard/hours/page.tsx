@@ -31,7 +31,7 @@ export default async function HoursPage() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
       <PageHeader
         backHref="/dashboard"
         title="Hours"

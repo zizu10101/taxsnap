@@ -86,6 +86,11 @@ export function JobDetail({
 
   return (
     <div className="space-y-4">
+      {/* Three stat cards side by side at lg+ instead of stacked full-width
+          - each one's own content (a 3-column mini-grid) stays exactly as
+          before, this just stops a single card from stretching edge to
+          edge with mostly empty space either side of its numbers. */}
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
       <Card>
         <CardHeader>
           <CardTitle>Job cost</CardTitle>
@@ -197,6 +202,7 @@ export function JobDetail({
           </Button>
         </CardContent>
       </Card>
+      </div>
 
       <DocumentBuilder
         open={invoiceBuilderOpen}
@@ -210,6 +216,12 @@ export function JobDetail({
         onClientCreated={() => router.refresh()}
       />
 
+      {/* Hours logged / Tagged expenses side by side at lg+ - two
+          independent lists that don't need to be read in relation to each
+          other, so there's no reason to force them into one narrow
+          stacked column at this width. */}
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg font-semibold">Hours logged</h2>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -244,7 +256,9 @@ export function JobDetail({
           ))}
         </div>
       )}
+      </div>
 
+      <div className="space-y-4">
       <h2 className="font-heading text-lg font-semibold">Tagged expenses</h2>
       {receipts.length === 0 ? (
         <Card>
@@ -274,6 +288,8 @@ export function JobDetail({
           ))}
         </div>
       )}
+      </div>
+      </div>
 
       <HourEntryDialog
         open={dialogOpen}

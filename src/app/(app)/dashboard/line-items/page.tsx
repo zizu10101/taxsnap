@@ -33,7 +33,7 @@ export default async function LineItemsPage() {
     .order("description", { ascending: true });
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
       <PageHeader
         back={<BackToDashboardLink />}
         title="Saved Items"
