@@ -31,7 +31,7 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
     <DialogPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/30 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/30 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -44,15 +44,23 @@ function SheetOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
 // (e.g. the receipt detail slide-over) - same Base UI Dialog underneath,
 // just anchored/animated from the trailing edge instead of the bottom, and
 // using card/foreground tokens since it holds page content, not nav chrome.
+// `overlay={false}` skips the dimming backdrop entirely - Base UI only
+// waits for the *panel's* own exit animation before tearing everything
+// down (see DialogPopup.js's useOpenChangeComplete, wired to the popup
+// ref only, never the backdrop's), so the backdrop's fade-out is never
+// actually guaranteed to finish first; no amount of tuning its duration
+// closed that gap cleanly, so the receipt drawer opts out of the overlay
+// rather than keep chasing a flicker at the tail end of its own fade.
 function SheetContent({
   className,
   children,
   side = "bottom",
+  overlay = true,
   ...props
-}: DialogPrimitive.Popup.Props & { side?: "bottom" | "right" }) {
+}: DialogPrimitive.Popup.Props & { side?: "bottom" | "right"; overlay?: boolean }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {overlay && <SheetOverlay />}
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(

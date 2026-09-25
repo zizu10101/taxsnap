@@ -556,8 +556,14 @@ export function ReceiptDetailDialog({
     // animation itself. "trap-focus" keeps keyboard focus trapped inside
     // the drawer (still behaves like a real modal drawer) without ever
     // invoking that scroll-lock path.
+    // overlay={false}: the dimming backdrop's own fade-out isn't guaranteed
+    // to finish before Base UI tears the whole popup down (see sheet.tsx's
+    // comment on SheetContent) - tuning its duration couldn't close that
+    // gap cleanly, so this drawer skips the backdrop rather than risk a
+    // flicker back to full tint right as it closes. The panel's own shadow
+    // still gives it depth against the page without one.
     <Sheet open={!!receipt} onOpenChange={onOpenChange} modal="trap-focus">
-      <SheetContent side="right">
+      <SheetContent side="right" overlay={false}>
         {displayedReceipt && (
           <ReceiptSummaryContent
             key={displayedReceipt.id}
