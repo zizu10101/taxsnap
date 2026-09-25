@@ -74,11 +74,18 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { contract_value } = body ?? {};
+  const { contract_value, retainage_rate } = body ?? {};
 
   const update: JobUpdate = {};
   if (contract_value !== undefined) {
     update.contract_value = contract_value === null ? null : Number(contract_value) || 0;
+  }
+  // Set once, alongside contract_value, in the Start Progress Billing
+  // flow - 0/blank collapses to null (same "not using retainage" meaning)
+  // so every gate elsewhere can just check truthiness.
+  if (retainage_rate !== undefined) {
+    update.retainage_rate =
+      retainage_rate === null ? null : Number(retainage_rate) || null;
   }
 
   // Assigned exactly once, the moment a job becomes progress-billed

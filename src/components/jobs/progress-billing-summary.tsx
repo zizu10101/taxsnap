@@ -169,7 +169,13 @@ export function ProgressBillingSummary({
   clients,
   lineItems,
 }: {
-  job: { id: string; name: string; contractValue: number; contractNumber: number | null };
+  job: {
+    id: string;
+    name: string;
+    contractValue: number;
+    contractNumber: number | null;
+    retainageRate: number | null;
+  };
   invoicedToDate: number;
   receivedToDate: number;
   remainingBalance: number;
@@ -191,6 +197,12 @@ export function ProgressBillingSummary({
   const [billingChange, setBillingChange] = useState<SummaryChange | null>(null);
   const [billChangeOpen, setBillChangeOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+  // Which entry point opened RecordContractPaymentDialog - drives its
+  // title/description/presetAmount (see that file's own comment on why
+  // this needs a key, not just a prop, to actually take effect).
+  const [paymentDialogMode, setPaymentDialogMode] = useState<"payment" | "retainage">(
+    "payment",
+  );
   // The part of the contract that's never been invoiced at all - not
   // remainingBalance above (contractValue - receivedToDate), which also
   // includes any already-invoiced draw that's just sitting unpaid.
@@ -198,6 +210,16 @@ export function ProgressBillingSummary({
   // an unpaid existing draw still gets collected by opening that draw
   // itself, not through this button.
   const notYetInvoiced = round2(job.contractValue - invoicedToDate);
+  // The contract is fully invoiced, retainage is actually in use on this
+  // job, and there's still money outstanding across draws - at that point
+  // whatever's left uncollected *is* the withheld retainage by definition
+  // (everything's been billed, so any gap left is money held back, not
+  // money not yet asked for). Same figure as remainingBalance above, just
+  // correctly framed/labeled for this specific moment instead of the
+  // generic "Record Payment" - no new calculation, see that dialog's own
+  // comment.
+  const showBillRetainage =
+    notYetInvoiced <= 0.01 && !!job.retainageRate && remainingBalance > 0.01;
 
   // Original contract value + the change-order breakdown shown under
   // the Contract Value stat - derived from the same changes[] the
@@ -249,9 +271,27 @@ export function ProgressBillingSummary({
           actions={
             <div className="flex flex-wrap gap-2 print:hidden">
               {draws.length > 0 && (
-                <Button variant="outline" onClick={() => setRecordPaymentOpen(true)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPaymentDialogMode("payment");
+                    setRecordPaymentOpen(true);
+                  }}
+                >
                   <Banknote className="h-4 w-4" />
                   Record Payment
+                </Button>
+              )}
+              {showBillRetainage && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPaymentDialogMode("retainage");
+                    setRecordPaymentOpen(true);
+                  }}
+                >
+                  <Banknote className="h-4 w-4" />
+                  Bill Retainage ({formatCurrency(remainingBalance)})
                 </Button>
               )}
               {notYetInvoiced > 0.01 && (
@@ -402,6 +442,17 @@ export function ProgressBillingSummary({
                 draws.map((draw) => {
                   const drawRemaining = round2(draw.totalAmount - draw.receivedAmount);
                   const isSettled = drawRemaining <= 0.01;
+                  // Reference only - what to expect up front on this draw
+                  // before the client's retainage holdback, given this
+                  // job's retainage_rate. Doesn't change draw.totalAmount
+                  // or any payment math; just labels what the owner should
+                  // expect to actually collect on this draw right now.
+                  const expectedPercent = job.retainageRate
+                    ? round2(100 - job.retainageRate)
+                    : null;
+                  const expectedAmount = expectedPercent
+                    ? round2((draw.totalAmount * expectedPercent) / 100)
+                    : null;
                   return (
                     <div key={draw.id} className="overflow-hidden rounded-lg border">
                       <div className="flex flex-wrap items-start justify-between gap-3 p-3">
@@ -420,6 +471,12 @@ export function ProgressBillingSummary({
                             <p className="text-xs text-muted-foreground">
                               {formatDate(draw.issueDate)}
                             </p>
+                            {expectedAmount !== null && (
+                              <p className="text-xs text-muted-foreground">
+                                Expected: {formatCurrency(expectedAmount)} ({expectedPercent}% of{" "}
+                                {formatCurrency(draw.totalAmount)})
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
@@ -685,10 +742,18 @@ export function ProgressBillingSummary({
       />
 
       <RecordContractPaymentDialog
+        key={paymentDialogMode}
         open={recordPaymentOpen}
         onOpenChange={setRecordPaymentOpen}
         jobId={job.id}
         onSaved={() => router.refresh()}
+        title={paymentDialogMode === "retainage" ? "Bill Retainage" : "Record Payment"}
+        description={
+          paymentDialogMode === "retainage"
+            ? `Records the ${job.retainageRate}% held back across this contract's draws, applied oldest-first - same allocation as Record Payment, just for this specific moment.`
+            : undefined
+        }
+        presetAmount={paymentDialogMode === "retainage" ? remainingBalance : undefined}
       />
 
       <DocumentBuilder

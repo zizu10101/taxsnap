@@ -39,26 +39,38 @@ interface Allocation {
 // specific draw - the server fans it out oldest-unpaid-draw-first (see
 // POST /api/jobs/[id]/allocate-payment), so this is for the common case
 // of a client paying down several draws' held-back balance at once
-// without opening each draw individually.
+// without opening each draw individually. "Bill Retainage" (see
+// progress-billing-summary.tsx) is the exact same flow, just opened with
+// a preset amount and retainage-specific copy - no separate payment logic
+// exists for it. The caller keys this component by which mode opened it
+// so presetAmount actually takes effect (its own useState initializer
+// only runs once per mount, same reasoning as DocumentBuilder's presetItems
+// elsewhere in this file's sibling components).
 export function RecordContractPaymentDialog({
   open,
   onOpenChange,
   jobId,
   onSaved,
+  title = "Record Payment",
+  description = "Applied across outstanding draws oldest-first, until fully allocated or draws run out - no need to open each one individually.",
+  presetAmount = 0,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   jobId: string;
   onSaved: () => void;
+  title?: string;
+  description?: string;
+  presetAmount?: number;
 }) {
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState(presetAmount);
   const [paidDate, setPaidDate] = useState(() => toIsoDate(new Date()));
   const [method, setMethod] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
   function reset() {
-    setAmount(0);
+    setAmount(presetAmount);
     setPaidDate(toIsoDate(new Date()));
     setMethod("");
     setNote("");
@@ -111,11 +123,8 @@ export function RecordContractPaymentDialog({
     >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
-          <DialogDescription>
-            Applied across outstanding draws oldest-first, until fully allocated or
-            draws run out - no need to open each one individually.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -158,7 +167,7 @@ export function RecordContractPaymentDialog({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Record Payment
+            {title}
           </Button>
         </DialogFooter>
       </DialogContent>

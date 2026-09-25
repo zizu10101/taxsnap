@@ -63,6 +63,7 @@ export interface ProgressJobSummary {
 export function ProgressBillingList({
   initialSummaries,
   eligibleJobs,
+  eligibleJobStats,
   jobs,
   clients,
   lineItems,
@@ -71,6 +72,12 @@ export function ProgressBillingList({
   // Jobs without a contract_value yet - offered in "Start Progress
   // Billing"'s job picker.
   eligibleJobs: Job[];
+  // Existing invoices already tagged to an eligible job, keyed by job id -
+  // surfaced as a warning in the picker (see StartProgressBillingDialog).
+  eligibleJobStats: Record<
+    string,
+    { count: number; invoicedTotal: number; receivedTotal: number }
+  >;
   // Every job (progress-billed or not) - DocumentBuilder's own job Select
   // needs the full list even though "New Draw" locks it to one job,
   // since the same component also renders the (hidden, in draw mode)
@@ -257,6 +264,7 @@ export function ProgressBillingList({
         open={startOpen}
         onOpenChange={setStartOpen}
         eligibleJobs={eligibleJobs}
+        eligibleJobStats={eligibleJobStats}
         onStarted={() => router.refresh()}
       />
 

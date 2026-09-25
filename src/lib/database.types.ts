@@ -330,6 +330,7 @@ export interface Database {
           name: string;
           contract_value: number | null;
           contract_number: number | null;
+          retainage_rate: number | null;
           created_at: string;
         };
         Insert: {
@@ -338,6 +339,7 @@ export interface Database {
           name: string;
           contract_value?: number | null;
           contract_number?: number | null;
+          retainage_rate?: number | null;
           created_at?: string;
         };
         Update: {
@@ -346,6 +348,7 @@ export interface Database {
           name?: string;
           contract_value?: number | null;
           contract_number?: number | null;
+          retainage_rate?: number | null;
           created_at?: string;
         };
         Relationships: [];

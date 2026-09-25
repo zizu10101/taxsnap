@@ -1,0 +1,12 @@
+-- Optional retainage tracking: a job with retainage_rate set gets an
+-- "Expected" reference figure per draw and a "Bill Retainage" action once
+-- fully invoiced with an outstanding balance (see progress-billing-summary
+-- .tsx). Purely informational/labeling - doesn't change what a draw's
+-- total_amount is or how payments get recorded; the owner still records
+-- whatever's actually received via the exact same allocate-payment
+-- mechanism as before. Nullable = not used, job behaves exactly as today.
+-- Stored as a plain percentage (10 = 10%), matching draw_percent_complete's
+-- own convention, not a fraction like stylists.commission_rate (that one's
+-- a fraction specifically because commission_owed is a generated column
+-- multiplying it directly - no such reason applies here).
+alter table public.jobs add column if not exists retainage_rate numeric(5, 2);

@@ -23,7 +23,13 @@ export default async function NewEstimatePage() {
 
   const [{ data: clients }, { data: jobs }, { data: lineItems }] = await Promise.all([
     supabase.from("clients").select("*").order("name", { ascending: true }),
-    supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+    // Progress-billed jobs are excluded - see the same filter's comment in
+    // invoices/new/page.tsx.
+    supabase
+      .from("jobs")
+      .select("id, name")
+      .is("contract_value", null)
+      .order("name", { ascending: true }),
     supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
   ]);
 

@@ -23,7 +23,17 @@ export default async function NewInvoicePage() {
 
   const [{ data: clients }, { data: jobs }, { data: lineItems }] = await Promise.all([
     supabase.from("clients").select("*").order("name", { ascending: true }),
-    supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+    // Progress-billed jobs are excluded - once a job has a contract_value,
+    // it should only ever be invoiced through its draw schedule (see
+    // progress-billing-summary.tsx). A plain invoice tagged to it here
+    // would count toward the Progress Billing Summary's Received/Remaining
+    // totals (job-revenue.ts sums every invoice on the job, draw or not)
+    // without ever showing up in the draw list.
+    supabase
+      .from("jobs")
+      .select("id, name")
+      .is("contract_value", null)
+      .order("name", { ascending: true }),
     supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
   ]);
 

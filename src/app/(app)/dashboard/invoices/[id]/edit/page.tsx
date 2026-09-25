@@ -36,11 +36,22 @@ export default async function EditInvoicePage({
         .eq("type", "invoice")
         .single(),
       supabase.from("clients").select("*").order("name", { ascending: true }),
-      supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+      supabase
+        .from("jobs")
+        .select("id, name, contract_value")
+        .order("name", { ascending: true }),
       supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
   if (!document) notFound();
+
+  // Progress-billed jobs are excluded from the job picker - see the same
+  // filter's comment in invoices/new/page.tsx. This document's own current
+  // job (if any) stays visible even if progress-billed, so re-saving
+  // without touching the job field doesn't silently clear it.
+  const eligibleJobs = (jobs ?? []).filter(
+    (j) => j.contract_value === null || j.id === document.job_id,
+  );
 
   // Progress draws have no full-page editor - locked job, draw
   // description, and % complete fields have no design reference (see
@@ -56,7 +67,7 @@ export default async function EditInvoicePage({
       document={document as DocumentWithRelations}
       basePath="/dashboard/invoices"
       clients={clients ?? []}
-      jobs={jobs ?? []}
+      jobs={eligibleJobs}
       savedLineItems={lineItems ?? []}
       business={{
         name: profile?.business_name ?? null,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,13 @@ import type { Job } from "@/lib/database.types";
 
 const NEW_JOB = "__new_job__";
 
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
+}
+
 // Jobs that already have a contract_value are already progress-billed -
 // offering them here again would let a second contract value silently
 // overwrite the first, so they're left out of the picker entirely.
@@ -33,16 +40,28 @@ export function StartProgressBillingDialog({
   open,
   onOpenChange,
   eligibleJobs,
+  eligibleJobStats,
   onStarted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eligibleJobs: Job[];
+  // Existing invoices already tagged to an eligible job, keyed by job id -
+  // once contract_value is set, those old invoices start counting toward
+  // Received to Date on the Summary page too (calculateJobRevenue sums
+  // every invoice on a job, draw or not), so this is surfaced as a warning
+  // before the user commits rather than letting the number show up
+  // unexplained later.
+  eligibleJobStats: Record<
+    string,
+    { count: number; invoicedTotal: number; receivedTotal: number }
+  >;
   onStarted: (job: Job) => void;
 }) {
   const [jobMode, setJobMode] = useState<string>(eligibleJobs[0]?.id ?? NEW_JOB);
   const [newJobName, setNewJobName] = useState("");
   const [contractValue, setContractValue] = useState(0);
+  const [retainageRate, setRetainageRate] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const jobSelectItems = useMemo(() => {
@@ -51,10 +70,13 @@ export function StartProgressBillingDialog({
     return map;
   }, [eligibleJobs]);
 
+  const selectedJobStats = jobMode !== NEW_JOB ? eligibleJobStats[jobMode] : undefined;
+
   function reset() {
     setJobMode(eligibleJobs[0]?.id ?? NEW_JOB);
     setNewJobName("");
     setContractValue(0);
+    setRetainageRate(0);
   }
 
   async function handleStart() {
@@ -90,7 +112,10 @@ export function StartProgressBillingDialog({
       const res = await fetch(`/api/jobs/${jobId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contract_value: contractValue }),
+        body: JSON.stringify({
+          contract_value: contractValue,
+          retainage_rate: retainageRate > 0 ? retainageRate : null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to set contract value");
@@ -152,6 +177,18 @@ export function StartProgressBillingDialog({
                 onChange={(e) => setNewJobName(e.target.value)}
               />
             )}
+            {selectedJobStats && selectedJobStats.count > 0 && (
+              <p className="flex items-start gap-1.5 text-xs text-destructive">
+                <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                This job already has {selectedJobStats.count} invoice
+                {selectedJobStats.count === 1 ? "" : "s"} totaling{" "}
+                {formatCurrency(selectedJobStats.invoicedTotal)}
+                {selectedJobStats.receivedTotal > 0 &&
+                  ` (${formatCurrency(selectedJobStats.receivedTotal)} received)`}
+                . Once progress billing starts, that will count toward this
+                contract&apos;s Received to Date.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -161,6 +198,20 @@ export function StartProgressBillingDialog({
               value={contractValue}
               onValueChange={setContractValue}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="progress-retainage-rate">Retainage % (optional)</Label>
+            <NumberInput
+              id="progress-retainage-rate"
+              value={retainageRate}
+              onValueChange={setRetainageRate}
+            />
+            <p className="text-xs text-muted-foreground">
+              If the client holds back a percentage until the end (common on
+              larger contracts), enter it here - each draw will show what
+              portion is expected up front vs. held back.
+            </p>
           </div>
         </div>
 

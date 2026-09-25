@@ -48,17 +48,28 @@ export default async function EstimateDetailPage({
       .select("id")
       .eq("converted_from_id", id)
       .maybeSingle(),
-    supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+    supabase
+      .from("jobs")
+      .select("id, name, contract_value")
+      .order("name", { ascending: true }),
     supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
   ]);
 
   if (!document) notFound();
 
+  // Progress-billed jobs are excluded from the job picker - see the same
+  // filter's comment in invoices/new/page.tsx. This document's own current
+  // job (if any) stays visible even if progress-billed, so re-saving
+  // without touching the job field doesn't silently clear it.
+  const eligibleJobs = (jobs ?? []).filter(
+    (j) => j.contract_value === null || j.id === document.job_id,
+  );
+
   return (
     <DocumentDetail
       document={document as DocumentWithRelations}
       clients={clients ?? []}
-      jobs={jobs ?? []}
+      jobs={eligibleJobs}
       lineItems={lineItems ?? []}
       business={{
         name: profile?.business_name ?? null,

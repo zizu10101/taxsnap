@@ -42,7 +42,7 @@ export default async function ProgressBillingSummaryPage({
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("id, name, contract_value, contract_number")
+    .select("id, name, contract_value, contract_number, retainage_rate")
     .eq("id", jobId)
     .eq("user_id", user.id)
     .single();
@@ -142,7 +142,13 @@ export default async function ProgressBillingSummaryPage({
 
   return (
     <ProgressBillingSummary
-      job={{ id: job.id, name: job.name, contractValue, contractNumber: job.contract_number }}
+      job={{
+        id: job.id,
+        name: job.name,
+        contractValue,
+        contractNumber: job.contract_number,
+        retainageRate: job.retainage_rate,
+      }}
       invoicedToDate={invoicedToDate}
       receivedToDate={receivedToDate}
       remainingBalance={remainingBalance}

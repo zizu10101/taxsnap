@@ -43,6 +43,10 @@ export default async function ProgressBillingPage() {
 
   let summaries: ProgressJobSummary[] = [];
   let eligibleJobs: Job[] = [];
+  const eligibleJobStats: Record<
+    string,
+    { count: number; invoicedTotal: number; receivedTotal: number }
+  > = {};
   let allJobs: { id: string; name: string }[] = [];
   let clients: Client[] = [];
   let lineItems: LineItem[] = [];
@@ -64,6 +68,36 @@ export default async function ProgressBillingPage() {
 
     const progressJobs = (jobs ?? []).filter((j) => j.contract_value !== null);
     eligibleJobs = (jobs ?? []).filter((j) => j.contract_value === null);
+
+    // Existing invoices already tagged to a not-yet-progress-billed job -
+    // surfaced as a warning in StartProgressBillingDialog before the user
+    // commits, since once contract_value is set those old invoices start
+    // counting toward Received to Date on the Summary page too (see
+    // calculateJobRevenue's comment in job-revenue.ts) with no draw to
+    // explain where the number came from.
+    if (eligibleJobs.length > 0) {
+      const { data: priorInvoices } = await supabase
+        .from("documents")
+        .select("job_id, subtotal, payments(amount)")
+        .eq("type", "invoice")
+        .in(
+          "job_id",
+          eligibleJobs.map((j) => j.id),
+        );
+
+      for (const doc of priorInvoices ?? []) {
+        if (!doc.job_id) continue;
+        const existing = eligibleJobStats[doc.job_id] ?? {
+          count: 0,
+          invoicedTotal: 0,
+          receivedTotal: 0,
+        };
+        existing.count += 1;
+        existing.invoicedTotal += doc.subtotal;
+        existing.receivedTotal += doc.payments.reduce((sum, p) => sum + p.amount, 0);
+        eligibleJobStats[doc.job_id] = existing;
+      }
+    }
 
     if (progressJobs.length > 0) {
       const { data: documents } = await supabase
@@ -137,6 +171,7 @@ export default async function ProgressBillingPage() {
         <ProgressBillingList
           initialSummaries={summaries}
           eligibleJobs={eligibleJobs}
+          eligibleJobStats={eligibleJobStats}
           jobs={allJobs}
           clients={clients}
           lineItems={lineItems}
