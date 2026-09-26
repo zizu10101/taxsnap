@@ -10,7 +10,20 @@ import { EditClientDialog } from "@/components/clients/edit-client-dialog";
 import { formatDocumentNumber } from "@/lib/document-number";
 import type { Client, DocumentStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
-import type { ClientHistoryDoc } from "@/components/clients/client-workstation";
+
+// This flat history list only ever links straight out to the real
+// invoice/estimate page (no in-place preview here, unlike the Clients
+// list's ClientWorkstation) - so it only needs the same subset
+// ClientWorkstation's own row uses, not the fuller ClientHistoryDoc shape
+// that carries items/subtotal/hst_amount for its drill-down preview.
+export interface ClientDocRow {
+  id: string;
+  type: "invoice" | "estimate";
+  status: DocumentStatus;
+  document_number: number;
+  issue_date: string;
+  total_amount: number;
+}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -41,7 +54,7 @@ export function ClientDetail({
 }: {
   initialClient: Client;
   summary: ClientSummary;
-  documents: ClientHistoryDoc[];
+  documents: ClientDocRow[];
 }) {
   const [client, setClient] = useState(initialClient);
   const [editOpen, setEditOpen] = useState(false);

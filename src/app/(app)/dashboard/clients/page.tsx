@@ -34,7 +34,9 @@ export default async function ClientsPage() {
     supabase.from("clients").select("*").order("name", { ascending: true }),
     supabase
       .from("documents")
-      .select("id, client_id, type, status, document_number, issue_date, total_amount, payments(amount)")
+      .select(
+        "id, client_id, type, status, document_number, issue_date, subtotal, hst_amount, total_amount, payments(amount), items:document_items(id, description, quantity, unit_price)",
+      )
       .not("client_id", "is", null)
       .order("issue_date", { ascending: false }),
   ]);
@@ -58,7 +60,11 @@ export default async function ClientsPage() {
         status: doc.status,
         document_number: doc.document_number,
         issue_date: doc.issue_date,
+        subtotal: doc.subtotal,
+        hst_amount: doc.hst_amount,
         total_amount: doc.total_amount,
+        payments: doc.payments,
+        items: doc.items,
       });
     }
     recentDocsByClient[doc.client_id] = list;

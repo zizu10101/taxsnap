@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { ArrowLeft, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +42,15 @@ export interface ClientHistoryDoc {
   document_number: number;
   issue_date: string;
   total_amount: number;
+  // Carried along just so a "Recent activity" row can drill into its own
+  // ticket-style mini preview in place, inside the same panel, instead of
+  // navigating straight to the real invoice/estimate page - see
+  // DocPreviewPanel below. Real editing still only happens on that real
+  // page, reached via this mini preview's own "View full details" button.
+  subtotal: number;
+  hst_amount: number;
+  payments: { amount: number }[];
+  items: { id: string; description: string; quantity: number; unit_price: number }[];
 }
 
 // lg+ replacement for the plain "New client" button + stacked card list
@@ -139,6 +148,21 @@ function ClientPreviewPanel({
   summary: ClientSummary;
   recentDocs: ClientHistoryDoc[];
 }) {
+  // Which recent-activity row (if any) is drilled into - reset for free
+  // whenever the parent switches clients, since ClientWorkstation remounts
+  // this whole panel via `key={selected.id}`.
+  const [previewDoc, setPreviewDoc] = useState<ClientHistoryDoc | null>(null);
+
+  if (previewDoc) {
+    return (
+      <DocPreviewPanel
+        doc={previewDoc}
+        clientName={client.name}
+        onBack={() => setPreviewDoc(null)}
+      />
+    );
+  }
+
   return (
     <Card className="gap-0 py-0">
       <CardContent className="space-y-4 p-4">
@@ -192,10 +216,11 @@ function ClientPreviewPanel({
               Recent activity
             </p>
             {recentDocs.map((doc) => (
-              <Link
+              <button
                 key={doc.id}
-                href={`/dashboard/${doc.type === "invoice" ? "invoices" : "estimates"}/${doc.id}`}
-                className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-muted"
+                type="button"
+                onClick={() => setPreviewDoc(doc)}
+                className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-xs hover:bg-muted"
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium">
@@ -211,7 +236,7 @@ function ClientPreviewPanel({
                     {formatCurrency(doc.total_amount)}
                   </span>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         )}
@@ -224,6 +249,119 @@ function ClientPreviewPanel({
           className="w-full"
           nativeButton={false}
           render={<Link href={`/dashboard/clients/${client.id}`} />}
+        >
+          View full details
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// The "preview inside the preview" a Recent activity row drills into - same
+// ticket-style totals block + item table as DocumentWorkstation's own
+// DocumentPreviewPanel (invoices/document-workstation.tsx), just without
+// that one's business letterhead section, since "Bill to" is already
+// implied by being inside this client's own panel. Its own "View full
+// details" points at the real invoice/estimate page, not back to the
+// client - editing, payments, and status changes only ever happen there.
+function DocPreviewPanel({
+  doc,
+  clientName,
+  onBack,
+}: {
+  doc: ClientHistoryDoc;
+  clientName: string;
+  onBack: () => void;
+}) {
+  const label = doc.type === "invoice" ? "Invoice" : "Estimate";
+  const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
+  const balanceDue = doc.total_amount - paidToDate;
+
+  return (
+    <Card className="gap-0 py-0">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to {clientName}
+          </button>
+          <Badge variant={STATUS_VARIANT[doc.status]} className="capitalize">
+            {doc.status}
+          </Badge>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold tracking-tight uppercase">{label}</p>
+          <p className="font-mono text-[11px] text-primary">
+            {formatDocumentNumber(doc.type, doc.document_number)}
+          </p>
+          <p className="text-xs text-muted-foreground">{formatDate(doc.issue_date)}</p>
+        </div>
+
+        <div className="space-y-1.5 rounded-lg border border-sidebar-border bg-sidebar p-3 font-mono text-xs text-sidebar-foreground">
+          <div className="flex items-center justify-between">
+            <span className="text-sidebar-foreground/60">Subtotal</span>
+            <span>{formatCurrency(doc.subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sidebar-foreground/60">HST</span>
+            <span>{formatCurrency(doc.hst_amount)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-sidebar-border pt-1.5 text-sm font-semibold">
+            <span>Total</span>
+            <span className="text-sidebar-primary">{formatCurrency(doc.total_amount)}</span>
+          </div>
+          {paidToDate > 0 && (
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-sidebar-foreground/60">Paid to date</span>
+              <span>{formatCurrency(paidToDate)}</span>
+            </div>
+          )}
+          {doc.type === "invoice" && paidToDate > 0 && (
+            <div className="flex items-center justify-between font-semibold">
+              <span>Balance due</span>
+              <span>{formatCurrency(Math.max(balanceDue, 0))}</span>
+            </div>
+          )}
+        </div>
+
+        {doc.items.length > 0 && (
+          <div className="max-h-[16rem] overflow-y-auto rounded-lg border bg-muted/20 p-3">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="pb-1 font-normal uppercase">Item</th>
+                  <th className="pb-1 text-right font-normal uppercase">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {doc.items.map((item) => (
+                  <tr key={item.id} className="border-t">
+                    <td className="truncate py-1 pr-2">{item.description}</td>
+                    <td className="py-1 text-right tabular-nums">
+                      {formatCurrency(item.quantity * item.unit_price)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <Separator />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          nativeButton={false}
+          render={
+            <Link href={`/dashboard/${doc.type === "invoice" ? "invoices" : "estimates"}/${doc.id}`} />
+          }
         >
           View full details
         </Button>
