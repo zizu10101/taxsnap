@@ -998,6 +998,7 @@ export interface Database {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Receipt = Database["public"]["Tables"]["receipts"]["Row"];
 export type Client = Database["public"]["Tables"]["clients"]["Row"];
+export type ClientUpdate = Database["public"]["Tables"]["clients"]["Update"];
 export type InvoiceDocument = Database["public"]["Tables"]["documents"]["Row"];
 export type DocumentUpdate = Database["public"]["Tables"]["documents"]["Update"];
 export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];

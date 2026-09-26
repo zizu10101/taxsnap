@@ -7,6 +7,7 @@ import {
   PieChart,
   Scissors,
   Target,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ export type NavKey =
   | "estimates"
   | "invoices"
   | "jobs"
+  | "clients"
   | "expenses"
   | "progress-billing"
   | "overview"
@@ -38,6 +40,7 @@ const NAV_ROUTES: { key: NavKey; prefixes: string[] }[] = [
   { key: "estimates", prefixes: ["/dashboard/estimates"] },
   { key: "invoices", prefixes: ["/dashboard/invoices", "/dashboard/line-items"] },
   { key: "jobs", prefixes: ["/dashboard/jobs", "/dashboard/employees", "/dashboard/hours"] },
+  { key: "clients", prefixes: ["/dashboard/clients"] },
   { key: "expenses", prefixes: ["/dashboard/expenses"] },
   { key: "progress-billing", prefixes: ["/dashboard/progress-billing"] },
   { key: "overview", prefixes: ["/dashboard/overview"] },
@@ -63,6 +66,7 @@ const GENERAL_ITEMS: NavItem[] = [
   { key: "estimates", label: "Estimates", href: "/dashboard/estimates", icon: ClipboardList },
   { key: "invoices", label: "Invoices", href: "/dashboard/invoices", icon: FileText },
   { key: "jobs", label: "Jobs", href: "/dashboard/jobs", icon: Briefcase },
+  { key: "clients", label: "Clients", href: "/dashboard/clients", icon: Users },
   { key: "expenses", label: "Expenses", href: "/dashboard/expenses", icon: BarChart3 },
 ];
 
