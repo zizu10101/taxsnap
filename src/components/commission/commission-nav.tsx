@@ -9,7 +9,7 @@ export function CommissionNav({
   active,
   isPro,
 }: {
-  active: "log" | "services" | "stylists" | "reports" | "overview";
+  active: "log" | "services" | "products" | "stylists" | "reports" | "overview";
   // Overview is entirely built on payout/adjustment data free/basic
   // accounts can never have (unlike the other four tabs, which all have
   // real free-tier content) - hidden rather than shown-and-locked, same
@@ -25,6 +25,7 @@ export function CommissionNav({
 
   const links = [
     { key: "services", href: "/dashboard/commission/services", label: "Services" },
+    { key: "products", href: "/dashboard/commission/products", label: "Products" },
     { key: "stylists", href: "/dashboard/commission/stylists", label: "Stylists" },
     { key: "reports", href: "/dashboard/commission/reports", label: "Reports" },
     ...(isPro

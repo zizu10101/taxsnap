@@ -52,6 +52,7 @@ export const PLAN_LIMITS: Record<
     employees: number | null;
     activeServices: number | null;
     activeStylists: number | null;
+    activeProducts: number | null;
     manualSalesEntriesPerMonth: number | null;
   }
 > = {
@@ -65,6 +66,7 @@ export const PLAN_LIMITS: Record<
     employees: 1,
     activeServices: 1,
     activeStylists: 1,
+    activeProducts: 1,
     manualSalesEntriesPerMonth: 3,
   },
   basic: {
@@ -77,6 +79,7 @@ export const PLAN_LIMITS: Record<
     employees: 5,
     activeServices: 3,
     activeStylists: 2,
+    activeProducts: 3,
     manualSalesEntriesPerMonth: 15,
   },
   pro: {
@@ -89,6 +92,7 @@ export const PLAN_LIMITS: Record<
     employees: null,
     activeServices: null,
     activeStylists: null,
+    activeProducts: null,
     manualSalesEntriesPerMonth: null,
   },
 };
@@ -234,6 +238,7 @@ const ACTIVE_LIMIT_TABLE = {
   services: "services",
   stylists: "stylists",
   lineItems: "line_items",
+  products: "products",
 } as const;
 
 const ACTIVE_LIMIT_KEY = {
@@ -241,6 +246,7 @@ const ACTIVE_LIMIT_KEY = {
   services: "activeServices",
   stylists: "activeStylists",
   lineItems: "lineItems",
+  products: "activeProducts",
 } as const;
 
 // Active-row caps (employees, services, stylists) - generalizes the old
@@ -255,7 +261,7 @@ const ACTIVE_LIMIT_KEY = {
 export async function wouldExceedActiveLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "employees" | "services" | "stylists" | "lineItems",
+  resource: "employees" | "services" | "stylists" | "lineItems" | "products",
   excludeId?: string,
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);

@@ -32,7 +32,7 @@ export default async function CommissionPage() {
 
   const isPro = profile?.subscription_status === "pro";
 
-  const [{ data: services }, { data: stylists }] = await Promise.all([
+  const [{ data: services }, { data: stylists }, { data: products }] = await Promise.all([
     supabase
       .from("services")
       .select("*")
@@ -43,6 +43,11 @@ export default async function CommissionPage() {
       .select(STYLIST_PUBLIC_COLUMNS)
       .eq("is_active", true)
       .order("name", { ascending: true }),
+    supabase
+      .from("products")
+      .select("*")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
   ]);
 
   return (
@@ -50,12 +55,13 @@ export default async function CommissionPage() {
       <PageHeader
         back={<BackToDashboardLink />}
         title="Register"
-        subtitle="Tap a service, then a stylist, to log a transaction."
+        subtitle="Add services and products to a sale, then check out."
       />
 
       <CommissionLogger
         initialServices={services ?? []}
         initialStylists={stylists ?? []}
+        initialProducts={products ?? []}
         isPro={isPro}
       />
     </div>

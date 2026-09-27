@@ -11,6 +11,11 @@ export type PayoutStatus = "active" | "voided";
 export type AppLockRole = "owner" | "staff";
 export type ThemePreference = "light" | "dark" | "system";
 
+// Minimal shape for the jsonb args create_register_transaction takes -
+// this file has no other jsonb-typed RPC param to mirror, so this is
+// hand-written rather than generated.
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
 export interface ReceiptItem {
   name: string;
   amount: number;
@@ -665,6 +670,11 @@ export interface Database {
           commission_rate_applied: number;
           commission_owed: number;
           payout_id: string | null;
+          // Null for every entry logged before 0036_register_transactions.sql
+          // (never backfilled) and for a legacy standalone single-service
+          // sale - set only when the entry was rung up as part of a
+          // multi-item Register cart checkout.
+          transaction_id: string | null;
           is_deleted: boolean;
           deleted_at: string | null;
           // Set together, only on the FIRST edit (see
@@ -695,6 +705,7 @@ export interface Database {
           price_charged: number;
           commission_rate_applied: number;
           payout_id?: string | null;
+          transaction_id?: string | null;
           is_deleted?: boolean;
           deleted_at?: string | null;
           edited_at?: string | null;
@@ -718,6 +729,7 @@ export interface Database {
           price_charged?: number;
           commission_rate_applied?: number;
           payout_id?: string | null;
+          transaction_id?: string | null;
           is_deleted?: boolean;
           deleted_at?: string | null;
           edited_at?: string | null;
@@ -765,6 +777,127 @@ export interface Database {
             columns: ["original_service_id"];
             isOneToOne: false;
             referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "commission_entries_transaction_id_fkey";
+            columns: ["transaction_id"];
+            isOneToOne: false;
+            referencedRelation: "register_transactions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      products: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          default_price: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          default_price?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          default_price?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      register_transactions: {
+        Row: {
+          id: string;
+          user_id: string;
+          customer_name: string | null;
+          payment_method: string | null;
+          tax_applied: boolean;
+          subtotal: number;
+          tax_amount: number;
+          total_amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          customer_name?: string | null;
+          payment_method?: string | null;
+          tax_applied?: boolean;
+          subtotal?: number;
+          tax_amount?: number;
+          total_amount?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          customer_name?: string | null;
+          payment_method?: string | null;
+          tax_applied?: boolean;
+          subtotal?: number;
+          tax_amount?: number;
+          total_amount?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      register_transaction_products: {
+        Row: {
+          id: string;
+          transaction_id: string;
+          product_id: string | null;
+          product_name: string;
+          price_charged: number;
+          tax_amount: number | null;
+          is_deleted: boolean;
+          deleted_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          transaction_id: string;
+          product_id?: string | null;
+          product_name: string;
+          price_charged: number;
+          tax_amount?: number | null;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          transaction_id?: string;
+          product_id?: string | null;
+          product_name?: string;
+          price_charged?: number;
+          tax_amount?: number | null;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "register_transaction_products_transaction_id_fkey";
+            columns: ["transaction_id"];
+            isOneToOne: false;
+            referencedRelation: "register_transactions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "register_transaction_products_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
             referencedColumns: ["id"];
           },
         ];
@@ -989,6 +1122,16 @@ export interface Database {
         };
         Returns: string | null;
       };
+      create_register_transaction: {
+        Args: {
+          p_customer_name: string | null;
+          p_payment_method: string | null;
+          p_tax_applied: boolean;
+          p_services: Json;
+          p_products: Json;
+        };
+        Returns: Database["public"]["Tables"]["register_transactions"]["Row"];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -1025,6 +1168,11 @@ export type StylistPublic = Omit<Stylist, "pin_hash">;
 export type CommissionEntry = Database["public"]["Tables"]["commission_entries"]["Row"];
 export type CommissionEntryUpdate =
   Database["public"]["Tables"]["commission_entries"]["Update"];
+export type Product = Database["public"]["Tables"]["products"]["Row"];
+export type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
+export type RegisterTransaction = Database["public"]["Tables"]["register_transactions"]["Row"];
+export type RegisterTransactionProduct =
+  Database["public"]["Tables"]["register_transaction_products"]["Row"];
 export type Payout = Database["public"]["Tables"]["payouts"]["Row"];
 export type Adjustment = Database["public"]["Tables"]["adjustments"]["Row"];
 export type AppSettings = Database["public"]["Tables"]["app_settings"]["Row"];
@@ -1047,6 +1195,16 @@ export interface CommissionEntryWithRelations extends CommissionEntry {
     | "range_start"
     | "range_end"
   > | null;
+}
+
+// The Register cart's own checkout record, with its service (via the
+// linked commission_entries rows) and product line items nested - used by
+// GET /api/register-transactions for the "Today's entries" staff-mode
+// list and anywhere else a transaction needs to show what was actually
+// rung up in it.
+export interface RegisterTransactionWithItems extends RegisterTransaction {
+  entries: CommissionEntryWithRelations[];
+  products: RegisterTransactionProduct[];
 }
 
 export interface DocumentWithClient extends InvoiceDocument {

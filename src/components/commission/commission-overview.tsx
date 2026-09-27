@@ -54,6 +54,8 @@ function SummaryCard({
 
 const EMPTY_DATA: CommissionOverviewData = {
   totalSales: 0,
+  totalServiceRevenue: 0,
+  totalProductRevenue: 0,
   totalCommissionOwed: 0,
   ownersCut: 0,
   commissionPaid: 0,
@@ -125,7 +127,9 @@ export function CommissionOverview({
       <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
 
       <div className="grid grid-cols-2 gap-3">
-        <SummaryCard label="Total Sales" value={data.totalSales} />
+        <SummaryCard label="Total Sales" value={data.totalSales} className="col-span-2" />
+        <SummaryCard label="Service Revenue" value={data.totalServiceRevenue} />
+        <SummaryCard label="Product Revenue" value={data.totalProductRevenue} />
         <SummaryCard label="Owner's Cut" value={data.ownersCut} />
         <SummaryCard label="Total Commission Owed" value={data.totalCommissionOwed} highlight />
         <SummaryCard label="Commission Paid" value={data.commissionPaid} />
