@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import { wouldExceedMonthlyLimit, limitReachedMessage } from "@/lib/plan-limits";
-import { getNextDocumentNumber } from "@/lib/document-number";
+import { limitReachedMessage } from "@/lib/plan-limits";
+import {
+  convertEstimateToInvoice,
+  EstimateNotFoundError,
+  EstimateAlreadyConvertedError,
+  MonthlyLimitExceededError,
+} from "@/lib/estimate-conversion";
 
-// Duplicates an estimate as a new draft invoice, carrying over the client,
-// job link, and line items. The original estimate is left untouched.
+// Owner-initiated conversion (the "Convert to Invoice" button on the
+// estimate detail page) - respects the monthly invoice cap (unlike the
+// public sign flow's own call to the same shared function, which
+// deliberately bypasses it). See lib/estimate-conversion.ts for the
+// actual conversion logic, shared with POST /api/sign/[token].
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -16,98 +24,29 @@ export async function POST(
   const { supabase, user } = result;
   const { id } = await params;
 
-  const { data: estimate, error: fetchError } = await supabase
-    .from("documents")
-    .select("*, items:document_items(*)")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .eq("type", "estimate")
-    .single();
-
-  if (fetchError || !estimate) {
-    return NextResponse.json({ error: "Estimate not found." }, { status: 404 });
+  try {
+    const invoice = await convertEstimateToInvoice(supabase, id, user.id);
+    return NextResponse.json({ document: invoice }, { status: 201 });
+  } catch (err) {
+    if (err instanceof EstimateNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof EstimateAlreadyConvertedError) {
+      return NextResponse.json(
+        { error: err.message, invoice_id: err.invoiceId },
+        { status: 409 },
+      );
+    }
+    if (err instanceof MonthlyLimitExceededError) {
+      return NextResponse.json(
+        {
+          error: limitReachedMessage(err.check, "invoice", "this month"),
+          code: "FREE_LIMIT_REACHED",
+        },
+        { status: 403 },
+      );
+    }
+    const message = err instanceof Error ? err.message : "Failed to convert";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { data: existingConversion } = await supabase
-    .from("documents")
-    .select("id")
-    .eq("converted_from_id", estimate.id)
-    .maybeSingle();
-
-  if (existingConversion) {
-    return NextResponse.json(
-      {
-        error: "This estimate has already been converted to an invoice.",
-        invoice_id: existingConversion.id,
-      },
-      { status: 409 },
-    );
-  }
-
-  // A converted estimate inserts as a brand-new `type: 'invoice'` row (see
-  // below), so it counts against the same monthly invoice cap as a
-  // directly-created invoice (see src/lib/plan-limits.ts) - checked here
-  // too, not just in POST /api/documents, since this is a second, separate
-  // invoice-creation path.
-  const monthlyCheck = await wouldExceedMonthlyLimit(supabase, user.id, "invoices");
-  if (monthlyCheck.exceeded) {
-    return NextResponse.json(
-      {
-        error: limitReachedMessage(monthlyCheck, "invoice", "this month"),
-        code: "FREE_LIMIT_REACHED",
-      },
-      { status: 403 },
-    );
-  }
-
-  const documentNumber = await getNextDocumentNumber(supabase, user.id, "invoice");
-
-  const { data: invoice, error: insertError } = await supabase
-    .from("documents")
-    .insert({
-      user_id: user.id,
-      client_id: estimate.client_id,
-      job_id: estimate.job_id,
-      type: "invoice",
-      status: "draft",
-      issue_date: new Date().toISOString().slice(0, 10),
-      due_date: estimate.due_date,
-      subtotal: estimate.subtotal,
-      hst_amount: estimate.hst_amount,
-      total_amount: estimate.total_amount,
-      converted_from_id: estimate.id,
-      document_number: documentNumber,
-    })
-    .select("*, client:clients(*), job:jobs(*), payments(*)")
-    .single();
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
-
-  const items = estimate.items ?? [];
-  const { data: insertedItems, error: itemsError } = await supabase
-    .from("document_items")
-    .insert(
-      items.map(
-        (item: { description: string; quantity: number; unit_price: number; sort_order: number }) => ({
-          document_id: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          sort_order: item.sort_order,
-        }),
-      ),
-    )
-    .select();
-
-  if (itemsError) {
-    await supabase.from("documents").delete().eq("id", invoice.id);
-    return NextResponse.json({ error: itemsError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(
-    { document: { ...invoice, items: insertedItems } },
-    { status: 201 },
-  );
 }

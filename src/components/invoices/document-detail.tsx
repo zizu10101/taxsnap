@@ -33,6 +33,7 @@ import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
+import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link-button";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type { PriorDraw } from "@/lib/invoice-pdf";
@@ -438,6 +439,9 @@ export function DocumentDetail({
                   Convert to Invoice
                 </Button>
               ))}
+            {doc.type === "estimate" && !doc.signed_at && !convertedToInvoiceId && (
+              <GetSignatureLinkButton documentId={doc.id} />
+            )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
               Print
@@ -470,6 +474,24 @@ export function DocumentDetail({
           </div>
         }
       />
+
+      {doc.type === "estimate" && doc.signed_at && (
+        <div className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success print:hidden">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          Signed by {doc.signer_name} on {formatDate(doc.signed_at.slice(0, 10))}.
+        </div>
+      )}
+
+      {doc.type === "invoice" && doc.created_past_plan_limit && (
+        <div className="flex items-center gap-2 rounded-lg bg-primary/10 p-3 text-sm text-primary print:hidden">
+          A client signed and converted this past your plan&apos;s monthly invoice
+          limit - it was still created, but{" "}
+          <Link href="/billing" className="font-medium underline underline-offset-2">
+            upgrading
+          </Link>{" "}
+          raises that cap going forward.
+        </div>
+      )}
 
       {convertedToInvoiceId && (
         <div className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success print:hidden">
