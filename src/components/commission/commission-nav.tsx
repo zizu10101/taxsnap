@@ -9,7 +9,7 @@ export function CommissionNav({
   active,
   isPro,
 }: {
-  active: "log" | "services" | "products" | "stylists" | "reports" | "overview";
+  active: "log" | "services" | "products" | "stylists" | "reports" | "overview" | "rentals";
   // Overview is entirely built on payout/adjustment data free/basic
   // accounts can never have (unlike the other four tabs, which all have
   // real free-tier content) - hidden rather than shown-and-locked, same
@@ -31,6 +31,11 @@ export function CommissionNav({
     ...(isPro
       ? [{ key: "overview", href: "/dashboard/commission/overview", label: "Overview" } as const]
       : []),
+    // Chair Rental is deliberately last and visually identical to every
+    // other tab here - the separation from Commission/Register is a data
+    // model boundary (see 0037_chair_rental.sql), not a UI one; renters
+    // are still part of "running the salon," just not stylists.
+    { key: "rentals", href: "/dashboard/commission/rentals", label: "Rentals" },
   ] as const;
 
   return (

@@ -10,6 +10,7 @@ export type PayType = "commission" | "hourly" | "salary";
 export type PayoutStatus = "active" | "voided";
 export type AppLockRole = "owner" | "staff";
 export type ThemePreference = "light" | "dark" | "system";
+export type RateCadence = "weekly" | "monthly";
 
 // Minimal shape for the jsonb args create_register_transaction takes -
 // this file has no other jsonb-typed RPC param to mirror, so this is
@@ -591,6 +592,71 @@ export interface Database {
           },
         ];
       };
+      renters: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          rental_rate: number;
+          rate_cadence: RateCadence;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          rental_rate?: number;
+          rate_cadence?: RateCadence;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          rental_rate?: number;
+          rate_cadence?: RateCadence;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      rent_payments: {
+        Row: {
+          id: string;
+          user_id: string;
+          renter_id: string;
+          paid_date: string;
+          amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          renter_id: string;
+          paid_date?: string;
+          amount: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          renter_id?: string;
+          paid_date?: string;
+          amount?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rent_payments_renter_id_fkey";
+            columns: ["renter_id"];
+            isOneToOne: false;
+            referencedRelation: "renters";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       services: {
         Row: {
           id: string;
@@ -1158,6 +1224,10 @@ export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
 export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];
 export type HourEntryUpdate = Database["public"]["Tables"]["hour_entries"]["Update"];
+export type Renter = Database["public"]["Tables"]["renters"]["Row"];
+export type RenterUpdate = Database["public"]["Tables"]["renters"]["Update"];
+export type RentPayment = Database["public"]["Tables"]["rent_payments"]["Row"];
+export type RentPaymentUpdate = Database["public"]["Tables"]["rent_payments"]["Update"];
 export type Service = Database["public"]["Tables"]["services"]["Row"];
 export type ServiceUpdate = Database["public"]["Tables"]["services"]["Update"];
 export type Stylist = Database["public"]["Tables"]["stylists"]["Row"];
@@ -1205,6 +1275,10 @@ export interface CommissionEntryWithRelations extends CommissionEntry {
 export interface RegisterTransactionWithItems extends RegisterTransaction {
   entries: CommissionEntryWithRelations[];
   products: RegisterTransactionProduct[];
+}
+
+export interface RentPaymentWithRenter extends RentPayment {
+  renter: Pick<Renter, "id" | "name">;
 }
 
 export interface DocumentWithClient extends InvoiceDocument {
