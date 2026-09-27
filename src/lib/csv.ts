@@ -57,6 +57,43 @@ export function receiptsToCsv(receipts: Receipt[]): string {
   return lines.join("\n");
 }
 
+// "YYYY-MM-DD" -> "MM/DD/YYYY" via plain string manipulation, not a Date
+// round-trip - a Date parse/reformat risks the exact UTC-vs-local
+// off-by-one-day bug date-range.ts's own toIsoDate comment warns about,
+// for a value that's already an unambiguous plain date string.
+function toQuickBooksDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-");
+  return `${month}/${day}/${year}`;
+}
+
+// QuickBooks Online/Desktop's bank-transaction CSV import matches columns
+// by exact header text, not by position or fuzzy matching - "Date",
+// "Description", "Payment", "Deposit" are the only four names it
+// recognizes, so don't rename them even for clarity. Receipts are always
+// an expense in this app (income/revenue is tracked separately via
+// documents/payments, never receipts), so Deposit is always blank here -
+// present only because QuickBooks expects the column to exist on every
+// row, not because any receipt ever has a deposit amount.
+//
+// Deliberately no totals row (unlike receiptsToCsv's own TOTAL row) - an
+// extra summary row with no real date would either get rejected by
+// QuickBooks' importer or, worse, get misread as a genuine dateless
+// transaction, corrupting the import. Every row here must be a real,
+// importable transaction.
+export function receiptsToQuickBooksCsv(receipts: Receipt[]): string {
+  const header = ["Date", "Description", "Payment", "Deposit"];
+
+  const rows = receipts.map((r) => [
+    toQuickBooksDate(r.transaction_date),
+    `${r.merchant_name} - ${r.tax_category}`,
+    r.total_amount.toFixed(2),
+    "",
+  ]);
+
+  const lines = [header, ...rows].map((row) => row.map(escapeCsvField).join(","));
+  return lines.join("\n");
+}
+
 // One row per invoice, alongside the accountant export's receipt CSV -
 // "Paid to Date"/"Balance Due" are derived from the same payments array
 // the invoice detail view and PDF already use, not a separate query, so

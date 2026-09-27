@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { downloadCsv, receiptsToCsv } from "@/lib/csv";
+import { downloadCsv, receiptsToCsv, receiptsToQuickBooksCsv } from "@/lib/csv";
 import { downloadAccountantExport } from "@/lib/accountant-export";
 import { createClient } from "@/lib/supabase/client";
 import type { DateRange } from "@/lib/date-range";
@@ -98,6 +98,19 @@ export function ReceiptsList({
     downloadCsv(`${exportFilenameBase}.csv`, csv);
   }
 
+  // Same range-filtered receipts as handleExport, just formatted for
+  // QuickBooks' bank-transaction CSV import instead of the generic
+  // IRS/Schedule-C layout - see receiptsToQuickBooksCsv's own comment for
+  // why the columns/format differ.
+  function handleExportQuickBooks() {
+    if (receipts.length === 0) {
+      toast.info("No receipts in this range to export");
+      return;
+    }
+    const csv = receiptsToQuickBooksCsv(receipts);
+    downloadCsv(`${exportFilenameBase}-quickbooks.csv`, csv);
+  }
+
   async function handleExportBundle() {
     setExportingBundle(true);
     try {
@@ -130,6 +143,10 @@ export function ReceiptsList({
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4" />
             Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportQuickBooks}>
+            <Download className="h-4 w-4" />
+            Export for QuickBooks
           </Button>
           <Button
             variant="outline"
