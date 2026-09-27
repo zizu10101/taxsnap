@@ -34,6 +34,7 @@ import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link-button";
+import { EmailSignatureLinkButton } from "@/components/invoices/email-signature-link-button";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type { PriorDraw } from "@/lib/invoice-pdf";
@@ -440,7 +441,10 @@ export function DocumentDetail({
                 </Button>
               ))}
             {doc.type === "estimate" && !doc.signed_at && !convertedToInvoiceId && (
-              <GetSignatureLinkButton documentId={doc.id} />
+              <>
+                <GetSignatureLinkButton documentId={doc.id} />
+                {doc.client?.email && <EmailSignatureLinkButton documentId={doc.id} />}
+              </>
             )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />

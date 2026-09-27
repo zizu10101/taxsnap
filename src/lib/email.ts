@@ -97,3 +97,58 @@ export async function sendInvoiceReadyEmail({
     return false;
   }
 }
+
+// The owner's "Email Signature Link to Client" action (alongside "Copy
+// Link") - same infrastructure as sendInvoiceReadyEmail above, just sent
+// on demand by the owner instead of automatically after signing, and
+// linking to /sign/[token] instead of a read-only invoice. Same
+// never-throws/returns-false contract - the caller surfaces a failure as
+// an error toast to the owner, who can retry or fall back to Copy Link.
+export async function sendSignatureRequestEmail({
+  to,
+  businessName,
+  clientName,
+  documentNumber,
+  totalAmount,
+  signUrl,
+}: {
+  to: string;
+  businessName: string | null;
+  clientName: string;
+  documentNumber: number;
+  totalAmount: number;
+  signUrl: string;
+}): Promise<boolean> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.error("sendSignatureRequestEmail: RESEND_API_KEY is not set, skipping send.");
+    return false;
+  }
+
+  const estimateLabel = formatDocumentNumber("estimate", documentNumber);
+  const fromWho = businessName ?? "your contractor";
+
+  try {
+    const { error } = await resend.emails.send({
+      from: buildFromHeader(businessName),
+      to,
+      subject: `Please review and sign estimate ${estimateLabel} from ${fromWho}`,
+      html: `
+        <p>Hi ${escapeHtml(clientName)},</p>
+        <p>${escapeHtml(fromWho)} sent you estimate ${escapeHtml(estimateLabel)} for
+        <strong>${formatCurrency(totalAmount)}</strong>. Review and sign it here:</p>
+        <p><a href="${signUrl}">${signUrl}</a></p>
+        <p>Sent via TaxSnap on behalf of ${escapeHtml(fromWho)}.</p>
+      `,
+    });
+
+    if (error) {
+      console.error("sendSignatureRequestEmail: Resend returned an error.", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("sendSignatureRequestEmail: send threw.", err);
+    return false;
+  }
+}
