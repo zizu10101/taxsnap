@@ -40,6 +40,7 @@ const numberMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://gettaxsnap.ca"),
   title: {
     default: "TaxSnap — Snap receipts, sort your tax write-offs",
     template: "%s",

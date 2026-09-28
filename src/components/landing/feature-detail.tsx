@@ -1,20 +1,31 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { FeatureScreenshotToggle } from "@/components/landing/feature-screenshot-toggle";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
 
+export interface FeatureHowItWorksStep {
+  title: string;
+  description: string;
+}
+
 export interface FeatureDetailProps {
   icon: LucideIcon;
+  /** Small uppercase label above the H1, e.g. "EXPENSE TRACKING" - omit if not needed. */
+  eyebrow?: string;
   title: string;
   tagline: string;
   /** Short note shown under the tagline, e.g. plan availability - omit if not needed. */
   note?: string;
+  /** Numbered "How it works" steps, shown right under the screenshot - omit if not needed. */
+  howItWorks?: FeatureHowItWorksStep[];
   paragraphs: string[];
-  mobileSrc: string;
-  desktopSrc: string;
+  /** Omit when no real screenshot exists yet - renders a placeholder instead. */
+  mobileSrc?: string;
+  /** Omit when no real screenshot exists yet - renders a placeholder instead. */
+  desktopSrc?: string;
   screenshotAlt: string;
 }
 
@@ -28,9 +39,11 @@ export interface FeatureDetailProps {
 // plain Lucide icon component as a prop.
 export function FeatureDetail({
   icon: Icon,
+  eyebrow,
   title,
   tagline,
   note,
+  howItWorks,
   paragraphs,
   mobileSrc,
   desktopSrc,
@@ -48,7 +61,12 @@ export function FeatureDetail({
           <ArrowLeft className="h-4 w-4" />
           All features
         </Link>
-        <div className="mt-6 flex items-center gap-3">
+        {eyebrow && (
+          <p className="mt-6 text-xs font-semibold tracking-wide text-primary uppercase">
+            {eyebrow}
+          </p>
+        )}
+        <div className={`flex items-center gap-3 ${eyebrow ? "mt-2" : "mt-6"}`}>
           <Icon className="h-8 w-8 shrink-0 text-primary" />
           <h1 className="font-heading text-4xl leading-[0.95] font-extrabold tracking-tight sm:text-5xl">
             {title}
@@ -68,9 +86,31 @@ export function FeatureDetail({
             mobileSrc={mobileSrc}
             desktopSrc={desktopSrc}
             alt={screenshotAlt}
+            placeholderIcon={<Icon className="h-8 w-8 text-muted-foreground/60" />}
           />
         </div>
       </section>
+
+      {howItWorks && howItWorks.length > 0 && (
+        <section className="border-t border-border">
+          <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-8">
+            <h2 className="font-heading text-2xl font-bold">How it works</h2>
+            <ol className="mt-6 space-y-5">
+              {howItWorks.map((step, i) => (
+                <li key={step.title} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="font-heading font-bold">{step.title}</p>
+                    <p className="text-sm text-muted-foreground">{step.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
 
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-10 sm:px-8">
@@ -79,6 +119,13 @@ export function FeatureDetail({
               {paragraph}
             </p>
           ))}
+          <Link
+            href="/#faq"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Have more questions? See our FAQ
+          </Link>
         </div>
       </section>
 

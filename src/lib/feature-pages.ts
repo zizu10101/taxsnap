@@ -3,6 +3,7 @@ import {
   FileArchive,
   FileText,
   Landmark,
+  Layers,
   Receipt,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +42,13 @@ export const FEATURE_PAGES: FeaturePage[] = [
     description:
       "Track profitability per job. Log materials, assign labor hours, link the invoice — see your real margin on every project, not just a guess.",
     href: "/features/job-costing",
+  },
+  {
+    icon: Layers,
+    title: "Progress Billing",
+    description:
+      "Bill large jobs in draws against a contract value, track retainage, and keep a running received/remaining ledger — no spreadsheets.",
+    href: "/features/progress-billing",
   },
   {
     icon: Landmark,
