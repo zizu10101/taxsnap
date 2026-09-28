@@ -28,10 +28,23 @@ export async function POST(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
   const stripe = getStripe();
 
+  // Optional: a dedicated portal Configuration (not the account's default
+  // one) scoped specifically to this app's own products/prices. Falls back
+  // to the account's default configuration - logged, not thrown - rather
+  // than failing the whole request, since the default config still opens a
+  // working (just less tailored) portal session.
+  const configurationId = process.env.STRIPE_PORTAL_CONFIGURATION_ID;
+  if (!configurationId) {
+    console.warn(
+      "STRIPE_PORTAL_CONFIGURATION_ID is not set - falling back to the account's default Billing Portal configuration.",
+    );
+  }
+
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${appUrl}/billing`,
+      ...(configurationId ? { configuration: configurationId } : {}),
     });
 
     return NextResponse.json({ url: session.url });

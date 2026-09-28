@@ -47,9 +47,12 @@ export function PricingCards({
     // doesn't upgrade/switch it - Stripe creates a second, independent
     // subscription instead, double-billing the customer. An existing
     // subscriber changing tier or interval has to go through the Customer
-    // Portal instead (see openBillingPortal), which is configured to
-    // handle proration/scheduling for exactly this - see the API route's
-    // own server-side guard for the same rule enforced either way.
+    // Portal instead (see openBillingPortal), which handles the correct
+    // timing itself - immediate + invoiced now for an upgrade, deferred to
+    // period end via a Subscription Schedule for a downgrade (Plus<->Pro
+    // included) - see BILLING_CHANGE_POLICY in pricing-plans.ts for the
+    // user-facing wording and CLAUDE.md for how this was verified against
+    // real portal sessions, not assumed.
     if (hasActiveSubscription) {
       const result = await openBillingPortal();
       if (result) {

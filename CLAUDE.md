@@ -6,7 +6,14 @@ Mobile-first PWA for self-employed trade contractors (painters, handymen,
 barbers) to snap receipts, auto-categorize tax write-offs with AI, track
 Ontario HST, and invoice clients. Next.js 16 (App Router, Turbopack) + React
 19 + TypeScript + Tailwind v4 + Supabase (Postgres/Auth/Storage) + Google
-Gemini + Stripe (billing UI built, keys still placeholder - not live).
+Gemini + Stripe. Billing is live in production, under a Stripe account named
+"Edge Digital Business Solutions" (the operating business entity) - its live
+secret key is what `STRIPE_SECRET_KEY` resolves to in production. Local/dev
+work (including the Stripe MCP connector) instead targets a separate
+Stripe account named "Taxsnap", which only has test/sandbox mode - it has no
+live mode enabled, so it can never see or touch real production data. Don't
+assume "the Stripe account" means one thing - check which of the two a given
+change/query actually needs.
 
 ## Stack quirks worth knowing before editing UI
 
@@ -408,9 +415,31 @@ signed-out "See pricing" link - that's what the landing page's own
 `#pricing` section is for. Also note the price strings in
 `pricing-plans.ts` are purely display copy - the amount actually charged at
 checkout comes from whatever Stripe Price object `STRIPE_BASIC_PRICE_ID` /
-`STRIPE_PRO_PRICE_ID` points at in the Stripe dashboard, so if that copy
-ever changes, the Stripe Price objects need to be updated to match once
-billing goes live.
+`STRIPE_PRO_PRICE_ID` points at, so if that copy ever changes, the Stripe
+Price objects need to be updated to match in the live "Edge Digital
+Business Solutions" account specifically (see the Stripe note at the top of
+this file) - updating the same-named Price in the "Taxsnap" sandbox account
+doesn't affect production at all.
+
+A downgrade through the Customer Portal - a cheaper plan (Plus<->Pro
+included) or a shorter/cheaper interval on the same plan - is deferred via
+a Stripe Subscription Schedule to the end of the current billing period;
+an upgrade (pricier plan, or a longer interval) is invoiced and charged
+immediately. Verified against real portal-driven sandbox tests (not direct
+Subscriptions API calls, which always apply immediately regardless of the
+portal config), for both a same-tier interval step-down and a cross-tier
+downgrade. An earlier version of this note claimed Plus<->Pro could never
+defer, reasoning from Stripe's documented "same Product only" restriction
+on the portal's `schedule_at_period_end` feature - a real test directly
+contradicted that (the `decreasing_item_amount`/`shortening_interval`
+conditions do defer a cross-product change too). Don't trust that doc
+claim over a real test again - if this behavior ever needs re-verifying,
+drive an actual Customer Portal session (e.g. via the Dashboard's
+Workbench Shell, `stripe billing_portal sessions create --customer ...`),
+not a direct `subscriptions.update()` call, which proves nothing about
+what the portal itself does. `BILLING_CHANGE_POLICY` in `pricing-plans.ts`
+is the one place this is worded for users (FAQ, `/billing`,
+`CurrentPlanCard`) - keep it in sync with this if either changes.
 
 ## Local dev / testing this app on a phone
 

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RenewalStatus } from "@/components/billing/renewal-status";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
+import { BILLING_CHANGE_POLICY } from "@/lib/pricing-plans";
 import type { BillingInterval, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
@@ -77,6 +78,9 @@ export function CurrentPlanCard({
           >
             Compare plans & upgrade
           </Button>
+        )}
+        {tier !== "free" && (
+          <p className="text-xs text-muted-foreground">{BILLING_CHANGE_POLICY}</p>
         )}
       </CardContent>
     </Card>

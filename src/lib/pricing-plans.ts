@@ -18,6 +18,28 @@ export function formatPerMonthEquivalent(yearlyAmount: number): string {
   return `$${(yearlyAmount / 12).toFixed(2)}/mo`;
 }
 
+// Shared between the homepage FAQ, /billing, and Settings' CurrentPlanCard
+// so this can't drift into three different descriptions of the same
+// policy. Verified against real Stripe Customer Portal sessions (not
+// assumed, and not just direct Subscriptions API calls, which always
+// apply immediately regardless of this account's portal configuration):
+// an upgrade (a pricier plan, or a longer billing interval on the same
+// plan) is invoiced and charged immediately. A downgrade (a cheaper plan
+// - Plus<->Pro included, despite them being separate Stripe Products - or
+// a shorter/cheaper interval on the same plan) instead gets deferred via
+// a Stripe Subscription Schedule to the end of the current billing
+// period, with no charge now and the current plan/price untouched until
+// then - the same timing cancellation already uses. An earlier version of
+// this comment claimed cross-tier (Plus<->Pro) changes could never defer,
+// reasoning from Stripe's documented "same Product only" restriction on
+// the portal's scheduling feature - a real portal-driven test (Pro yearly
+// -> Plus yearly) contradicted that directly: `schedule_at_period_end`'s
+// `decreasing_item_amount`/`shortening_interval` conditions do defer a
+// cross-product downgrade too. Don't trust that doc claim over a real
+// test again.
+export const BILLING_CHANGE_POLICY =
+  "Switching to a pricier plan or a longer billing interval takes effect immediately, with a prorated charge right away. Switching to a cheaper plan or a shorter interval, or cancelling, all take effect at the end of your current billing period - you keep your current plan and access until then.";
+
 // Every tier gets every feature now (receipt scanning, HST estimate,
 // invoicing/estimates, jobs, employees, commission) - only the usage caps
 // differ (see src/lib/plan-limits.ts, the single source these numbers are

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PricingCards } from "./pricing-cards";
 import { PlanCapsTable } from "@/components/billing/plan-caps-table";
 import { RenewalStatus } from "@/components/billing/renewal-status";
+import { BILLING_CHANGE_POLICY } from "@/lib/pricing-plans";
 
 export const metadata: Metadata = {
   title: "Billing — TaxSnap",
@@ -44,6 +45,7 @@ export default async function BillingPage() {
         <p className="text-muted-foreground">
           Choose the plan that fits your business.
         </p>
+        <p className="text-xs text-muted-foreground">{BILLING_CHANGE_POLICY}</p>
         <RenewalStatus
           billingInterval={profile?.billing_interval ?? null}
           currentPeriodEnd={profile?.current_period_end ?? null}

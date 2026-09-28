@@ -7,6 +7,7 @@ import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
+import { BILLING_CHANGE_POLICY } from "@/lib/pricing-plans";
 import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
 
 // Real screenshots from the real app (test@general.com, real data) - desktop
@@ -183,7 +184,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How does billing and cancellation work?",
     answer:
-      "Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to switch plans or billing interval, or to cancel, anytime, no need to contact support. Cancelling keeps your access through the end of the period you already paid for.",
+      `Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to switch plans or billing interval anytime, no need to contact support. ${BILLING_CHANGE_POLICY}`,
   },
   {
     question: "What does “HST mapping” mean?",
