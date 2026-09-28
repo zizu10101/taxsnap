@@ -23,11 +23,15 @@ export function CurrentPlanCard({
   billingInterval = null,
   currentPeriodEnd = null,
   cancelAtPeriodEnd = false,
+  pendingTier = null,
+  pendingChangeEffectiveAt = null,
 }: {
   tier: SubscriptionStatus;
   billingInterval?: BillingInterval | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
+  pendingTier?: SubscriptionStatus | null;
+  pendingChangeEffectiveAt?: string | null;
 }) {
   const limits = PLAN_LIMITS[tier];
   const rows: { label: string; value: number | null }[] = [
@@ -57,6 +61,8 @@ export function CurrentPlanCard({
           billingInterval={billingInterval}
           currentPeriodEnd={currentPeriodEnd}
           cancelAtPeriodEnd={cancelAtPeriodEnd}
+          pendingTier={pendingTier}
+          pendingChangeEffectiveAt={pendingChangeEffectiveAt}
         />
       </CardHeader>
       <CardContent className="space-y-3">

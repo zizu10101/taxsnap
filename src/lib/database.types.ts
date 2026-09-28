@@ -36,6 +36,9 @@ export interface Database {
           billing_interval: BillingInterval | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
+          pending_tier: "basic" | "pro" | null;
+          pending_billing_interval: BillingInterval | null;
+          pending_change_effective_at: string | null;
           business_type: BusinessType;
           logo_url: string | null;
           business_name: string | null;
@@ -57,6 +60,9 @@ export interface Database {
           billing_interval?: BillingInterval | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
+          pending_tier?: "basic" | "pro" | null;
+          pending_billing_interval?: BillingInterval | null;
+          pending_change_effective_at?: string | null;
           business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;
@@ -78,6 +84,9 @@ export interface Database {
           billing_interval?: BillingInterval | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
+          pending_tier?: "basic" | "pro" | null;
+          pending_billing_interval?: BillingInterval | null;
+          pending_change_effective_at?: string | null;
           business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;

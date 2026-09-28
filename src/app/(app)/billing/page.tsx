@@ -25,7 +25,7 @@ export default async function BillingPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end",
+      "subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at",
     )
     .eq("id", user.id)
     .single();
@@ -50,6 +50,8 @@ export default async function BillingPage() {
           billingInterval={profile?.billing_interval ?? null}
           currentPeriodEnd={profile?.current_period_end ?? null}
           cancelAtPeriodEnd={profile?.cancel_at_period_end ?? false}
+          pendingTier={profile?.pending_tier ?? null}
+          pendingChangeEffectiveAt={profile?.pending_change_effective_at ?? null}
         />
       </div>
 
