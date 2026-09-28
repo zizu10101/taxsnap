@@ -170,10 +170,21 @@ tweaks stay centralized. Fonts: **Barlow Semi Condensed** for headings
 (wired to `font-heading`, auto-applied to `h1`/`h2`/`h3` and shadcn
 `CardTitle`/`DialogTitle` via `globals.css` - most headings don't need the
 class added manually), **Inter** for body, **IBM Plex Mono** for numbers
-(see above). Dark mode CSS exists (`.dark` class + tokens) but nothing
-currently toggles it - no `next-themes`, no `prefers-color-scheme` media
-query wired up. That's intentional/pre-existing, not a bug to fix
-incidentally.
+(see above). Dark mode CSS exists (`.dark` class + tokens) and is toggled
+by a hand-rolled theme system (`src/lib/theme.ts` +
+`src/components/theme-sync.tsx`), not `next-themes`: a blocking
+pre-paint `<Script strategy="beforeInteractive">` in the root
+`src/app/layout.tsx` reads a `"theme"` localStorage key
+(light/dark/system, resolved against `prefers-color-scheme` for
+`"system"`) and applies `.dark` before first paint to avoid a
+flash-of-wrong-theme; `useTheme()` exposes `{preference, resolvedTheme,
+setPreference}` and, once signed in, `(app)/layout.tsx`'s `ThemeSync`
+PATCHes the choice to `profiles` via `/api/profile/theme` so it persists
+across devices. Settings' `ThemeSettings` is the full three-way picker;
+the marketing header's toggle (`LandingHeader`) is a binary sun/moon
+override built on the same hook and the same `"theme"` key, so a
+visitor's choice on the marketing site carries into the app after
+login.
 
 The brand mark is `public/logo-mark.png` (transparent PNG, the orange
 chevron) - it's the single source of truth for the logo everywhere: the

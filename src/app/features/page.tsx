@@ -1,63 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Briefcase,
-  CheckCircle2,
-  FileArchive,
-  FileText,
-  Landmark,
-  Receipt,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { LandingHeader } from "@/components/landing/landing-header";
+import { FEATURE_PAGES } from "@/lib/feature-pages";
 
 export const metadata: Metadata = {
   title: "TaxSnap Features — Expenses, Invoicing, Job Costing & HST",
 };
-
-// Same shell/conventions as the general homepage (src/app/page.tsx) - a
-// standalone overview of every capability, for a visitor who lands here
-// directly (nav link, shared link, search) rather than scrolling the
-// homepage's own shorter feature highlights.
-const FEATURES = [
-  {
-    icon: Receipt,
-    title: "Automated Expense Tracking",
-    description:
-      "Snap a photo of any receipt or vendor invoice. TaxSnap reads it, categorizes it, and keeps a digital copy on file — no manual entry, no lost paper.",
-    href: "/features/expense-tracking",
-  },
-  {
-    icon: FileText,
-    title: "Invoicing & Estimates",
-    description:
-      "Build a professional estimate, convert it to an invoice once approved, and record payments as they come in — cash, card, e-transfer, whatever the client used.",
-    href: "/features/invoicing",
-  },
-  {
-    icon: Briefcase,
-    title: "Job Costing",
-    description:
-      "Track profitability per job. Log materials, assign labor hours, link the invoice — see your real margin on every project, not just a guess.",
-    href: "/features/job-costing",
-  },
-  {
-    icon: Landmark,
-    title: "HST-Ready, Automatically",
-    description:
-      "Every receipt and invoice maps to the right CRA line items, so your HST return estimate is always current. No spreadsheets, no manual math — though we always recommend a licensed accountant for final filing.",
-    href: "/features/hst-mapping",
-  },
-  {
-    icon: FileArchive,
-    title: "One-Click Accountant Export",
-    description:
-      "Bundle receipts, invoices, and a period summary into one download — everything your accountant needs, ready to go.",
-    href: "/features/accountant-export",
-  },
-];
 
 export default function FeaturesPage() {
   return (
@@ -79,7 +30,7 @@ export default function FeaturesPage() {
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
           <div className="grid gap-4 sm:grid-cols-2">
-            {FEATURES.map((feature) => (
+            {FEATURE_PAGES.map((feature) => (
               <Link
                 key={feature.title}
                 href={feature.href}

@@ -142,7 +142,12 @@ export function PricingSection({
         </Tabs>
 
         <div className={`mt-6 grid gap-4 ${gridColsClass}`}>
-          <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
+          {/* scroll-mt so a #plan-free deep link (LandingHeader's Pricing
+              dropdown) doesn't land the card flush under the header. */}
+          <div
+            id="plan-free"
+            className="flex scroll-mt-4 flex-col gap-3 rounded-lg border border-border bg-card p-5"
+          >
             <h3 className="font-heading text-lg font-bold">{FREE_PLAN.name}</h3>
             <p className="text-sm text-muted-foreground">
               {freeDescription ?? FREE_PLAN.description}
@@ -173,7 +178,8 @@ export function PricingSection({
             return (
               <div
                 key={plan.tier}
-                className={`relative flex flex-col gap-3 rounded-lg border bg-card p-5 ${
+                id={`plan-${plan.tier}`}
+                className={`relative flex scroll-mt-4 flex-col gap-3 rounded-lg border bg-card p-5 ${
                   isHighlighted ? "border-primary shadow-sm" : "border-border"
                 }`}
               >
