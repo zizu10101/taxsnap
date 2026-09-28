@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { setPendingBusinessType, setPendingPlan, setPostAuthRedirect } from "@/lib/auth-redirect";
+import {
+  setPendingBusinessType,
+  setPendingInterval,
+  setPendingPlan,
+  setPostAuthRedirect,
+} from "@/lib/auth-redirect";
 import type { BusinessType } from "@/lib/database.types";
 import { BusinessTypeToggle } from "./business-type-toggle";
 import { Button } from "@/components/ui/button";
@@ -58,6 +63,11 @@ export function AuthForm() {
   // straight from this same param for the code-entry path below, which
   // never leaves this page.
   const plan = searchParams.get("plan");
+  // Set alongside `plan` by the same pricing-card click (Monthly/Annual
+  // toggle state at the time "Get started" was clicked) - travels through
+  // the same cookie round trip, see lib/auth-redirect.ts's
+  // PENDING_INTERVAL_COOKIE.
+  const interval = searchParams.get("interval");
   // Set by a "Get Started" click on /salons (?business=salon) - defaults
   // the business-type choice to salon wherever it's actually asked,
   // instead of forcing it (the selector, wherever it appears, is still
@@ -107,6 +117,7 @@ export function AuthForm() {
 
     setPostAuthRedirect(redirectTo);
     setPendingPlan(plan);
+    setPendingInterval(interval);
     setPendingBusinessType(business);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
@@ -132,6 +143,7 @@ export function AuthForm() {
 
     setPostAuthRedirect(redirectTo);
     setPendingPlan(plan);
+    setPendingInterval(interval);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -176,16 +188,16 @@ export function AuthForm() {
     }
 
     // This path never touches /auth/callback (see comment above), so
-    // there's no cookie round trip needed - plan is just read straight off
-    // this same page's own query param. Best-effort: if Checkout can't be
-    // created for some reason, fall through to the normal redirect rather
-    // than stranding the user on this form.
+    // there's no cookie round trip needed - plan/interval are just read
+    // straight off this same page's own query params. Best-effort: if
+    // Checkout can't be created for some reason, fall through to the
+    // normal redirect rather than stranding the user on this form.
     if (plan === "basic" || plan === "pro") {
       try {
         const res = await fetch("/api/stripe/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: plan }),
+          body: JSON.stringify({ tier: plan, interval: interval === "yearly" ? "yearly" : "monthly" }),
         });
         const data = await res.json();
         if (res.ok && data.url) {
@@ -212,6 +224,7 @@ export function AuthForm() {
     if (passwordAction === "sign-up") {
       setPostAuthRedirect(redirectTo);
       setPendingPlan(plan);
+      setPendingInterval(interval);
       const { error } = await supabase.auth.signUp({
         email,
         password,

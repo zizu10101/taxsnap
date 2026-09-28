@@ -3,6 +3,7 @@
 //   npx supabase gen types typescript --project-id <id> > src/lib/database.types.ts
 
 export type SubscriptionStatus = "free" | "basic" | "pro";
+export type BillingInterval = "monthly" | "yearly";
 export type BusinessType = "salon" | "general";
 export type DocumentType = "invoice" | "estimate";
 export type DocumentStatus = "draft" | "sent" | "partial" | "paid";
@@ -30,7 +31,11 @@ export interface Database {
           id: string;
           email: string;
           stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
           subscription_status: SubscriptionStatus;
+          billing_interval: BillingInterval | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
           business_type: BusinessType;
           logo_url: string | null;
           business_name: string | null;
@@ -47,7 +52,11 @@ export interface Database {
           id: string;
           email: string;
           stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
           subscription_status?: SubscriptionStatus;
+          billing_interval?: BillingInterval | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
           business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;
@@ -64,7 +73,11 @@ export interface Database {
           id?: string;
           email?: string;
           stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
           subscription_status?: SubscriptionStatus;
+          billing_interval?: BillingInterval | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
           business_type?: BusinessType;
           logo_url?: string | null;
           business_name?: string | null;

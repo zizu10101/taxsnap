@@ -1,7 +1,22 @@
-import type { BillingTier } from "@/lib/stripe";
+import type { BillingInterval, BillingTier } from "@/lib/stripe";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 
 export const FREE_SCAN_LIMIT = PLAN_LIMITS.free.scansPerMonth!;
+
+// "$12 CAD/mo" / "$120 CAD/yr" - shared so the toggle's two price displays
+// (and /billing's) can never drift into different formatting.
+export function formatCadPrice(amount: number, interval: BillingInterval): string {
+  const suffix = interval === "monthly" ? "/mo" : "/yr";
+  return `$${amount} CAD${suffix}`;
+}
+
+// The per-month equivalent of a yearly price, e.g. 120 -> "$10.00/mo",
+// 290 -> "$24.17/mo" - shown next to the annual price so "2 months free"
+// has a concrete monthly number to compare against the monthly plan's own
+// price, not just a badge.
+export function formatPerMonthEquivalent(yearlyAmount: number): string {
+  return `$${(yearlyAmount / 12).toFixed(2)}/mo`;
+}
 
 // Every tier gets every feature now (receipt scanning, HST estimate,
 // invoicing/estimates, jobs, employees, commission) - only the usage caps
@@ -26,14 +41,21 @@ export const FREE_PLAN = {
 export const PRICING_PLANS: {
   tier: BillingTier;
   name: string;
-  price: string;
+  // Raw CAD amounts, not display strings - the Monthly/Annual toggle
+  // needs to derive four different strings from these two numbers (see
+  // formatCadPrice/formatPerMonthEquivalent above), which a single
+  // hardcoded price string can't support. yearlyPrice is always exactly
+  // 10x monthlyPrice ("2 months free") for both tiers today.
+  monthlyPrice: number;
+  yearlyPrice: number;
   description: string;
   features: string[];
 }[] = [
   {
     tier: "basic",
     name: "Plus",
-    price: "$12 CAD/mo",
+    monthlyPrice: 12,
+    yearlyPrice: 120,
     description: `More room to grow — unlimited scans, ${PLAN_LIMITS.basic.invoicesPerMonth} invoices/mo, ${PLAN_LIMITS.basic.clients} clients, ${PLAN_LIMITS.basic.jobs} jobs.`,
     features: [
       "Everything in Free",
@@ -46,7 +68,8 @@ export const PRICING_PLANS: {
   {
     tier: "pro",
     name: "Pro",
-    price: "$29 CAD/mo",
+    monthlyPrice: 29,
+    yearlyPrice: 290,
     description: "No limits — full invoicing, job costing, and accountant tools.",
     features: [
       "Everything in Plus",

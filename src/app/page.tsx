@@ -183,7 +183,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How does billing and cancellation work?",
     answer:
-      "Plans are billed monthly. You can upgrade, downgrade, or cancel anytime yourself from Settings or Billing - no need to contact support. Cancelling keeps your access through the end of the period you already paid for.",
+      "Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to switch plans or billing interval, or to cancel, anytime, no need to contact support. Cancelling keeps your access through the end of the period you already paid for.",
   },
   {
     question: "What does “HST mapping” mean?",

@@ -13,27 +13,57 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
-import type { BillingTier } from "@/lib/stripe";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ManageSubscriptionButton, openBillingPortal } from "@/components/billing/manage-subscription-button";
+import type { BillingInterval, BillingTier } from "@/lib/stripe";
 import type { SubscriptionStatus } from "@/lib/database.types";
-import { PRICING_PLANS } from "@/lib/pricing-plans";
+import { PRICING_PLANS, formatCadPrice, formatPerMonthEquivalent } from "@/lib/pricing-plans";
 
 export function PricingCards({
   currentStatus,
+  currentInterval,
   hasBillingAccount,
 }: {
   currentStatus: SubscriptionStatus;
+  // Only meaningful once currentStatus isn't "free" - null for a free
+  // account or if a webhook hasn't populated it yet for an existing
+  // subscriber (see profiles.billing_interval).
+  currentInterval: BillingInterval | null;
   hasBillingAccount: boolean;
 }) {
   const [loadingTier, setLoadingTier] = useState<BillingTier | null>(null);
+  // Defaults to the account's own current interval when it has one, so an
+  // existing subscriber sees their real plan marked "Current plan"
+  // immediately instead of having to toggle to find it.
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(
+    currentInterval ?? "monthly",
+  );
+  const hasActiveSubscription = currentStatus !== "free";
 
   async function handleCheckout(tier: BillingTier) {
     setLoadingTier(tier);
+
+    // Re-running Checkout for an account that already has a subscription
+    // doesn't upgrade/switch it - Stripe creates a second, independent
+    // subscription instead, double-billing the customer. An existing
+    // subscriber changing tier or interval has to go through the Customer
+    // Portal instead (see openBillingPortal), which is configured to
+    // handle proration/scheduling for exactly this - see the API route's
+    // own server-side guard for the same rule enforced either way.
+    if (hasActiveSubscription) {
+      const result = await openBillingPortal();
+      if (result) {
+        toast.error(result.error);
+        setLoadingTier(null);
+      }
+      return;
+    }
+
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier }),
+        body: JSON.stringify({ tier, interval: billingInterval }),
       });
       const data = await res.json();
       if (!res.ok || !data.url) {
@@ -50,9 +80,27 @@ export function PricingCards({
     <div className="space-y-4">
       {hasBillingAccount && <ManageSubscriptionButton className="w-full" />}
 
+      <Tabs
+        value={billingInterval}
+        onValueChange={(v) => setBillingInterval(v as BillingInterval)}
+      >
+        <TabsList>
+          <TabsTrigger value="monthly">Monthly</TabsTrigger>
+          <TabsTrigger value="yearly">
+            Annual
+            <Badge className="ml-1.5 border-transparent bg-success/15 text-success">
+              2 months free
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="grid items-stretch gap-4 sm:grid-cols-2">
         {PRICING_PLANS.map((plan) => {
-          const isCurrent = currentStatus === plan.tier;
+          const isCurrent =
+            currentStatus === plan.tier && currentInterval === billingInterval;
+          const price =
+            billingInterval === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
           return (
             <Card
               key={plan.tier}
@@ -69,7 +117,14 @@ export function PricingCards({
                   {isCurrent && <Badge>Current plan</Badge>}
                 </div>
                 <CardDescription>{plan.description}</CardDescription>
-                <p className="pt-2 text-3xl font-bold">{plan.price}</p>
+                <p className="pt-2 text-3xl font-bold">
+                  {formatCadPrice(price, billingInterval)}
+                </p>
+                {billingInterval === "yearly" && (
+                  <p className="-mt-2 text-xs text-muted-foreground">
+                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually
+                  </p>
+                )}
               </CardHeader>
               {/* flex-1 so this absorbs whatever height the two cards'
                   differing feature-list lengths don't share, pinning both
@@ -95,7 +150,11 @@ export function PricingCards({
                   {loadingTier === plan.tier && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
-                  {isCurrent ? "Current plan" : `Upgrade to ${plan.name}`}
+                  {isCurrent
+                    ? "Current plan"
+                    : hasActiveSubscription
+                      ? `Switch to ${plan.name}`
+                      : `Upgrade to ${plan.name}`}
                 </Button>
               </CardFooter>
             </Card>

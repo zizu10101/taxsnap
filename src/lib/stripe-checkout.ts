@@ -1,29 +1,33 @@
 import Stripe from "stripe";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { getStripe, STRIPE_PRICE_IDS, type BillingTier } from "@/lib/stripe";
+import { getStripe, STRIPE_PRICE_IDS, type BillingInterval, type BillingTier } from "@/lib/stripe";
 
 export type CheckoutSessionResult =
   | { ok: true; url: string }
   | { ok: false; error: string };
 
 // Shared between POST /api/stripe/checkout (a deliberate click on
-// /billing's own Upgrade button - can fire regardless of current tier,
-// e.g. Plus -> Pro) and /auth/callback (a brand-new signup's plan choice
-// carried through from the landing page - see lib/auth-redirect.ts). Only
-// creates the session; the "should this even happen" tier check (skip if
-// the account isn't actually free) is the callback's own job, not baked
-// in here, since the deliberate-upgrade caller must never be blocked by
-// it.
+// /billing's own Upgrade button) and /auth/callback (a brand-new signup's
+// plan choice carried through from the landing page - see
+// lib/auth-redirect.ts). Only creates the session - it's each caller's own
+// job to first confirm the account is actually free before calling this
+// (route.ts and auth/callback both check subscription_status === "free"
+// server-side). Re-running Checkout for a customer who already has an
+// active subscription doesn't modify it - Stripe creates a second,
+// independent subscription instead, double-billing the customer - so an
+// already-paid account switching tier or interval must go through the
+// Customer Portal (Manage Subscription), never back through here.
 export async function createCheckoutSessionUrl(
   supabase: SupabaseClient<Database>,
   user: User,
   tier: BillingTier,
+  interval: BillingInterval,
   appUrl: string,
 ): Promise<CheckoutSessionResult> {
-  const priceId = STRIPE_PRICE_IDS[tier];
+  const priceId = STRIPE_PRICE_IDS[tier][interval];
   if (!priceId) {
-    return { ok: false, error: `Stripe price for '${tier}' is not configured.` };
+    return { ok: false, error: `Stripe price for '${tier}' (${interval}) is not configured.` };
   }
 
   const { data: profile } = await supabase
@@ -53,7 +57,7 @@ export async function createCheckoutSessionUrl(
       // failure too rather than letting a null slip through to a caller
       // expecting a real redirect target.
       console.error(
-        `createCheckoutSessionUrl: session ${session.id} for tier '${tier}' (user ${user.id}) has no url`,
+        `createCheckoutSessionUrl: session ${session.id} for tier '${tier}' (${interval}, user ${user.id}) has no url`,
       );
       return { ok: false, error: "Stripe did not return a checkout URL." };
     }
@@ -81,6 +85,7 @@ export async function createCheckoutSessionUrl(
     if (err instanceof Stripe.errors.StripeError) {
       console.error("createCheckoutSessionUrl failed:", {
         tier,
+        interval,
         userId: user.id,
         type: err.type,
         code: err.code,
@@ -88,7 +93,7 @@ export async function createCheckoutSessionUrl(
         message: err.message,
       });
     } else {
-      console.error("createCheckoutSessionUrl failed:", { tier, userId: user.id, err });
+      console.error("createCheckoutSessionUrl failed:", { tier, interval, userId: user.id, err });
     }
     return { ok: false, error: message };
   }

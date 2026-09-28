@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import type { BillingInterval } from "@/lib/database.types";
 
 let stripeClient: Stripe | null = null;
 
@@ -13,9 +14,20 @@ export function getStripe(): Stripe {
   return stripeClient;
 }
 
-export const STRIPE_PRICE_IDS = {
-  basic: process.env.STRIPE_BASIC_PRICE_ID ?? "",
-  pro: process.env.STRIPE_PRO_PRICE_ID ?? "",
-} as const;
+export type BillingTier = "basic" | "pro";
+export type { BillingInterval };
 
-export type BillingTier = keyof typeof STRIPE_PRICE_IDS;
+// Nested per tier per interval - each tier now has a separate monthly and
+// yearly Stripe Price, not one flat price each. BillingTier can no longer
+// be derived via `keyof typeof STRIPE_PRICE_IDS` now that this nests, so
+// it's declared explicitly above instead.
+export const STRIPE_PRICE_IDS: Record<BillingTier, Record<BillingInterval, string>> = {
+  basic: {
+    monthly: process.env.STRIPE_BASIC_PRICE_ID ?? "",
+    yearly: process.env.STRIPE_BASIC_YEARLY_PRICE_ID ?? "",
+  },
+  pro: {
+    monthly: process.env.STRIPE_PRO_PRICE_ID ?? "",
+    yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID ?? "",
+  },
+};

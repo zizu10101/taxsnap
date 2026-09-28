@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PricingCards } from "./pricing-cards";
 import { PlanCapsTable } from "@/components/billing/plan-caps-table";
+import { RenewalStatus } from "@/components/billing/renewal-status";
 
 export const metadata: Metadata = {
   title: "Billing — TaxSnap",
@@ -22,7 +23,9 @@ export default async function BillingPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_status, stripe_customer_id")
+    .select(
+      "subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end",
+    )
     .eq("id", user.id)
     .single();
 
@@ -41,10 +44,16 @@ export default async function BillingPage() {
         <p className="text-muted-foreground">
           Choose the plan that fits your business.
         </p>
+        <RenewalStatus
+          billingInterval={profile?.billing_interval ?? null}
+          currentPeriodEnd={profile?.current_period_end ?? null}
+          cancelAtPeriodEnd={profile?.cancel_at_period_end ?? false}
+        />
       </div>
 
       <PricingCards
         currentStatus={profile?.subscription_status ?? "free"}
+        currentInterval={profile?.billing_interval ?? null}
         hasBillingAccount={!!profile?.stripe_customer_id}
       />
 

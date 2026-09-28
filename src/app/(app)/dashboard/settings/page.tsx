@@ -34,7 +34,9 @@ export default async function SettingsPage() {
       .maybeSingle(),
     supabase
       .from("profiles")
-      .select("business_type, subscription_status, stripe_customer_id")
+      .select(
+        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end",
+      )
       .eq("id", user.id)
       .single(),
   ]);
@@ -57,7 +59,12 @@ export default async function SettingsPage() {
       <div className="space-y-6">
         <ThemeSettings />
 
-        <CurrentPlanCard tier={profile?.subscription_status ?? "free"} />
+        <CurrentPlanCard
+          tier={profile?.subscription_status ?? "free"}
+          billingInterval={profile?.billing_interval ?? null}
+          currentPeriodEnd={profile?.current_period_end ?? null}
+          cancelAtPeriodEnd={profile?.cancel_at_period_end ?? false}
+        />
 
         {/* Same gate as /billing's own button (hasBillingAccount there) -
             a Stripe customer only exists once someone's actually gone

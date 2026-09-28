@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
+  PENDING_INTERVAL_COOKIE,
   PENDING_PLAN_COOKIE,
   POST_AUTH_REDIRECT_COOKIE,
+  sanitizePendingInterval,
   sanitizePendingPlan,
   sanitizeRedirectPath,
 } from "@/lib/auth-redirect";
@@ -24,6 +26,7 @@ export async function GET(request: Request) {
     cookieStore.get(POST_AUTH_REDIRECT_COOKIE)?.value ?? searchParams.get("redirectTo"),
   );
   const pendingPlan = sanitizePendingPlan(cookieStore.get(PENDING_PLAN_COOKIE)?.value);
+  const pendingInterval = sanitizePendingInterval(cookieStore.get(PENDING_INTERVAL_COOKIE)?.value);
 
   if (code) {
     const supabase = await createClient();
@@ -48,6 +51,7 @@ export async function GET(request: Request) {
             supabase,
             data.user,
             pendingPlan,
+            pendingInterval,
             origin,
           );
           // A failure here is already logged with full detail inside
@@ -58,6 +62,7 @@ export async function GET(request: Request) {
             const response = NextResponse.redirect(checkoutResult.url);
             response.cookies.delete(POST_AUTH_REDIRECT_COOKIE);
             response.cookies.delete(PENDING_PLAN_COOKIE);
+            response.cookies.delete(PENDING_INTERVAL_COOKIE);
             return response;
           }
         }
@@ -66,6 +71,7 @@ export async function GET(request: Request) {
       const response = NextResponse.redirect(`${origin}${redirectTo}`);
       response.cookies.delete(POST_AUTH_REDIRECT_COOKIE);
       response.cookies.delete(PENDING_PLAN_COOKIE);
+      response.cookies.delete(PENDING_INTERVAL_COOKIE);
       return response;
     }
     // Logged server-side (not surfaced to the client) purely for debugging

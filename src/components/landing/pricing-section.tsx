@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Check, ChevronDown, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FREE_PLAN, PRICING_PLANS } from "@/lib/pricing-plans";
-import type { BillingTier } from "@/lib/stripe";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FREE_PLAN, PRICING_PLANS, formatCadPrice, formatPerMonthEquivalent } from "@/lib/pricing-plans";
+import type { BillingInterval, BillingTier } from "@/lib/stripe";
 
 // A cell is either a plain yes/no (rendered as check/dash) or a value
 // string for a capped resource (e.g. "3/mo", "Unlimited") - every feature
@@ -102,10 +103,16 @@ export function PricingSection({
   const plans = tiers ? PRICING_PLANS.filter((p) => tiers.includes(p.tier)) : PRICING_PLANS;
   const gridColsClass = plans.length <= 1 ? "sm:grid-cols-2" : "sm:grid-cols-3";
   const [showComparison, setShowComparison] = useState(false);
+  // Always starts on Monthly - there's no "current plan" concept for a
+  // signed-out visitor to default from, unlike /billing's own toggle.
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
 
   function authHref(tier?: BillingTier) {
     const params = new URLSearchParams(extraAuthParams);
-    if (tier) params.set("plan", tier);
+    if (tier) {
+      params.set("plan", tier);
+      params.set("interval", billingInterval);
+    }
     const qs = params.toString();
     return qs ? `/auth?${qs}` : "/auth";
   }
@@ -117,6 +124,23 @@ export function PricingSection({
         <p className="mt-1 text-sm text-muted-foreground">
           Start free. Upgrade whenever you need more.
         </p>
+
+        <Tabs
+          value={billingInterval}
+          onValueChange={(v) => setBillingInterval(v as BillingInterval)}
+          className="mt-4"
+        >
+          <TabsList>
+            <TabsTrigger value="monthly">Monthly</TabsTrigger>
+            <TabsTrigger value="yearly">
+              Annual
+              <Badge className="ml-1.5 border-transparent bg-success/15 text-success">
+                2 months free
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className={`mt-6 grid gap-4 ${gridColsClass}`}>
           <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
             <h3 className="font-heading text-lg font-bold">{FREE_PLAN.name}</h3>
@@ -162,7 +186,17 @@ export function PricingSection({
                 <p className="text-sm text-muted-foreground">
                   {tierDescriptions?.[plan.tier] ?? plan.description}
                 </p>
-                <p className="text-3xl font-bold">{plan.price}</p>
+                <p className="text-3xl font-bold">
+                  {formatCadPrice(
+                    billingInterval === "monthly" ? plan.monthlyPrice : plan.yearlyPrice,
+                    billingInterval,
+                  )}
+                </p>
+                {billingInterval === "yearly" && (
+                  <p className="-mt-2 text-xs text-muted-foreground">
+                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually
+                  </p>
+                )}
                 {tierTaglines?.[plan.tier] && (
                   <p className="-mt-1 text-xs font-medium text-primary">
                     {tierTaglines[plan.tier]}

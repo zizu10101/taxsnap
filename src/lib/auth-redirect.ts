@@ -45,6 +45,22 @@ export function sanitizePendingPlan(value: string | null | undefined): "basic" |
   return value === "basic" || value === "pro" ? value : null;
 }
 
+// Same cookie-round-trip reasoning as PENDING_PLAN_COOKIE above, carrying
+// the Monthly/Annual toggle's selection from the landing page's pricing
+// section through to the same post-signup Checkout call. Defaults to
+// "monthly" wherever it's read (never "yearly") if this cookie is missing
+// or invalid, so a user is never silently signed up for annual billing.
+export const PENDING_INTERVAL_COOKIE = "pending_interval";
+
+export function setPendingInterval(interval: string | null) {
+  if (interval !== "monthly" && interval !== "yearly") return;
+  document.cookie = `${PENDING_INTERVAL_COOKIE}=${interval}; path=/; max-age=600; SameSite=Lax`;
+}
+
+export function sanitizePendingInterval(value: string | null | undefined): "monthly" | "yearly" {
+  return value === "yearly" ? "yearly" : "monthly";
+}
+
 // Same cookie-round-trip reasoning again, for a "Get Started" click on
 // /salons's ?business=salon - Google OAuth can't carry custom signup data
 // through its own handshake the way signUp()/signInWithOtp()'s `data`

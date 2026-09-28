@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RenewalStatus } from "@/components/billing/renewal-status";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
-import type { SubscriptionStatus } from "@/lib/database.types";
+import type { BillingInterval, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
   free: "Free",
@@ -16,7 +17,17 @@ const TIER_LABEL: Record<SubscriptionStatus, string> = {
 // right now", not a plan-shopping comparison, so this shows just the
 // caller's own tier's numbers plus a link to /billing for the full picture
 // or an upgrade.
-export function CurrentPlanCard({ tier }: { tier: SubscriptionStatus }) {
+export function CurrentPlanCard({
+  tier,
+  billingInterval = null,
+  currentPeriodEnd = null,
+  cancelAtPeriodEnd = false,
+}: {
+  tier: SubscriptionStatus;
+  billingInterval?: BillingInterval | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+}) {
   const limits = PLAN_LIMITS[tier];
   const rows: { label: string; value: number | null }[] = [
     { label: "Receipt scans / month", value: limits.scansPerMonth },
@@ -41,6 +52,11 @@ export function CurrentPlanCard({ tier }: { tier: SubscriptionStatus }) {
             {TIER_LABEL[tier]}
           </Badge>
         </div>
+        <RenewalStatus
+          billingInterval={billingInterval}
+          currentPeriodEnd={currentPeriodEnd}
+          cancelAtPeriodEnd={cancelAtPeriodEnd}
+        />
       </CardHeader>
       <CardContent className="space-y-3">
         <ul className="space-y-1.5 text-sm">
