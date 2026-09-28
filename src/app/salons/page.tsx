@@ -16,8 +16,8 @@ const PAIN_POINTS = [
   "Staff can't log a sale unless you're standing there?",
 ];
 
-// Behind this page's "See all features" toggle - Free/Pro only, no Basic
-// (this page's PricingSection call passes tiers={["pro"]}, so the Basic
+// Behind this page's "See all features" toggle - Free/Pro only, no Plus
+// (this page's PricingSection call passes tiers={["pro"]}, so the Plus
 // column never renders regardless of the `basic` value here; it's set to
 // false throughout purely to satisfy ComparisonRow's shape).
 const COMPARISON_ROWS: ComparisonRow[] = [

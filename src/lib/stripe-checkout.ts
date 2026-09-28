@@ -9,7 +9,7 @@ export type CheckoutSessionResult =
 
 // Shared between POST /api/stripe/checkout (a deliberate click on
 // /billing's own Upgrade button - can fire regardless of current tier,
-// e.g. Basic -> Pro) and /auth/callback (a brand-new signup's plan choice
+// e.g. Plus -> Pro) and /auth/callback (a brand-new signup's plan choice
 // carried through from the landing page - see lib/auth-redirect.ts). Only
 // creates the session; the "should this even happen" tier check (skip if
 // the account isn't actually free) is the callback's own job, not baked

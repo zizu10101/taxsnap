@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { nextTierFor } from "@/lib/plan-limits";
 import type { SubscriptionStatus } from "@/lib/database.types";
 
-const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Basic", pro: "Pro" };
+const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Plus", pro: "Pro" };
 
 // Shared proactive usage indicator for every capped resource (invoices,
 // clients, jobs, active employees/services/stylists - see

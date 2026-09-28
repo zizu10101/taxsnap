@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if ((count ?? 0) >= FREE_SCAN_LIMIT) {
       return NextResponse.json(
         {
-          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans this month. Upgrade to Basic for unlimited scans.`,
+          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans this month. Upgrade to Plus for unlimited scans.`,
           code: "FREE_LIMIT_REACHED",
         },
         { status: 403 },

@@ -50,7 +50,7 @@ export function AuthForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/dashboard";
   const urlError = searchParams.get("error");
-  // Set by a "Get Started Basic/Pro" click on the landing page's pricing
+  // Set by a "Get Started Plus/Pro" click on the landing page's pricing
   // section (?plan=basic|pro) - see lib/auth-redirect.ts's
   // PENDING_PLAN_COOKIE for why this has to travel through a cookie for
   // the Google/magic-link-click/password-signup paths (all round-trip

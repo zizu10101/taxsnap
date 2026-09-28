@@ -105,7 +105,7 @@ export const PLAN_LIMITS: Record<
 // for anyone currently on free (basic already raises every cap above
 // free's), "pro" for anyone already on basic (pro is the only tier left
 // with a higher/unlimited cap). Used to build tier-correct upgrade copy
-// instead of always saying "Upgrade to Pro" - a Basic user can now hit a
+// instead of always saying "Upgrade to Pro" - a Plus user can now hit a
 // cap too (e.g. 10 clients), and telling them to upgrade to a plan they
 // already have would be wrong.
 export function nextTierFor(status: SubscriptionStatus): "basic" | "pro" {
@@ -121,14 +121,14 @@ export function formatPlanCap(n: number | null, suffix = ""): string {
   return n === null ? "Unlimited" : `${n}${suffix}`;
 }
 
-const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Basic", pro: "Pro" };
+const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Plus", pro: "Pro" };
 
 // Builds the FREE_LIMIT_REACHED error string every capped route returns,
 // naming whichever tier actually raises the limit for this user's current
-// tier (see nextTierFor) instead of hardcoding "Upgrade to Pro" - a Basic
-// user hitting a cap needs to be told to upgrade to Pro, not Basic.
+// tier (see nextTierFor) instead of hardcoding "Upgrade to Pro" - a Plus
+// user hitting a cap needs to be told to upgrade to Pro, not Plus.
 // `singularNoun` is pluralized automatically when the limit isn't 1 (e.g.
-// Basic's "3 active services" vs. Free's "1 active service") by appending
+// Plus's "3 active services" vs. Free's "1 active service") by appending
 // "s" - pass `pluralNoun` explicitly for a noun that doesn't pluralize
 // that way (e.g. "entry" -> "entries", not "entrys"). `period` (e.g.
 // "this month") is optional, for monthly caps like invoices.
@@ -139,7 +139,7 @@ export function limitReachedMessage(
   pluralNoun?: string,
 ): string {
   const tierLabel = TIER_LABEL[nextTierFor(check.tier)];
-  const currentTierLabel = check.tier === "free" ? "Free" : "Basic";
+  const currentTierLabel = check.tier === "free" ? "Free" : "Plus";
   const noun = check.limit === 1 ? singularNoun : (pluralNoun ?? `${singularNoun}s`);
   const periodSuffix = period ? ` ${period}` : "";
   return `${currentTierLabel} accounts can have ${check.limit} ${noun}${periodSuffix}. Upgrade to ${tierLabel} to add more.`;
@@ -258,7 +258,7 @@ const ACTIVE_LIMIT_KEY = {
 // Active-row caps (employees, services, stylists) - generalizes the old
 // wouldExceedFreeTierActiveLimit (free-tier-limits.ts, now deleted) to a
 // per-tier limit table instead of a single free-only constant, since
-// Basic now gets its own (higher, but still capped) active-row ceiling
+// Plus now gets its own (higher, but still capped) active-row ceiling
 // too. Checked in two places for each table, same as before: creating a
 // new row (which always defaults to active) and reactivating an existing
 // inactive one via PATCH { is_active: true } - `excludeId` omits the row

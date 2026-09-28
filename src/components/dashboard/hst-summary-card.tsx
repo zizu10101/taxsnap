@@ -340,7 +340,7 @@ export function HstSummaryCard({
     // Every tier can fetch this now - invoicing is capped, not Pro-only
     // (GET /api/documents uses requireUser(), see src/lib/plan-limits.ts) -
     // so a Free account's real invoiced revenue is included here same as
-    // Basic/Pro's, not just receipts-side ITCs.
+    // Plus/Pro's, not just receipts-side ITCs.
     fetch("/api/documents?type=invoice")
       .then((res) => (res.ok ? res.json() : { documents: [] }))
       .then((data) => {

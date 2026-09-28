@@ -19,7 +19,7 @@ export default function ExpenseTrackingPage() {
         "Point your phone's camera at a receipt, or upload a photo of a vendor invoice, and TaxSnap's AI reads it for you — merchant name, date, line items, subtotal, tax, and a suggested write-off category, all filled in automatically. Review it, tap save, and move on with your day.",
         "The original image is kept on file too, so you always have a digital copy if you ever need to look one up — no shoebox of paper receipts, no folder of blurry phone photos you can't find later.",
         "Meals & entertainment purchases are flagged automatically, since the CRA only allows a 50% input tax credit on those — one less rule you have to remember to apply by hand.",
-        "The Free plan includes 5 receipt scans a month at no cost, so you can try it before committing. Basic and Pro plans include unlimited scans.",
+        "The Free plan includes 5 receipt scans a month at no cost, so you can try it before committing. Plus and Pro plans include unlimited scans.",
       ]}
     />
   );

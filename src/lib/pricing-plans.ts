@@ -32,7 +32,7 @@ export const PRICING_PLANS: {
 }[] = [
   {
     tier: "basic",
-    name: "Basic",
+    name: "Plus",
     price: "$12 CAD/mo",
     description: `More room to grow — unlimited scans, ${PLAN_LIMITS.basic.invoicesPerMonth} invoices/mo, ${PLAN_LIMITS.basic.clients} clients, ${PLAN_LIMITS.basic.jobs} jobs.`,
     features: [
@@ -49,7 +49,7 @@ export const PRICING_PLANS: {
     price: "$29 CAD/mo",
     description: "No limits — full invoicing, job costing, and accountant tools.",
     features: [
-      "Everything in Basic",
+      "Everything in Plus",
       "Unlimited invoices, clients, jobs",
       "Job costing with Est. Profit",
       "Accountant export bundle",

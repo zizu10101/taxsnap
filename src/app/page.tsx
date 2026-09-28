@@ -168,7 +168,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What happens after my free scans run out?",
     answer:
-      "The Free plan includes 5 receipt scans per month at no cost. Once you hit that limit, upgrade to Basic for unlimited scans - or just wait, since the limit resets automatically at the start of each month either way.",
+      "The Free plan includes 5 receipt scans per month at no cost. Once you hit that limit, upgrade to Plus for unlimited scans - or just wait, since the limit resets automatically at the start of each month either way.",
   },
   {
     question: "Can I use this on my computer, or only my phone?",
@@ -193,7 +193,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do invoices and estimates work?",
     answer:
-      `Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves. Invoicing is included on every plan - Free covers ${PLAN_LIMITS.free.invoicesPerMonth} invoices a month, Basic ${PLAN_LIMITS.basic.invoicesPerMonth}, and Pro is unlimited. Estimates themselves are always unlimited, no matter your plan.`,
+      `Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves. Invoicing is included on every plan - Free covers ${PLAN_LIMITS.free.invoicesPerMonth} invoices a month, Plus ${PLAN_LIMITS.basic.invoicesPerMonth}, and Pro is unlimited. Estimates themselves are always unlimited, no matter your plan.`,
   },
   {
     question: "Can I share an estimate or invoice with a client?",
@@ -208,7 +208,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What are Jobs?",
     answer:
-      `Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking. Every plan includes Jobs - Free covers ${PLAN_LIMITS.free.jobs} job and ${PLAN_LIMITS.free.employees} employee, Basic ${PLAN_LIMITS.basic.jobs} jobs and ${PLAN_LIMITS.basic.employees} employees, and Pro is unlimited.`,
+      `Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking. Every plan includes Jobs - Free covers ${PLAN_LIMITS.free.jobs} job and ${PLAN_LIMITS.free.employees} employee, Plus ${PLAN_LIMITS.basic.jobs} jobs and ${PLAN_LIMITS.basic.employees} employees, and Pro is unlimited.`,
   },
   {
     question: "Are there reports for sales and expenses?",

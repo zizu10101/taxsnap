@@ -57,13 +57,13 @@ export function PricingSection({
   extraAuthParams,
   comparisonRows,
 }: {
-  // Which paid tiers to show, in order - lets a page drop Basic (e.g.
+  // Which paid tiers to show, in order - lets a page drop Plus (e.g.
   // /salons, where it isn't relevant) without forking PRICING_PLANS
   // itself. Defaults to all of them (the homepage's current set).
   tiers?: BillingTier[];
   // Which card (if any) gets the accent border + badge treatment - the
-  // homepage highlights Basic (its actual target tier); a page with
-  // Basic excluded gets to make its own call instead of inheriting that.
+  // homepage highlights Plus (its actual target tier); a page with
+  // Plus excluded gets to make its own call instead of inheriting that.
   highlightTier?: BillingTier;
   badgeLabel?: string;
   // Overrides for the short one-liner under the plan name (normally
@@ -94,8 +94,8 @@ export function PricingSection({
   // app has a small enough feature set that categorizing it would be
   // over-structuring a short list. Optional: a vertical page can omit it
   // rather than force one. Each row carries all three tiers' values even
-  // when a page only shows two cards (e.g. /salons has no Basic) - the
-  // Basic column is simply never rendered there since it's derived from
+  // when a page only shows two cards (e.g. /salons has no Plus) - the
+  // Plus column is simply never rendered there since it's derived from
   // `plans`, not from this data.
   comparisonRows?: ComparisonRow[];
 }) {
@@ -172,8 +172,8 @@ export function PricingSection({
                   {(
                     tierFeatures?.[plan.tier] ??
                     plan.features.filter((f) => {
-                      // "Everything in Basic" only makes sense next to a
-                      // visible Basic card - a page that excludes it (e.g.
+                      // "Everything in Plus" only makes sense next to a
+                      // visible Plus card - a page that excludes it (e.g.
                       // /salons) shouldn't reference a tier it never shows.
                       // Only applies to the default (unoverridden) feature
                       // list - an explicit tierFeatures override is
