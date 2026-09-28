@@ -1,4 +1,5 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
+import { formatDocumentNumber } from "@/lib/document-number";
 
 function escapeCsvField(value: string | number): string {
   const str = String(value);
@@ -66,29 +67,69 @@ function toQuickBooksDate(dateStr: string): string {
   return `${month}/${day}/${year}`;
 }
 
+// One real payment received against an invoice (including a progress-
+// billing draw, which is just a documents.type === 'invoice' row) - the
+// caller is responsible for filtering to the export's date range and
+// dropping any documents.excluded_from_hst invoice, same as
+// hst-summary-card.tsx's own filteredRecognizedPayments does for the HST
+// calculator, so this can't disagree with what that card reports.
+export interface QuickBooksInvoicePayment {
+  paidDate: string;
+  documentNumber: number;
+  clientName: string;
+  amount: number;
+}
+
 // QuickBooks Online/Desktop's bank-transaction CSV import matches columns
 // by exact header text, not by position or fuzzy matching - "Date",
 // "Description", "Payment", "Deposit" are the only four names it
 // recognizes, so don't rename them even for clarity. Receipts are always
-// an expense in this app (income/revenue is tracked separately via
-// documents/payments, never receipts), so Deposit is always blank here -
-// present only because QuickBooks expects the column to exist on every
-// row, not because any receipt ever has a deposit amount.
+// an expense in this app (Payment column), invoice payments are always
+// income (Deposit column) - each row only ever fills one of the two,
+// leaving the other blank, because QuickBooks expects both columns to
+// exist on every row regardless.
+//
+// invoicePayments defaults to empty so the Expenses page's existing
+// expense-only export keeps working unchanged; only the Overview page
+// passes real invoice payments through, pairing revenue with expenses in
+// one ledger. Rows are sorted by date (expenses and invoice payments
+// merged together) since QuickBooks' importer reads more sensibly as a
+// chronological ledger than two blocks concatenated by source.
 //
 // Deliberately no totals row (unlike receiptsToCsv's own TOTAL row) - an
 // extra summary row with no real date would either get rejected by
 // QuickBooks' importer or, worse, get misread as a genuine dateless
 // transaction, corrupting the import. Every row here must be a real,
 // importable transaction.
-export function receiptsToQuickBooksCsv(receipts: Receipt[]): string {
+export function receiptsToQuickBooksCsv(
+  receipts: Receipt[],
+  invoicePayments: QuickBooksInvoicePayment[] = [],
+): string {
   const header = ["Date", "Description", "Payment", "Deposit"];
 
-  const rows = receipts.map((r) => [
-    toQuickBooksDate(r.transaction_date),
-    `${r.merchant_name} - ${r.tax_category}`,
-    r.total_amount.toFixed(2),
-    "",
-  ]);
+  const expenseRows = receipts.map((r) => ({
+    date: r.transaction_date,
+    row: [
+      toQuickBooksDate(r.transaction_date),
+      `${r.merchant_name} - ${r.tax_category}`,
+      r.total_amount.toFixed(2),
+      "",
+    ],
+  }));
+
+  const revenueRows = invoicePayments.map((p) => ({
+    date: p.paidDate,
+    row: [
+      toQuickBooksDate(p.paidDate),
+      `Invoice ${formatDocumentNumber("invoice", p.documentNumber)} - ${p.clientName}`,
+      "",
+      p.amount.toFixed(2),
+    ],
+  }));
+
+  const rows = [...expenseRows, ...revenueRows]
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((entry) => entry.row);
 
   const lines = [header, ...rows].map((row) => row.map(escapeCsvField).join(","));
   return lines.join("\n");

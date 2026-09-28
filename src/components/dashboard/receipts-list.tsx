@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { downloadCsv, receiptsToCsv, receiptsToQuickBooksCsv } from "@/lib/csv";
+import {
+  downloadCsv,
+  receiptsToCsv,
+  receiptsToQuickBooksCsv,
+  type QuickBooksInvoicePayment,
+} from "@/lib/csv";
 import { downloadAccountantExport } from "@/lib/accountant-export";
 import { createClient } from "@/lib/supabase/client";
 import type { DateRange } from "@/lib/date-range";
@@ -45,6 +50,7 @@ export function ReceiptsList({
   range,
   business,
   logoPath,
+  invoicePayments = [],
 }: {
   receipts: Receipt[];
   // Lets a caller render more than one list on the same page (e.g. the
@@ -66,6 +72,12 @@ export function ReceiptsList({
   range: DateRange;
   business: BusinessInfo;
   logoPath: string | null;
+  // Already range-filtered and excluded_from_hst-filtered by the caller -
+  // only the Overview page passes these (it's the one place that already
+  // has invoice payment data alongside receipts); the Expenses page's
+  // Job/Overhead lists leave this empty so their QuickBooks export stays
+  // expense-only, since revenue doesn't split cleanly into job/overhead.
+  invoicePayments?: QuickBooksInvoicePayment[];
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingBundle, setExportingBundle] = useState(false);
@@ -103,11 +115,11 @@ export function ReceiptsList({
   // IRS/Schedule-C layout - see receiptsToQuickBooksCsv's own comment for
   // why the columns/format differ.
   function handleExportQuickBooks() {
-    if (receipts.length === 0) {
+    if (receipts.length === 0 && invoicePayments.length === 0) {
       toast.info("No receipts in this range to export");
       return;
     }
-    const csv = receiptsToQuickBooksCsv(receipts);
+    const csv = receiptsToQuickBooksCsv(receipts, invoicePayments);
     downloadCsv(`${exportFilenameBase}-quickbooks.csv`, csv);
   }
 
@@ -121,6 +133,7 @@ export function ReceiptsList({
         range,
         business,
         logoPath,
+        invoicePayments,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to build export");

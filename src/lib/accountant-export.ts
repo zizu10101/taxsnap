@@ -1,7 +1,12 @@
 import JSZip from "jszip";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DocumentWithRelations, Receipt } from "@/lib/database.types";
-import { invoicesToCsv, receiptsToCsv } from "@/lib/csv";
+import {
+  invoicesToCsv,
+  receiptsToCsv,
+  receiptsToQuickBooksCsv,
+  type QuickBooksInvoicePayment,
+} from "@/lib/csv";
 import { computeExpenseSummary } from "@/lib/expense-summary";
 import { generateDocumentPdf } from "@/lib/invoice-pdf";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
@@ -107,15 +112,18 @@ async function fetchLogoDataUrl(
 
 // Builds the full accountant package for whatever receipts are already
 // in hand (the same range/job-filtered array the plain CSV export already
-// uses - see receipts-list.tsx) and triggers a browser download. Invoices
-// are the one thing fetched fresh in here rather than passed in - nothing
-// else on this page needs invoice data, so there's no reason for the
-// caller to carry it just for this - scoped to the same inclusive
-// transaction_date/issue_date range as the receipts CSV, so the two halves
-// of the bundle describe the same period. A free/basic account (or one
-// that's simply never issued an invoice) just gets an empty invoice
-// section - RLS returns zero rows either way, no separate tier check
-// needed here.
+// uses - see receipts-list.tsx) and triggers a browser download. The
+// invoices.csv/PDF section's own documents are the one thing fetched fresh
+// in here rather than passed in - nothing else on this page needs the full
+// invoice+items rows, so there's no reason for the caller to carry them
+// just for this - scoped to the same inclusive transaction_date/issue_date
+// range as the receipts CSV, so the bundle's halves describe the same
+// period. A free/basic account (or one that's simply never issued an
+// invoice) just gets an empty invoice section - RLS returns zero rows
+// either way, no separate tier check needed here. invoicePayments is the
+// one exception fetched by the caller instead: it's already computed
+// there for the standalone QuickBooks button, so it's passed straight
+// through rather than re-derived from the documents query above.
 export async function downloadAccountantExport(
   receipts: Receipt[],
   supabase: SupabaseClient<Database>,
@@ -123,10 +131,20 @@ export async function downloadAccountantExport(
   range: { start: string | null; end: string | null },
   business: BusinessInfo,
   logoPath: string | null,
+  // Same array the standalone "Export for QuickBooks" button already
+  // built (range/excluded_from_hst-filtered by the caller) - passed
+  // straight into receiptsToQuickBooksCsv below rather than refetched or
+  // reimplemented here, so the bundled file can't drift from what that
+  // button produces for the same period.
+  invoicePayments: QuickBooksInvoicePayment[],
 ): Promise<void> {
   const zip = new JSZip();
   zip.file("transactions.csv", "﻿" + receiptsToCsv(receipts));
   zip.file("summary.csv", "﻿" + summaryToCsv(receipts));
+  zip.file(
+    "quickbooks-import.csv",
+    "﻿" + receiptsToQuickBooksCsv(receipts, invoicePayments),
+  );
 
   let invoiceQuery = supabase
     .from("documents")

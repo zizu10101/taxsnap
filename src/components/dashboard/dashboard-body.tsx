@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, FileText, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,14 @@ import {
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
-import type { BusinessType, Receipt, SubscriptionStatus } from "@/lib/database.types";
+import type {
+  BusinessType,
+  DocumentWithClient,
+  Receipt,
+  SubscriptionStatus,
+} from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
+import type { QuickBooksInvoicePayment } from "@/lib/csv";
 
 function slugify(label: string): string {
   return label
@@ -62,6 +68,24 @@ export function DashboardBody({
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [newClientOpen, setNewClientOpen] = useState(false);
+  const [invoiceDocs, setInvoiceDocs] = useState<DocumentWithClient[]>([]);
+
+  // Fetched independently of HstSummaryCard's own identical fetch below -
+  // that card's invoice data is scoped to its own separate HST period
+  // picker (defaults to "This Quarter"), while the combined QuickBooks
+  // export needs it scoped to this page's main receipts range instead, so
+  // the two can't share one fetch without threading a prop through
+  // HstSummaryCard's otherwise self-contained interface.
+  useEffect(() => {
+    fetch("/api/documents?type=invoice")
+      .then((res) => (res.ok ? res.json() : { documents: [] }))
+      .then((data) => {
+        if (Array.isArray(data.documents)) setInvoiceDocs(data.documents);
+      })
+      .catch(() => {
+        // Non-fatal: the QuickBooks export just falls back to expenses-only.
+      });
+  }, []);
 
   // Union of the jobs table (includes jobs created from the Jobs/Hours
   // pages that have no receipt yet) and any job_name already on a receipt
@@ -82,6 +106,31 @@ export function DashboardBody({
   const scopeLabel = jobFilter ? `${jobFilter} — ${rangeLabel}` : rangeLabel;
 
   const exportFilenameBase = `taxsnap-receipts-${slugify(scopeLabel)}`;
+
+  // Same revenue-recognition rule as hst-summary-card.tsx's own
+  // filteredRecognizedPayments: real payments only (never an invoice's
+  // full total or unpaid balance), scoped to this page's own receipts
+  // range rather than HstSummaryCard's separate quarter picker, and
+  // skipping any invoice flagged excluded_from_hst. Includes
+  // progress-billing draws for free - those are just documents.type ===
+  // 'invoice' rows, not a separate entity.
+  const filteredInvoicePayments = useMemo(() => {
+    const rows: QuickBooksInvoicePayment[] = [];
+    for (const doc of invoiceDocs) {
+      if (doc.excluded_from_hst) continue;
+      for (const payment of doc.payments) {
+        if (range.start && payment.paid_date < range.start) continue;
+        if (range.end && payment.paid_date > range.end) continue;
+        rows.push({
+          paidDate: payment.paid_date,
+          documentNumber: doc.document_number,
+          clientName: doc.client?.name ?? "No client",
+          amount: payment.amount,
+        });
+      }
+    }
+    return rows;
+  }, [invoiceDocs, range]);
 
   const monthEyebrow = useMemo(
     () =>
@@ -219,6 +268,7 @@ export function DashboardBody({
         range={range}
         business={business}
         logoPath={logoPath}
+        invoicePayments={filteredInvoicePayments}
       />
 
       <ReceiptDetailDialog
