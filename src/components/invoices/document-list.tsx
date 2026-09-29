@@ -167,12 +167,19 @@ export function DocumentList({
         noun="client"
       />
 
-      <div className="space-y-4 lg:hidden">
-      <Button className="w-full" nativeButton={false} render={<Link href={`${basePath}/new`} />}>
+      {/* Outside the lg:hidden mobile list below so the create button is
+          reachable at every width - the lg+ DocumentWorkstation only
+          replaces the list, not this. */}
+      <Button
+        className="w-full lg:w-auto"
+        nativeButton={false}
+        render={<Link href={`${basePath}/new`} />}
+      >
         <Plus className="h-4 w-4" />
         New {label}
       </Button>
 
+      <div className="space-y-4 lg:hidden">
       {documents.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Camera, FileSpreadsheet, Scissors, Sparkles } from "lucide-react";
+import { Camera, FileSpreadsheet, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
@@ -239,9 +239,13 @@ export default function Home() {
             <span className="text-primary">Write it off.</span>
           </h1>
           <p className="max-w-md text-base text-muted-foreground sm:text-lg">
-            TaxSnap is built for painters, handymen, barbers, and every other
-            self-employed trade contractor who&apos;d rather be working than
-            doing bookkeeping.
+            TaxSnap is built for painters, handymen, barbers, owner-operator
+            truck drivers, freelancers, and every other self-employed business
+            owner who&apos;d rather be working than doing bookkeeping.
+          </p>
+          <p className="max-w-md text-sm font-medium text-foreground">
+            No accounting degree required. Snap a receipt, send an invoice, see
+            what you owe.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" nativeButton={false} render={<Link href="/auth" />}>
@@ -295,34 +299,6 @@ export default function Home() {
           <p className="max-w-[300px] text-center text-xs text-muted-foreground">
             Built by a small business owner, for small business owners.
           </p>
-        </div>
-      </section>
-
-      {/* Same bordered-card style as the pricing cards below, but a single
-          full-card link rather than a Button - still understated enough
-          not to compete with the real CTAs (Get started free / See
-          pricing / each plan's Get started), just more visible than a
-          plain text line. Sits right under the hero so a salon owner
-          self-identifies before reading feature copy that's aimed at
-          trade contractors. */}
-      <section className="border-t border-border">
-        <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
-          <Link
-            href="/salons"
-            className="group flex items-center gap-4 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary"
-          >
-            <Scissors className="h-8 w-8 shrink-0 text-primary" />
-            <div className="flex-1">
-              <h3 className="font-heading text-lg font-bold">
-                Run a salon or barbershop?
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Commission tracking and stylist payouts, built for the
-                front counter.
-              </p>
-            </div>
-            <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
-          </Link>
         </div>
       </section>
 

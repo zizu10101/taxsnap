@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -94,7 +95,7 @@ function PricingLinks({ onNavigate }: { onNavigate?: () => void }) {
         </NavigationMenuLink>
       ))}
       <NavigationMenuLink render={<Link href="/salons#pricing" onClick={onNavigate} />}>
-        <span className="font-medium text-foreground">For Salons</span>
+        <span className="font-medium text-foreground">Salon pricing</span>
         <span className="text-xs text-muted-foreground">Commission &amp; payouts pricing</span>
       </NavigationMenuLink>
     </>
@@ -109,6 +110,7 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileFeaturesOpen, setMobileFeaturesOpen] = useState<string[]>([]);
   const closeMobile = () => setMobileOpen(false);
+  const onSalons = usePathname() === "/salons";
 
   return (
     <header className="relative border-b border-border">
@@ -140,6 +142,17 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
                     <PricingLinks />
                   </div>
                 </NavigationMenuContent>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  render={<Link href="/salons" />}
+                  aria-current={onSalons ? "page" : undefined}
+                  className={`flex-row px-0 py-0 text-sm font-medium hover:bg-transparent hover:text-foreground ${
+                    onSalons ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  For Salons
+                </NavigationMenuLink>
               </NavigationMenuItem>
             </NavigationMenuList>
             <NavigationMenuPortal>
@@ -202,6 +215,17 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
             <div className="mt-2 flex flex-col gap-1">
               <PricingLinks onNavigate={closeMobile} />
             </div>
+          </div>
+
+          <div className="border-b border-border py-3">
+            <Link
+              href="/salons"
+              onClick={closeMobile}
+              aria-current={onSalons ? "page" : undefined}
+              className={`block text-sm font-medium ${onSalons ? "text-foreground" : ""}`}
+            >
+              For Salons
+            </Link>
           </div>
 
           <div className="flex flex-col gap-2 pt-4">

@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description:
-    "TaxSnap helps self-employed trade contractors snap photos of receipts, auto-categorize tax write-offs with AI, and export clean data for tax season.",
+    "TaxSnap helps self-employed contractors, owner-operators, and freelancers snap photos of receipts, auto-categorize tax write-offs with AI, and export clean data for tax season.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

@@ -41,7 +41,8 @@ const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"
 // preview pane so a contractor with real invoice/estimate history can scan
 // and preview without leaving the page. The period KPIs and the New
 // {label} button already exist as their own full-width sections above this
-// component (InvoiceBillingSummary + the button rendered by DocumentList)
+// component (InvoiceBillingSummary + the button rendered by DocumentList,
+// visible at every width)
 // for invoices - this only replaces the list itself, it doesn't duplicate
 // those. Shared between Invoices and Estimates (`type` drives the few real
 // differences: convert-to-invoice affordance, paid/balance rows). Creating,
