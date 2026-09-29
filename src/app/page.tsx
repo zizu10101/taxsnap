@@ -1,5 +1,13 @@
 import Link from "next/link";
-import { Camera, FileSpreadsheet, Sparkles } from "lucide-react";
+import {
+  Camera,
+  FileSignature,
+  FileSpreadsheet,
+  Layers,
+  Receipt,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
@@ -148,6 +156,37 @@ const STEPS = [
     icon: FileSpreadsheet,
     title: "Ready for your HST return",
     description: "See exactly what you owe — no spreadsheets, no guessing.",
+  },
+];
+
+// Boxed feature row under the step columns - the same card treatment as
+// /salons' "Built for the front counter" grid, for general-business
+// strengths the three steps above don't cover (steps explain the
+// receipt-to-HST flow; these are the rest of the product).
+const GENERAL_FEATURES = [
+  {
+    icon: Receipt,
+    title: "Job & overhead expenses",
+    description:
+      "Tag costs to a job or file them as overhead, then export a QuickBooks-ready CSV or a full accountant bundle.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Real profit per job",
+    description:
+      "Materials, labor, and the payments you've actually received, netted out for every job.",
+  },
+  {
+    icon: Layers,
+    title: "Progress billing",
+    description:
+      "Bill a job in draws and see what's invoiced, received, and still owed against the contract.",
+  },
+  {
+    icon: FileSignature,
+    title: "E-signatures on estimates",
+    description:
+      "Clients approve estimates by signing online, and the estimate turns into an invoice the moment they do.",
   },
 ];
 
@@ -321,6 +360,30 @@ export default function Home() {
                     {step.description}
                   </p>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border">
+        <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
+          <h2 className="font-heading text-2xl font-bold">
+            Everything a one-person business needs, nothing it doesn&apos;t.
+          </h2>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {GENERAL_FEATURES.map((feature) => (
+              <div
+                key={feature.title}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
+              >
+                <feature.icon className="h-5 w-5 text-primary" />
+                <h3 className="font-heading text-lg font-bold">
+                  {feature.title}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {feature.description}
+                </p>
               </div>
             ))}
           </div>
