@@ -12,9 +12,9 @@ export default function AccountantExportPage() {
       icon={FileArchive}
       title="One-Click Accountant Export"
       tagline="Bundle receipts, invoices, and a period summary into one download — everything your accountant needs, ready to go."
-      mobileSrc="/screenshots/home-mobile-framed.webp"
-      desktopSrc="/screenshots/home-desktop.webp"
-      screenshotAlt="The TaxSnap dashboard, showing the Export CSV and For Accountant buttons above a list of receipts"
+      mobileSrc="/screenshots/expenses-mobile.webp"
+      desktopSrc="/screenshots/expenses-desktop.webp"
+      screenshotAlt="The TaxSnap Expenses screen, showing the Export CSV, Export for QuickBooks, and For Accountant buttons above a list of receipts"
       paragraphs={[
         "When tax season rolls around, hand your accountant one file instead of a folder of paper or a pile of forwarded emails. TaxSnap bundles your receipt images, invoice PDFs, and a plain-language summary of the period into a single download.",
         "Prefer to keep your own books? Export a plain CSV of your receipts anytime — no bundle required — for whatever spreadsheet or software you already use.",

@@ -23,8 +23,9 @@ export default function ProgressBillingPage() {
       title="Progress Billing"
       tagline="Bill large jobs in draws against a contract value, track retainage, and keep a running received/remaining ledger — no spreadsheets, no manual math."
       note="Available on the Pro plan."
-      mobileSrc="/screenshots/progress-billing-mobile-framed.webp"
-      screenshotAlt="The Progress Billing summary in TaxSnap, showing contract value, draws, and a running received/remaining ledger"
+      mobileSrc="/screenshots/progress-billing-mobile.webp"
+      desktopSrc="/screenshots/progress-billing-desktop.webp"
+      screenshotAlt="The Progress Billing screen in TaxSnap, showing contract value, invoiced to date, remaining balance, and a list of draws"
       howItWorks={[
         {
           title: "Set a contract value",

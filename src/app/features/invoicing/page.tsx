@@ -23,8 +23,9 @@ export default function InvoicingPage() {
       title="Invoicing & Estimates"
       tagline="Build a professional estimate, get it e-signed by your client, convert it to an invoice once approved, and record payments as they come in — cash, card, e-transfer, whatever the client used."
       note="Available on the Pro plan."
-      mobileSrc="/screenshots/invoice-mobile-framed.webp"
-      screenshotAlt="The invoice builder in TaxSnap, with a live preview that updates as client details and line items are filled in"
+      mobileSrc="/screenshots/new-invoice-mobile.webp"
+      desktopSrc="/screenshots/new-invoice-desktop.webp"
+      screenshotAlt="The New Invoice screen in TaxSnap, with an Estimate/Invoice toggle and client and job details to fill in"
       howItWorks={[
         {
           title: "Build the estimate",

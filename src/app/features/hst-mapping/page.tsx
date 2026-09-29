@@ -12,7 +12,7 @@ export default function HstMappingPage() {
       icon={Landmark}
       title="HST-Ready, Automatically"
       tagline="Every receipt and invoice maps to the right CRA line items, so your HST return estimate is always current. No spreadsheets, no manual math."
-      mobileSrc="/screenshots/hst-mobile-framed.webp"
+      mobileSrc="/screenshots/hst-mobile.webp"
       desktopSrc="/screenshots/hst-desktop.webp"
       screenshotAlt="The Ontario HST Return Helper in TaxSnap, showing a running estimate mapped to real CRA line numbers"
       paragraphs={[

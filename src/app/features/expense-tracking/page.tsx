@@ -22,9 +22,9 @@ export default function ExpenseTrackingPage() {
       eyebrow="Expense Tracking"
       title="Automated Expense Tracking"
       tagline="Snap a photo of any receipt or vendor invoice. TaxSnap reads it, categorizes it, and keeps a digital copy on file — no manual entry, no lost paper."
-      mobileSrc="/screenshots/receipt-mobile-framed.webp"
-      desktopSrc="/screenshots/receipt-desktop.webp"
-      screenshotAlt="A parsed receipt in TaxSnap, showing merchant, items, and total filled in automatically"
+      mobileSrc="/screenshots/dashboard-mobile.webp"
+      desktopSrc="/screenshots/dashboard-desktop.webp"
+      screenshotAlt="The TaxSnap dashboard, with a Scan Receipt button, estimated reclaimable HST, and deductible spend at a glance"
       howItWorks={[
         {
           title: "Snap or upload a receipt",
