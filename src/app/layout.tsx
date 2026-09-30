@@ -71,14 +71,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    // suppressHydrationWarning: the theme-init script adds `dark` to <html>
+    // before React hydrates, so its className legitimately differs from the
+    // server HTML. Only suppresses this one element's own attributes.
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${bodySans.variable} ${headingSans.variable} ${numberMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Script id="theme-init" strategy="beforeInteractive">
-          {THEME_INIT_SCRIPT}
-        </Script>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
         {children}
         <Toaster />
         <RegisterServiceWorker />
