@@ -23,3 +23,23 @@ export async function requireAdmin() {
 
   return user;
 }
+
+// Route-handler variant of requireAdmin: same identity check, but returns
+// { error, status } for the caller to short-circuit with (JSON, per this
+// app's API convention) instead of throwing redirect()/notFound(). Every
+// non-admin - including a signed-in one - gets the same 404, so /api/admin
+// doesn't reveal itself either.
+export async function assertAdmin() {
+  const adminId = process.env.ADMIN_USER_ID;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !adminId || user.id !== adminId) {
+    return { error: "Not found" as const, status: 404 as const };
+  }
+
+  return { user };
+}

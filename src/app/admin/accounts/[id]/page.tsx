@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/require-admin";
 import { getAccountDetail } from "@/lib/admin-data";
+import { AccountActions } from "@/components/admin/account-actions";
+import { ActionLogTable } from "@/components/admin/action-log-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function AdminAccountPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +13,10 @@ export default async function AdminAccountPage({ params }: { params: Promise<{ i
   const detail = await getAccountDetail(id);
   if (!detail) notFound();
 
-  const { profile, receiptCount, invoiceCount, stripeLive, rows } = detail;
+  const { profile, receiptCount, invoiceCount, stripeLive, rows, manuallySet, overrideBlocked, refundable, actions } =
+    detail;
+  const liveSub =
+    !!stripeLive?.found && !["canceled", "incomplete_expired"].includes(stripeLive.status ?? "");
   const mismatches = rows.filter((r) => r.mismatch);
   const hasStripeIds = !!(profile.stripe_customer_id || profile.stripe_subscription_id);
   const paidWithoutStripe = !hasStripeIds && profile.subscription_status !== "free";
@@ -22,7 +27,22 @@ export default async function AdminAccountPage({ params }: { params: Promise<{ i
         <Link href="/admin" className="text-sm text-muted-foreground hover:underline">
           ← Accounts
         </Link>
-        <h2 className="mt-1 font-heading text-lg font-bold">{profile.email}</h2>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <h2 className="font-heading text-lg font-bold">{profile.email}</h2>
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium capitalize">
+            {profile.subscription_status}
+          </span>
+          {manuallySet && (
+            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+              Manually set
+            </span>
+          )}
+          {!manuallySet && liveSub && (
+            <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+              Synced subscription
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground tabular-nums">{profile.id}</p>
       </div>
 
@@ -125,6 +145,29 @@ export default async function AdminAccountPage({ params }: { params: Promise<{ i
           </CardContent>
         </Card>
       )}
+
+      <AccountActions
+        accountId={profile.id}
+        email={profile.email}
+        currentTier={profile.subscription_status}
+        overrideBlocked={overrideBlocked}
+        canCancel={liveSub}
+        cancelsAtPeriodEnd={!!stripeLive?.cancelAtPeriodEnd}
+        refundable={
+          refundable
+            ? {
+                remainingCents: refundable.amountPaid - refundable.amountRefunded,
+                currency: refundable.currency,
+                paidAt: refundable.paidAt,
+              }
+            : null
+        }
+      />
+
+      <section className="space-y-2">
+        <h3 className="font-heading text-base font-bold">Actions &amp; notes</h3>
+        <ActionLogTable rows={actions} showAccount={false} />
+      </section>
     </div>
   );
 }

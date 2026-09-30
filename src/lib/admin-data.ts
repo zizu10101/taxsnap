@@ -1,15 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getStripe, STRIPE_PRICE_IDS } from "@/lib/stripe";
 import type {
+  AdminActionType,
   BillingInterval,
   BusinessType,
   SubscriptionStatus,
 } from "@/lib/database.types";
 
-// Read-only data layer for /admin. Everything here uses the service-role
-// client (bypasses RLS), so it must only ever be called after requireAdmin()
-// has passed. Receipt/invoice access is count-only (`head: true`) - no row
-// content is ever selected.
+// Data layer for /admin. Everything here uses the service-role client
+// (bypasses RLS), so it must only ever be called after requireAdmin() /
+// assertAdmin() has passed. Receipt/invoice access is count-only
+// (`head: true`) - no row content is ever selected.
 
 const PAGE_SIZE = 50;
 const TIERS: SubscriptionStatus[] = ["free", "basic", "pro"];
@@ -166,7 +167,7 @@ function tierFromPriceId(priceId: string | undefined): SubscriptionStatus {
   return "free";
 }
 
-async function fetchStripeState(
+export async function fetchStripeState(
   customerId: string | null,
   subscriptionId: string | null,
 ): Promise<StripeLiveState | null> {
@@ -221,7 +222,7 @@ export async function getAccountDetail(id: string) {
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
   if (!profile) return null;
 
-  const [receipts, invoices, stripeLive] = await Promise.all([
+  const [receipts, invoices, stripeLive, actions] = await Promise.all([
     supabase.from("receipts").select("id", { count: "exact", head: true }).eq("user_id", id),
     supabase
       .from("documents")
@@ -229,7 +230,29 @@ export async function getAccountDetail(id: string) {
       .eq("user_id", id)
       .eq("type", "invoice"),
     fetchStripeState(profile.stripe_customer_id, profile.stripe_subscription_id),
+    listActions({ accountId: id, pageSize: 25 }),
   ]);
+
+  // What Stripe reports as this account's tier: the live subscription's
+  // tier, or free when there's none / it has ended. Unknown (null) when the
+  // lookup itself failed, so a sandbox-vs-prod key mismatch can't be
+  // mistaken for "manually set".
+  const stripeTier: SubscriptionStatus | null = stripeLive?.error
+    ? null
+    : stripeLive?.found
+      ? (stripeLive.tier ?? "free")
+      : "free";
+  const manuallySet = stripeTier !== null && profile.subscription_status !== stripeTier;
+  const overrideBlocked = blocksOverride(stripeLive);
+
+  let refundable: RefundableInfo | null = null;
+  if (stripeLive?.found && stripeLive.subscriptionId && !NON_LIVE_STATUSES.includes(stripeLive.status ?? "")) {
+    try {
+      refundable = await getRefundable(stripeLive.subscriptionId);
+    } catch {
+      refundable = null;
+    }
+  }
 
   const rows: MismatchRow[] = [];
   if (stripeLive?.found) {
@@ -262,5 +285,108 @@ export async function getAccountDetail(id: string) {
     invoiceCount: invoices.count ?? 0,
     stripeLive,
     rows,
+    manuallySet,
+    overrideBlocked,
+    refundable,
+    actions: actions.rows,
   };
+}
+
+// --- Manual actions (write side of /admin) ---
+
+const NON_LIVE_STATUSES = ["canceled", "incomplete_expired"];
+
+// True when the tier override must be blocked: the account has (or may
+// have) a Stripe subscription whose next webhook would silently overwrite an
+// override. Fails closed - an unreadable Stripe lookup blocks rather than
+// allows, since "can't tell" is exactly when an override could be reverted
+// unnoticed. No Stripe IDs at all (comps, test accounts) is the only
+// unblocked case besides a fully ended subscription.
+export function blocksOverride(state: StripeLiveState | null): boolean {
+  if (!state) return false;
+  if (state.error) return true;
+  return state.found && !NON_LIVE_STATUSES.includes(state.status ?? "");
+}
+
+export async function hasLiveSubscription(
+  customerId: string | null,
+  subscriptionId: string | null,
+): Promise<boolean> {
+  return blocksOverride(await fetchStripeState(customerId, subscriptionId));
+}
+
+export interface RefundableInfo {
+  paymentIntentId: string;
+  amountPaid: number; // cents
+  amountRefunded: number; // cents
+  currency: string;
+  paidAt: string | null;
+}
+
+// Latest paid invoice's payment for a subscription, with how much of it has
+// already been refunded. Null when there's nothing to refund.
+export async function getRefundable(subscriptionId: string): Promise<RefundableInfo | null> {
+  const stripe = getStripe();
+  const invoices = await stripe.invoices.list({ subscription: subscriptionId, status: "paid", limit: 1 });
+  const invoice = invoices.data[0];
+  if (!invoice?.id) return null;
+
+  const payments = await stripe.invoicePayments.list({ invoice: invoice.id, status: "paid", limit: 1 });
+  const payment = payments.data[0]?.payment;
+  if (!payment || payment.type !== "payment_intent" || !payment.payment_intent) return null;
+
+  const piId =
+    typeof payment.payment_intent === "string" ? payment.payment_intent : payment.payment_intent.id;
+  const pi = await stripe.paymentIntents.retrieve(piId, { expand: ["latest_charge"] });
+  const charge = pi.latest_charge && typeof pi.latest_charge !== "string" ? pi.latest_charge : null;
+  if (!charge) return null;
+
+  return {
+    paymentIntentId: piId,
+    amountPaid: charge.amount_captured ?? charge.amount,
+    amountRefunded: charge.amount_refunded,
+    currency: charge.currency,
+    paidAt: invoice.status_transitions?.paid_at
+      ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+      : null,
+  };
+}
+
+export async function logAdminAction(entry: {
+  accountId: string;
+  accountEmail: string;
+  adminId: string;
+  actionType: AdminActionType;
+  oldValue?: string | null;
+  newValue?: string | null;
+  reason: string;
+}) {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("admin_actions").insert({
+    account_id: entry.accountId,
+    account_email: entry.accountEmail,
+    admin_id: entry.adminId,
+    action_type: entry.actionType,
+    old_value: entry.oldValue ?? null,
+    new_value: entry.newValue ?? null,
+    reason: entry.reason,
+  });
+  return error;
+}
+
+export async function listActions(opts: { accountId?: string; page?: number; pageSize?: number }) {
+  const supabase = createAdminClient();
+  const pageSize = opts.pageSize ?? PAGE_SIZE;
+  const from = ((opts.page ?? 1) - 1) * pageSize;
+
+  let q = supabase
+    .from("admin_actions")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, from + pageSize - 1);
+  if (opts.accountId) q = q.eq("account_id", opts.accountId);
+
+  const { data, count, error } = await q;
+  if (error) throw new Error(error.message);
+  return { rows: data ?? [], total: count ?? 0, pageSize };
 }

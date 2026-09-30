@@ -12,6 +12,13 @@ export type PayoutStatus = "active" | "voided";
 export type AppLockRole = "owner" | "staff";
 export type ThemePreference = "light" | "dark" | "system";
 export type RateCadence = "weekly" | "monthly";
+export type AdminActionType =
+  | "tier_override"
+  | "subscription_cancel"
+  | "subscription_refund"
+  | "resend_confirmation"
+  | "password_reset"
+  | "note";
 
 // Minimal shape for the jsonb args create_register_transaction takes -
 // this file has no other jsonb-typed RPC param to mirror, so this is
@@ -763,6 +770,45 @@ export interface Database {
           is_active?: boolean;
           pay_type?: PayType;
           commission_rate?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      // Founder /admin audit log (0041_admin_actions.sql) - service-role
+      // access only, RLS on with no policies. 'note' rows carry the note
+      // body in `reason`.
+      admin_actions: {
+        Row: {
+          id: string;
+          account_id: string;
+          account_email: string;
+          admin_id: string;
+          action_type: AdminActionType;
+          old_value: string | null;
+          new_value: string | null;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: string;
+          account_email: string;
+          admin_id: string;
+          action_type: AdminActionType;
+          old_value?: string | null;
+          new_value?: string | null;
+          reason: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_id?: string;
+          account_email?: string;
+          admin_id?: string;
+          action_type?: AdminActionType;
+          old_value?: string | null;
+          new_value?: string | null;
+          reason?: string;
           created_at?: string;
         };
         Relationships: [];
