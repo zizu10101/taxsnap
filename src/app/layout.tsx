@@ -80,11 +80,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${bodySans.variable} ${headingSans.variable} ${numberMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Script
-          id="theme-init"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
-        />
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
         {children}
         <Toaster />
         <RegisterServiceWorker />
