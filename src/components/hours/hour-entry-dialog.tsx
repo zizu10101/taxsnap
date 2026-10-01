@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
 import type { Employee, HourEntryWithRelations, Job } from "@/lib/database.types";
 import { validateWorkDateForDialog } from "@/lib/work-date";
 
@@ -171,7 +172,11 @@ export function HourEntryDialog({
             <Label htmlFor="hour-employee">Employee</Label>
             {activeEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Add an employee first from the Employees page.
+                Add an employee first from the{" "}
+                <Link href="/dashboard/employees" className="underline hover:text-primary">
+                  Employees page
+                </Link>
+                .
               </p>
             ) : (
               <Select

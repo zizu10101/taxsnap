@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { JobCostNav } from "@/components/jobs/job-cost-nav";
+import { EmployeesNav } from "@/components/employees/employees-nav";
 import { EmployeeDialog } from "@/components/employees/employee-dialog";
 import { EmployeeAccessRow } from "@/components/employees/employee-access-row";
 import { EmployeePinDialog } from "@/components/employees/employee-pin-dialog";
@@ -54,9 +54,31 @@ export function EmployeeList({
   const [openByEmployee, setOpenByEmployee] = useState(
     () => new Map((openSessions ?? []).map((s) => [s.employeeId, s])),
   );
-  const [resetTarget, setResetTarget] = useState<Employee | null>(null);
+  const [pinDialog, setPinDialog] = useState<{ employee: Employee; mode: "create" | "reset" } | null>(
+    null,
+  );
+  const [removingLoginId, setRemovingLoginId] = useState<string | null>(null);
   const [closeTarget, setCloseTarget] = useState<Employee | null>(null);
   const [sessionsTarget, setSessionsTarget] = useState<Employee | null>(null);
+
+  async function removeLogin(employee: Employee) {
+    setRemovingLoginId(employee.id);
+    try {
+      const res = await fetch(`/api/employees/${employee.id}/pin`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't remove the login.");
+      setPinIds((prev) => {
+        const next = new Set(prev);
+        next.delete(employee.id);
+        return next;
+      });
+      toast.success(`${employee.name} can no longer sign in`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setRemovingLoginId(null);
+    }
+  }
 
   function renderAccessRow(employee: Employee) {
     if (!showAccess || !employee.is_active) return null;
@@ -64,7 +86,10 @@ export function EmployeeList({
       <EmployeeAccessRow
         hasPin={pinIds.has(employee.id)}
         openSession={openByEmployee.get(employee.id) ?? null}
-        onResetPin={() => setResetTarget(employee)}
+        removingLogin={removingLoginId === employee.id}
+        onSetPin={() => setPinDialog({ employee, mode: "create" })}
+        onResetPin={() => setPinDialog({ employee, mode: "reset" })}
+        onRemoveLogin={() => removeLogin(employee)}
         onCloseSession={() => setCloseTarget(employee)}
         onViewSessions={() => setSessionsTarget(employee)}
       />
@@ -114,7 +139,7 @@ export function EmployeeList({
 
   return (
     <div className="space-y-4">
-      {showNav && <JobCostNav active="employees" />}
+      {showNav && <EmployeesNav active="employees" />}
 
       <UsageLimitBar
         tier={subscriptionStatus}
@@ -276,14 +301,14 @@ export function EmployeeList({
       {showAccess && (
         <>
           <EmployeePinDialog
-            employee={resetTarget}
-            mode="reset"
-            open={resetTarget !== null}
-            onOpenChange={(open) => !open && setResetTarget(null)}
+            employee={pinDialog?.employee ?? null}
+            mode={pinDialog?.mode ?? "create"}
+            open={pinDialog !== null}
+            onOpenChange={(open) => !open && setPinDialog(null)}
             onDone={(id) => setPinIds((prev) => new Set(prev).add(id))}
           />
           <CloseSessionDialog
-            key={openByEmployee.get(closeTarget?.id ?? "")?.id ?? "none"}
+            key={`close-${openByEmployee.get(closeTarget?.id ?? "")?.id ?? "none"}`}
             session={closeTarget ? (openByEmployee.get(closeTarget.id) ?? null) : null}
             employeeName={closeTarget?.name ?? ""}
             open={closeTarget !== null}
@@ -297,7 +322,7 @@ export function EmployeeList({
             }
           />
           <EmployeeSessionsDialog
-            key={sessionsTarget?.id ?? "none"}
+            key={`sessions-${sessionsTarget?.id ?? "none"}`}
             employee={sessionsTarget}
             open={sessionsTarget !== null}
             onOpenChange={(open) => !open && setSessionsTarget(null)}

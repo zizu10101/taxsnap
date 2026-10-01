@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAppLock } from "@/components/app-lock/app-lock-context";
 
-// Lateral nav between the commission pages, same pattern as JobCostNav.
+// Lateral nav between the commission pages, same pattern as EmployeesNav.
 export function CommissionNav({
   active,
   isPro,

@@ -5,7 +5,8 @@ import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { JobCostNav } from "@/components/jobs/job-cost-nav";
+import { EmployeesNav } from "@/components/employees/employees-nav";
+import { EmployeeLink } from "@/components/employees/employee-link";
 import { Badge } from "@/components/ui/badge";
 import { HourEntryDialog } from "@/components/hours/hour-entry-dialog";
 import { EditSessionTimesDialog } from "@/components/hours/edit-session-times-dialog";
@@ -119,7 +120,7 @@ export function HoursList({
 
   return (
     <div className="space-y-4">
-      <JobCostNav active="hours" />
+      <EmployeesNav active="hours" />
 
       <Button className="w-full" onClick={() => setDialogOpen(true)}>
         <Plus className="h-4 w-4" />
@@ -156,7 +157,9 @@ export function HoursList({
                   <div className="flex items-center justify-between gap-3 sm:hidden">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate font-medium">{entry.employee.name}</p>
+                        <p className="truncate font-medium">
+                          <EmployeeLink name={entry.employee.name} />
+                        </p>
                         {entry.session && <Badge variant="secondary">Clocked</Badge>}
                         {entry.session && <ReviewBadge session={entry.session} />}
                       </div>
@@ -197,7 +200,9 @@ export function HoursList({
 
                   {/* Desktop row (sm+) - one grid cell per column, same data. */}
                   <div className="hidden min-w-0 items-center gap-2 sm:flex">
-                    <p className="truncate text-sm font-medium">{entry.employee.name}</p>
+                    <p className="truncate text-sm font-medium">
+                      <EmployeeLink name={entry.employee.name} />
+                    </p>
                     {entry.session && <Badge variant="secondary">Clocked</Badge>}
                     {entry.session && <ReviewBadge session={entry.session} />}
                   </div>

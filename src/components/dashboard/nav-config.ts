@@ -3,6 +3,7 @@ import {
   Briefcase,
   ClipboardList,
   FileText,
+  HardHat,
   LayoutDashboard,
   PieChart,
   Scissors,
@@ -16,6 +17,7 @@ export type NavKey =
   | "estimates"
   | "invoices"
   | "jobs"
+  | "employees"
   | "clients"
   | "expenses"
   | "progress-billing"
@@ -39,7 +41,11 @@ export interface NavItem {
 const NAV_ROUTES: { key: NavKey; prefixes: string[] }[] = [
   { key: "estimates", prefixes: ["/dashboard/estimates"] },
   { key: "invoices", prefixes: ["/dashboard/invoices", "/dashboard/line-items"] },
-  { key: "jobs", prefixes: ["/dashboard/jobs", "/dashboard/employees", "/dashboard/hours"] },
+  { key: "jobs", prefixes: ["/dashboard/jobs"] },
+  // Employees owns the Hours page too: logging, reviewing and correcting hours
+  // (including clocked sessions) is day-to-day employee management, not
+  // job setup. Routes are unchanged - only which tab lights up.
+  { key: "employees", prefixes: ["/dashboard/employees", "/dashboard/hours"] },
   { key: "clients", prefixes: ["/dashboard/clients"] },
   { key: "expenses", prefixes: ["/dashboard/expenses"] },
   { key: "progress-billing", prefixes: ["/dashboard/progress-billing"] },
@@ -66,6 +72,7 @@ const GENERAL_ITEMS: NavItem[] = [
   { key: "estimates", label: "Estimates", href: "/dashboard/estimates", icon: ClipboardList },
   { key: "invoices", label: "Invoices", href: "/dashboard/invoices", icon: FileText },
   { key: "jobs", label: "Jobs", href: "/dashboard/jobs", icon: Briefcase },
+  { key: "employees", label: "Employees", href: "/dashboard/employees", icon: HardHat },
   { key: "clients", label: "Clients", href: "/dashboard/clients", icon: Users },
   { key: "expenses", label: "Expenses", href: "/dashboard/expenses", icon: BarChart3 },
 ];

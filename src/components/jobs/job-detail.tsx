@@ -6,6 +6,7 @@ import { FileText, Plus, Receipt as ReceiptIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HourEntryDialog } from "@/components/hours/hour-entry-dialog";
+import { EmployeeLink } from "@/components/employees/employee-link";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import type {
   Client,
@@ -242,7 +243,9 @@ export function JobDetail({
             <Card key={entry.id}>
               <CardContent className="flex items-center justify-between gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{entry.employee.name}</p>
+                  <p className="truncate text-sm font-medium">
+                    <EmployeeLink name={entry.employee.name} />
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDate(entry.work_date)} · {entry.hours}h @{" "}
                     {formatCurrency(entry.rate)}/hr

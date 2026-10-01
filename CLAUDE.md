@@ -533,8 +533,13 @@ job-name sync trigger.
 - `/dashboard/jobs` -> `/dashboard/jobs/[id]` shows the job cost rollup:
   sum of tagged expenses (`receipts.total_amount` where `job_id` matches)
   + sum of labor (`hour_entries.labor_cost`) = true job cost.
-  `/dashboard/employees` and `/dashboard/hours` round out the section,
-  linked together by `src/components/jobs/job-cost-nav.tsx`.
+  Navigation: **Jobs** and **Employees** are separate top-level tabs
+  (`nav-config.ts`; general business only, Employees sits after Jobs and is in
+  the mobile "More" sheet since the bottom bar's 4 primary slots are full).
+  The Employees tab covers `/dashboard/employees` *and* `/dashboard/hours`
+  (PIN management, who's clocked in, logging/correcting hours), with a small
+  Employees | Hours toggle between them (`employees-nav.tsx`). Routes and data
+  are unchanged - this is only which tab lights up.
 - The receipt job picker (`upload-receipt.tsx`, `receipt-detail-dialog.tsx`)
   uses a `Select` with a "+ Add new job" inline-create option (same
   pattern as `new_client` on documents), not a native
@@ -578,8 +583,11 @@ row, **no Supabase JWT ever issued** to an employee.
   nothing while a table-level GRANT exists). Select it with explicit columns.
   `create_employee_pin` (rejects `PIN_ALREADY_SET`) and `reset_employee_pin`
   (rejects `PIN_NOT_SET`) are separate so an employee can't be set up twice;
-  Settings' creation list only offers employees without a PIN, Employees page
-  only offers Reset. `verify_employee_pin` is `service_role`-only, with the
+  the Employees page row offers "Set PIN" only to someone with no PIN, and
+  "Reset PIN" / "Remove login" only to someone who has one. **Per-employee PIN
+  management lives only on the Employees page** (the single home for employees);
+  Settings' "Employee login" section is just the shared sign-in link (create /
+  regenerate) plus a pointer to the Employees page. `verify_employee_pin` is `service_role`-only, with the
   same 5-miss/15-min lockout as stylists, plus a per-IP failure throttle in
   `POST /api/employee-portal/login`.
 - **Sessions are server-side** (`employee_sessions`: sha256 of an opaque

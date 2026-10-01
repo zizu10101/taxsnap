@@ -43,23 +43,16 @@ export default async function SettingsPage() {
   ]);
 
   // Employee clock-in login is a general-business feature (salons use the
-  // commission/register flow instead).
+  // commission/register flow instead). Settings only shows the shared link;
+  // per-employee PINs are managed on the Employees page.
   const showEmployeeLogin = profile?.business_type === "general";
-  const [{ data: loginSettings }, { data: employees }, { data: pins }] = showEmployeeLogin
-    ? await Promise.all([
-        supabase
-          .from("app_settings")
-          .select("employee_login_token")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("employees")
-          .select("id, name")
-          .eq("is_active", true)
-          .order("name", { ascending: true }),
-        supabase.from("employee_pins").select("employee_id"),
-      ])
-    : [{ data: null }, { data: null }, { data: null }];
+  const { data: loginSettings } = showEmployeeLogin
+    ? await supabase
+        .from("app_settings")
+        .select("employee_login_token")
+        .eq("user_id", user.id)
+        .maybeSingle()
+    : { data: null };
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -89,11 +82,7 @@ export default async function SettingsPage() {
         />
 
         {showEmployeeLogin && (
-          <EmployeeLoginSettings
-            initialToken={loginSettings?.employee_login_token ?? null}
-            employees={employees ?? []}
-            pinEmployeeIds={(pins ?? []).map((p) => p.employee_id)}
-          />
+          <EmployeeLoginSettings initialToken={loginSettings?.employee_login_token ?? null} />
         )}
 
         {/* Same gate as /billing's own button (hasBillingAccount there) -

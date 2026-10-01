@@ -28,13 +28,21 @@ const timeFormat = new Intl.DateTimeFormat(undefined, {
 export function EmployeeAccessRow({
   hasPin,
   openSession,
+  removingLogin,
+  onSetPin,
   onResetPin,
+  onRemoveLogin,
   onCloseSession,
   onViewSessions,
 }: {
   hasPin: boolean;
   openSession: OpenSessionInfo | null;
+  removingLogin: boolean;
+  // Creation only offered to someone with no PIN yet; reset/remove only to
+  // someone who has one (the server enforces the same split).
+  onSetPin: () => void;
   onResetPin: () => void;
+  onRemoveLogin: () => void;
   onCloseSession: () => void;
   onViewSessions: () => void;
 }) {
@@ -56,9 +64,17 @@ export function EmployeeAccessRow({
             <Button variant="ghost" size="sm" onClick={onResetPin}>
               Reset PIN
             </Button>
+            <Button variant="ghost" size="sm" disabled={removingLogin} onClick={onRemoveLogin}>
+              Remove login
+            </Button>
           </>
         ) : (
-          <Badge variant="outline">No login set up</Badge>
+          <>
+            <Badge variant="outline">No login set up</Badge>
+            <Button variant="outline" size="sm" onClick={onSetPin}>
+              Set PIN
+            </Button>
+          </>
         )}
       </div>
 

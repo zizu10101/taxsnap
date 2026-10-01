@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Briefcase, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { JobCostNav } from "@/components/jobs/job-cost-nav";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
 import { JobWorkstation } from "@/components/jobs/job-workstation";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
@@ -28,8 +27,6 @@ export function JobList({
 
   return (
     <div className="space-y-4">
-      <JobCostNav active="jobs" />
-
       <UsageLimitBar
         tier={subscriptionStatus}
         current={jobs.length}

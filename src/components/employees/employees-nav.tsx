@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-// Lateral nav between the three job-cost pages, same pattern as the
-// Invoices/Estimates toggle at the top of DocumentList.
-export function JobCostNav({ active }: { active: "jobs" | "employees" | "hours" }) {
+// Lateral nav between the two pages under the Employees tab (the people, and
+// the hours they've worked - including clocked sessions), same pattern as
+// the Invoices/Estimates toggle at the top of DocumentList. Jobs is its own
+// top-level tab now, so it's no longer part of this toggle.
+export function EmployeesNav({ active }: { active: "employees" | "hours" }) {
   const links = [
-    { key: "jobs", href: "/dashboard/jobs", label: "Jobs" },
     { key: "employees", href: "/dashboard/employees", label: "Employees" },
     { key: "hours", href: "/dashboard/hours", label: "Hours" },
   ] as const;
