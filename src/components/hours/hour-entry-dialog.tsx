@@ -22,11 +22,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Employee, HourEntryWithRelations, Job } from "@/lib/database.types";
+import { validateWorkDateForDialog } from "@/lib/work-date";
 
 const NEW_JOB = "__new_job__";
 
+// Local calendar date, not toISOString() (which is UTC): in the evening
+// (after ~8pm in Toronto) UTC is already tomorrow, so the dialog used to
+// default to - and the old code treated as "today" - a date in the future.
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function HourEntryDialog({
@@ -65,6 +71,7 @@ export function HourEntryDialog({
     entry?.billable_rate ?? activeEmployees[0]?.default_billable_rate ?? 0,
   );
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const employeeSelectItems = useMemo(() => {
     const map: Record<string, string> = {};
@@ -90,20 +97,36 @@ export function HourEntryDialog({
     }
   }
 
+  // Errors are shown inline in the dialog (where the person is looking) as
+  // well as in a toast - a toast alone lands in the far corner, dimmed behind
+  // the modal, and is easy to miss.
+  function fail(message: string) {
+    setError(message);
+    toast.error(message);
+  }
+
   async function handleSave() {
     if (!employeeId) {
-      toast.error("Select an employee.");
+      fail("Select an employee.");
       return;
     }
     if (jobId === NEW_JOB && !newJobName.trim()) {
-      toast.error("Enter a name for the new job.");
+      fail("Enter a name for the new job.");
+      return;
+    }
+    // Empty (cleared/half-typed) or in the future. The API enforces the same
+    // rule; checking here tells the person immediately, in the dialog.
+    const dateError = validateWorkDateForDialog(workDate, todayIso());
+    if (dateError) {
+      fail(dateError);
       return;
     }
     if (!hours || hours <= 0) {
-      toast.error("Enter hours worked.");
+      fail("Enter hours worked.");
       return;
     }
 
+    setError(null);
     setSaving(true);
     try {
       const body = {
@@ -130,7 +153,7 @@ export function HourEntryDialog({
       toast.success(isEditing ? "Hour entry updated" : "Hours logged");
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      fail(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);
     }
@@ -205,7 +228,15 @@ export function HourEntryDialog({
                 id="hour-date"
                 type="date"
                 value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+                onChange={(e) => {
+                  setWorkDate(e.target.value);
+                  // Say so as soon as a future date is picked, not only on save.
+                  setError(
+                    e.target.value && e.target.value > todayIso()
+                      ? validateWorkDateForDialog(e.target.value, todayIso())
+                      : null,
+                  );
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -229,6 +260,12 @@ export function HourEntryDialog({
             </div>
           </div>
         </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

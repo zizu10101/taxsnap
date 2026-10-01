@@ -541,6 +541,18 @@ job-name sync trigger.
   `<input list>`/`<datalist>` - that native pattern doesn't render as an
   actual dropdown on most mobile browsers, it just looks like a plain
   text box with nothing to pick from.
+- Hours can't be dated in the future (manual Log/Edit hours; clocked sessions
+  already refuse future times in `owner_edit_time_session`). Enforced in both
+  `HourEntryDialog` (strict, against the person's local date, inline message
+  "Date can't be in the future.") and `POST`/`PATCH /api/hours`
+  (`lib/work-date.ts`, unit-tested: 400 with the same message). The API
+  deliberately accepts up to *one day* past Toronto's today, because the browser
+  sends the person's own local date and zones ahead of Toronto (Atlantic,
+  Newfoundland) are already "tomorrow" for a short window after their
+  midnight - the dialog is the strict one. An empty/malformed `work_date` is a
+  400, never silently defaulted to today (only an *omitted* one is). Dialog
+  errors show inline as well as in a toast: a toast alone lands in the far
+  corner, dimmed behind the modal, and reads as "nothing happened".
 - `DashboardHeader`'s top nav (Estimates/Invoices/Jobs/Commission) takes an
   optional `active` prop that highlights the current tab
   (`variant={active === X ? "default" : "outline"}`) - pass it from every

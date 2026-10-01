@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { validateWorkDateForApi } from "@/lib/work-date";
 
 export async function GET(request: Request) {
   const result = await requireUser();
@@ -53,6 +54,13 @@ export async function POST(request: Request) {
   }
   if (!Number(hours) || Number(hours) <= 0) {
     return NextResponse.json({ error: "hours must be greater than 0." }, { status: 400 });
+  }
+  // Omitted/null = "today" (the column default). Anything actually sent must
+  // be a real date that isn't in the future - an empty string used to be
+  // treated as "not given" and silently logged for today.
+  if (work_date !== undefined && work_date !== null) {
+    const dateError = validateWorkDateForApi(work_date, new Date());
+    if (dateError) return NextResponse.json({ error: dateError }, { status: 400 });
   }
 
   // Ownership of employee_id/job_id is checked explicitly rather than
@@ -128,7 +136,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       employee_id,
       job_id: jobId,
-      work_date: work_date || undefined,
+      work_date: work_date ?? undefined,
       hours: Number(hours),
       rate,
       billable_rate: billableRate,

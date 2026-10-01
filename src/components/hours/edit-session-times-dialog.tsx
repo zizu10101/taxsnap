@@ -23,6 +23,23 @@ import type { HourEntrySession } from "@/lib/database.types";
 // database recomputes them from the timestamps (owner_edit_time_session), so
 // the linked entry can never disagree with the session it came from.
 //
+// The database refuses future times (owner_edit_time_session); checking here
+// too means the person is told why before sending, instead of seeing a
+// "New total" that looks fine and a save that does nothing visible. Allows
+// 1 minute of clock skew, same as the database. Pure: the caller passes the
+// current time (from an event handler).
+function validateTimes(startValue: string, endValue: string, nowMs: number): string | null {
+  const start = fromLocalInput(startValue);
+  const end = fromLocalInput(endValue);
+  if (!start || !end) return "Enter valid start and end times.";
+  const limit = nowMs + 60_000;
+  if (new Date(start).getTime() > limit || new Date(end).getTime() > limit) {
+    return "Times can't be in the future.";
+  }
+  if (new Date(end) <= new Date(start)) return "The end time must be after the start time.";
+  return null;
+}
+
 // Parent keys this by session id (and remounts on every open), so the inputs
 // seed fresh from the session each time.
 export function EditSessionTimesDialog({
@@ -43,6 +60,11 @@ export function EditSessionTimesDialog({
     session.clock_out_at ? toLocalInput(session.clock_out_at) : "",
   );
   const [saving, setSaving] = useState(false);
+  // Inline error, shown right under the fields. Covers both the checks done
+  // here as the person edits and anything the server rejects on save (future
+  // times, overlap with another session...) - a toast alone shows up in the
+  // far corner behind the modal and is easy to miss.
+  const [error, setError] = useState<string | null>(null);
 
   const startIso = fromLocalInput(startValue);
   const endIso = fromLocalInput(endValue);
@@ -52,10 +74,12 @@ export function EditSessionTimesDialog({
       : null;
 
   async function handleSave() {
-    if (!startIso || !endIso) {
-      toast.error("Enter valid start and end times.");
+    const problem = validateTimes(startValue, endValue, new Date().getTime());
+    if (problem || !startIso || !endIso) {
+      setError(problem ?? "Enter valid start and end times.");
       return;
     }
+    setError(null);
     setSaving(true);
     try {
       const res = await fetch(`/api/time-sessions/${session.id}`, {
@@ -69,7 +93,9 @@ export function EditSessionTimesDialog({
       onSaved(session.id);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -92,7 +118,10 @@ export function EditSessionTimesDialog({
               id="session-start"
               type="datetime-local"
               value={startValue}
-              onChange={(e) => setStartValue(e.target.value)}
+              onChange={(e) => {
+                setStartValue(e.target.value);
+                setError(validateTimes(e.target.value, endValue, Date.now()));
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -101,22 +130,29 @@ export function EditSessionTimesDialog({
               id="session-end"
               type="datetime-local"
               value={endValue}
-              onChange={(e) => setEndValue(e.target.value)}
+              onChange={(e) => {
+                setEndValue(e.target.value);
+                setError(validateTimes(startValue, e.target.value, Date.now()));
+              }}
             />
           </div>
         </div>
 
-        <p className="text-sm text-muted-foreground tabular-nums">
-          {previewHours !== null
-            ? `New total: ${previewHours.toFixed(2)} h`
-            : "The end time must be after the start time."}
-        </p>
+        {error ? (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {previewHours !== null ? `New total: ${previewHours.toFixed(2)} h` : ""}
+          </p>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || previewHours === null}>
+          <Button onClick={handleSave} disabled={saving || previewHours === null || error !== null}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Save changes
           </Button>

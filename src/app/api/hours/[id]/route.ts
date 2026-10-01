@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { validateWorkDateForApi } from "@/lib/work-date";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, HourEntryUpdate } from "@/lib/database.types";
 
@@ -77,7 +78,11 @@ export async function PATCH(
     }
     update.job_id = job_id;
   }
-  if (work_date !== undefined) update.work_date = work_date;
+  if (work_date !== undefined) {
+    const dateError = validateWorkDateForApi(work_date, new Date());
+    if (dateError) return NextResponse.json({ error: dateError }, { status: 400 });
+    update.work_date = work_date;
+  }
   if (hours !== undefined) {
     if (!Number(hours) || Number(hours) <= 0) {
       return NextResponse.json({ error: "hours must be greater than 0." }, { status: 400 });
