@@ -1,8 +1,10 @@
 import Link from "next/link";
 import {
   Camera,
+  Clock,
   FileSignature,
   FileSpreadsheet,
+  HandCoins,
   Layers,
   Receipt,
   Sparkles,
@@ -177,10 +179,22 @@ const GENERAL_FEATURES = [
       "Materials, labor, and the payments you've actually received, netted out for every job.",
   },
   {
+    icon: Clock,
+    title: "Employee clock-in",
+    description:
+      "Your crew clocks in and out from their own phone with a personal PIN. No accounts to set up and nothing for you to type in, and the hours land on the right job.",
+  },
+  {
     icon: Layers,
     title: "Progress billing",
     description:
       "Bill a job in draws and see what's invoiced, received, and still owed against the contract.",
+  },
+  {
+    icon: HandCoins,
+    title: "Deposits & partial payments",
+    description:
+      "Record deposits and partial payments as they arrive. TaxSnap counts them for HST in the period you actually got paid.",
   },
   {
     icon: FileSignature,
@@ -371,7 +385,7 @@ export default function Home() {
           <h2 className="font-heading text-2xl font-bold">
             Everything a one-person business needs, nothing it doesn&apos;t.
           </h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {GENERAL_FEATURES.map((feature) => (
               <div
                 key={feature.title}

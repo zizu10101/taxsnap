@@ -34,7 +34,7 @@ export default function FeaturesPage() {
               <Link
                 key={feature.title}
                 href={feature.href}
-                className="group flex flex-col gap-3 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary"
+                className="group flex flex-col gap-3 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary sm:[&:last-child:nth-child(odd)]:col-span-2"
               >
                 <feature.icon className="h-5 w-5 text-primary" />
                 <h2 className="font-heading text-lg font-bold">

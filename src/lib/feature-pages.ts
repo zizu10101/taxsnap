@@ -1,5 +1,6 @@
 import {
   Briefcase,
+  Clock,
   FileArchive,
   FileText,
   Landmark,
@@ -42,6 +43,13 @@ export const FEATURE_PAGES: FeaturePage[] = [
     description:
       "Track profitability per job. Log materials, assign labor hours, link the invoice — see your real margin on every project, not just a guess.",
     href: "/features/job-costing",
+  },
+  {
+    icon: Clock,
+    title: "Employee Clock-In",
+    description:
+      "Your crew clocks in and out of jobs from their own phone with a personal PIN. No accounts to manage, no hours to type in, and every session lands on the right job.",
+    href: "/features/employee-clock-in",
   },
   {
     icon: Layers,

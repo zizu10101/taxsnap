@@ -26,7 +26,14 @@ export interface FeatureDetailProps {
   mobileSrc?: string;
   /** Omit when no real screenshot exists yet - renders a placeholder instead. */
   desktopSrc?: string;
-  screenshotAlt: string;
+  /** Required whenever the screenshot block is shown. */
+  screenshotAlt?: string;
+  /**
+   * Skip the screenshot section entirely (no placeholder) - for a page whose
+   * real screenshots aren't ready yet. Flip it off and pass the src props
+   * once they exist.
+   */
+  hideScreenshot?: boolean;
 }
 
 // Shared shell for every /features/<slug> detail page - same header/CTA/
@@ -47,7 +54,8 @@ export function FeatureDetail({
   paragraphs,
   mobileSrc,
   desktopSrc,
-  screenshotAlt,
+  screenshotAlt = "",
+  hideScreenshot = false,
 }: FeatureDetailProps) {
   return (
     <main className="flex flex-1 flex-col bg-background">
@@ -80,16 +88,18 @@ export function FeatureDetail({
         )}
       </section>
 
-      <section className="border-t border-border">
-        <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
-          <FeatureScreenshotToggle
-            mobileSrc={mobileSrc}
-            desktopSrc={desktopSrc}
-            alt={screenshotAlt}
-            placeholderIcon={<Icon className="h-8 w-8 text-muted-foreground/60" />}
-          />
-        </div>
-      </section>
+      {!hideScreenshot && (
+        <section className="border-t border-border">
+          <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
+            <FeatureScreenshotToggle
+              mobileSrc={mobileSrc}
+              desktopSrc={desktopSrc}
+              alt={screenshotAlt}
+              placeholderIcon={<Icon className="h-8 w-8 text-muted-foreground/60" />}
+            />
+          </div>
+        </section>
+      )}
 
       {howItWorks && howItWorks.length > 0 && (
         <section className="border-t border-border">
