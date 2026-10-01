@@ -601,6 +601,10 @@ export interface Database {
           labor_cost: number;
           billable_rate: number;
           labor_revenue: number;
+          // Set when this entry was generated from a clock-in/out session
+          // (0043_employee_login.sql). Hours/date on such a row are derived
+          // from the session's timestamps - edit the session, not the entry.
+          time_session_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -612,6 +616,7 @@ export interface Database {
           hours: number;
           rate: number;
           billable_rate?: number;
+          time_session_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -626,6 +631,13 @@ export interface Database {
           created_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "hour_entries_time_session_id_fkey";
+            columns: ["time_session_id"];
+            isOneToOne: true;
+            referencedRelation: "time_sessions";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "hour_entries_employee_id_fkey";
             columns: ["employee_id"];
@@ -1201,17 +1213,111 @@ export interface Database {
           staff_pin_hash: string | null;
           has_owner_pin: boolean;
           has_staff_pin: boolean;
+          // Shared per-business employee clock-in link token (0043).
+          employee_login_token: string | null;
           created_at: string;
         };
         Insert: {
           user_id: string;
+          employee_login_token?: string | null;
           created_at?: string;
         };
         Update: {
           user_id?: string;
+          employee_login_token?: string | null;
           created_at?: string;
         };
         Relationships: [];
+      };
+      // pin_hash is deliberately absent from Row: it's never selectable by
+      // authenticated/anon (0043_employee_login.sql) so nothing typed here
+      // should ever pretend otherwise.
+      employee_pins: {
+        Row: {
+          employee_id: string;
+          user_id: string;
+          pin_failed_attempts: number;
+          pin_locked_until: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      employee_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          user_id: string;
+          employee_id: string;
+          created_at: string;
+          last_seen_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          user_id: string;
+          employee_id: string;
+          created_at?: string;
+          last_seen_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          last_seen_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "employee_sessions_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      employee_login_failures: {
+        Row: { id: number; ip: string; created_at: string };
+        Insert: { ip: string; created_at?: string };
+        Update: never;
+        Relationships: [];
+      };
+      time_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          employee_id: string;
+          job_id: string;
+          clock_in_at: string;
+          clock_out_at: string | null;
+          rate: number;
+          billable_rate: number;
+          closed_by: "employee" | "owner" | null;
+          owner_edited_at: string | null;
+          original_clock_in_at: string | null;
+          original_clock_out_at: string | null;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "time_sessions_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "time_sessions_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
@@ -1277,6 +1383,42 @@ export interface Database {
         };
         Returns: string | null;
       };
+      create_employee_pin: {
+        Args: { p_employee_id: string; p_pin: string };
+        Returns: undefined;
+      };
+      reset_employee_pin: {
+        Args: { p_employee_id: string; p_pin: string };
+        Returns: undefined;
+      };
+      remove_employee_pin: {
+        Args: { p_employee_id: string };
+        Returns: undefined;
+      };
+      verify_employee_pin: {
+        Args: { p_user_id: string; p_employee_id: string; p_pin: string };
+        Returns: boolean;
+      };
+      employee_clock_in: {
+        Args: { p_user_id: string; p_employee_id: string; p_job_id: string };
+        Returns: Database["public"]["Tables"]["time_sessions"]["Row"];
+      };
+      employee_clock_out: {
+        Args: { p_user_id: string; p_employee_id: string };
+        Returns: Database["public"]["Tables"]["time_sessions"]["Row"];
+      };
+      owner_close_time_session: {
+        Args: { p_id: string; p_clock_out_at: string };
+        Returns: Database["public"]["Tables"]["time_sessions"]["Row"];
+      };
+      owner_edit_time_session: {
+        Args: { p_id: string; p_clock_in_at: string; p_clock_out_at: string | null };
+        Returns: Database["public"]["Tables"]["time_sessions"]["Row"];
+      };
+      owner_delete_time_session: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
       create_register_transaction: {
         Args: {
           p_customer_name: string | null;
@@ -1311,6 +1453,8 @@ export type LineItemUpdate = Database["public"]["Tables"]["line_items"]["Update"
 export type ExpenseTemplate = Database["public"]["Tables"]["expense_templates"]["Row"];
 export type Employee = Database["public"]["Tables"]["employees"]["Row"];
 export type EmployeeUpdate = Database["public"]["Tables"]["employees"]["Update"];
+export type TimeSession = Database["public"]["Tables"]["time_sessions"]["Row"];
+export type EmployeePinStatus = Database["public"]["Tables"]["employee_pins"]["Row"];
 export type HourEntry = Database["public"]["Tables"]["hour_entries"]["Row"];
 export type HourEntryUpdate = Database["public"]["Tables"]["hour_entries"]["Update"];
 export type Renter = Database["public"]["Tables"]["renters"]["Row"];
@@ -1384,7 +1528,21 @@ export interface ExpenseTemplateWithJob extends ExpenseTemplate {
   job: { name: string } | null;
 }
 
+// The slice of a clocked session the Hours page needs to show its times and
+// let the owner correct them. Absent on manually logged entries.
+export type HourEntrySession = Pick<
+  TimeSession,
+  | "id"
+  | "clock_in_at"
+  | "clock_out_at"
+  | "closed_by"
+  | "owner_edited_at"
+  | "original_clock_in_at"
+  | "original_clock_out_at"
+>;
+
 export interface HourEntryWithRelations extends HourEntry {
   employee: Employee;
   job: Job;
+  session?: HourEntrySession | null;
 }

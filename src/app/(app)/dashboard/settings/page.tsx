@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
+import { EmployeeLoginSettings } from "@/components/settings/employee-login-settings";
 import { ThemeSettings } from "@/components/settings/theme-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
@@ -41,6 +42,25 @@ export default async function SettingsPage() {
       .single(),
   ]);
 
+  // Employee clock-in login is a general-business feature (salons use the
+  // commission/register flow instead).
+  const showEmployeeLogin = profile?.business_type === "general";
+  const [{ data: loginSettings }, { data: employees }, { data: pins }] = showEmployeeLogin
+    ? await Promise.all([
+        supabase
+          .from("app_settings")
+          .select("employee_login_token")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("employees")
+          .select("id, name")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        supabase.from("employee_pins").select("employee_id"),
+      ])
+    : [{ data: null }, { data: null }, { data: null }];
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <Link
@@ -67,6 +87,14 @@ export default async function SettingsPage() {
           pendingTier={profile?.pending_tier ?? null}
           pendingChangeEffectiveAt={profile?.pending_change_effective_at ?? null}
         />
+
+        {showEmployeeLogin && (
+          <EmployeeLoginSettings
+            initialToken={loginSettings?.employee_login_token ?? null}
+            employees={employees ?? []}
+            pinEmployeeIds={(pins ?? []).map((p) => p.employee_id)}
+          />
+        )}
 
         {/* Same gate as /billing's own button (hasBillingAccount there) -
             a Stripe customer only exists once someone's actually gone

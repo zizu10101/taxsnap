@@ -24,7 +24,7 @@ export default async function HoursPage() {
   const [{ data: entries }, { data: employees }, { data: jobs }] = await Promise.all([
     supabase
       .from("hour_entries")
-      .select("*, employee:employees(*), job:jobs(*)")
+      .select("*, employee:employees(*), job:jobs(*), session:time_sessions(id, clock_in_at, clock_out_at, closed_by, owner_edited_at, original_clock_in_at, original_clock_out_at)")
       .order("work_date", { ascending: false }),
     supabase.from("employees").select("*").order("name", { ascending: true }),
     supabase.from("jobs").select("*").order("name", { ascending: true }),

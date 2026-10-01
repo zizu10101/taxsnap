@@ -520,8 +520,8 @@ device+capability is known.
 ## Employee hour tracking & job costing
 
 Pro-gated like invoicing (`requireProUser()` on every `/api/jobs`,
-`/api/employees`, `/api/hours` route) - entered entirely by the account
-owner, no employee login/self-serve access exists or is planned. See
+`/api/employees`, `/api/hours` route) - owner-entered, plus an optional
+employee clock-in/out portal (see "Employee login & clock-in/out" below). See
 "Database" above for the `jobs`/`employees`/`hour_entries` schema and the
 job-name sync trigger.
 
@@ -543,6 +543,68 @@ job-name sync trigger.
   since they share one tab, same idea for Commission's four pages passing
   `active="commission"`). `/dashboard` itself passes no `active`, so
   nothing is highlighted there.
+
+## Employee login & clock-in/out (general business)
+
+Migration `0043_employee_login.sql`. Employees sign in with **one shared
+per-business link** (`/employee-login/[token]`, `app_settings.employee_login_token`,
+`generateOpaqueToken()`, reusable until the owner regenerates it) + a
+**4-digit PIN** each (name picked from a dropdown, so duplicate names are
+harmless and PINs need not be unique). No email, no password, no `auth.users`
+row, **no Supabase JWT ever issued** to an employee.
+
+- **PINs live in `employee_pins`** (row exists == has a PIN), not as a
+  column-revoked `pin_hash` on `employees` like stylists - a revoked column
+  makes every bare `select("*")` / `employee:employees(*)` embed fail, and
+  `employees` is selected that way all over. The table is revoked at the
+  *table* level and re-granted per safe column (a column-level REVOKE does
+  nothing while a table-level GRANT exists). Select it with explicit columns.
+  `create_employee_pin` (rejects `PIN_ALREADY_SET`) and `reset_employee_pin`
+  (rejects `PIN_NOT_SET`) are separate so an employee can't be set up twice;
+  Settings' creation list only offers employees without a PIN, Employees page
+  only offers Reset. `verify_employee_pin` is `service_role`-only, with the
+  same 5-miss/15-min lockout as stylists, plus a per-IP failure throttle in
+  `POST /api/employee-portal/login`.
+- **Sessions are server-side** (`employee_sessions`: sha256 of an opaque
+  `ts_emp_session` httpOnly cookie, 30-day sliding expiry). Resetting/removing
+  a PIN, deactivating the employee (DB trigger), or regenerating the link
+  deletes the rows, cutting access on the next request.
+- **Route protection is default-deny and lives in `proxy.ts`**
+  (`lib/supabase/middleware.ts` -> `decideEmployeeAccess` in
+  `lib/employee-route-guard.ts`, unit-tested: `npm test`). With a valid
+  employee cookie and no Supabase user, every page outside `/employee/**` and
+  `/employee-login/**` redirects to `/employee/hours`, and every `/api/**`
+  outside `/api/employee-portal/**` gets a JSON 403 - so a route added
+  anywhere else tomorrow is already unreachable to employees. Anything added
+  *under* those prefixes must call `requireEmployeeSession()` (login/logout
+  excepted). A real owner session always wins over a stale employee cookie.
+  An invalid/expired cookie is cleared by the proxy. Unlike the salon staff-mode
+  guard (a client-side nav gate on the owner's own session), this is a real
+  boundary: employees never hold a Supabase session, and all their data access
+  is server-side via the service client keyed off the verified session row -
+  never an id from the request body.
+- **Clock sessions** (`time_sessions`) are separate from `hour_entries`: closing
+  or editing one writes the linked `hour_entries` row (`time_session_id`) in the
+  same transaction via `_sync_time_session_entry`, so job costing is untouched
+  and an open session never leaks into it. All timestamps are server time;
+  `work_date` is the clock-in date in `America/Toronto`. Rates are snapshotted
+  at clock-in. A unique partial index + a gist exclusion constraint make two
+  open (or overlapping) sessions per employee impossible. **A second clock-in is
+  blocked, never auto-closed** (auto-closing would guess an end time and silently
+  book a bogus long session); the employee is told what is open. Hours/date on a
+  session-linked `hour_entries` row can't be edited or deleted directly
+  (`LINKED_TO_SESSION`) - edit the session (rate edits are still allowed).
+- **Owner side**: Employees page shows "Clocked in since X" per employee (turns
+  destructive after 12h, `STALE_SESSION_HOURS`), a Close-session dialog
+  (`owner_close_time_session`), and a Sessions dialog to edit either timestamp
+  (`owner_edit_time_session`). Owner-closed/edited sessions are flagged with a
+  visible badge and keep their `original_*` times. The same time editing is
+  on the Hours page (clocked rows get a "Clocked" badge, time range, pencil ->
+  `EditSessionTimesDialog`; manual rows get the regular Edit hours dialog).
+  A session can be deleted (open or completed, from Hours or the Sessions
+  dialog) via `owner_delete_time_session` (`0045`), which deletes its linked
+  `hour_entries` row in the same transaction - never leave the entry behind,
+  the FK is `ON DELETE SET NULL` and would turn it into a manual entry.
 
 ## Commission tracking (per-stylist)
 

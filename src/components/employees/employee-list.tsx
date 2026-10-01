@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobCostNav } from "@/components/jobs/job-cost-nav";
 import { EmployeeDialog } from "@/components/employees/employee-dialog";
+import { EmployeeAccessRow } from "@/components/employees/employee-access-row";
+import { EmployeePinDialog } from "@/components/employees/employee-pin-dialog";
+import {
+  CloseSessionDialog,
+  type OpenSessionInfo,
+} from "@/components/employees/close-session-dialog";
+import { EmployeeSessionsDialog } from "@/components/employees/employee-sessions-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { Employee, SubscriptionStatus } from "@/lib/database.types";
@@ -24,9 +31,16 @@ export function EmployeeList({
   initialEmployees,
   subscriptionStatus,
   showNav = true,
+  pinEmployeeIds,
+  openSessions,
 }: {
   initialEmployees: Employee[];
   subscriptionStatus: SubscriptionStatus;
+  // Employees page only: which employees have a login PIN, and who is
+  // clocked in right now. Omitted by the onboarding staff step, which gets
+  // no access row at all.
+  pinEmployeeIds?: string[];
+  openSessions?: OpenSessionInfo[];
   // Off for the onboarding flow, which reuses this list+dialog wholesale
   // but isn't part of the Jobs section's own tab row.
   showNav?: boolean;
@@ -35,6 +49,27 @@ export function EmployeeList({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const router = useRouter();
+  const showAccess = showNav && pinEmployeeIds !== undefined && openSessions !== undefined;
+  const [pinIds, setPinIds] = useState(() => new Set(pinEmployeeIds ?? []));
+  const [openByEmployee, setOpenByEmployee] = useState(
+    () => new Map((openSessions ?? []).map((s) => [s.employeeId, s])),
+  );
+  const [resetTarget, setResetTarget] = useState<Employee | null>(null);
+  const [closeTarget, setCloseTarget] = useState<Employee | null>(null);
+  const [sessionsTarget, setSessionsTarget] = useState<Employee | null>(null);
+
+  function renderAccessRow(employee: Employee) {
+    if (!showAccess || !employee.is_active) return null;
+    return (
+      <EmployeeAccessRow
+        hasPin={pinIds.has(employee.id)}
+        openSession={openByEmployee.get(employee.id) ?? null}
+        onResetPin={() => setResetTarget(employee)}
+        onCloseSession={() => setCloseTarget(employee)}
+        onViewSessions={() => setSessionsTarget(employee)}
+      />
+    );
+  }
 
   function upsert(employee: Employee) {
     setEmployees((prev) => {
@@ -194,6 +229,8 @@ export function EmployeeList({
                       {employee.is_active ? "Deactivate" : "Reactivate"}
                     </Button>
                   </div>
+
+                  {renderAccessRow(employee)}
                 </div>
               ))}
             </div>
@@ -234,6 +271,49 @@ export function EmployeeList({
             </Card>
           ))}
         </div>
+      )}
+
+      {showAccess && (
+        <>
+          <EmployeePinDialog
+            employee={resetTarget}
+            mode="reset"
+            open={resetTarget !== null}
+            onOpenChange={(open) => !open && setResetTarget(null)}
+            onDone={(id) => setPinIds((prev) => new Set(prev).add(id))}
+          />
+          <CloseSessionDialog
+            key={openByEmployee.get(closeTarget?.id ?? "")?.id ?? "none"}
+            session={closeTarget ? (openByEmployee.get(closeTarget.id) ?? null) : null}
+            employeeName={closeTarget?.name ?? ""}
+            open={closeTarget !== null}
+            onOpenChange={(open) => !open && setCloseTarget(null)}
+            onClosed={(employeeId) =>
+              setOpenByEmployee((prev) => {
+                const next = new Map(prev);
+                next.delete(employeeId);
+                return next;
+              })
+            }
+          />
+          <EmployeeSessionsDialog
+            key={sessionsTarget?.id ?? "none"}
+            employee={sessionsTarget}
+            open={sessionsTarget !== null}
+            onOpenChange={(open) => !open && setSessionsTarget(null)}
+            onChanged={(change) => {
+              if (change?.openSessionDeleted && sessionsTarget) {
+                const employeeId = sessionsTarget.id;
+                setOpenByEmployee((prev) => {
+                  const next = new Map(prev);
+                  next.delete(employeeId);
+                  return next;
+                });
+              }
+              router.refresh();
+            }}
+          />
+        </>
       )}
 
       <EmployeeDialog

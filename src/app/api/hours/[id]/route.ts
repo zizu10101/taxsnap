@@ -1,6 +1,31 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import type { HourEntryUpdate } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, HourEntryUpdate } from "@/lib/database.types";
+
+// Entries generated from a clock-in/out session derive hours/date/employee/
+// job from that session (0043_employee_login.sql) - editing or deleting the
+// entry directly would drift from the session's timestamps. Rate edits stay
+// allowed.
+async function linkedSessionBlock(
+  supabase: SupabaseClient<Database>,
+  id: string,
+) {
+  const { data } = await supabase
+    .from("hour_entries")
+    .select("time_session_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data?.time_session_id) return null;
+  return NextResponse.json(
+    {
+      error:
+        "This entry came from a clocked session. Edit the session's start/end times on the Employees page instead.",
+      code: "LINKED_TO_SESSION",
+    },
+    { status: 409 },
+  );
+}
 
 export async function PATCH(
   request: Request,
@@ -15,6 +40,16 @@ export async function PATCH(
 
   const body = await request.json();
   const { employee_id, job_id, work_date, hours, rate, billable_rate } = body ?? {};
+
+  if (
+    employee_id !== undefined ||
+    job_id !== undefined ||
+    work_date !== undefined ||
+    hours !== undefined
+  ) {
+    const blocked = await linkedSessionBlock(supabase, id);
+    if (blocked) return blocked;
+  }
 
   const update: HourEntryUpdate = {};
 
@@ -72,6 +107,9 @@ export async function DELETE(
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
   const { id } = await params;
+
+  const blocked = await linkedSessionBlock(result.supabase, id);
+  if (blocked) return blocked;
 
   const { error } = await result.supabase.from("hour_entries").delete().eq("id", id);
 

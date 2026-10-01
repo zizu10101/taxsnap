@@ -31,6 +31,24 @@ export default async function EmployeesPage() {
     .select("*")
     .order("name", { ascending: true });
 
+  // PIN status (employee_pins exposes only non-secret columns to the owner)
+  // and who is clocked in right now, so a forgotten clock-out is visible
+  // on this page without opening anything.
+  const [{ data: pins }, { data: openRows }] = await Promise.all([
+    supabase.from("employee_pins").select("employee_id"),
+    supabase
+      .from("time_sessions")
+      .select("id, employee_id, clock_in_at, job:jobs(name)")
+      .is("clock_out_at", null),
+  ]);
+
+  const openSessions = (openRows ?? []).map((row) => ({
+    id: row.id,
+    employeeId: row.employee_id,
+    clockInAt: row.clock_in_at,
+    jobName: (row.job as unknown as { name: string } | null)?.name ?? "a job",
+  }));
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
       <PageHeader
@@ -41,6 +59,8 @@ export default async function EmployeesPage() {
 
       <EmployeeList
         initialEmployees={employees ?? []}
+        pinEmployeeIds={(pins ?? []).map((p) => p.employee_id)}
+        openSessions={openSessions}
         subscriptionStatus={profile?.subscription_status ?? "free"}
       />
     </div>

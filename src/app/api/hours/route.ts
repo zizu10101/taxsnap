@@ -11,14 +11,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get("job_id");
   const employeeId = searchParams.get("employee_id");
+  const timeSessionId = searchParams.get("time_session_id");
 
   let query = supabase
     .from("hour_entries")
-    .select("*, employee:employees(*), job:jobs(*)")
+    .select(
+      "*, employee:employees(*), job:jobs(*), session:time_sessions(id, clock_in_at, clock_out_at, closed_by, owner_edited_at, original_clock_in_at, original_clock_out_at)",
+    )
     .order("work_date", { ascending: false });
 
   if (jobId) query = query.eq("job_id", jobId);
   if (employeeId) query = query.eq("employee_id", employeeId);
+  if (timeSessionId) query = query.eq("time_session_id", timeSessionId);
 
   const { data, error } = await query;
 
