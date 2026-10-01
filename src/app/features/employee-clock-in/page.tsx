@@ -19,10 +19,9 @@ export default function EmployeeClockInPage() {
         basic: PLAN_LIMITS.basic.employees,
         pro: PLAN_LIMITS.pro.employees,
       })}
-      // No real screenshots yet - the whole block is skipped (no placeholder).
-      // When they exist: drop hideScreenshot and pass mobileSrc, desktopSrc
-      // and screenshotAlt, like the other feature pages.
-      hideScreenshot
+      mobileSrc="/screenshots/employee-clock-in-mobile.webp"
+      desktopSrc="/screenshots/employee-clock-in-desktop.webp"
+      screenshotAlt="Employee clock-in in TaxSnap: on a phone, an employee clocked in to a job with a running timer and a Clock out button above their recent hours; on desktop, the owner's Employees page showing who is clocked in and flagging a forgotten clock-out"
       howItWorks={[
         {
           title: "One link for the whole crew",
