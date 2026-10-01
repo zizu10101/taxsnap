@@ -467,7 +467,12 @@ npm run build && npm run start
 ...then tunnel `localhost:3000`. This project has hit that exact bug once
 already; see git history / prior session notes if it resurfaces.
 
-The service worker (`public/sw.js`) is network-first for page navigations
+The service worker (`public/sw.js`) is **only registered in production builds**
+(`register-sw.tsx` skips it when `NODE_ENV !== "production"`, and in dev also
+unregisters any worker + `taxsnap-*` caches a previous session left behind) -
+its cache-first handling of JS/assets made dev show stale copies of components
+after code or branch changes. If dev ever looks stale anyway, DevTools ->
+Application -> Clear site data for that origin. It is network-first for page navigations
 and cache-first only for hashed static assets. If it ever gets reverted to
 cache-first for pages, users will see a stale dashboard after every deploy
 until they manually clear site data - don't do that.
