@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
+import { findJobByName, isUniqueViolation } from "@/lib/find-by-name";
 
 export async function GET() {
   const result = await requireUser();
@@ -42,12 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Job name is required." }, { status: 400 });
   }
 
-  const { data: existing } = await supabase
-    .from("jobs")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("name", name)
-    .maybeSingle();
+  const existing = await findJobByName(supabase, user.id, name);
 
   if (existing) {
     return NextResponse.json({ job: existing });
@@ -67,6 +63,11 @@ export async function POST(request: Request) {
     .select()
     .single();
 
+  if (isUniqueViolation(error)) {
+    // Lost a race with a concurrent create of the same name - return the winner.
+    const winner = await findJobByName(supabase, user.id, name);
+    if (winner) return NextResponse.json({ job: winner });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ job: data }, { status: 201 });
 }

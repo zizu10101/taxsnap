@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,10 +65,12 @@ export function ClientWorkstation({
   clients,
   summaries,
   recentDocsByClient,
+  onEdit,
 }: {
   clients: Client[];
   summaries: Record<string, ClientSummary>;
   recentDocsByClient: Record<string, ClientHistoryDoc[]>;
+  onEdit: (client: Client) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(clients[0]?.id ?? null);
   const selected = clients.find((c) => c.id === selectedId) ?? null;
@@ -132,6 +134,7 @@ export function ClientWorkstation({
             client={selected}
             summary={summaries[selected.id] ?? getEmptyClientSummary()}
             recentDocs={recentDocsByClient[selected.id] ?? []}
+            onEdit={() => onEdit(selected)}
           />
         )}
       </div>
@@ -143,10 +146,12 @@ function ClientPreviewPanel({
   client,
   summary,
   recentDocs,
+  onEdit,
 }: {
   client: Client;
   summary: ClientSummary;
   recentDocs: ClientHistoryDoc[];
+  onEdit: () => void;
 }) {
   // Which recent-activity row (if any) is drilled into - reset for free
   // whenever the parent switches clients, since ClientWorkstation remounts
@@ -243,15 +248,21 @@ function ClientPreviewPanel({
 
         <Separator />
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          nativeButton={false}
-          render={<Link href={`/dashboard/clients/${client.id}`} />}
-        >
-          View full details
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            nativeButton={false}
+            render={<Link href={`/dashboard/clients/${client.id}`} />}
+          >
+            View full details
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

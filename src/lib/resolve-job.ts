@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { findJobByName } from "@/lib/find-by-name";
 
 // Find-or-create a job by name, scoped to this user - same behavior as
 // the job_name path in POST /api/documents, extracted here since
@@ -13,12 +14,7 @@ export async function resolveJobIdByName(
   const name = jobName?.trim();
   if (!name) return null;
 
-  const { data: existingJob } = await supabase
-    .from("jobs")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("name", name)
-    .maybeSingle();
+  const existingJob = await findJobByName(supabase, userId, name);
 
   if (existingJob) return existingJob.id;
 

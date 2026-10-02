@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { validateWorkDateForApi } from "@/lib/work-date";
+import { findJobByName } from "@/lib/find-by-name";
 
 export async function GET(request: Request) {
   const result = await requireUser();
@@ -81,12 +82,7 @@ export async function POST(request: Request) {
   let jobId: string | undefined = jobIdInput ?? undefined;
   if (!jobId && job_name?.trim()) {
     const name = job_name.trim();
-    const { data: existingJob } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("name", name)
-      .maybeSingle();
+    const existingJob = await findJobByName(supabase, user.id, name);
 
     if (existingJob) {
       jobId = existingJob.id;

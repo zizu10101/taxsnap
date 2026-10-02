@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
+import {
+  findClientByName,
+  duplicateClientMessage,
+  isUniqueViolation,
+} from "@/lib/find-by-name";
 
 export async function GET() {
   const result = await requireUser();
@@ -31,6 +36,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Client name is required." }, { status: 400 });
   }
 
+  if (await findClientByName(supabase, user.id, name)) {
+    return NextResponse.json({ error: duplicateClientMessage(name) }, { status: 409 });
+  }
+
   // Every tier gets a capped number of clients (see src/lib/plan-limits.ts).
   const totalCheck = await wouldExceedTotalLimit(supabase, user.id, "clients");
   if (totalCheck.exceeded) {
@@ -51,6 +60,9 @@ export async function POST(request: Request) {
     .select()
     .single();
 
+  if (isUniqueViolation(error)) {
+    return NextResponse.json({ error: duplicateClientMessage(name) }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ client: data }, { status: 201 });
 }

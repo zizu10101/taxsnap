@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import {
+  findClientByName,
+  findJobByName,
+  duplicateClientMessage,
+} from "@/lib/find-by-name";
+import {
   wouldExceedMonthlyLimit,
   wouldExceedTotalLimit,
   limitReachedMessage,
@@ -124,6 +129,13 @@ export async function POST(request: Request) {
     // The client cap applies here too, not just POST /api/clients - this
     // is the "+ Add new client" inline-create path off the invoice/
     // estimate builder, a second real way to create a client row.
+    if (await findClientByName(supabase, user.id, new_client.name.trim())) {
+      return NextResponse.json(
+        { error: duplicateClientMessage(new_client.name) },
+        { status: 409 },
+      );
+    }
+
     const clientTotalCheck = await wouldExceedTotalLimit(supabase, user.id, "clients");
     if (clientTotalCheck.exceeded) {
       return NextResponse.json(
@@ -158,12 +170,7 @@ export async function POST(request: Request) {
   let jobId: string | null = jobIdInput ?? null;
   if (!jobId && job_name?.trim()) {
     const name = job_name.trim();
-    const { data: existingJob } = await supabase
-      .from("jobs")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("name", name)
-      .maybeSingle();
+    const existingJob = await findJobByName(supabase, user.id, name);
 
     if (existingJob) {
       jobId = existingJob.id;

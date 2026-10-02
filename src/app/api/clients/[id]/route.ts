@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import type { ClientUpdate } from "@/lib/database.types";
+import {
+  findClientByName,
+  duplicateClientMessage,
+  isUniqueViolation,
+} from "@/lib/find-by-name";
 
 // Editing a client's contact info - no delete route exists, same
 // no-delete-UI choice already made for jobs/employees (client_id on
@@ -25,6 +30,9 @@ export async function PATCH(
     if (!name?.trim()) {
       return NextResponse.json({ error: "Client name is required." }, { status: 400 });
     }
+    if (await findClientByName(supabase, user.id, name, id)) {
+      return NextResponse.json({ error: duplicateClientMessage(name) }, { status: 409 });
+    }
     update.name = name.trim();
   }
   if (email !== undefined) update.email = email?.trim() || null;
@@ -38,6 +46,9 @@ export async function PATCH(
     .select()
     .single();
 
+  if (isUniqueViolation(error) && update.name) {
+    return NextResponse.json({ error: duplicateClientMessage(update.name) }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ client: data });
 }

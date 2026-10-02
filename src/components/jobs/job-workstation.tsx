@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -39,9 +39,11 @@ const EMPTY_SUMMARY: JobCostSummary = {
 export function JobWorkstation({
   jobs,
   costSummaries,
+  onEdit,
 }: {
   jobs: Job[];
   costSummaries: Record<string, JobCostSummary>;
+  onEdit: (job: Job) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(jobs[0]?.id ?? null);
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
@@ -101,6 +103,7 @@ export function JobWorkstation({
             key={selected.id}
             job={selected}
             summary={costSummaries[selected.id] ?? EMPTY_SUMMARY}
+            onEdit={() => onEdit(selected)}
           />
         )}
       </div>
@@ -108,7 +111,15 @@ export function JobWorkstation({
   );
 }
 
-function JobPreviewPanel({ job, summary }: { job: Job; summary: JobCostSummary }) {
+function JobPreviewPanel({
+  job,
+  summary,
+  onEdit,
+}: {
+  job: Job;
+  summary: JobCostSummary;
+  onEdit: () => void;
+}) {
   return (
     <Card className="gap-0 py-0">
       <CardContent className="space-y-4 p-4">
@@ -203,15 +214,21 @@ function JobPreviewPanel({ job, summary }: { job: Job; summary: JobCostSummary }
 
         <Separator />
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          nativeButton={false}
-          render={<Link href={`/dashboard/jobs/${job.id}`} />}
-        >
-          View full details
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            nativeButton={false}
+            render={<Link href={`/dashboard/jobs/${job.id}`} />}
+          >
+            View full details
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

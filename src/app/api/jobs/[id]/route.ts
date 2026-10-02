@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { getNextContractNumber } from "@/lib/contract-number";
 import type { JobUpdate } from "@/lib/database.types";
+import { findJobByName, duplicateJobMessage, isUniqueViolation } from "@/lib/find-by-name";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -57,11 +58,11 @@ export async function GET(
   });
 }
 
-// No general job-rename/edit UI exists yet - this is scoped to just
-// contract_value, the one field progress billing needs to set (via the
-// Progress Billing tab's own "Start Progress Billing" flow). Setting it
-// on an already-capped job doesn't consume a new job slot - it's an edit
-// to an existing row, not a create.
+// Renames a job (EditJobDialog) and sets contract_value/retainage_rate (the
+// Progress Billing tab's own "Start Progress Billing" flow). Editing an
+// already-capped job doesn't consume a new job slot - it's an edit to an
+// existing row, not a create. Renames are case-insensitively unique per
+// account, excluding the job being renamed ("abc" -> "ABC" is fine).
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -74,9 +75,19 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { contract_value, retainage_rate } = body ?? {};
+  const { name, contract_value, retainage_rate } = body ?? {};
 
   const update: JobUpdate = {};
+  if (name !== undefined) {
+    const trimmed = typeof name === "string" ? name.trim() : "";
+    if (!trimmed) {
+      return NextResponse.json({ error: "Job name is required." }, { status: 400 });
+    }
+    if (await findJobByName(supabase, user.id, trimmed, id)) {
+      return NextResponse.json({ error: duplicateJobMessage(trimmed) }, { status: 409 });
+    }
+    update.name = trimmed;
+  }
   if (contract_value !== undefined) {
     update.contract_value = contract_value === null ? null : Number(contract_value) || 0;
   }
@@ -112,6 +123,9 @@ export async function PATCH(
     .select()
     .single();
 
+  if (isUniqueViolation(error) && typeof update.name === "string") {
+    return NextResponse.json({ error: duplicateJobMessage(update.name) }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ job: data });
 }

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
 import { JobWorkstation } from "@/components/jobs/job-workstation";
+import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { Job, SubscriptionStatus } from "@/lib/database.types";
@@ -24,6 +25,7 @@ export function JobList({
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
   return (
     <div className="space-y-4">
@@ -80,8 +82,24 @@ export function JobList({
           <Plus className="h-4 w-4" />
           New job
         </Button>
-        <JobWorkstation jobs={jobs} costSummaries={costSummaries} />
+        <JobWorkstation jobs={jobs} costSummaries={costSummaries} onEdit={setEditingJob} />
       </div>
+
+      {editingJob && (
+        <EditJobDialog
+          key={editingJob.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingJob(null);
+          }}
+          job={editingJob}
+          onSaved={(saved) =>
+            setJobs((prev) =>
+              prev.map((j) => (j.id === saved.id ? saved : j)).sort((a, b) => a.name.localeCompare(b.name)),
+            )
+          }
+        />
+      )}
 
       <NewJobDialog
         open={dialogOpen}

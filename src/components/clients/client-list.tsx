@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users } from "lucide-react";
+import { Pencil, Plus, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
+import { EditClientDialog } from "@/components/clients/edit-client-dialog";
 import {
   ClientWorkstation,
   type ClientHistoryDoc,
@@ -37,6 +38,7 @@ export function ClientList({
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   return (
     <div className="space-y-4">
@@ -90,9 +92,26 @@ export function ClientList({
                         </p>
                       </div>
                     </div>
-                    <span className="shrink-0 font-semibold text-success tabular-nums">
-                      {formatCurrency(summary.totalRevenue)}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-semibold text-success tabular-nums">
+                        {formatCurrency(summary.totalRevenue)}
+                      </span>
+                      {/* stopPropagation (click and key) - the whole card
+                          navigates to the detail page, and Enter/Space on this
+                          button would otherwise bubble to the card's handler. */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingClient(client);
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -110,8 +129,25 @@ export function ClientList({
           clients={clients}
           summaries={summaries}
           recentDocsByClient={recentDocsByClient}
+          onEdit={setEditingClient}
         />
       </div>
+
+      {editingClient && (
+        <EditClientDialog
+          key={editingClient.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingClient(null);
+          }}
+          client={editingClient}
+          onSaved={(saved) =>
+            setClients((prev) =>
+              prev.map((c) => (c.id === saved.id ? saved : c)).sort((a, b) => a.name.localeCompare(b.name)),
+            )
+          }
+        />
+      )}
 
       <NewClientDialog
         open={dialogOpen}

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Receipt as ReceiptIcon } from "lucide-react";
+import { FileText, Pencil, Plus, Receipt as ReceiptIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HourEntryDialog } from "@/components/hours/hour-entry-dialog";
+import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
 import { EmployeeLink } from "@/components/employees/employee-link";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import type {
@@ -61,6 +62,7 @@ export function JobDetail({
   const [hourEntries, setHourEntries] = useState(initialHourEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [invoiceBuilderOpen, setInvoiceBuilderOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const receipts = initialReceipts;
   const router = useRouter();
 
@@ -87,6 +89,13 @@ export function JobDetail({
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+          <Pencil className="h-4 w-4" />
+          Edit job
+        </Button>
+      </div>
+
       {/* Three stat cards side by side at lg+ instead of stacked full-width
           - each one's own content (a 3-column mini-grid) stays exactly as
           before, this just stops a single card from stretching edge to
@@ -204,6 +213,14 @@ export function JobDetail({
         </CardContent>
       </Card>
       </div>
+
+      <EditJobDialog
+        key={job.name}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        job={job}
+        onSaved={() => router.refresh()}
+      />
 
       <DocumentBuilder
         open={invoiceBuilderOpen}
