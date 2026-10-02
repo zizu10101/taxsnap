@@ -6,7 +6,18 @@ function round2(n: number): number {
 
 type RevenueDocument = Pick<InvoiceDocument, "type" | "subtotal" | "total_amount"> & {
   payments: Pick<Payment, "amount">[];
+  // Only read when honorExcludedFromHst is set (see JobRevenueOptions).
+  excluded_from_hst?: boolean;
 };
+
+export interface JobRevenueOptions {
+  // Job Costing (list + per-job pages) and the Reports Job Summary set this so
+  // job-level revenue follows the same rule as the P&L's revenue
+  // (lib/payment-revenue.ts) and the three can't disagree. Progress Billing's
+  // "received to date" doesn't: it is cash received against a contract, a
+  // different question (see progress-billing.ts), so it keeps the default.
+  honorExcludedFromHst?: boolean;
+}
 
 // Recognizes a job's invoiced revenue the same way hst-summary-card.tsx
 // recognizes revenue for the HST Return Helper: pro-rated per payment
@@ -14,13 +25,18 @@ type RevenueDocument = Pick<InvoiceDocument, "type" | "subtotal" | "total_amount
 // $500 deposit on a $1,000 invoice is $500 of recognized job revenue the
 // moment it's received, not $0 until the invoice is fully paid (possibly
 // after the job page is checked). Estimates never count, only invoices.
-// excluded_from_hst is deliberately ignored here - that flag only opts an
-// invoice out of the HST Return Helper's totals, it doesn't mean the money
-// wasn't really received for this job.
-export function calculateJobRevenue(documents: RevenueDocument[]): number {
+// excluded_from_hst is ignored by default (Progress Billing's received-to-date
+// - the money was really received). With options.honorExcludedFromHst an
+// excluded invoice contributes no revenue, matching the HST helper, Overview
+// and the P&L; Job Costing and the Reports Job Summary opt in.
+export function calculateJobRevenue(
+  documents: RevenueDocument[],
+  options: JobRevenueOptions = {},
+): number {
   let total = 0;
   for (const doc of documents) {
     if (doc.type !== "invoice" || doc.total_amount <= 0) continue;
+    if (options.honorExcludedFromHst && doc.excluded_from_hst) continue;
     const fraction = doc.subtotal / doc.total_amount;
     for (const payment of doc.payments) {
       total += fraction * payment.amount;
@@ -53,6 +69,7 @@ export function buildJobCostSummaries(
   receipts: { job_id: string | null; total_amount: number }[],
   hourEntries: { job_id: string; labor_cost: number; labor_revenue: number }[],
   documents: RevenueDocumentWithJob[],
+  options: JobRevenueOptions = {},
 ): Map<string, JobCostSummary> {
   const summaries = new Map<string, JobCostSummary>();
   for (const id of jobIds) {
@@ -94,7 +111,7 @@ export function buildJobCostSummaries(
 
   for (const [jobId, docs] of documentsByJob) {
     const s = summaries.get(jobId);
-    if (s) s.jobRevenue = calculateJobRevenue(docs);
+    if (s) s.jobRevenue = calculateJobRevenue(docs, options);
   }
 
   for (const s of summaries.values()) {

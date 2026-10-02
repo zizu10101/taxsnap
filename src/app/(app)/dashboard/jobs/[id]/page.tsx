@@ -63,7 +63,9 @@ export default async function JobDetailPage({
 
   const documents = (linkedDocuments ?? []) as unknown as DocumentWithClient[];
   const invoiceCount = documents.filter((d) => d.type === "invoice").length;
-  const jobRevenue = calculateJobRevenue(documents);
+  // Same revenue rule as the P&L, Overview and the HST helper: invoices
+  // excluded from HST contribute no job revenue.
+  const jobRevenue = calculateJobRevenue(documents, { honorExcludedFromHst: true });
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">

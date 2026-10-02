@@ -40,7 +40,7 @@ export default async function JobsPage() {
         .not("job_id", "is", null),
       supabase
         .from("documents")
-        .select("job_id, type, subtotal, total_amount, payments(amount)")
+        .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount)")
         .not("job_id", "is", null),
     ]);
 
@@ -52,6 +52,8 @@ export default async function JobsPage() {
     receipts ?? [],
     hourEntries ?? [],
     documents ?? [],
+    // Same revenue rule as the P&L, Overview and the HST helper.
+    { honorExcludedFromHst: true },
   );
 
   return (

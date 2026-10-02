@@ -198,7 +198,8 @@ export function JobDetail({
             <p className="mt-2 text-[11px] text-muted-foreground">
               Revenue counts only payments actually received on invoices
               linked to this job, pro-rated for deposits — not the full
-              invoice total.
+              invoice total. Invoices you excluded from HST aren&apos;t
+              counted, same as on the P&amp;L and Overview.
             </p>
           )}
           <Button
