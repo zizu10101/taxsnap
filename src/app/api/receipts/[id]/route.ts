@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
+import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
@@ -36,6 +37,7 @@ export async function PATCH(
     tax_category,
     items,
     job_name,
+    paid_with_account_id,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -47,6 +49,12 @@ export async function PATCH(
 
   const category = await resolveCategory(supabase, user.id, tax_category);
 
+  // Only touched when the client sent the field; an explicit null/"" clears it.
+  const paidWith = await resolvePaidWithAccountId(supabase, user.id, paid_with_account_id);
+  if ("error" in paidWith) {
+    return NextResponse.json({ error: paidWith.error }, { status: paidWith.status });
+  }
+
   const { data, error } = await supabase
     .from("receipts")
     .update({
@@ -56,6 +64,7 @@ export async function PATCH(
       tax_amount: Number(tax_amount) || 0,
       tax_category: category,
       job_name: job_name?.trim() || null,
+      ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
     })
     .eq("id", id)

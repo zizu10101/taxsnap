@@ -297,6 +297,32 @@ unsure):
   into `sales`/`documents`/`payments`/`src/lib/hst.ts` anywhere - this is
   for commission payout tracking only.
 
+- `bank_accounts` - the owner's single list of accounts (0047, typed in
+  0048): `account_type` is `'bank'` (can receive a customer payment, so it's
+  offered under a payment's "Deposited to", `payments.bank_account_id`) or
+  `'card'` (a credit card - only ever an expense's "Paid with",
+  `receipts.paid_with_account_id`, and `expense_templates.default_paid_with_
+  account_id`). Names are unique per account case-insensitively across both
+  types; "Remove" only sets `is_active = false` (history keeps its label, no
+  DELETE route); a bank account with payments can't become a card. Pickers
+  and CSV cells resolve names through *every* account, active or not -
+  `src/lib/accounts.ts` has the pure filtering helpers (tested). Managed in
+  Settings -> Accounts, no tier cap. The table keeps its 0047 name.
+- `expense_categories` - owner-added categories (Pro, Settings). They merge
+  with the fixed `TAX_CATEGORIES` list at display time and never touch it
+  (that list feeds Gemini's enum, the HST calculator and `deductibleRate()`,
+  which special-cases "Meals" by name); a custom category counts as 100%
+  deductible. `receipts.tax_category` stays plain text, so renaming goes
+  through `rename_expense_category()` to update receipts/templates in one
+  transaction, and the receipts routes validate with `resolveCategory()`.
+- Reports (`/dashboard/reports`, Pro): P&L takes its revenue/expenses/profit
+  from `getExpenseOverviewData` itself (never a second rule - two profit
+  numbers disagreeing was a deliberate no); revenue is payments *received* in
+  the range via `recognizePayments()` (`lib/payment-revenue.ts`), pre-tax,
+  honoring `excluded_from_hst`. Job Costing's pages and the Reports Job
+  Summary honor that flag too (`honorExcludedFromHst`); Progress Billing's
+  received-to-date deliberately does not.
+
 RLS pattern throughout: `auth.uid() = user_id`. Storage buckets
 (`receipts`, `logos`) are private; access via `createSignedUrl`, never a
 public URL - see `ReceiptImage`/`LogoImage` components for the
@@ -453,6 +479,14 @@ is the one place this is worded for users (FAQ, `/billing`,
 `CurrentPlanCard`) - keep it in sync with this if either changes.
 
 ## Local dev / testing this app on a phone
+
+**Local dev and production share one Supabase project** (verified
+2026-10-02: `.env.local` and the live gettaxsnap.ca bundle both point at the
+same `NEXT_PUBLIC_SUPABASE_URL`), and a push to `main` auto-deploys to Vercel
+production. So: a migration must be applied (SQL Editor, by the user) *before*
+pushing code that needs it, and any browser test or service-role script runs
+against production data - use the test account only, undo every write, and
+prefer read-only checks. A real staging project is a logged future task.
 
 `npm run dev` (Turbopack) is fine for iteration, but **don't tunnel dev
 mode** (ngrok, etc.) for real device testing - Turbopack serves

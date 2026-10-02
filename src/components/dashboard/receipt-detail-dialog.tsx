@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Briefcase,
+  CreditCard,
   ImageIcon,
   ListChecks,
   Loader2,
@@ -28,7 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-lists-provider";
+import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
+import { accountDisplayName } from "@/lib/accounts";
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -75,6 +78,7 @@ interface EditForm {
   tax_amount: number;
   items: ReceiptItem[];
   job_name: string;
+  paid_with_account_id: string;
 }
 
 function toForm(receipt: Receipt): EditForm {
@@ -87,6 +91,7 @@ function toForm(receipt: Receipt): EditForm {
     tax_amount: receipt.tax_amount,
     items: items.length ? items : [{ ...EMPTY_ITEM }],
     job_name: receipt.job_name ?? "",
+    paid_with_account_id: receipt.paid_with_account_id ?? "",
   };
 }
 
@@ -108,6 +113,7 @@ function ReceiptSummaryContent({
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
   const categoryOptions = useExpenseCategoryOptions(form.tax_category);
+  const bankAccounts = useBankAccounts();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [jobMode, setJobMode] = useState<string>(() =>
@@ -160,6 +166,7 @@ function ReceiptSummaryContent({
           tax_category: form.tax_category,
           items: form.items.filter((i) => i.name.trim()),
           job_name: form.job_name,
+          paid_with_account_id: form.paid_with_account_id,
         }),
       });
       const data = await res.json();
@@ -324,6 +331,12 @@ function ReceiptSummaryContent({
             </Button>
           </div>
 
+          <PaidWithSelect
+            id="edit-paid-with"
+            value={form.paid_with_account_id}
+            onChange={(paid_with_account_id) => setForm({ ...form, paid_with_account_id })}
+          />
+
           <div className="space-y-2">
             <Label htmlFor="edit-job">Job (optional)</Label>
             <Select
@@ -385,6 +398,9 @@ function ReceiptSummaryContent({
 
   const items = itemsOf(receipt);
   const subtotal = receipt.total_amount - receipt.tax_amount;
+  const paidWithAccount = receipt.paid_with_account_id
+    ? bankAccounts.find((a) => a.id === receipt.paid_with_account_id)
+    : undefined;
 
   return (
     <div className="flex h-full flex-col">
@@ -418,6 +434,12 @@ function ReceiptSummaryContent({
           <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Briefcase className="h-3.5 w-3.5" />
             {receipt.job_name}
+          </div>
+        )}
+        {receipt.paid_with_account_id && (
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CreditCard className="h-3.5 w-3.5" />
+            Paid with {paidWithAccount ? accountDisplayName(paidWithAccount) : "a removed account"}
           </div>
         )}
       </div>

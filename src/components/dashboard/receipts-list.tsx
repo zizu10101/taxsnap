@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Briefcase,
   Download,
@@ -20,6 +20,7 @@ import {
   type QuickBooksInvoicePayment,
 } from "@/lib/csv";
 import { downloadAccountantExport } from "@/lib/accountant-export";
+import { useBankAccounts } from "@/components/owner-lists-provider";
 import { createClient } from "@/lib/supabase/client";
 import type { DateRange } from "@/lib/date-range";
 import type { Receipt } from "@/lib/database.types";
@@ -80,6 +81,13 @@ export function ReceiptsList({
   invoicePayments?: QuickBooksInvoicePayment[];
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const bankAccounts = useBankAccounts();
+  // id -> name for the CSV's "Paid With" column; every account, active or not,
+  // so an expense paid with a since-removed one still names it.
+  const accountNames = useMemo(
+    () => new Map(bankAccounts.map((a) => [a.id, a.name])),
+    [bankAccounts],
+  );
   const [exportingBundle, setExportingBundle] = useState(false);
 
   const subtotal = receipts.reduce((sum, r) => sum + r.total_amount, 0);
@@ -106,7 +114,7 @@ export function ReceiptsList({
       toast.info("No receipts in this range to export");
       return;
     }
-    const csv = receiptsToCsv(receipts);
+    const csv = receiptsToCsv(receipts, accountNames);
     downloadCsv(`${exportFilenameBase}.csv`, csv);
   }
 

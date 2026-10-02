@@ -141,7 +141,14 @@ export async function downloadAccountantExport(
   invoicePayments: QuickBooksInvoicePayment[],
 ): Promise<void> {
   const zip = new JSZip();
-  zip.file("transactions.csv", "﻿" + receiptsToCsv(receipts));
+
+  // Every account, active or not - a payment or expense recorded against a
+  // since-removed account still names it. RLS scopes this to the caller's own
+  // accounts.
+  const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
+  const bankAccountNames = new Map((bankAccountRows ?? []).map((a) => [a.id, a.name]));
+
+  zip.file("transactions.csv", "﻿" + receiptsToCsv(receipts, bankAccountNames));
   zip.file("summary.csv", "﻿" + summaryToCsv(receipts));
   zip.file(
     "quickbooks-import.csv",
@@ -157,11 +164,6 @@ export async function downloadAccountantExport(
   if (range.end) invoiceQuery = invoiceQuery.lte("issue_date", range.end);
   const { data: invoiceRows } = await invoiceQuery;
   const invoices = (invoiceRows ?? []) as unknown as DocumentWithRelations[];
-
-  // Every account, active or not - a payment recorded against a since-removed
-  // account still names it. RLS scopes this to the caller's own accounts.
-  const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
-  const bankAccountNames = new Map((bankAccountRows ?? []).map((a) => [a.id, a.name]));
 
   // Payments are scoped by paid_date (when the money arrived), not by the
   // invoice's issue_date like invoices.csv below - a deposit received this

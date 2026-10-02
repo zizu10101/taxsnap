@@ -121,6 +121,7 @@ export interface Database {
           job_name: string | null;
           job_id: string | null;
           source_template_id: string | null;
+          paid_with_account_id: string | null;
           items: ReceiptItem[] | null;
           created_at: string;
         };
@@ -136,6 +137,7 @@ export interface Database {
           job_name?: string | null;
           job_id?: string | null;
           source_template_id?: string | null;
+          paid_with_account_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -151,6 +153,7 @@ export interface Database {
           job_name?: string | null;
           job_id?: string | null;
           source_template_id?: string | null;
+          paid_with_account_id?: string | null;
           items?: ReceiptItem[] | null;
           created_at?: string;
         };
@@ -395,6 +398,7 @@ export interface Database {
           user_id: string;
           name: string;
           is_active: boolean;
+          account_type: "bank" | "card";
           created_at: string;
         };
         Insert: {
@@ -402,6 +406,7 @@ export interface Database {
           user_id: string;
           name: string;
           is_active?: boolean;
+          account_type?: "bank" | "card";
           created_at?: string;
         };
         Update: {
@@ -409,6 +414,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           is_active?: boolean;
+          account_type?: "bank" | "card";
           created_at?: string;
         };
         Relationships: [];
@@ -579,6 +585,7 @@ export interface Database {
           default_amount: number;
           default_tax_amount: number;
           default_tax_category: string;
+          default_paid_with_account_id: string | null;
           job_id: string | null;
           recurrence_hint: string | null;
           created_at: string;
@@ -591,6 +598,7 @@ export interface Database {
           default_amount?: number;
           default_tax_amount?: number;
           default_tax_category?: string;
+          default_paid_with_account_id?: string | null;
           job_id?: string | null;
           recurrence_hint?: string | null;
           created_at?: string;
@@ -603,6 +611,7 @@ export interface Database {
           default_amount?: number;
           default_tax_amount?: number;
           default_tax_category?: string;
+          default_paid_with_account_id?: string | null;
           job_id?: string | null;
           recurrence_hint?: string | null;
           created_at?: string;

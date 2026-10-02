@@ -1,3 +1,4 @@
+import { resolvePaidWithAccountId } from "@/lib/payments";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
     default_amount,
     default_tax_amount,
     default_tax_category,
+    default_paid_with_account_id,
     job_name,
     recurrence_hint,
   } = body ?? {};
@@ -56,6 +58,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const paidWith = await resolvePaidWithAccountId(supabase, user.id, default_paid_with_account_id);
+  if ("error" in paidWith) {
+    return NextResponse.json({ error: paidWith.error }, { status: paidWith.status });
+  }
+
   let jobId: string | null;
   try {
     jobId = await resolveJobIdByName(supabase, user.id, job_name);
@@ -73,6 +80,7 @@ export async function POST(request: Request) {
       default_amount: Number(default_amount) || 0,
       default_tax_amount: Number(default_tax_amount) || 0,
       default_tax_category: default_tax_category || "Other",
+      ...(default_paid_with_account_id !== undefined && { default_paid_with_account_id: paidWith.id }),
       job_id: jobId,
       recurrence_hint: RECURRENCE_HINTS.includes(recurrence_hint) ? recurrence_hint : null,
     })

@@ -237,6 +237,8 @@ export interface ExpenseDetailRow {
   merchant: string;
   category: string;
   job: string | null;
+  // Name of the account/card the expense was paid with, if one was chosen.
+  paidWith: string | null;
   amount: number;
 }
 
@@ -292,13 +294,19 @@ export async function getExpenseDetail(
 ): Promise<{ rows: ExpenseDetailRow[]; total: number }> {
   let query = supabase
     .from("receipts")
-    .select("id, transaction_date, merchant_name, tax_category, job_name, total_amount")
+    .select(
+      "id, transaction_date, merchant_name, tax_category, job_name, total_amount, paid_with_account_id",
+    )
     .order("transaction_date", { ascending: false });
   if (from) query = query.gte("transaction_date", from);
   if (to) query = query.lte("transaction_date", to);
 
-  const { data, error } = await query;
+  const [{ data, error }, { data: accounts }] = await Promise.all([
+    query,
+    supabase.from("bank_accounts").select("id, name"),
+  ]);
   if (error) throw new Error(error.message);
+  const accountNames = new Map((accounts ?? []).map((a) => [a.id, a.name]));
   const wanted = category !== undefined ? categoryKey(category) : null;
   const rows = (data ?? [])
     .filter((r) => wanted === null || categoryKey(r.tax_category) === wanted)
@@ -308,6 +316,7 @@ export async function getExpenseDetail(
       merchant: r.merchant_name,
       category: r.tax_category,
       job: r.job_name,
+      paidWith: r.paid_with_account_id ? (accountNames.get(r.paid_with_account_id) ?? null) : null,
       amount: r.total_amount,
     }));
 

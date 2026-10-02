@@ -1,3 +1,4 @@
+import { resolvePaidWithAccountId } from "@/lib/payments";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { resolveJobIdByName } from "@/lib/resolve-job";
@@ -22,6 +23,7 @@ export async function PATCH(
     default_amount,
     default_tax_amount,
     default_tax_category,
+    default_paid_with_account_id,
     job_name,
     recurrence_hint,
   } = body ?? {};
@@ -31,6 +33,11 @@ export async function PATCH(
       { error: "A template name and description are required." },
       { status: 400 },
     );
+  }
+
+  const paidWith = await resolvePaidWithAccountId(supabase, user.id, default_paid_with_account_id);
+  if ("error" in paidWith) {
+    return NextResponse.json({ error: paidWith.error }, { status: paidWith.status });
   }
 
   let jobId: string | null;
@@ -49,6 +56,7 @@ export async function PATCH(
       default_amount: Number(default_amount) || 0,
       default_tax_amount: Number(default_tax_amount) || 0,
       default_tax_category: default_tax_category || "Other",
+      ...(default_paid_with_account_id !== undefined && { default_paid_with_account_id: paidWith.id }),
       job_id: jobId,
       recurrence_hint: RECURRENCE_HINTS.includes(recurrence_hint) ? recurrence_hint : null,
     })

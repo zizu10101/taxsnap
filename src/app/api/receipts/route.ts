@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
+import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     image_path,
     job_name,
     source_template_id,
+    paid_with_account_id,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -44,6 +46,14 @@ export async function POST(request: Request) {
   }
 
   const category = await resolveCategory(supabase, user.id, tax_category);
+
+  // Optional "Paid with" (one of the caller's own accounts - bank or card).
+  // Only written when the client sent the field at all, so a client that
+  // doesn't know about it behaves exactly as before.
+  const paidWith = await resolvePaidWithAccountId(supabase, user.id, paid_with_account_id);
+  if ("error" in paidWith) {
+    return NextResponse.json({ error: paidWith.error }, { status: paidWith.status });
+  }
 
   // Re-verify ownership rather than trust the id as-is - same reasoning
   // as every other client-supplied foreign id in this app (e.g. job_id in
@@ -72,6 +82,7 @@ export async function POST(request: Request) {
       tax_category: category,
       job_name: job_name?.trim() || null,
       source_template_id: templateId,
+      ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
     })
     .select()

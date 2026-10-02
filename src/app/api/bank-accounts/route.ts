@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { findBankAccountByName, isUniqueViolation } from "@/lib/find-by-name";
 
-// One list per account, no tier cap - see 0047. Inactive accounts are
+// One list per account, no tier cap - see 0047 (0048 adds the bank/card type). Inactive accounts are
 // returned too (is_active tells the client which to offer in pickers) so a
 // payment recorded against a since-removed account still shows its label.
 export async function GET() {
@@ -33,7 +33,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Account name is required." }, { status: 400 });
   }
 
-  const duplicateMessage = `A bank account named "${name}" already exists.`;
+  // 'bank' can receive customer payments ("Deposited to"); 'card' (credit card)
+  // is only ever an expense's "Paid with". Omitted means 'bank', as before 0048.
+  const rawType = body?.account_type;
+  if (rawType !== undefined && rawType !== "bank" && rawType !== "card") {
+    return NextResponse.json({ error: "Account type must be bank or card." }, { status: 400 });
+  }
+  const accountType: "bank" | "card" = rawType === "card" ? "card" : "bank";
+
+  const duplicateMessage = `An account named "${name}" already exists.`;
   const existing = await findBankAccountByName(supabase, user.id, name);
   if (existing) {
     return NextResponse.json({ error: duplicateMessage }, { status: 409 });
@@ -41,7 +49,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("bank_accounts")
-    .insert({ user_id: user.id, name })
+    .insert({ user_id: user.id, name, account_type: accountType })
     .select()
     .single();
 

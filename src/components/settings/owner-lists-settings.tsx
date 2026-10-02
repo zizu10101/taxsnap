@@ -8,6 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ACCOUNT_TYPE_LABELS, accountTypeOf, type AccountType } from "@/lib/accounts";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
 import type { BankAccount, ExpenseCategory } from "@/lib/database.types";
 
@@ -15,6 +23,8 @@ interface ListItem {
   id: string;
   name: string;
   is_active: boolean;
+  // Only the accounts list has a type (bank / credit card) - see 0048.
+  account_type?: AccountType | null;
 }
 
 // Shared add / rename / remove list for the two owner-managed lists. "Remove"
@@ -22,25 +32,30 @@ interface ListItem {
 // receipts keep pointing at the item, so history and reports keep their label
 // - and an inactive row can be restored. `endpoint` is the collection route
 // ("/api/bank-accounts"); `itemKey` is the key the API wraps a single row in.
+// `typed` adds the bank/card chooser (on add and edit) and a type badge.
 function ManagedNameList({
   endpoint,
   itemKey,
   noun,
   initialItems,
   placeholder,
+  typed = false,
 }: {
   endpoint: string;
   itemKey: "bankAccount" | "category";
   noun: string;
   initialItems: ListItem[];
   placeholder: string;
+  typed?: boolean;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<AccountType>("bank");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<AccountType>("bank");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +79,10 @@ function ManagedNameList({
     setAdding(true);
     setError(null);
     try {
-      const created = await request(endpoint, "POST", { name: newName });
+      const created = await request(endpoint, "POST", {
+        name: newName,
+        ...(typed && { account_type: newType }),
+      });
       setItems((prev) => sorted([...prev, created]));
       setNewName("");
       router.refresh();
@@ -96,6 +114,10 @@ function ManagedNameList({
     }
   }
 
+  function saveEdit(id: string) {
+    patchItem(id, { name: editName, ...(typed && { account_type: editType }) }, "Saved");
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -113,6 +135,7 @@ function ManagedNameList({
             }
           }}
         />
+        {typed && <TypeSelect id="new-account-type" value={newType} onChange={setNewType} />}
         <Button onClick={handleAdd} disabled={adding || !newName.trim()}>
           {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           Add
@@ -133,11 +156,19 @@ function ManagedNameList({
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") patchItem(item.id, { name: editName }, "Renamed");
+                      if (e.key === "Enter") saveEdit(item.id);
                       if (e.key === "Escape") setEditingId(null);
                     }}
                     className="h-8"
                   />
+                  {typed && (
+                    <TypeSelect
+                      id={`account-type-${item.id}`}
+                      value={editType}
+                      onChange={setEditType}
+                      compact
+                    />
+                  )}
                   <div className="flex shrink-0 gap-1">
                     <Button
                       size="icon"
@@ -145,7 +176,7 @@ function ManagedNameList({
                       className="h-8 w-8"
                       title="Save"
                       disabled={busyId === item.id || !editName.trim()}
-                      onClick={() => patchItem(item.id, { name: editName }, "Renamed")}
+                      onClick={() => saveEdit(item.id)}
                     >
                       {busyId === item.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,6 +201,9 @@ function ManagedNameList({
                     <span className={`truncate text-sm ${item.is_active ? "" : "text-muted-foreground"}`}>
                       {item.name}
                     </span>
+                    {typed && (
+                      <Badge variant="secondary">{ACCOUNT_TYPE_LABELS[accountTypeOf(item)]}</Badge>
+                    )}
                     {!item.is_active && <Badge variant="outline">Inactive</Badge>}
                   </div>
                   <div className="flex shrink-0 gap-1">
@@ -179,6 +213,7 @@ function ManagedNameList({
                       onClick={() => {
                         setEditingId(item.id);
                         setEditName(item.name);
+                        setEditType(accountTypeOf(item));
                         setError(null);
                       }}
                     >
@@ -220,27 +255,60 @@ function ManagedNameList({
   );
 }
 
+// Select needs an explicit items map (value "bank" vs label "Bank account" -
+// see CLAUDE.md, Stack quirks).
+function TypeSelect({
+  id,
+  value,
+  onChange,
+  compact,
+}: {
+  id: string;
+  value: AccountType;
+  onChange: (value: AccountType) => void;
+  compact?: boolean;
+}) {
+  return (
+    <Select
+      items={ACCOUNT_TYPE_LABELS}
+      value={value}
+      onValueChange={(v) => v && onChange(v as AccountType)}
+    >
+      <SelectTrigger id={id} aria-label="Account type" className={compact ? "h-8 w-36" : "w-36"}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="bank">{ACCOUNT_TYPE_LABELS.bank}</SelectItem>
+        <SelectItem value="card">{ACCOUNT_TYPE_LABELS.card}</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function BankAccountsSettings({ initialAccounts }: { initialAccounts: BankAccount[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Landmark className="h-4 w-4" />
-          Bank accounts
+          Accounts
         </CardTitle>
         <CardDescription>
-          Add the accounts you get paid into (e.g. &quot;Business Checking&quot;, &quot;Visa Ending
-          1234&quot;). You can pick one under &quot;Deposited to&quot; when recording a payment.
-          Removing an account hides it from that list but keeps it on payments already recorded.
+          Your bank accounts and credit cards, set up once. Bank accounts can be picked under
+          &quot;Deposited to&quot; when recording a payment, and any account under &quot;Paid
+          with&quot; on an expense. A credit card can&apos;t receive a payment, so it only shows
+          up under &quot;Paid with&quot;. Removing an account hides it from those lists but keeps
+          it on past payments and expenses.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <ManagedNameList
           endpoint="/api/bank-accounts"
           itemKey="bankAccount"
-          noun="bank accounts"
+          noun="accounts"
           initialItems={initialAccounts}
-          placeholder="e.g. Business Checking"
+          placeholder="e.g. Business Checking or Visa 1234"
+          typed
         />
       </CardContent>
     </Card>

@@ -12,7 +12,14 @@ function escapeCsvField(value: string | number): string {
 // Builds an IRS/Schedule-C friendly CSV: one row per receipt, with running
 // totals for gross spend and deductible sales tax, grouped implicitly by
 // the tax_category column so it's easy to pivot in a spreadsheet.
-export function receiptsToCsv(receipts: Receipt[]): string {
+//
+// "Paid With" (the account/card an expense was paid with, resolved through
+// accountNames) is appended as the LAST column, after Notes, so a spreadsheet
+// or pivot already built on the original seven columns keeps working.
+export function receiptsToCsv(
+  receipts: Receipt[],
+  accountNames: Map<string, string> = new Map(),
+): string {
   const header = [
     "Date",
     "Merchant",
@@ -21,6 +28,7 @@ export function receiptsToCsv(receipts: Receipt[]): string {
     "Sales Tax",
     "Deductible Amount",
     "Notes",
+    "Paid With",
   ];
 
   const rows = receipts.map((r) => {
@@ -36,6 +44,7 @@ export function receiptsToCsv(receipts: Receipt[]): string {
       r.tax_amount.toFixed(2),
       r.total_amount.toFixed(2),
       notes,
+      (r.paid_with_account_id && accountNames.get(r.paid_with_account_id)) || "",
     ];
   });
 
@@ -48,6 +57,7 @@ export function receiptsToCsv(receipts: Receipt[]): string {
     totalAmount.toFixed(2),
     totalTax.toFixed(2),
     totalAmount.toFixed(2),
+    "",
     "",
   ];
 

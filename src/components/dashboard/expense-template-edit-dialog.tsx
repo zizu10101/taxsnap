@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob } from "@/lib/database.types";
 
 const NO_JOB = "__no_job__";
@@ -42,6 +43,7 @@ function formFrom(template: ExpenseTemplateWithJob | null) {
     default_amount: template?.default_amount ?? 0,
     default_tax_amount: template?.default_tax_amount ?? 0,
     default_tax_category: template?.default_tax_category ?? "Other",
+    default_paid_with_account_id: template?.default_paid_with_account_id ?? "",
   };
 }
 
@@ -102,6 +104,7 @@ export function ExpenseTemplateEditDialog({
           default_amount: form.default_amount,
           default_tax_amount: form.default_tax_amount,
           default_tax_category: form.default_tax_category,
+          default_paid_with_account_id: form.default_paid_with_account_id,
           job_name: jobName,
           recurrence_hint: recurrenceHint === NO_RECURRENCE ? null : recurrenceHint,
         }),
@@ -183,6 +186,14 @@ export function ExpenseTemplateEditDialog({
               </SelectContent>
             </Select>
           </div>
+
+          <PaidWithSelect
+            id="edit-template-paid-with"
+            value={form.default_paid_with_account_id}
+            onChange={(default_paid_with_account_id) =>
+              setForm({ ...form, default_paid_with_account_id })
+            }
+          />
 
           <div className="space-y-2">
             <Label htmlFor="edit-template-job">Job (optional)</Label>

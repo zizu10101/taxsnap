@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 
 function todayIso() {
@@ -51,6 +52,8 @@ function emptyForm(template?: ExpenseTemplateWithJob | null) {
     tax_category: template?.default_tax_category ?? "Other",
     total_amount: template?.default_amount ?? 0,
     tax_amount: template?.default_tax_amount ?? 0,
+    // Optional "Paid with" account id; a template can remember its usual one.
+    paid_with_account_id: template?.default_paid_with_account_id ?? "",
   };
 }
 
@@ -138,6 +141,7 @@ export function ManualExpenseDialog({
           tax_category: form.tax_category,
           job_name: jobName,
           source_template_id: template?.id ?? null,
+          paid_with_account_id: form.paid_with_account_id,
         }),
       });
       const data = await res.json();
@@ -156,6 +160,7 @@ export function ManualExpenseDialog({
             default_amount: form.total_amount,
             default_tax_amount: form.tax_amount,
             default_tax_category: form.tax_category,
+            default_paid_with_account_id: form.paid_with_account_id,
             job_name: jobName,
             recurrence_hint: recurrenceHint === NO_RECURRENCE ? null : recurrenceHint,
           }),
@@ -256,6 +261,12 @@ export function ManualExpenseDialog({
               />
             </div>
           </div>
+
+          <PaidWithSelect
+            id="expense-paid-with"
+            value={form.paid_with_account_id}
+            onChange={(paid_with_account_id) => setForm({ ...form, paid_with_account_id })}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="expense-job">Job (optional)</Label>

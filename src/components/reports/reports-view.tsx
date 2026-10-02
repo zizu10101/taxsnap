@@ -184,13 +184,14 @@ function ExpenseDetail({ range, category }: { range: DateRange; category?: strin
     <DetailShell loading={!data && !failed} failed={failed} empty={!!data && data.rows.length === 0}>
       {data && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[28rem] text-xs">
+          <table className="w-full min-w-[34rem] text-xs">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-1.5 pr-2 font-medium">Date</th>
                 <th className="px-2 py-1.5 font-medium">Merchant</th>
                 {category === undefined && <th className="px-2 py-1.5 font-medium">Category</th>}
                 <th className="px-2 py-1.5 font-medium">Job</th>
+                <th className="px-2 py-1.5 font-medium">Paid with</th>
                 <th className="py-1.5 pl-2 text-right font-medium">Paid</th>
               </tr>
             </thead>
@@ -201,13 +202,14 @@ function ExpenseDetail({ range, category }: { range: DateRange; category?: strin
                   <td className="px-2 py-1.5">{r.merchant}</td>
                   {category === undefined && <td className="px-2 py-1.5">{r.category}</td>}
                   <td className="px-2 py-1.5 text-muted-foreground">{r.job ?? "—"}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.paidWith ?? "—"}</td>
                   <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(r.amount)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t font-semibold">
-                <td colSpan={category === undefined ? 4 : 3} className="py-1.5 pr-2">
+                <td colSpan={category === undefined ? 5 : 4} className="py-1.5 pr-2">
                   Total
                 </td>
                 <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(data.total)}</td>

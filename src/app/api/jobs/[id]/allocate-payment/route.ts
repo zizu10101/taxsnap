@@ -45,7 +45,7 @@ export async function POST(
 
   const bank = await resolveBankAccountId(supabase, user.id, body.bank_account_id);
   if ("error" in bank) {
-    return NextResponse.json({ error: bank.error }, { status: 404 });
+    return NextResponse.json({ error: bank.error }, { status: bank.status });
   }
 
   const { data: draws } = await supabase

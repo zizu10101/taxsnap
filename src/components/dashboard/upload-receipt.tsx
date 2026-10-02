@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { compressImage } from "@/lib/compress-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -52,6 +53,8 @@ interface ParsedDraft {
   tax_category: string;
   items: ReceiptItem[];
   job_name: string;
+  /** Optional "Paid with" account id from the owner's accounts list, "" for none. */
+  paid_with_account_id: string;
   image_path: string | null;
   image_url: string | null;
 }
@@ -155,6 +158,7 @@ export function UploadReceipt({
         ...data.parsed,
         items: data.parsed.items?.length ? data.parsed.items : [{ ...EMPTY_ITEM }],
         job_name: "",
+        paid_with_account_id: "",
         image_path: data.image_path,
         image_url: data.image_url,
       });
@@ -186,6 +190,7 @@ export function UploadReceipt({
           tax_category: draft.tax_category,
           items: draft.items.filter((i) => i.name.trim()),
           job_name: draft.job_name,
+          paid_with_account_id: draft.paid_with_account_id,
           image_path: draft.image_path,
         }),
       });
@@ -399,6 +404,12 @@ export function UploadReceipt({
                   />
                 </div>
               </div>
+
+              <PaidWithSelect
+                id="paid_with"
+                value={draft.paid_with_account_id}
+                onChange={(paid_with_account_id) => setDraft({ ...draft, paid_with_account_id })}
+              />
 
               <div className="space-y-2">
                 <Label htmlFor="job_name">Job (optional)</Label>
