@@ -105,7 +105,12 @@ export function JobList({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={(job) => {
-          setJobs((prev) => [...prev, job].sort((a, b) => a.name.localeCompare(b.name)));
+          // An existing job can come back from find-or-create - don't list it twice.
+          setJobs((prev) =>
+            [...prev.filter((j) => j.id !== job.id), job].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          );
           router.push(`/dashboard/jobs/${job.id}`);
         }}
       />

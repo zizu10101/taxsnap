@@ -56,6 +56,13 @@ export function NewJobDialog({
         throw new Error(data.error || "Failed to create");
       }
 
+      // 200 (vs 201) means POST /api/jobs found an existing job with this
+      // name (case-insensitive) rather than creating one - say so, since the
+      // caller is about to navigate to it.
+      if (res.status === 200) {
+        toast.info(`A job named "${(data.job as Job).name}" already exists, opening it.`);
+      }
+
       onCreated(data.job as Job);
       setName("");
       onOpenChange(false);
