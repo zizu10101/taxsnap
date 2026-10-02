@@ -136,9 +136,11 @@ export function DashboardMobileHeader({
 export function DashboardMobileBottomNav({
   businessType,
   subscriptionStatus,
+  hiddenNavKeys,
 }: {
   businessType: BusinessType;
   subscriptionStatus: SubscriptionStatus;
+  hiddenNavKeys: readonly string[];
 }) {
   const pathname = usePathname();
   const { role } = useAppLock();
@@ -151,6 +153,8 @@ export function DashboardMobileBottomNav({
   const items = getNavItems({
     businessType: businessType === "salon" ? "salon" : "general",
     isPro: subscriptionStatus === "pro",
+    hiddenKeys: hiddenNavKeys,
+    keepKey: activeKey,
   });
   const { primary, overflow } = splitMobileNav(items);
   const overflowActive = overflow.some((i) => i.key === activeKey);

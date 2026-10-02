@@ -4,6 +4,11 @@ import { getExpenseOverviewData } from "@/lib/expense-overview-query";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import {
+  groupSpendingByAccount,
+  matchesAccountFilter,
+  type AccountSpendData,
+} from "@/lib/account-spending";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -36,6 +41,9 @@ export interface CategoryRow {
 export interface ReportsData {
   pnl: ProfitAndLoss;
   categories: CategoryRow[];
+  // Tracked spending per "Paid with" account (incl. a "Not specified" row) -
+  // adds up to the P&L's expenses. Not an account balance.
+  accounts: AccountSpendData;
 }
 
 export interface JobSummaryRow {
@@ -69,15 +77,17 @@ export async function getReportsData(
 ): Promise<ReportsData> {
   let receiptsQuery = supabase
     .from("receipts")
-    .select("total_amount, tax_amount, tax_category");
+    .select("total_amount, tax_amount, tax_category, paid_with_account_id");
   if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
   if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
 
-  const [overview, { data: receipts }, { data: customCategories }] = await Promise.all([
-    getExpenseOverviewData(supabase, from, to),
-    receiptsQuery,
-    supabase.from("expense_categories").select("name"),
-  ]);
+  const [overview, { data: receipts }, { data: customCategories }, { data: accountRows }] =
+    await Promise.all([
+      getExpenseOverviewData(supabase, from, to),
+      receiptsQuery,
+      supabase.from("expense_categories").select("name"),
+      supabase.from("bank_accounts").select("id, name, account_type, is_active"),
+    ]);
 
   const pnl: ProfitAndLoss = {
     revenue: overview.totalSales,
@@ -114,7 +124,9 @@ export async function getReportsData(
     .map((r) => ({ ...r, preTax: round2(r.preTax), total: round2(r.total) }))
     .sort((a, b) => b.total - a.total);
 
-  return { pnl, categories };
+  const accounts = groupSpendingByAccount(receipts ?? [], accountRows ?? []);
+
+  return { pnl, categories, accounts };
 }
 
 // Same normalization the grouping above uses, shared with the drill-down so a
@@ -291,6 +303,8 @@ export async function getExpenseDetail(
   from: string | null,
   to: string | null,
   category?: string,
+  // An account id, or NOT_SPECIFIED ("none") for expenses with no "Paid with".
+  account?: string,
 ): Promise<{ rows: ExpenseDetailRow[]; total: number }> {
   let query = supabase
     .from("receipts")
@@ -310,6 +324,7 @@ export async function getExpenseDetail(
   const wanted = category !== undefined ? categoryKey(category) : null;
   const rows = (data ?? [])
     .filter((r) => wanted === null || categoryKey(r.tax_category) === wanted)
+    .filter((r) => account === undefined || matchesAccountFilter(r.paid_with_account_id, account))
     .map((r) => ({
       id: r.id,
       date: r.transaction_date,

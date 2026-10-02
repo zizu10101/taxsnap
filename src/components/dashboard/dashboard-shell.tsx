@@ -21,6 +21,7 @@ export function DashboardShell({
   subscriptionStatus,
   businessType,
   logoPath,
+  hiddenNavKeys,
   children,
 }: {
   email: string;
@@ -28,6 +29,8 @@ export function DashboardShell({
   subscriptionStatus: SubscriptionStatus;
   businessType: BusinessType;
   logoPath: string | null;
+  // The owner's cosmetic "Hide from my menu" choices - see nav-config.ts.
+  hiddenNavKeys: readonly string[];
   children: React.ReactNode;
 }) {
   const { role } = useAppLock();
@@ -40,6 +43,7 @@ export function DashboardShell({
           businessType={businessType}
           subscriptionStatus={subscriptionStatus}
           logoPath={logoPath}
+          hiddenNavKeys={hiddenNavKeys}
         />
       )}
       <DashboardMobileHeader
@@ -62,7 +66,11 @@ export function DashboardShell({
           {children}
         </main>
       </div>
-      <DashboardMobileBottomNav businessType={businessType} subscriptionStatus={subscriptionStatus} />
+      <DashboardMobileBottomNav
+        businessType={businessType}
+        subscriptionStatus={subscriptionStatus}
+        hiddenNavKeys={hiddenNavKeys}
+      />
     </div>
   );
 }

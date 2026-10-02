@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { OwnerListsProvider } from "@/components/owner-lists-provider";
+import { sanitizeHiddenNavKeys } from "@/components/dashboard/nav-config";
 
 // Mounted once around every /dashboard/** page (not /billing - that route
 // lives outside this folder and keeps its own header). Replaces each page's
@@ -28,8 +29,12 @@ export default async function DashboardLayout({
     return <>{children}</>;
   }
 
-  const [{ data: profile }, { data: bankAccounts }, { data: customCategories }] =
-    await Promise.all([
+  const [
+    { data: profile },
+    { data: bankAccounts },
+    { data: customCategories },
+    { data: navPrefs },
+  ] = await Promise.all([
       supabase
         .from("profiles")
         .select("business_name, subscription_status, business_type, logo_url")
@@ -37,6 +42,11 @@ export default async function DashboardLayout({
         .maybeSingle(),
       supabase.from("bank_accounts").select("*").order("name", { ascending: true }),
       supabase.from("expense_categories").select("*").order("name", { ascending: true }),
+      // The owner's "Hide from my menu" choices (cosmetic, 0049). A separate
+      // query on purpose: if the column isn't there yet this fails alone, and
+      // the profile above (business type, tier) still loads - the menu just
+      // shows every tab.
+      supabase.from("profiles").select("hidden_nav_keys").eq("id", user.id).maybeSingle(),
     ]);
 
   return (
@@ -46,6 +56,7 @@ export default async function DashboardLayout({
       subscriptionStatus={profile?.subscription_status ?? "free"}
       businessType={profile?.business_type ?? "general"}
       logoPath={profile?.logo_url ?? null}
+      hiddenNavKeys={sanitizeHiddenNavKeys(navPrefs?.hidden_nav_keys)}
     >
       <OwnerListsProvider
         bankAccounts={bankAccounts ?? []}

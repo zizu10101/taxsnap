@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getActiveNavKey, getNavItems, splitMobileNav } from "./nav-config.ts";
+import {
+  getActiveNavKey,
+  getNavItems,
+  HIDEABLE_NAV_KEYS,
+  sanitizeHiddenNavKeys,
+  splitMobileNav,
+} from "./nav-config.ts";
 
 test("Employees is its own tab and owns the Employees and Hours pages", () => {
   assert.equal(getActiveNavKey("/dashboard/employees"), "employees");
@@ -56,4 +62,52 @@ test("Reports is its own Pro tab right after Overview, in the mobile More sheet"
   assert.equal(salon.includes("reports"), false);
   const { overflow } = splitMobileNav(getNavItems({ businessType: "general", isPro: true }));
   assert.ok(overflow.some((i) => i.key === "reports"));
+});
+
+const keysOf = (opts: Parameters<typeof getNavItems>[0]) => getNavItems(opts).map((i) => i.key);
+
+test("hiding is cosmetic: hidden tabs just drop out of the menu, nothing else changes", () => {
+  const all = keysOf({ businessType: "general", isPro: true });
+  const some = keysOf({ businessType: "general", isPro: true, hiddenKeys: ["jobs", "reports"] });
+  assert.deepEqual(some, all.filter((k) => k !== "jobs" && k !== "reports"));
+});
+
+test("Dashboard can never be hidden, even if asked", () => {
+  const keys = keysOf({ businessType: "general", isPro: true, hiddenKeys: ["dashboard", "estimates"] });
+  assert.ok(keys.includes("dashboard"));
+  assert.ok(!keys.includes("estimates"));
+});
+
+test("a hidden tab stays visible while you are on its page", () => {
+  const keys = keysOf({ businessType: "general", isPro: true, hiddenKeys: ["clients"], keepKey: "clients" });
+  assert.ok(keys.includes("clients"));
+});
+
+test("a salon menu is never affected by hidden keys", () => {
+  assert.deepEqual(
+    keysOf({ businessType: "salon", isPro: true, hiddenKeys: ["jobs", "commission"] }),
+    ["dashboard", "commission"],
+  );
+});
+
+test("hiding a mobile primary tab promotes the next visible tab into the freed slot", () => {
+  const items = getNavItems({ businessType: "general", isPro: true, hiddenKeys: ["estimates"] });
+  const { primary, overflow } = splitMobileNav(items);
+  assert.deepEqual(primary.map((i) => i.key), ["dashboard", "invoices", "jobs", "employees"]);
+  assert.ok(!overflow.some((i) => i.key === "employees"));
+});
+
+test("sanitizeHiddenNavKeys keeps only known keys, de-duped, in nav order", () => {
+  assert.deepEqual(sanitizeHiddenNavKeys(["reports", "bogus", "jobs", "jobs", 5, null, "dashboard"]), [
+    "jobs",
+    "reports",
+  ]);
+  assert.deepEqual(sanitizeHiddenNavKeys("jobs"), []);
+  assert.deepEqual(sanitizeHiddenNavKeys(undefined), []);
+});
+
+test("every hideable key is a real nav tab, and Dashboard is not hideable", () => {
+  const real = new Set(keysOf({ businessType: "general", isPro: true }));
+  for (const k of HIDEABLE_NAV_KEYS) assert.ok(real.has(k), k);
+  assert.ok(!(HIDEABLE_NAV_KEYS as readonly string[]).includes("dashboard"));
 });

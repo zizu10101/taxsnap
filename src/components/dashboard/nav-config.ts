@@ -98,15 +98,55 @@ const SALON_ITEMS: NavItem[] = [
 // Full item list for the desktop sidebar (no room limit there, unlike
 // mobile) and for splitting into the mobile bottom nav's primary bar vs.
 // "More" sheet below.
+//
+// `hiddenKeys` is the owner's own "Hide from my menu" choices (Settings ->
+// Navigation): purely cosmetic - it only drops tabs from this list. It never
+// affects tier access, API permissions or whether a page loads by URL. Only
+// HIDEABLE_NAV_KEYS can be hidden (never Dashboard, never a salon's Register),
+// and `keepKey` (the tab for the page being viewed) is always kept so opening a
+// hidden tab by link doesn't make you lose your place in the menu.
 export function getNavItems({
   businessType,
   isPro,
+  hiddenKeys,
+  keepKey,
 }: {
   businessType: "general" | "salon";
   isPro: boolean;
+  hiddenKeys?: readonly string[];
+  keepKey?: NavKey;
 }): NavItem[] {
   if (businessType === "salon") return [DASHBOARD_ITEM, ...SALON_ITEMS];
-  return [DASHBOARD_ITEM, ...GENERAL_ITEMS, ...(isPro ? PRO_ITEMS : [])];
+  const items = [DASHBOARD_ITEM, ...GENERAL_ITEMS, ...(isPro ? PRO_ITEMS : [])];
+  if (!hiddenKeys || hiddenKeys.length === 0) return items;
+  const hidden = new Set(sanitizeHiddenNavKeys(hiddenKeys));
+  return items.filter((i) => !hidden.has(i.key as HideableNavKey) || i.key === keepKey);
+}
+
+// The tabs an owner may hide from their own menu. Dashboard is the home anchor
+// and always shown; Settings isn't a nav tab; a salon's menu (Dashboard +
+// Register) has nothing to declutter. Overview and Reports are Pro-only views -
+// hiding them is harmless for accounts that don't see them at all.
+export const HIDEABLE_NAV_KEYS = [
+  "estimates",
+  "invoices",
+  "jobs",
+  "employees",
+  "clients",
+  "expenses",
+  "progress-billing",
+  "overview",
+  "reports",
+] as const satisfies readonly NavKey[];
+
+export type HideableNavKey = (typeof HIDEABLE_NAV_KEYS)[number];
+
+// Whatever reached us (a request body, a stored column) down to known, de-duped
+// hideable keys, in the canonical order. Anything else is silently ignored.
+export function sanitizeHiddenNavKeys(input: unknown): HideableNavKey[] {
+  if (!Array.isArray(input)) return [];
+  const wanted = new Set(input.filter((k): k is string => typeof k === "string"));
+  return HIDEABLE_NAV_KEYS.filter((k) => wanted.has(k));
 }
 
 // Mobile bottom nav only has room for 4 primary icons + a "More" slot (see
@@ -121,13 +161,20 @@ export function getNavItems({
 // commission, so this one list naturally produces "Dashboard, Estimates,
 // Invoices, Jobs" for general and "Dashboard, Register" for salon without
 // a separate business-type branch.
-const MOBILE_PRIMARY_KEYS: NavKey[] = ["dashboard", "estimates", "invoices", "jobs", "commission"];
+//
+// The primary bar is simply the first MOBILE_PRIMARY_SLOTS items in nav order,
+// which for a general account is exactly Dashboard, Estimates, Invoices, Jobs
+// (and for a salon, Dashboard + Register). Working from the (already filtered)
+// list means that when an owner hides one of those tabs, the next visible tab
+// is promoted into the freed slot, so the bar stays full.
+const MOBILE_PRIMARY_SLOTS = 4;
 
 export function splitMobileNav(items: NavItem[]): {
   primary: NavItem[];
   overflow: NavItem[];
 } {
-  const primary = items.filter((i) => MOBILE_PRIMARY_KEYS.includes(i.key));
-  const overflow = items.filter((i) => !MOBILE_PRIMARY_KEYS.includes(i.key));
-  return { primary, overflow };
+  return {
+    primary: items.slice(0, MOBILE_PRIMARY_SLOTS),
+    overflow: items.slice(MOBILE_PRIMARY_SLOTS),
+  };
 }

@@ -11,6 +11,15 @@ import {
   ExpenseCategoriesSettings,
 } from "@/components/settings/owner-lists-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
+import {
+  NavigationSettings,
+  type NavSettingsRow,
+} from "@/components/settings/navigation-settings";
+import {
+  getNavItems,
+  sanitizeHiddenNavKeys,
+  type HideableNavKey,
+} from "@/components/dashboard/nav-config";
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import { CurrentPlanCard } from "@/components/billing/current-plan-card";
 import { APP_SETTINGS_PUBLIC_COLUMNS } from "@/lib/app-settings-columns";
@@ -72,6 +81,53 @@ export default async function SettingsPage() {
       ])
     : [{ data: null }, { data: null }];
 
+  // "Hide from my menu": one switch per hideable tab, with how many records sit
+  // behind each so hiding one that still has data asks first. Overview and
+  // Reports are views over other data and have none of their own. Salons have
+  // nothing to hide (their menu is Dashboard + Register).
+  const isPro = profile?.subscription_status === "pro";
+  let navRows: NavSettingsRow[] = [];
+  let hiddenNav: HideableNavKey[] = [];
+  if (isGeneral) {
+    const head = { count: "exact" as const, head: true };
+    const [estimates, invoices, jobs, employees, clients, expenses, progressJobs, { data: navPrefs }] =
+      await Promise.all([
+        supabase.from("documents").select("id", head).eq("type", "estimate"),
+        supabase.from("documents").select("id", head).eq("type", "invoice"),
+        supabase.from("jobs").select("id", head),
+        supabase.from("employees").select("id", head),
+        supabase.from("clients").select("id", head),
+        supabase.from("receipts").select("id", head),
+        supabase.from("jobs").select("id", head).not("contract_value", "is", null),
+        supabase.from("profiles").select("hidden_nav_keys").eq("id", user.id).maybeSingle(),
+      ]);
+    hiddenNav = sanitizeHiddenNavKeys(navPrefs?.hidden_nav_keys);
+
+    const labels = new Map(
+      getNavItems({ businessType: "general", isPro: true }).map((i) => [i.key, i.label]),
+    );
+    const defs: [HideableNavKey, number, string][] = [
+      ["estimates", estimates.count ?? 0, "estimates"],
+      ["invoices", invoices.count ?? 0, "invoices"],
+      ["jobs", jobs.count ?? 0, "jobs"],
+      ["employees", employees.count ?? 0, "employees"],
+      ["clients", clients.count ?? 0, "clients"],
+      ["expenses", expenses.count ?? 0, "expenses"],
+      ["progress-billing", progressJobs.count ?? 0, "progress-billed jobs"],
+      ["overview", 0, ""],
+      ["reports", 0, ""],
+    ];
+    navRows = defs
+      // Pro-only tabs are only listed for accounts that actually see them.
+      .filter(([key]) => isPro || !["progress-billing", "overview", "reports"].includes(key))
+      .map(([key, recordCount, recordNoun]) => ({
+        key,
+        label: labels.get(key) ?? key,
+        recordCount,
+        recordNoun,
+      }));
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <Link
@@ -89,6 +145,8 @@ export default async function SettingsPage() {
 
       <div className="space-y-6">
         <ThemeSettings />
+
+        {isGeneral && <NavigationSettings rows={navRows} initialHidden={hiddenNav} />}
 
         <CurrentPlanCard
           tier={profile?.subscription_status ?? "free"}

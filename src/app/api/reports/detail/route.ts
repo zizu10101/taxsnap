@@ -6,6 +6,8 @@ import { getExpenseDetail, getRevenueDetail } from "@/lib/reports-query";
 //   ?type=revenue            - payments behind the P&L's revenue
 //   ?type=expenses           - receipts behind the P&L's expenses
 //   ?type=category&category= - receipts behind one Expenses by Category row
+//   ?type=account&account=   - receipts paid with one account ("none" = no
+//                              account chosen), the By Account tab
 // all within the optional inclusive "YYYY-MM-DD" from/to.
 export async function GET(request: Request) {
   const result = await requireProUser();
@@ -31,6 +33,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "category is required." }, { status: 400 });
     }
     return NextResponse.json(await getExpenseDetail(supabase, from, to, category));
+  }
+  if (type === "account") {
+    const account = searchParams.get("account");
+    if (!account) {
+      return NextResponse.json({ error: "account is required." }, { status: 400 });
+    }
+    return NextResponse.json(await getExpenseDetail(supabase, from, to, undefined, account));
   }
   return NextResponse.json({ error: "Unknown report detail type." }, { status: 400 });
 }

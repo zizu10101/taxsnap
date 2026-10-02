@@ -56,6 +56,7 @@ export interface Database {
           onboarding_completed: boolean;
           needs_business_type_prompt: boolean;
           theme_preference: ThemePreference;
+          hidden_nav_keys: string[];
           created_at: string;
         };
         Insert: {
@@ -80,6 +81,7 @@ export interface Database {
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
           theme_preference?: ThemePreference;
+          hidden_nav_keys?: string[];
           created_at?: string;
         };
         Update: {
@@ -104,6 +106,7 @@ export interface Database {
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
           theme_preference?: ThemePreference;
+          hidden_nav_keys?: string[];
           created_at?: string;
         };
         Relationships: [];

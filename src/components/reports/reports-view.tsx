@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { getPresetRange, type DateRange, type RangePreset } from "@/lib/date-range";
+import { NOT_SPECIFIED, type AccountSpendRow } from "@/lib/account-spending";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type {
   ExpenseDetailRow,
   JobSummaryData,
@@ -50,16 +58,18 @@ function rangeParams(range: DateRange) {
 const EMPTY_DATA: ReportsData = {
   pnl: { revenue: 0, expenses: 0, netProfit: 0 },
   categories: [],
+  accounts: { rows: [], total: 0 },
 };
 
 const EMPTY_JOBS: JobSummaryData = { jobs: [], unlinked: null };
 
-type ReportTab = "pnl" | "jobs" | "categories";
+type ReportTab = "pnl" | "jobs" | "categories" | "accounts";
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: "pnl", label: "P&L" },
   { key: "jobs", label: "Job Summary" },
   { key: "categories", label: "Expenses by Category" },
+  { key: "accounts", label: "By Account" },
 ];
 
 // Fetches one drill-down's rows when its panel mounts. Callers key the panel
@@ -170,12 +180,33 @@ function RevenueDetail({ range }: { range: DateRange }) {
   );
 }
 
-function ExpenseDetail({ range, category }: { range: DateRange; category?: string }) {
-  const params = new URLSearchParams([
-    ["type", category === undefined ? "expenses" : "category"],
-    ...(category === undefined ? [] : [["category", category] as [string, string]]),
-    ...rangeParams(range),
-  ]);
+// The receipts behind a number: every expense in the range (no scope), one
+// category's, or one account's (an account id, or "none" for expenses with no
+// "Paid with"). The Paid with column is dropped when it would repeat the account.
+function ExpenseDetail({
+  range,
+  category,
+  account,
+}: {
+  range: DateRange;
+  category?: string;
+  account?: string;
+}) {
+  const scoped: [string, string][] =
+    account !== undefined
+      ? [
+          ["type", "account"],
+          ["account", account],
+        ]
+      : category !== undefined
+        ? [
+            ["type", "category"],
+            ["category", category],
+          ]
+        : [["type", "expenses"]];
+  const params = new URLSearchParams([...scoped, ...rangeParams(range)]);
+  const showCategory = category === undefined;
+  const showPaidWith = account === undefined;
   const { data, failed } = useDetail<{ rows: ExpenseDetailRow[]; total: number }>(
     `/api/reports/detail?${params}`,
   );
@@ -189,9 +220,9 @@ function ExpenseDetail({ range, category }: { range: DateRange; category?: strin
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-1.5 pr-2 font-medium">Date</th>
                 <th className="px-2 py-1.5 font-medium">Merchant</th>
-                {category === undefined && <th className="px-2 py-1.5 font-medium">Category</th>}
+                {showCategory && <th className="px-2 py-1.5 font-medium">Category</th>}
                 <th className="px-2 py-1.5 font-medium">Job</th>
-                <th className="px-2 py-1.5 font-medium">Paid with</th>
+                {showPaidWith && <th className="px-2 py-1.5 font-medium">Paid with</th>}
                 <th className="py-1.5 pl-2 text-right font-medium">Paid</th>
               </tr>
             </thead>
@@ -200,16 +231,21 @@ function ExpenseDetail({ range, category }: { range: DateRange; category?: strin
                 <tr key={r.id} className="border-b last:border-0">
                   <td className="py-1.5 pr-2">{formatDate(r.date)}</td>
                   <td className="px-2 py-1.5">{r.merchant}</td>
-                  {category === undefined && <td className="px-2 py-1.5">{r.category}</td>}
+                  {showCategory && <td className="px-2 py-1.5">{r.category}</td>}
                   <td className="px-2 py-1.5 text-muted-foreground">{r.job ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-muted-foreground">{r.paidWith ?? "—"}</td>
+                  {showPaidWith && (
+                    <td className="px-2 py-1.5 text-muted-foreground">{r.paidWith ?? "—"}</td>
+                  )}
                   <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(r.amount)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t font-semibold">
-                <td colSpan={category === undefined ? 5 : 4} className="py-1.5 pr-2">
+                <td
+                  colSpan={3 + (showCategory ? 1 : 0) + (showPaidWith ? 1 : 0)}
+                  className="py-1.5 pr-2"
+                >
                   Total
                 </td>
                 <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(data.total)}</td>
@@ -501,6 +537,8 @@ export function ReportsView({
             </p>
           </CardContent>
         </Card>
+      ) : tab === "accounts" ? (
+        <AccountSpendingTab accounts={data.accounts} range={range} />
       ) : (
         <Card>
           <CardHeader>
@@ -550,6 +588,136 @@ export function ReportsView({
       )}
     </div>
   );
+}
+
+// "By Account": tracked spending per "Paid with" account for the selected range.
+// The default view is every account (plus an always-visible "Not specified" row)
+// adding up to the P&L's expenses; pick one for its total and its receipts.
+// This is spending logged in TaxSnap - NOT an account balance or a statement
+// total, since the app isn't connected to any bank or card.
+function AccountSpendingTab({
+  accounts,
+  range,
+}: {
+  accounts: ReportsData["accounts"];
+  range: DateRange;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const rangeKey = `${range.start ?? ""}|${range.end ?? ""}`;
+
+  // A picked account can drop out of the list (deactivated, and no spend in a
+  // newly chosen range) - fall back to the all-accounts view rather than error.
+  const active = selected ? (accounts.rows.find((r) => r.key === selected) ?? null) : null;
+
+  // Memoized: Select needs a stable items map (a new object every render
+  // would make it re-sync on each pass).
+  const items = useMemo(() => {
+    const map: Record<string, string> = { all: "All accounts" };
+    for (const r of accounts.rows) map[r.key] = accountRowLabel(r);
+    return map;
+  }, [accounts.rows]);
+
+  return (
+    <Card>
+      <CardHeader className="space-y-3">
+        <CardTitle className="text-base">Spending by Account</CardTitle>
+        <p className="rounded-md border bg-muted/30 p-2.5 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">Tracked spending only.</span> This is what
+          you&apos;ve logged in TaxSnap as paid with each account - not an account balance or a
+          statement total. TaxSnap isn&apos;t connected to your bank or cards.
+        </p>
+        <div className="max-w-xs">
+          <Select
+            items={items}
+            value={active ? active.key : "all"}
+            onValueChange={(v) => setSelected(!v || v === "all" ? null : v)}
+          >
+            <SelectTrigger aria-label="Account" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All accounts</SelectItem>
+              {accounts.rows.map((r) => (
+                <SelectItem key={r.key} value={r.key}>
+                  {accountRowLabel(r)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {active ? (
+          <>
+            <div className="rounded-lg bg-primary/10 p-3">
+              <p className="text-xs text-muted-foreground">
+                {active.key === NOT_SPECIFIED
+                  ? "Tracked spending with no account chosen, in this range"
+                  : `Tracked spending paid with ${active.name} in this range`}
+              </p>
+              <p className="text-2xl font-bold tabular-nums">{formatCurrency(active.total)}</p>
+              <p className="text-xs text-muted-foreground">
+                {active.count} expense{active.count === 1 ? "" : "s"}
+              </p>
+            </div>
+            <ExpenseDetail key={`${rangeKey}|${active.key}`} range={range} account={active.key} />
+          </>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[22rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Account</th>
+                  <th className="px-2 py-2 text-right font-medium">Expenses</th>
+                  <th className="py-2 pl-2 text-right font-medium">Tracked spending</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.rows.map((r) => (
+                  <tr key={r.key} className="border-b last:border-0">
+                    <td className="py-2 pr-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(r.key)}
+                        className="flex items-center gap-1.5 text-left font-medium hover:text-primary"
+                      >
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        {accountRowLabel(r)}
+                      </button>
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.count}</td>
+                    <td className="py-2 pl-2 text-right tabular-nums">{formatCurrency(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 font-semibold">
+                  <td className="py-2 pr-3">Total tracked spending</td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    {accounts.rows.reduce((sum, r) => sum + r.count, 0)}
+                  </td>
+                  <td className="py-2 pl-2 text-right tabular-nums">
+                    {formatCurrency(accounts.total)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+            <p className="pt-2 text-xs text-muted-foreground">
+              &quot;Not specified&quot; is expenses with no &quot;Paid with&quot; chosen. They&apos;re
+              counted here so the total equals the P&amp;L&apos;s expenses for the same range.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function accountRowLabel(r: AccountSpendRow): string {
+  let label = r.name;
+  if (r.type === "card") label += " (credit card)";
+  if (!r.isActive && r.key !== NOT_SPECIFIED) label += " (inactive)";
+  return label;
 }
 
 // A category row plus, when expanded, a full-width row holding its receipts.

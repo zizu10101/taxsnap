@@ -15,16 +15,20 @@ export function DashboardSidebar({
   businessType,
   subscriptionStatus,
   logoPath,
+  hiddenNavKeys,
 }: {
   businessType: BusinessType;
   subscriptionStatus: SubscriptionStatus;
   logoPath: string | null;
+  hiddenNavKeys: readonly string[];
 }) {
   const pathname = usePathname();
   const activeKey = getActiveNavKey(pathname);
   const items = getNavItems({
     businessType: businessType === "salon" ? "salon" : "general",
     isPro: subscriptionStatus === "pro",
+    hiddenKeys: hiddenNavKeys,
+    keepKey: activeKey,
   });
 
   return (
