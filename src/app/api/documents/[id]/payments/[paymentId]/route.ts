@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import { round2, statusFromPaid } from "@/lib/payments";
+import { resolveBankAccountId, round2, statusFromPaid } from "@/lib/payments";
 
 export async function PATCH(
   request: Request,
@@ -30,6 +30,7 @@ export async function PATCH(
     paid_date?: string;
     method?: string | null;
     note?: string | null;
+    bank_account_id?: string | null;
   } = {};
 
   if (body.amount !== undefined) {
@@ -70,6 +71,13 @@ export async function PATCH(
   if (body.paid_date !== undefined) update.paid_date = body.paid_date;
   if (body.method !== undefined) update.method = body.method?.trim() || null;
   if (body.note !== undefined) update.note = body.note?.trim() || null;
+  if (body.bank_account_id !== undefined) {
+    const bank = await resolveBankAccountId(supabase, user.id, body.bank_account_id);
+    if ("error" in bank) {
+      return NextResponse.json({ error: bank.error }, { status: 404 });
+    }
+    update.bank_account_id = bank.id;
+  }
 
   const { data: payment, error: paymentError } = await supabase
     .from("payments")

@@ -38,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { compressImage } from "@/lib/compress-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -84,6 +84,7 @@ export function UploadReceipt({
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<ParsedDraft | null>(null);
+  const categoryOptions = useExpenseCategoryOptions(draft?.tax_category);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [jobMode, setJobMode] = useState<string>(NO_JOB);
@@ -364,7 +365,7 @@ export function UploadReceipt({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {TAX_CATEGORIES.map((cat) => (
+                      {categoryOptions.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat}
                         </SelectItem>

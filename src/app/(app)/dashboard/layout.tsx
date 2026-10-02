@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { OwnerListsProvider } from "@/components/owner-lists-provider";
 
 // Mounted once around every /dashboard/** page (not /billing - that route
 // lives outside this folder and keeps its own header). Replaces each page's
@@ -27,11 +28,16 @@ export default async function DashboardLayout({
     return <>{children}</>;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("business_name, subscription_status, business_type, logo_url")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, { data: bankAccounts }, { data: customCategories }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("business_name, subscription_status, business_type, logo_url")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase.from("bank_accounts").select("*").order("name", { ascending: true }),
+      supabase.from("expense_categories").select("*").order("name", { ascending: true }),
+    ]);
 
   return (
     <DashboardShell
@@ -41,7 +47,12 @@ export default async function DashboardLayout({
       businessType={profile?.business_type ?? "general"}
       logoPath={profile?.logo_url ?? null}
     >
-      {children}
+      <OwnerListsProvider
+        bankAccounts={bankAccounts ?? []}
+        customCategories={customCategories ?? []}
+      >
+        {children}
+      </OwnerListsProvider>
     </DashboardShell>
   );
 }

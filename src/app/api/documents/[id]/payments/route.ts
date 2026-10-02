@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import { round2, statusFromPaid } from "@/lib/payments";
+import { resolveBankAccountId, round2, statusFromPaid } from "@/lib/payments";
 
 export async function POST(
   request: Request,
@@ -61,6 +61,11 @@ export async function POST(
     );
   }
 
+  const bank = await resolveBankAccountId(supabase, user.id, body.bank_account_id);
+  if ("error" in bank) {
+    return NextResponse.json({ error: bank.error }, { status: 404 });
+  }
+
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
@@ -69,6 +74,7 @@ export async function POST(
       paid_date: body.paid_date || undefined,
       method: body.method?.trim() || null,
       note: body.note?.trim() || null,
+      bank_account_id: bank.id,
     })
     .select()
     .single();

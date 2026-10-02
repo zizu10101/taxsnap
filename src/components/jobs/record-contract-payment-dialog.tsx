@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
+import { BankAccountSelect } from "@/components/invoices/bank-account-select";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +68,7 @@ export function RecordContractPaymentDialog({
   const [paidDate, setPaidDate] = useState(() => toIsoDate(new Date()));
   const [method, setMethod] = useState("");
   const [note, setNote] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
   const [saving, setSaving] = useState(false);
 
   function reset() {
@@ -74,6 +76,7 @@ export function RecordContractPaymentDialog({
     setPaidDate(toIsoDate(new Date()));
     setMethod("");
     setNote("");
+    setBankAccountId("");
   }
 
   async function handleSave() {
@@ -86,7 +89,13 @@ export function RecordContractPaymentDialog({
       const res = await fetch(`/api/jobs/${jobId}/allocate-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, paid_date: paidDate, method, note }),
+        body: JSON.stringify({
+          amount,
+          paid_date: paidDate,
+          method,
+          note,
+          bank_account_id: bankAccountId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to record payment");
@@ -150,6 +159,11 @@ export function RecordContractPaymentDialog({
               onChange={(e) => setMethod(e.target.value)}
             />
           </div>
+          <BankAccountSelect
+            id="contract-payment-bank-account"
+            value={bankAccountId}
+            onChange={setBankAccountId}
+          />
           <div className="space-y-2">
             <Label htmlFor="contract-payment-note">Note (optional)</Label>
             <Input

@@ -32,6 +32,8 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
+import { BankAccountSelect } from "@/components/invoices/bank-account-select";
+import { useBankAccounts } from "@/components/owner-lists-provider";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link-button";
 import { EmailSignatureLinkButton } from "@/components/invoices/email-signature-link-button";
@@ -127,6 +129,9 @@ export function DocumentDetail({
   const [paymentDate, setPaymentDate] = useState(() => toIsoDate(new Date()));
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+  // "" = not specified. Optional on every payment.
+  const [paymentBankAccountId, setPaymentBankAccountId] = useState("");
+  const bankAccounts = useBankAccounts();
   const [addingPayment, setAddingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(
     null,
@@ -226,6 +231,7 @@ export function DocumentDetail({
     setPaymentDate(payment.paid_date);
     setPaymentMethod(payment.method ?? "");
     setPaymentNote(payment.note ?? "");
+    setPaymentBankAccountId(payment.bank_account_id ?? "");
   }
 
   function cancelEditPayment() {
@@ -235,6 +241,7 @@ export function DocumentDetail({
     setPaymentDate(toIsoDate(new Date()));
     setPaymentMethod("");
     setPaymentNote("");
+    setPaymentBankAccountId("");
   }
 
   async function handleSavePayment() {
@@ -271,6 +278,7 @@ export function DocumentDetail({
             paid_date: paymentDate,
             method: paymentMethod,
             note: paymentNote,
+            bank_account_id: paymentBankAccountId,
           }),
         },
       );
@@ -740,6 +748,11 @@ export function DocumentDetail({
                         <p className="truncate text-xs text-muted-foreground">
                           {formatDate(payment.paid_date)}
                           {payment.method && ` · ${payment.method}`}
+                          {payment.bank_account_id &&
+                            ` · Deposited to ${
+                              bankAccounts.find((a) => a.id === payment.bank_account_id)?.name ??
+                              "a removed account"
+                            }`}
                           {payment.note && ` · ${payment.note}`}
                         </p>
                       </div>
@@ -834,6 +847,11 @@ export function DocumentDetail({
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 />
               </div>
+              <BankAccountSelect
+                id="payment-bank-account"
+                value={paymentBankAccountId}
+                onChange={setPaymentBankAccountId}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="payment-note">Note (optional)</Label>
                 <Input

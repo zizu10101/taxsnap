@@ -2,6 +2,7 @@ import {
   BarChart3,
   Briefcase,
   ClipboardList,
+  FileBarChart,
   FileText,
   HardHat,
   LayoutDashboard,
@@ -22,6 +23,7 @@ export type NavKey =
   | "expenses"
   | "progress-billing"
   | "overview"
+  | "reports"
   | "commission";
 
 export interface NavItem {
@@ -50,6 +52,7 @@ const NAV_ROUTES: { key: NavKey; prefixes: string[] }[] = [
   { key: "expenses", prefixes: ["/dashboard/expenses"] },
   { key: "progress-billing", prefixes: ["/dashboard/progress-billing"] },
   { key: "overview", prefixes: ["/dashboard/overview"] },
+  { key: "reports", prefixes: ["/dashboard/reports"] },
   { key: "commission", prefixes: ["/dashboard/commission"] },
 ];
 
@@ -85,6 +88,7 @@ const PRO_ITEMS: NavItem[] = [
     icon: Target,
   },
   { key: "overview", label: "Overview", href: "/dashboard/overview", icon: PieChart },
+  { key: "reports", label: "Reports", href: "/dashboard/reports", icon: FileBarChart },
 ];
 
 const SALON_ITEMS: NavItem[] = [

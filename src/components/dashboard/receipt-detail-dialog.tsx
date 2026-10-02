@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -107,6 +107,7 @@ function ReceiptSummaryContent({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
+  const categoryOptions = useExpenseCategoryOptions(form.tax_category);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [jobMode, setJobMode] = useState<string>(() =>
@@ -245,7 +246,7 @@ function ReceiptSummaryContent({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TAX_CATEGORIES.map((cat) => (
+                  {categoryOptions.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>

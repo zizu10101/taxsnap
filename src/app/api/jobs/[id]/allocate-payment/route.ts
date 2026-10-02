@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
-import { round2, statusFromPaid } from "@/lib/payments";
+import { resolveBankAccountId, round2, statusFromPaid } from "@/lib/payments";
 
 // Records one payment against the CONTRACT rather than a specific draw -
 // the common case of a client paying down held-back balance across
@@ -41,6 +41,11 @@ export async function POST(
       { error: "Payment amount must be greater than $0." },
       { status: 400 },
     );
+  }
+
+  const bank = await resolveBankAccountId(supabase, user.id, body.bank_account_id);
+  if ("error" in bank) {
+    return NextResponse.json({ error: bank.error }, { status: 404 });
   }
 
   const { data: draws } = await supabase
@@ -98,6 +103,7 @@ export async function POST(
       paid_date: body.paid_date || undefined,
       method: body.method?.trim() || null,
       note: body.note?.trim() || null,
+      bank_account_id: bank.id,
     });
     if (paymentError) {
       return NextResponse.json({ error: paymentError.message }, { status: 500 });

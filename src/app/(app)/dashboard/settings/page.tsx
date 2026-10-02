@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
 import { EmployeeLoginSettings } from "@/components/settings/employee-login-settings";
 import { ThemeSettings } from "@/components/settings/theme-settings";
+import {
+  BankAccountsSettings,
+  ExpenseCategoriesSettings,
+} from "@/components/settings/owner-lists-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { ManageSubscriptionButton } from "@/components/billing/manage-subscription-button";
 import { CurrentPlanCard } from "@/components/billing/current-plan-card";
@@ -54,6 +58,20 @@ export default async function SettingsPage() {
         .maybeSingle()
     : { data: null };
 
+  // Bank accounts and custom expense categories are general-business lists
+  // (salons don't invoice or log trade expenses the same way). Categories
+  // are Pro-only, same as Overview/Reports - the API enforces it too.
+  const isGeneral = profile?.business_type === "general";
+  const showCategories = isGeneral && profile?.subscription_status === "pro";
+  const [{ data: bankAccounts }, { data: categories }] = isGeneral
+    ? await Promise.all([
+        supabase.from("bank_accounts").select("*").order("name", { ascending: true }),
+        showCategories
+          ? supabase.from("expense_categories").select("*").order("name", { ascending: true })
+          : Promise.resolve({ data: null }),
+      ])
+    : [{ data: null }, { data: null }];
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <Link
@@ -84,6 +102,9 @@ export default async function SettingsPage() {
         {showEmployeeLogin && (
           <EmployeeLoginSettings initialToken={loginSettings?.employee_login_token ?? null} />
         )}
+
+        {isGeneral && <BankAccountsSettings initialAccounts={bankAccounts ?? []} />}
+        {showCategories && <ExpenseCategoriesSettings initialCategories={categories ?? []} />}
 
         {/* Same gate as /billing's own button (hasBillingAccount there) -
             a Stripe customer only exists once someone's actually gone

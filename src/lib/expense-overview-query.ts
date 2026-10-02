@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { recognizePayments } from "@/lib/payment-revenue";
 import { computeExpenseSummary, deductibleRate, type ExpenseSummary } from "@/lib/expense-summary";
 
 export interface ExpenseTrendPoint {
@@ -87,29 +88,14 @@ export async function getExpenseOverviewData(
 
   const receiptRows = receipts ?? [];
 
-  // Pro-rates each payment into its invoice's pre-tax subtotal and counts
-  // it in the period it was actually *received*, not when the invoice was
-  // issued or fully paid off - identical revenue-recognition rule to the
-  // HST Return Helper's own recognizedPayments (hst-summary-card.tsx),
-  // just computed server-side here instead of client-side there. Also
-  // respects excluded_from_hst, same as that calculator's Line 101 - an
-  // invoice already excluded there (e.g. a reimbursement) shouldn't
-  // silently count as sales here either, or the two "total sales" figures
-  // in this app could disagree for a reason invisible in the UI.
-  let totalSales = 0;
-  const salesTrendPoints: SalesTrendPoint[] = [];
-  for (const doc of documents ?? []) {
-    if (doc.excluded_from_hst) continue;
-    const fraction = doc.total_amount > 0 ? doc.subtotal / doc.total_amount : 0;
-    for (const payment of doc.payments) {
-      if (from && payment.paid_date < from) continue;
-      if (to && payment.paid_date > to) continue;
-      const subtotalPortion = round2(fraction * payment.amount);
-      totalSales += subtotalPortion;
-      salesTrendPoints.push({ paidDate: payment.paid_date, subtotalAmount: subtotalPortion });
-    }
-  }
-  totalSales = round2(totalSales);
+  // Revenue recognition (pro-rated per payment, by received date, honoring
+  // excluded_from_hst) lives in lib/payment-revenue.ts so the Reports page
+  // uses the identical rule.
+  const { totalSales, payments: recognized } = recognizePayments(documents ?? [], from, to);
+  const salesTrendPoints: SalesTrendPoint[] = recognized.map((p) => ({
+    paidDate: p.paidDate,
+    subtotalAmount: p.subtotalAmount,
+  }));
 
   const summary = computeExpenseSummary(receiptRows);
   const jobExpenses = computeExpenseSummary(receiptRows.filter((r) => r.job_id));

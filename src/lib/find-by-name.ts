@@ -9,7 +9,7 @@ function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-type NameTable = "clients" | "jobs";
+type NameTable = "clients" | "jobs" | "bank_accounts" | "expense_categories";
 
 async function findByName(
   supabase: SupabaseClient<Database>,
@@ -44,6 +44,24 @@ export function findClientByName(
   excludeId?: string,
 ) {
   return findByName(supabase, "clients", userId, name, excludeId);
+}
+
+export function findBankAccountByName(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  name: string,
+  excludeId?: string,
+) {
+  return findByName(supabase, "bank_accounts", userId, name, excludeId);
+}
+
+export function findExpenseCategoryByName(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  name: string,
+  excludeId?: string,
+) {
+  return findByName(supabase, "expense_categories", userId, name, excludeId);
 }
 
 export function duplicateClientMessage(name: string) {

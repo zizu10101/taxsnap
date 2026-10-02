@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import type { ExpenseTemplateWithJob } from "@/lib/database.types";
 
 const NO_JOB = "__no_job__";
@@ -64,6 +64,7 @@ export function ExpenseTemplateEditDialog({
   onSaved: (template: ExpenseTemplateWithJob) => void;
 }) {
   const [form, setForm] = useState(() => formFrom(template));
+  const categoryOptions = useExpenseCategoryOptions(form.default_tax_category);
   const [jobMode, setJobMode] = useState<string>(template?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
   const [recurrenceHint, setRecurrenceHint] = useState(template?.recurrence_hint ?? NO_RECURRENCE);
@@ -174,7 +175,7 @@ export function ExpenseTemplateEditDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TAX_CATEGORIES.map((cat) => (
+                {categoryOptions.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>

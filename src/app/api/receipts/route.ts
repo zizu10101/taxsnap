@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { resolveCategory } from "@/lib/expense-categories";
 import type { ReceiptItem } from "@/lib/database.types";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const category = TAX_CATEGORIES.includes(tax_category) ? tax_category : "Other";
+  const category = await resolveCategory(supabase, user.id, tax_category);
 
   // Re-verify ownership rather than trust the id as-is - same reasoning
   // as every other client-supplied foreign id in this app (e.g. job_id in

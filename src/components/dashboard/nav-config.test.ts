@@ -45,3 +45,15 @@ test("every item's route maps back to its own key", () => {
     assert.equal(getActiveNavKey(item.href), item.key, item.href);
   }
 });
+
+test("Reports is its own Pro tab right after Overview, in the mobile More sheet", () => {
+  assert.equal(getActiveNavKey("/dashboard/reports"), "reports");
+  const pro = getNavItems({ businessType: "general", isPro: true }).map((i) => i.key);
+  assert.equal(pro[pro.indexOf("overview") + 1], "reports");
+  const free = getNavItems({ businessType: "general", isPro: false }).map((i) => i.key);
+  assert.equal(free.includes("reports"), false);
+  const salon = getNavItems({ businessType: "salon", isPro: true }).map((i) => i.key);
+  assert.equal(salon.includes("reports"), false);
+  const { overflow } = splitMobileNav(getNavItems({ businessType: "general", isPro: true }));
+  assert.ok(overflow.some((i) => i.key === "reports"));
+});

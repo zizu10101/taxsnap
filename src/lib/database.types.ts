@@ -349,6 +349,7 @@ export interface Database {
           paid_date: string;
           method: string | null;
           note: string | null;
+          bank_account_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -358,6 +359,7 @@ export interface Database {
           paid_date?: string;
           method?: string | null;
           note?: string | null;
+          bank_account_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -367,6 +369,7 @@ export interface Database {
           paid_date?: string;
           method?: string | null;
           note?: string | null;
+          bank_account_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -377,7 +380,62 @@ export interface Database {
             referencedRelation: "documents";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "payments_bank_account_id_fkey";
+            columns: ["bank_account_id"];
+            isOneToOne: false;
+            referencedRelation: "bank_accounts";
+            referencedColumns: ["id"];
+          },
         ];
+      };
+      bank_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      expense_categories: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       jobs: {
         Row: {
@@ -1322,6 +1380,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      rename_expense_category: {
+        Args: { p_id: string; p_new_name: string };
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"];
+      };
       create_payout: {
         Args: {
           p_stylist_id: string;
@@ -1446,6 +1508,8 @@ export type DocumentItem = Database["public"]["Tables"]["document_items"]["Row"]
 export type SalesPeriod = Database["public"]["Tables"]["sales"]["Row"];
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
+export type BankAccount = Database["public"]["Tables"]["bank_accounts"]["Row"];
+export type ExpenseCategory = Database["public"]["Tables"]["expense_categories"]["Row"];
 export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 export type ContractChange = Database["public"]["Tables"]["contract_changes"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];

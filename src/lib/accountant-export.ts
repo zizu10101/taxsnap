@@ -3,8 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DocumentWithRelations, Receipt } from "@/lib/database.types";
 import {
   invoicesToCsv,
+  paymentsToCsv,
   receiptsToCsv,
   receiptsToQuickBooksCsv,
+  type PaymentExportRow,
   type QuickBooksInvoicePayment,
 } from "@/lib/csv";
 import { computeExpenseSummary } from "@/lib/expense-summary";
@@ -156,8 +158,47 @@ export async function downloadAccountantExport(
   const { data: invoiceRows } = await invoiceQuery;
   const invoices = (invoiceRows ?? []) as unknown as DocumentWithRelations[];
 
+  // Every account, active or not - a payment recorded against a since-removed
+  // account still names it. RLS scopes this to the caller's own accounts.
+  const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
+  const bankAccountNames = new Map((bankAccountRows ?? []).map((a) => [a.id, a.name]));
+
+  // Payments are scoped by paid_date (when the money arrived), not by the
+  // invoice's issue_date like invoices.csv below - a deposit received this
+  // period on an older invoice belongs in this period's bank reconciliation.
+  const { data: paymentDocs } = await supabase
+    .from("documents")
+    .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
+    .eq("type", "invoice");
+  const paymentRows: PaymentExportRow[] = [];
+  for (const doc of (paymentDocs ?? []) as unknown as {
+    document_number: number;
+    excluded_from_hst: boolean;
+    client: { name: string } | null;
+    payments: Database["public"]["Tables"]["payments"]["Row"][];
+  }[]) {
+    for (const p of doc.payments) {
+      if (range.start && p.paid_date < range.start) continue;
+      if (range.end && p.paid_date > range.end) continue;
+      paymentRows.push({
+        paidDate: p.paid_date,
+        documentNumber: doc.document_number,
+        clientName: doc.client?.name ?? "—",
+        amount: p.amount,
+        method: p.method,
+        depositedTo: p.bank_account_id ? (bankAccountNames.get(p.bank_account_id) ?? null) : null,
+        note: p.note,
+        excludedFromHst: doc.excluded_from_hst,
+      });
+    }
+  }
+  paymentRows.sort((a, b) => (a.paidDate < b.paidDate ? -1 : a.paidDate > b.paidDate ? 1 : 0));
+  if (paymentRows.length > 0) {
+    zip.file("payments.csv", "﻿" + paymentsToCsv(paymentRows));
+  }
+
   if (invoices.length > 0) {
-    zip.file("invoices.csv", "﻿" + invoicesToCsv(invoices));
+    zip.file("invoices.csv", "﻿" + invoicesToCsv(invoices, bankAccountNames));
 
     const logoDataUrl = await fetchLogoDataUrl(supabase, logoPath);
     const usedInvoiceNames = new Set<string>();

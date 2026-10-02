@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 
 function todayIso() {
@@ -84,6 +84,7 @@ export function ManualExpenseDialog({
   onTemplateSaved?: (template: ExpenseTemplateWithJob) => void;
 }) {
   const [form, setForm] = useState(() => emptyForm(template));
+  const categoryOptions = useExpenseCategoryOptions(form.tax_category);
   const [jobMode, setJobMode] = useState<string>(template?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -225,7 +226,7 @@ export function ManualExpenseDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TAX_CATEGORIES.map((cat) => (
+                  {categoryOptions.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>

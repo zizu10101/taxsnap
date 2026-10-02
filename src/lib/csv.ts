@@ -139,7 +139,15 @@ export function receiptsToQuickBooksCsv(
 // "Paid to Date"/"Balance Due" are derived from the same payments array
 // the invoice detail view and PDF already use, not a separate query, so
 // this can't disagree with what's shown on screen for the same invoice.
-export function invoicesToCsv(documents: DocumentWithRelations[]): string {
+//
+// "Deposited To" lists the distinct bank accounts this invoice's payments went
+// into (payments.bank_account_id, resolved through bankAccountNames), joined
+// with "; " - blank when no payment named one. The per-payment detail is in
+// payments.csv.
+export function invoicesToCsv(
+  documents: DocumentWithRelations[],
+  bankAccountNames: Map<string, string> = new Map(),
+): string {
   const header = [
     "Issue Date",
     "Client",
@@ -149,10 +157,18 @@ export function invoicesToCsv(documents: DocumentWithRelations[]): string {
     "Total",
     "Paid to Date",
     "Balance Due",
+    "Deposited To",
   ];
 
   const rows = documents.map((d) => {
     const paid = d.payments.reduce((sum, p) => sum + p.amount, 0);
+    const depositedTo = [
+      ...new Set(
+        d.payments
+          .map((p) => (p.bank_account_id ? bankAccountNames.get(p.bank_account_id) : undefined))
+          .filter((name): name is string => !!name),
+      ),
+    ].join("; ");
     return [
       d.issue_date,
       d.client?.name ?? "—",
@@ -162,6 +178,7 @@ export function invoicesToCsv(documents: DocumentWithRelations[]): string {
       d.total_amount.toFixed(2),
       paid.toFixed(2),
       (d.total_amount - paid).toFixed(2),
+      depositedTo,
     ];
   });
 
@@ -179,6 +196,7 @@ export function invoicesToCsv(documents: DocumentWithRelations[]): string {
     totalAmount.toFixed(2),
     totalPaid.toFixed(2),
     (totalAmount - totalPaid).toFixed(2),
+    "",
   ];
 
   const lines = [header, ...rows, totalsRow].map((row) =>
@@ -186,6 +204,50 @@ export function invoicesToCsv(documents: DocumentWithRelations[]): string {
   );
 
   return lines.join("\n");
+}
+
+// One real payment received against an invoice, for matching against bank
+// deposits. Unlike receiptsToQuickBooksCsv's invoicePayments this keeps
+// payments on invoices excluded from the HST helper (a reimbursement still
+// hit the bank) and flags them in their own column instead of dropping them.
+export interface PaymentExportRow {
+  paidDate: string;
+  documentNumber: number;
+  clientName: string;
+  amount: number;
+  method: string | null;
+  depositedTo: string | null;
+  note: string | null;
+  excludedFromHst: boolean;
+}
+
+export function paymentsToCsv(payments: PaymentExportRow[]): string {
+  const header = [
+    "Date Received",
+    "Invoice",
+    "Client",
+    "Amount",
+    "Method",
+    "Deposited To",
+    "Note",
+    "Excluded From HST",
+  ];
+
+  const rows = payments.map((p) => [
+    p.paidDate,
+    formatDocumentNumber("invoice", p.documentNumber),
+    p.clientName,
+    p.amount.toFixed(2),
+    p.method ?? "",
+    p.depositedTo ?? "",
+    p.note ?? "",
+    p.excludedFromHst ? "Yes" : "No",
+  ]);
+
+  const total = payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalsRow = ["", "", "TOTAL", total.toFixed(2), "", "", "", ""];
+
+  return [header, ...rows, totalsRow].map((row) => row.map(escapeCsvField).join(",")).join("\n");
 }
 
 export function downloadCsv(filename: string, csv: string) {
