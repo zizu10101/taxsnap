@@ -65,6 +65,7 @@ export default async function ExpensesPage() {
           address: profile?.business_address ?? null,
         }}
         logoPath={profile?.logo_url ?? null}
+        lastSignInAt={user.last_sign_in_at ?? null}
       />
     </div>
   );

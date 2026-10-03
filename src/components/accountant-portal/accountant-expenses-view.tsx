@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
+import { ReceiptFile } from "@/components/dashboard/receipt-file";
 import { formatCurrency, formatDate } from "@/components/accountant-portal/format";
 import { getPresetRange, filterByRange, type DateRange, type RangePreset } from "@/lib/date-range";
 import { NOT_SPECIFIED } from "@/lib/account-spending";
@@ -271,19 +272,19 @@ function ReceiptDetail({ receipt, paidWith }: { receipt: Receipt; paidWith: stri
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         )}
-        {photo.status === "ready" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photo.url}
-            alt={`Receipt from ${receipt.merchant_name}`}
-            className="max-h-96 w-full rounded-md border object-contain"
-            onError={() => setPhoto({ status: "none" })}
+        {photo.status === "ready" && receipt.image_url && (
+          // A photo or a PDF: ReceiptFile tells which and shows it either way.
+          <ReceiptFile
+            url={photo.url}
+            path={receipt.image_url}
+            className="flex items-center justify-center"
+            imgClassName="max-h-96 w-full rounded-md border object-contain"
           />
         )}
         {photo.status === "none" && (
           <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
             <ImageOff className="h-4 w-4" />
-            {receipt.image_url ? "Couldn't load the original photo." : "No photo for this expense."}
+            {receipt.image_url ? "Couldn't load the original receipt." : "No receipt file for this expense."}
           </div>
         )}
       </div>

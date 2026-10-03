@@ -78,8 +78,12 @@ export function UploadReceipt({
   existingJobs?: string[];
   // "tile" = quick-actions grid tile (flex-col, icon over label). "hero" =
   // the page header's own compact primary action, sized to sit inline next
-  // to a secondary button rather than full-width.
-  variant?: "hero" | "tile";
+  // to a secondary button rather than full-width. "compact" = a plain small
+  // "Upload Receipt" button for a toolbar (the Expenses tab): one click opens
+  // the file picker, which accepts photos and documents alike - on a phone the
+  // system picker itself offers Take Photo / Photo Library / Files, so the
+  // camera is still one tap away without a menu here.
+  variant?: "hero" | "tile" | "compact";
 }) {
   const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +242,26 @@ export function UploadReceipt({
         className="hidden"
         onChange={handleFileChange}
       />
+      {variant === "compact" ? (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={parsing}
+          onClick={() => libraryInputRef.current?.click()}
+        >
+          {parsing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Reading...
+            </>
+          ) : (
+            <>
+              <ImageUp className="h-4 w-4" />
+              Upload Receipt
+            </>
+          )}
+        </Button>
+      ) : (
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -283,10 +307,11 @@ export function UploadReceipt({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => libraryInputRef.current?.click()}>
             <ImageUp className="h-4 w-4" />
-            Choose Photo or PDF
+            Upload Receipt
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
 
       <Dialog open={!!draft} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -304,7 +329,7 @@ export function UploadReceipt({
           {previewImage && previewIsPdf && (
             <div className="flex max-h-48 w-full items-center gap-2 rounded-md border bg-muted p-4 text-sm text-muted-foreground">
               <FileText className="h-5 w-5 shrink-0" />
-              PDF receipt uploaded
+              Receipt file uploaded
             </div>
           )}
           {previewImage && !previewIsPdf && (

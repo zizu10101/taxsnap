@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ImageOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ReceiptFile } from "@/components/dashboard/receipt-file";
 
 // Same keyed-remount signed-URL pattern as LogoImage
 // (src/components/invoices/business-logo.tsx), pointed at the private
@@ -11,6 +12,9 @@ import { createClient } from "@/lib/supabase/client";
 // `className` sizes/positions the outer frame in every state; `imgClassName`
 // styles the `<img>` itself once loaded (e.g. object-fit) so callers aren't
 // forced to reuse frame layout classes as image styling.
+//
+// The file can be a photo or a PDF: ReceiptFile works out which, so this just
+// signs the URL and hands it over.
 export function ReceiptImage({
   path,
   className,
@@ -52,25 +56,11 @@ export function ReceiptImage({
       <div className={className}>
         <div className="flex flex-col items-center gap-2 text-center">
           <ImageOff className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load the original photo</p>
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load the original receipt</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className={className}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={state}
-        alt="Original receipt scan"
-        className={imgClassName}
-        // createSignedUrl can resolve even when the underlying object is
-        // missing (e.g. seed/demo data with no real upload) - it only 404s
-        // once the browser actually requests the file, so that failure has
-        // to be caught here rather than at the signing step above.
-        onError={() => setState("error")}
-      />
-    </div>
-  );
+  return <ReceiptFile url={state} path={path} className={className} imgClassName={imgClassName} />;
 }

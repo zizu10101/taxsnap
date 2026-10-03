@@ -8,6 +8,8 @@ import { ReceiptsList } from "@/components/dashboard/receipts-list";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
+import { UploadReceipt } from "@/components/dashboard/upload-receipt";
+import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
 import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
 import {
@@ -17,6 +19,7 @@ import {
   type DateRange,
   type RangePreset,
 } from "@/lib/date-range";
+import { pickRecentlyAdded } from "@/lib/recent-receipts";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
@@ -39,12 +42,16 @@ export function ExpensesBody({
   initialTemplates,
   business,
   logoPath,
+  lastSignInAt,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
   initialTemplates: ExpenseTemplateWithJob[];
   business: BusinessInfo;
   logoPath: string | null;
+  // When the owner last signed in; receipts added since then that the current
+  // filters hide are pinned in "Recently added".
+  lastSignInAt: string | null;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [templates, setTemplates] = useState(initialTemplates);
@@ -66,6 +73,12 @@ export function ExpensesBody({
     const byRange = filterByRange(receipts, range);
     return jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
   }, [receipts, range, jobFilter]);
+
+  const recentlyAdded = useMemo(
+    () =>
+      pickRecentlyAdded(receipts, new Set(filteredReceipts.map((r) => r.id)), lastSignInAt),
+    [receipts, filteredReceipts, lastSignInAt],
+  );
 
   // job_id set = tied to a specific job, null = general overhead - the
   // same nullable column job costing already reads, just grouped here
@@ -105,11 +118,16 @@ export function ExpensesBody({
           <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
           <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setTemplatesDialogOpen(true)}>
             <Repeat className="h-4 w-4" />
             From Template
           </Button>
+          <UploadReceipt
+            variant="compact"
+            onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+            existingJobs={existingJobs}
+          />
           <Button
             size="sm"
             onClick={() => {
@@ -122,6 +140,16 @@ export function ExpensesBody({
           </Button>
         </div>
       </div>
+
+      {lastSignInAt && (
+        <RecentlyAddedReceipts
+          receipts={recentlyAdded.items}
+          hiddenCount={recentlyAdded.hiddenCount}
+          signInKey={lastSignInAt}
+          viewLabel={jobFilter ? `${jobFilter}, ${rangeLabel}` : rangeLabel}
+          onSelect={setSelectedReceipt}
+        />
+      )}
 
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
 
