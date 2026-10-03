@@ -96,89 +96,70 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-// Same signed-URL-then-fetch-then-base64 dance as share-document-button.tsx/
-// commission-report-share-buttons.tsx's own logo loading - duplicated here
-// rather than extracted, matching how those two already duplicate it
-// between themselves rather than sharing one helper.
-async function fetchLogoDataUrl(
-  supabase: SupabaseClient<Database>,
-  logoPath: string | null,
-): Promise<string | null> {
-  if (!logoPath) return null;
-  const { data } = await supabase.storage.from("logos").createSignedUrl(logoPath, 60);
-  if (!data) return null;
-  const res = await fetch(data.signedUrl);
+type PaymentDoc = {
+  document_number: number;
+  excluded_from_hst: boolean;
+  client: { name: string } | null;
+  payments: Database["public"]["Tables"]["payments"]["Row"][];
+};
+
+// Everything the zip is built from, already fetched. Split from the fetching
+// so the same zip can be built for the owner (browser Supabase client, RLS) and
+// for the read-only accountant portal (its own scoped API) with no drift in
+// what the bundle contains.
+export interface AccountantExportInputs {
+  receipts: Receipt[];
+  // Every account, active or not - a payment or expense recorded against a
+  // since-removed account still names it.
+  bankAccounts: { id: string; name: string }[];
+  // Invoices issued in the range, with client/payments/items.
+  invoices: DocumentWithRelations[];
+  // Every invoice's payments, for payments.csv (filtered by paid_date below).
+  paymentDocs: PaymentDoc[];
+  // Same array the standalone "Export for QuickBooks" button builds
+  // (range/excluded_from_hst-filtered by the caller) - passed straight into
+  // receiptsToQuickBooksCsv so the bundled file can't drift from that button.
+  invoicePayments: QuickBooksInvoicePayment[];
+  range: { start: string | null; end: string | null };
+  business: BusinessInfo;
+  // Resolved lazily, right before use: the signed URLs are short-lived, and
+  // the invoice PDFs are generated in between.
+  getLogoUrl: () => Promise<string | null>;
+  getImageUrls: (paths: string[]) => Promise<Map<string, string>>;
+}
+
+async function fetchLogoDataUrl(getLogoUrl: () => Promise<string | null>): Promise<string | null> {
+  const url = await getLogoUrl();
+  if (!url) return null;
+  const res = await fetch(url);
   if (!res.ok) return null;
   return blobToDataUrl(await res.blob());
 }
 
-// Builds the full accountant package for whatever receipts are already
-// in hand (the same range/job-filtered array the plain CSV export already
-// uses - see receipts-list.tsx) and triggers a browser download. The
-// invoices.csv/PDF section's own documents are the one thing fetched fresh
-// in here rather than passed in - nothing else on this page needs the full
-// invoice+items rows, so there's no reason for the caller to carry them
-// just for this - scoped to the same inclusive transaction_date/issue_date
-// range as the receipts CSV, so the bundle's halves describe the same
-// period. A free/basic account (or one that's simply never issued an
-// invoice) just gets an empty invoice section - RLS returns zero rows
-// either way, no separate tier check needed here. invoicePayments is the
-// one exception fetched by the caller instead: it's already computed
-// there for the standalone QuickBooks button, so it's passed straight
-// through rather than re-derived from the documents query above.
-export async function downloadAccountantExport(
-  receipts: Receipt[],
-  supabase: SupabaseClient<Database>,
+// Builds the full accountant package and triggers a browser download. The
+// invoices.csv/PDF section is scoped to the same inclusive issue_date range as
+// the receipts CSV, so the bundle's halves describe the same period.
+export async function buildAndDownloadAccountantExport(
+  inputs: AccountantExportInputs,
   filenameBase: string,
-  range: { start: string | null; end: string | null },
-  business: BusinessInfo,
-  logoPath: string | null,
-  // Same array the standalone "Export for QuickBooks" button already
-  // built (range/excluded_from_hst-filtered by the caller) - passed
-  // straight into receiptsToQuickBooksCsv below rather than refetched or
-  // reimplemented here, so the bundled file can't drift from what that
-  // button produces for the same period.
-  invoicePayments: QuickBooksInvoicePayment[],
 ): Promise<void> {
+  const { receipts, invoices, range, business } = inputs;
   const zip = new JSZip();
 
-  // Every account, active or not - a payment or expense recorded against a
-  // since-removed account still names it. RLS scopes this to the caller's own
-  // accounts.
-  const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
-  const bankAccountNames = new Map((bankAccountRows ?? []).map((a) => [a.id, a.name]));
+  const bankAccountNames = new Map(inputs.bankAccounts.map((a) => [a.id, a.name]));
 
   zip.file("transactions.csv", "﻿" + receiptsToCsv(receipts, bankAccountNames));
   zip.file("summary.csv", "﻿" + summaryToCsv(receipts));
   zip.file(
     "quickbooks-import.csv",
-    "﻿" + receiptsToQuickBooksCsv(receipts, invoicePayments),
+    "﻿" + receiptsToQuickBooksCsv(receipts, inputs.invoicePayments),
   );
-
-  let invoiceQuery = supabase
-    .from("documents")
-    .select("*, client:clients(*), payments(*), items:document_items(*)")
-    .eq("type", "invoice")
-    .order("issue_date", { ascending: true });
-  if (range.start) invoiceQuery = invoiceQuery.gte("issue_date", range.start);
-  if (range.end) invoiceQuery = invoiceQuery.lte("issue_date", range.end);
-  const { data: invoiceRows } = await invoiceQuery;
-  const invoices = (invoiceRows ?? []) as unknown as DocumentWithRelations[];
 
   // Payments are scoped by paid_date (when the money arrived), not by the
   // invoice's issue_date like invoices.csv below - a deposit received this
   // period on an older invoice belongs in this period's bank reconciliation.
-  const { data: paymentDocs } = await supabase
-    .from("documents")
-    .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
-    .eq("type", "invoice");
   const paymentRows: PaymentExportRow[] = [];
-  for (const doc of (paymentDocs ?? []) as unknown as {
-    document_number: number;
-    excluded_from_hst: boolean;
-    client: { name: string } | null;
-    payments: Database["public"]["Tables"]["payments"]["Row"][];
-  }[]) {
+  for (const doc of inputs.paymentDocs) {
     for (const p of doc.payments) {
       if (range.start && p.paid_date < range.start) continue;
       if (range.end && p.paid_date > range.end) continue;
@@ -202,7 +183,7 @@ export async function downloadAccountantExport(
   if (invoices.length > 0) {
     zip.file("invoices.csv", "﻿" + invoicesToCsv(invoices, bankAccountNames));
 
-    const logoDataUrl = await fetchLogoDataUrl(supabase, logoPath);
+    const logoDataUrl = await fetchLogoDataUrl(inputs.getLogoUrl);
     const usedInvoiceNames = new Set<string>();
     await Promise.all(
       invoices.map(async (doc) => {
@@ -222,17 +203,9 @@ export async function downloadAccountantExport(
     .filter((path): path is string => !!path);
 
   if (imagePaths.length > 0) {
-    const { data: signedUrls } = await supabase.storage
-      .from("receipts")
-      .createSignedUrls(imagePaths, SIGNED_URL_EXPIRY_SECONDS);
+    const urlByPath = await inputs.getImageUrls(imagePaths);
 
     const usedNames = new Set<string>();
-    const urlByPath = new Map(
-      (signedUrls ?? [])
-        .filter((entry) => !entry.error && entry.signedUrl)
-        .map((entry) => [entry.path, entry.signedUrl]),
-    );
-
     // Fetched in parallel - a year of receipts is at most a few hundred
     // images, well within what a browser's connection pool and this app's
     // "no server compute for this at all" design can handle without a
@@ -265,4 +238,66 @@ export async function downloadAccountantExport(
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+// The owner's export: gathers the inputs with their own (RLS-scoped) browser
+// client, then builds the bundle. The invoices.csv/PDF section's documents are
+// fetched fresh in here rather than passed in - nothing else on the receipts
+// page needs the full invoice+items rows. A free/basic account (or one that
+// has never issued an invoice) just gets an empty invoice section - RLS
+// returns zero rows either way, no separate tier check needed here.
+// invoicePayments is the one exception fetched by the caller: it's already
+// computed there for the standalone QuickBooks button.
+export async function downloadAccountantExport(
+  receipts: Receipt[],
+  supabase: SupabaseClient<Database>,
+  filenameBase: string,
+  range: { start: string | null; end: string | null },
+  business: BusinessInfo,
+  logoPath: string | null,
+  invoicePayments: QuickBooksInvoicePayment[],
+): Promise<void> {
+  const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
+
+  let invoiceQuery = supabase
+    .from("documents")
+    .select("*, client:clients(*), payments(*), items:document_items(*)")
+    .eq("type", "invoice")
+    .order("issue_date", { ascending: true });
+  if (range.start) invoiceQuery = invoiceQuery.gte("issue_date", range.start);
+  if (range.end) invoiceQuery = invoiceQuery.lte("issue_date", range.end);
+  const { data: invoiceRows } = await invoiceQuery;
+
+  const { data: paymentDocs } = await supabase
+    .from("documents")
+    .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
+    .eq("type", "invoice");
+
+  await buildAndDownloadAccountantExport(
+    {
+      receipts,
+      bankAccounts: bankAccountRows ?? [],
+      invoices: (invoiceRows ?? []) as unknown as DocumentWithRelations[],
+      paymentDocs: (paymentDocs ?? []) as unknown as PaymentDoc[],
+      invoicePayments,
+      range,
+      business,
+      getLogoUrl: async () => {
+        if (!logoPath) return null;
+        const { data } = await supabase.storage.from("logos").createSignedUrl(logoPath, 60);
+        return data?.signedUrl ?? null;
+      },
+      getImageUrls: async (paths) => {
+        const { data: signedUrls } = await supabase.storage
+          .from("receipts")
+          .createSignedUrls(paths, SIGNED_URL_EXPIRY_SECONDS);
+        return new Map(
+          (signedUrls ?? []).flatMap((entry): [string, string][] =>
+            !entry.error && entry.signedUrl && entry.path ? [[entry.path, entry.signedUrl]] : [],
+          ),
+        );
+      },
+    },
+    filenameBase,
+  );
 }

@@ -27,28 +27,31 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-// Fetches the one document through the session-checked portal API, then
-// builds the PDF in the browser with the same generateDocumentPdf the owner
-// uses (minus the job-specific Progress Billing Summary block).
+// Fetches the one document through a session-checked portal API, then builds
+// the PDF in the browser with the same generateDocumentPdf the owner uses
+// (minus the job-specific Progress Billing Summary block). Shared by the client
+// portal (the default endpoint) and the accountant portal (passes its own).
 export function ClientPdfButton({
   documentId,
   type,
   documentNumber,
   size = "sm",
   variant = "outline",
+  apiBase = "/api/client-portal/documents",
 }: {
   documentId: string;
   type: DocumentType;
   documentNumber: number;
   size?: "sm" | "default";
   variant?: "outline" | "default";
+  apiBase?: string;
 }) {
   const [busy, setBusy] = useState(false);
 
   async function handleDownload() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/client-portal/documents/${documentId}`);
+      const res = await fetch(`${apiBase}/${documentId}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't load this document.");
 

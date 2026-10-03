@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, createContext, useContext } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +46,25 @@ function profitClass(value: number) {
   if (value < 0) return "text-destructive";
   return "";
 }
+
+// Where the report's data and document links come from. The owner's Reports
+// page uses the defaults; the read-only accountant portal passes its own
+// (same view, same components - just a different API prefix and document page).
+//
+// Plain strings on purpose: the accountant page is a server component, and a
+// function prop can't cross the server -> client boundary.
+export interface ReportsEndpoints {
+  apiBase: string;
+  // Where an invoice opens from a drill-down row: `${documentBase}/${id}`.
+  documentBase: string;
+}
+
+const OWNER_ENDPOINTS: ReportsEndpoints = {
+  apiBase: "/api/reports",
+  documentBase: "/dashboard/invoices",
+};
+
+const ReportsEndpointsContext = createContext<ReportsEndpoints>(OWNER_ENDPOINTS);
 
 function rangeParams(range: DateRange) {
   const params = new URLSearchParams();
@@ -123,8 +142,9 @@ function DetailShell({
 }
 
 function RevenueDetail({ range }: { range: DateRange }) {
+  const { apiBase, documentBase } = useContext(ReportsEndpointsContext);
   const { data, failed } = useDetail<{ rows: RevenueDetailRow[]; total: number }>(
-    `/api/reports/detail?${new URLSearchParams([["type", "revenue"], ...rangeParams(range)])}`,
+    `${apiBase}/detail?${new URLSearchParams([["type", "revenue"], ...rangeParams(range)])}`,
   );
 
   return (
@@ -148,7 +168,7 @@ function RevenueDetail({ range }: { range: DateRange }) {
                   <td className="py-1.5 pr-2">{formatDate(r.paidDate)}</td>
                   <td className="px-2 py-1.5">
                     <Link
-                      href={`/dashboard/invoices/${r.documentId}`}
+                      href={`${documentBase}/${r.documentId}`}
                       className="underline underline-offset-2"
                     >
                       #{r.documentNumber}
@@ -207,8 +227,9 @@ function ExpenseDetail({
   const params = new URLSearchParams([...scoped, ...rangeParams(range)]);
   const showCategory = category === undefined;
   const showPaidWith = account === undefined;
+  const { apiBase } = useContext(ReportsEndpointsContext);
   const { data, failed } = useDetail<{ rows: ExpenseDetailRow[]; total: number }>(
-    `/api/reports/detail?${params}`,
+    `${apiBase}/detail?${params}`,
   );
 
   return (
@@ -325,10 +346,27 @@ function JobRows({ row, italic }: { row: JobSummaryRow; italic?: boolean }) {
 export function ReportsView({
   initialData,
   initialJobs,
+  endpoints = OWNER_ENDPOINTS,
+}: {
+  initialData: ReportsData;
+  initialJobs: JobSummaryData;
+  endpoints?: ReportsEndpoints;
+}) {
+  return (
+    <ReportsEndpointsContext.Provider value={endpoints}>
+      <ReportsViewInner initialData={initialData} initialJobs={initialJobs} />
+    </ReportsEndpointsContext.Provider>
+  );
+}
+
+function ReportsViewInner({
+  initialData,
+  initialJobs,
 }: {
   initialData: ReportsData;
   initialJobs: JobSummaryData;
 }) {
+  const { apiBase } = useContext(ReportsEndpointsContext);
   const [tab, setTab] = useState<ReportTab>("pnl");
 
   // P&L and Expenses by Category share one range...
@@ -351,7 +389,7 @@ export function ReportsView({
   // setLoading(true) is in the change handlers (real event handlers), not in
   // these effects' synchronous bodies - react-hooks/set-state-in-effect.
   useEffect(() => {
-    fetch(`/api/reports?${rangeParams(range)}`)
+    fetch(`${apiBase}?${rangeParams(range)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((json: ReportsData) => setData(json))
       .catch(() => {
@@ -359,10 +397,10 @@ export function ReportsView({
         setData(EMPTY_DATA);
       })
       .finally(() => setLoading(false));
-  }, [range]);
+  }, [apiBase, range]);
 
   useEffect(() => {
-    fetch(`/api/reports/jobs?${rangeParams(jobsRange)}`)
+    fetch(`${apiBase}/jobs?${rangeParams(jobsRange)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((json: JobSummaryData) => setJobsData(json))
       .catch(() => {
@@ -370,7 +408,7 @@ export function ReportsView({
         setJobsData(EMPTY_JOBS);
       })
       .finally(() => setJobsLoading(false));
-  }, [jobsRange]);
+  }, [apiBase, jobsRange]);
 
   function handleRangeChange(nextPreset: RangePreset, nextRange: DateRange) {
     setLoading(true);

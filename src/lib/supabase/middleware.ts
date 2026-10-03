@@ -5,6 +5,9 @@ import { EMPLOYEE_COOKIE, decideEmployeeAccess } from "@/lib/employee-route-guar
 import { lookupEmployeeSession } from "@/lib/employee-session";
 import { CLIENT_COOKIE, decideClientAccess } from "@/lib/client-route-guard";
 import { lookupClientSession } from "@/lib/client-session";
+import { ACCOUNTANT_COOKIE, decideAccountantAccess } from "@/lib/accountant-route-guard";
+import { lookupAccountantSession } from "@/lib/accountant-session";
+import type { PortalGuardDecision } from "@/lib/portal-route-guard";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/billing", "/invoices"];
 
@@ -40,75 +43,91 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Employee-portal sessions (no Supabase user): default-deny everything
-  // outside the employee prefixes. See lib/employee-route-guard.ts. The DB
-  // lookup only runs for requests that actually carry the employee cookie
-  // and have no owner session, so it costs the rest of the app nothing.
-  const employeeCookie = request.cookies.get(EMPLOYEE_COOKIE)?.value;
-  let clearEmployeeCookie = false;
-  let employeeSessionActive = false;
-  if (!user && employeeCookie) {
-    const session = await lookupEmployeeSession(employeeCookie);
-    employeeSessionActive = session !== null;
-    const decision = decideEmployeeAccess({
-      pathname: path,
-      hasEmployeeCookie: true,
-      employeeSessionValid: session !== null,
-      hasSupabaseUser: false,
-    });
+  // Cookie-session portals (employee, client, accountant): no Supabase user,
+  // default-deny everything outside the portal's own prefixes. The decision
+  // logic is shared (lib/portal-route-guard.ts); each portal supplies its
+  // cookie, session lookup and wrapper. The DB lookup only runs for requests
+  // that actually carry that cookie and have no owner session, so it costs the
+  // rest of the app nothing. Portals are checked in order and the first with a
+  // LIVE session decides the request - the login routes clear the other
+  // portals' cookies, so two live sessions is a stale edge case, and denying
+  // is the safe answer for it.
+  const portals: {
+    cookie: string;
+    lookup: (raw: string) => Promise<unknown | null>;
+    decide: (pathname: string, valid: boolean) => PortalGuardDecision;
+    forbidMessage: string;
+  }[] = [
+    {
+      cookie: EMPLOYEE_COOKIE,
+      lookup: lookupEmployeeSession,
+      decide: (pathname, valid) =>
+        decideEmployeeAccess({
+          pathname,
+          hasEmployeeCookie: true,
+          employeeSessionValid: valid,
+          hasSupabaseUser: false,
+        }),
+      forbidMessage: "This session can only be used for clocking in and out.",
+    },
+    {
+      cookie: CLIENT_COOKIE,
+      lookup: lookupClientSession,
+      decide: (pathname, valid) =>
+        decideClientAccess({
+          pathname,
+          hasClientCookie: true,
+          clientSessionValid: valid,
+          hasSupabaseUser: false,
+        }),
+      forbidMessage: "This session can only be used to view your documents.",
+    },
+    {
+      cookie: ACCOUNTANT_COOKIE,
+      lookup: lookupAccountantSession,
+      decide: (pathname, valid) =>
+        decideAccountantAccess({
+          pathname,
+          hasAccountantCookie: true,
+          accountantSessionValid: valid,
+          hasSupabaseUser: false,
+        }),
+      forbidMessage: "This session has read-only access to your accountant reports.",
+    },
+  ];
 
-    if (decision.action === "redirect") {
-      return NextResponse.redirect(new URL(decision.to, request.url));
-    }
-    if (decision.action === "forbid") {
-      return NextResponse.json(
-        { error: "This session can only be used for clocking in and out." },
-        { status: 403 },
-      );
-    }
-    if (decision.action === "clear-cookie-and-pass") {
-      clearEmployeeCookie = true;
-      supabaseResponse.cookies.delete(EMPLOYEE_COOKIE);
+  const deadPortalCookies: string[] = [];
+  if (!user) {
+    for (const portal of portals) {
+      const raw = request.cookies.get(portal.cookie)?.value;
+      if (!raw) continue;
+
+      const valid = (await portal.lookup(raw)) !== null;
+      const decision = portal.decide(path, valid);
+
+      if (decision.action === "redirect") {
+        return NextResponse.redirect(new URL(decision.to, request.url));
+      }
+      if (decision.action === "forbid") {
+        return NextResponse.json({ error: portal.forbidMessage }, { status: 403 });
+      }
+      if (decision.action === "clear-cookie-and-pass") {
+        deadPortalCookies.push(portal.cookie);
+        supabaseResponse.cookies.delete(portal.cookie);
+      } else if (valid) {
+        // A live session already decided this request; later portals' cookies
+        // are stale leftovers.
+        break;
+      }
     }
   }
 
-  // Client-portal sessions: same default-deny, outside /client/**. Skipped
-  // when a live employee session already decided this request (the login
-  // routes clear the other cookie, so both being live is a stale edge case,
-  // and the employee guard's deny is the safe answer for it).
-  const clientCookie = request.cookies.get(CLIENT_COOKIE)?.value;
-  let clearClientCookie = false;
-  if (!user && clientCookie && !employeeSessionActive) {
-    const session = await lookupClientSession(clientCookie);
-    const decision = decideClientAccess({
-      pathname: path,
-      hasClientCookie: true,
-      clientSessionValid: session !== null,
-      hasSupabaseUser: false,
-    });
-
-    if (decision.action === "redirect") {
-      return NextResponse.redirect(new URL(decision.to, request.url));
-    }
-    if (decision.action === "forbid") {
-      return NextResponse.json(
-        { error: "This session can only be used to view your documents." },
-        { status: 403 },
-      );
-    }
-    if (decision.action === "clear-cookie-and-pass") {
-      clearClientCookie = true;
-      supabaseResponse.cookies.delete(CLIENT_COOKIE);
-    }
-  }
-
-  // The later redirects build a fresh response, so a dead employee/client
-  // cookie has to be dropped on those too or it would linger (and trigger a
-  // DB lookup on every request) until some request happened to pass through.
+  // The later redirects build a fresh response, so a dead portal cookie has to
+  // be dropped on those too or it would linger (and trigger a DB lookup on
+  // every request) until some request happened to pass through.
   const redirectTo = (url: URL) => {
     const response = NextResponse.redirect(url);
-    if (clearEmployeeCookie) response.cookies.delete(EMPLOYEE_COOKIE);
-    if (clearClientCookie) response.cookies.delete(CLIENT_COOKIE);
+    for (const cookie of deadPortalCookies) response.cookies.delete(cookie);
     return response;
   };
 

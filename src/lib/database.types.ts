@@ -1417,6 +1417,46 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      accountant_logins: {
+        // pin_hash is never selectable; rows are written only through the
+        // create/reset/regenerate/remove_accountant_* functions.
+        Row: {
+          user_id: string;
+          link_token: string;
+          pin_failed_attempts: number;
+          pin_locked_until: string | null;
+          last_login_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      accountant_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          user_id: string;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          user_id: string;
+          created_at?: string;
+          expires_at: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      accountant_login_failures: {
+        Row: { id: number; ip: string; created_at: string };
+        Insert: { ip: string; created_at?: string };
+        Update: never;
+        Relationships: [];
+      };
       time_sessions: {
         Row: {
           id: string;
@@ -1554,6 +1594,26 @@ export interface Database {
       };
       verify_client_pin: {
         Args: { p_user_id: string; p_client_id: string; p_pin: string };
+        Returns: boolean;
+      };
+      create_accountant_login: {
+        Args: { p_pin: string; p_link_token: string };
+        Returns: undefined;
+      };
+      reset_accountant_pin: {
+        Args: { p_pin: string };
+        Returns: undefined;
+      };
+      regenerate_accountant_link: {
+        Args: { p_link_token: string };
+        Returns: undefined;
+      };
+      remove_accountant_login: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
+      };
+      verify_accountant_pin: {
+        Args: { p_user_id: string; p_pin: string };
         Returns: boolean;
       };
       employee_clock_in: {

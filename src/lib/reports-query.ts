@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/database.types";
+import type { ReadDb } from "@/lib/scoped-reader";
 import { getExpenseOverviewData } from "@/lib/expense-overview-query";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
@@ -71,7 +70,7 @@ export interface JobSummaryData {
 // strings (receipts.transaction_date and payments.paid_date are `date`
 // columns - same convention as getExpenseOverviewData).
 export async function getReportsData(
-  supabase: SupabaseClient<Database>,
+  supabase: ReadDb,
   from: string | null,
   to: string | null,
 ): Promise<ReportsData> {
@@ -142,7 +141,7 @@ function categoryKey(taxCategory: string | null | undefined): string {
 // are left out. Profit here is revenue - expenses - labor.
 // Job Costing's own pages stay all-time on purpose; this is Reports only.
 export async function getJobSummary(
-  supabase: SupabaseClient<Database>,
+  supabase: ReadDb,
   from: string | null,
   to: string | null,
 ): Promise<JobSummaryData> {
@@ -257,7 +256,7 @@ export interface ExpenseDetailRow {
 // Drill-down rows behind the P&L's revenue line: the same recognizePayments
 // pass Overview and the P&L use, so the rows add up to the figure shown.
 export async function getRevenueDetail(
-  supabase: SupabaseClient<Database>,
+  supabase: ReadDb,
   from: string | null,
   to: string | null,
 ): Promise<{ rows: RevenueDetailRow[]; total: number }> {
@@ -299,7 +298,7 @@ export async function getRevenueDetail(
 // it - case-insensitively). Amounts are as paid, HST included, so they add up
 // to Overview's Total Expenses / the category's Total paid.
 export async function getExpenseDetail(
-  supabase: SupabaseClient<Database>,
+  supabase: ReadDb,
   from: string | null,
   to: string | null,
   category?: string,

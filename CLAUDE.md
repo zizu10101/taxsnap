@@ -627,9 +627,15 @@ row, **no Supabase JWT ever issued** to an employee.
   same 5-miss/15-min lockout as stylists, plus a per-IP failure throttle in
   `POST /api/employee-portal/login`.
 - **Sessions are server-side** (`employee_sessions`: sha256 of an opaque
-  `ts_emp_session` httpOnly cookie, 30-day sliding expiry). Resetting/removing
-  a PIN, deactivating the employee (DB trigger), or regenerating the link
-  deletes the rows, cutting access on the next request.
+  `ts_emp_session` httpOnly cookie). **Fixed 30 days from sign-in**, not sliding:
+  the cookie is set once at login with a 30-day expiry and nothing re-issues it,
+  so the browser stops sending it at day 30 whatever the session row says.
+  (`lookupEmployeeSession` does push the row's `expires_at` forward on use, but
+  that never extends the cookie, so it has no practical effect - don't mistake
+  it for a working sliding session, and don't build one: it was decided not to be
+  worth the complexity.) Resetting/removing a PIN, deactivating the employee (DB
+  trigger), or regenerating the link deletes the rows, cutting access on the next
+  request.
 - **Route protection is default-deny and lives in `proxy.ts`**
   (`lib/supabase/middleware.ts` -> `decideEmployeeAccess` in
   `lib/employee-route-guard.ts`, unit-tested: `npm test`). With a valid
@@ -678,7 +684,8 @@ other clients. No email, no password, no Supabase JWT ever issued.
 - **Tables**: `client_portal_logins` (row exists == has a login; PIN hash
   revoked at the table level, only `link_token` etc. re-granted - same trap as
   `employee_pins`), `client_sessions` (service-role only, sha256 of the
-  `ts_client_session` cookie, 30-day sliding), `client_login_failures`
+  `ts_client_session` cookie; fixed 30 days from sign-in, same as employees -
+  see above), `client_login_failures`
   (per-IP throttle). Owner functions `create_client_portal_login`,
   `reset_client_portal_pin`, `regenerate_client_portal_link`,
   `remove_client_portal_login`; `verify_client_pin` is `service_role`-only,
@@ -714,6 +721,59 @@ other clients. No email, no password, no Supabase JWT ever issued.
 - **Owner side**: `ClientPortalAccess` on the client detail page
   (`/api/clients/[id]/portal`, `requireProUser()`), plus a "Portal" badge in the
   clients list. PINs are never shown again after being set.
+
+## Accountant portal (Pro)
+
+Migration `0051_accountant_portal.sql`. ONE read-only login per business (one
+shared PIN for the accountant and their firm), created from Settings ->
+Accountant access (`AccountantAccessSettings`, `/api/accountant-access`,
+`requireProUser()`). Same shape as the client portal: per-business link
+(`/accountant-login/[token]`) + 4-digit PIN, no email, no Supabase JWT. Tables
+`accountant_logins` (keyed by `user_id`; PIN hash revoked at the table level,
+`last_login_at` shown in Settings), `accountant_sessions`,
+`accountant_login_failures`; `verify_accountant_pin` is `service_role`-only with
+the same 5-miss / 15-minute lockout.
+
+- **Session: fixed 14 days from sign-in** (`ACCOUNTANT_SESSION_TTL_DAYS`,
+  deliberately shorter than the 30-day employee/client sessions: an accountant
+  works in bursts and sees every financial record). `expires_at` is written once,
+  at login, and the cookie expires with it. There is NO sliding-expiry write for
+  this portal at all (a test asserts nothing updates `accountant_sessions`).
+  Reset PIN / New link / Remove login delete the session rows.
+- **The scoping problem and `ScopedReader`**: the owner's pages read through
+  an RLS-scoped client, which an accountant doesn't have, and the shared query
+  functions (`getReportsData`, `getJobSummary`, `getRevenueDetail`,
+  `getExpenseDetail`, `getExpenseOverviewData`) have **no user_id filter** -
+  RLS does that. Passing them a service-role client would return every business's
+  data. So the portal reads only through `lib/scoped-reader.ts`: an allowlist of
+  tables (receipts, documents, hour_entries, jobs, employees, bank_accounts,
+  expense_categories), `.eq("user_id", sessionUserId)` on every read, and no
+  insert/update/delete/rpc at all. Those query functions take a `ReadDb`, so the
+  owner passes a real client and the accountant passes the reader, with one
+  implementation. payments/document_items have no user_id and are reachable only
+  as embeds of a filtered `documents` row. Anything outside the list (clients,
+  employee_pins, contract_changes, commission/salon tables, billing) throws.
+  Raw `admin` is for storage signing and the business profile only.
+- **Fixed scope, no toggles**: Reports (the real `ReportsView` via its
+  `endpoints` context: P&L, Job Summary, Expenses by Category, By Account, with
+  the usual date-range/account filters and drill-downs), the full expenses list
+  (with receipt photos via a re-verified signed URL), the full invoices/estimates
+  list (drafts included and badged) with a read-only document page + payments +
+  PDF, Employee Hours (hours and cost only), and the on-demand export bundle.
+  Not reachable: client portal management, employee PINs, settings, salon data.
+- **Export reuse**: `downloadAccountantExport` was split into gathering the
+  inputs and `buildAndDownloadAccountantExport` (the zip). The owner path still
+  gathers with its browser client; the accountant path gets the same inputs from
+  `/api/accountant-portal/export-data` and signs photo/logo URLs lazily via
+  `.../signed-urls` (only paths on this business's own receipts are signed).
+- **Route protection** is the same default-deny in `proxy.ts`, now one shared
+  `decidePortalAccess` (`lib/portal-route-guard.ts`) with thin per-portal wrappers
+  (`employee-`/`client-`/`accountant-route-guard.ts`) and a generic loop in
+  `lib/supabase/middleware.ts`; the three login routes clear the other portals'
+  cookies via `clearOtherPortalCookies`. The portal stays closed (a "not
+  available" screen, API 403) while the business isn't on Pro and reopens on
+  re-upgrade; pages must check `ctx.available` and routes use
+  `getAccountantApiContext()` (both enforced by `accountant-portal.test.ts`).
 
 ## Commission tracking (per-stylist)
 

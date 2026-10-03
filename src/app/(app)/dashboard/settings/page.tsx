@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppLockSettings } from "@/components/settings/app-lock-settings";
 import { EmployeeLoginSettings } from "@/components/settings/employee-login-settings";
+import { AccountantAccessSettings } from "@/components/settings/accountant-access-settings";
 import { ThemeSettings } from "@/components/settings/theme-settings";
 import {
   BankAccountsSettings,
@@ -65,6 +66,16 @@ export default async function SettingsPage() {
   // are Pro-only, same as Overview/Reports - the API enforces it too.
   const isGeneral = profile?.business_type === "general";
   const showCategories = isGeneral && profile?.subscription_status === "pro";
+
+  // The business's one accountant login (general business only - salons have no
+  // Reports). Owner-readable via RLS; the PIN hash is never selectable.
+  const { data: accountantLogin } = isGeneral
+    ? await supabase
+        .from("accountant_logins")
+        .select("link_token, last_login_at")
+        .eq("user_id", user.id)
+        .maybeSingle()
+    : { data: null };
   const [{ data: bankAccounts }, { data: categories }] = isGeneral
     ? await Promise.all([
         supabase.from("bank_accounts").select("*").order("name", { ascending: true }),
@@ -151,6 +162,14 @@ export default async function SettingsPage() {
         />
 
         {showEmployeeLogin && <EmployeeLoginSettings />}
+
+        {isGeneral && (
+          <AccountantAccessSettings
+            initialLinkToken={accountantLogin?.link_token ?? null}
+            initialLastLoginAt={accountantLogin?.last_login_at ?? null}
+            isPro={profile?.subscription_status === "pro"}
+          />
+        )}
 
         {isGeneral && <BankAccountsSettings initialAccounts={bankAccounts ?? []} />}
         {showCategories && <ExpenseCategoriesSettings initialCategories={categories ?? []} />}

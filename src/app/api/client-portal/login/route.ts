@@ -7,7 +7,7 @@ import {
   createServiceClient,
   hashSessionToken,
 } from "@/lib/client-session";
-import { EMPLOYEE_COOKIE } from "@/lib/employee-route-guard";
+import { clearOtherPortalCookies } from "@/lib/portal-cookies";
 
 // Per-IP throttle on top of verify_client_pin's own per-client lockout: the
 // lockout stops guessing one client's PIN, this stops one source sweeping many
@@ -118,8 +118,6 @@ export async function POST(request: Request) {
     path: "/",
     maxAge: 365 * 24 * 60 * 60,
   });
-  // One portal identity per browser: drop any employee session so the two
-  // guards never disagree about who this is.
-  response.cookies.delete(EMPLOYEE_COOKIE);
+  clearOtherPortalCookies(response, "client");
   return response;
 }

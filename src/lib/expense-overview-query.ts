@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/database.types";
+import type { ReadDb } from "@/lib/scoped-reader";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { computeExpenseSummary, deductibleRate, type ExpenseSummary } from "@/lib/expense-summary";
 
@@ -58,7 +57,7 @@ function round2(n: number): number {
 // a UTC instant first would risk the exact off-by-one-day bug date-range.
 // ts's own comments warn about, for no benefit here.
 export async function getExpenseOverviewData(
-  supabase: SupabaseClient<Database>,
+  supabase: ReadDb,
   from: string | null,
   to: string | null,
 ): Promise<ExpenseOverviewData> {
