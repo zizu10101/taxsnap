@@ -22,13 +22,28 @@ export default async function ClientDetailPage({
 
   if (!user) redirect("/auth");
 
-  const [{ data: client }, { data: documents }] = await Promise.all([
+  const [
+    { data: client },
+    { data: documents },
+    { data: portalLogin },
+    { data: profile },
+  ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
       .from("documents")
       .select("id, client_id, type, status, document_number, issue_date, total_amount, payments(amount)")
       .eq("client_id", id)
       .order("issue_date", { ascending: false }),
+    supabase
+      .from("client_portal_logins")
+      .select("link_token")
+      .eq("client_id", id)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .single(),
   ]);
 
   if (!client) notFound();
@@ -45,7 +60,13 @@ export default async function ClientDetailPage({
         backLabel="Back to clients"
       />
 
-      <ClientDetail initialClient={client} summary={summary} documents={documents ?? []} />
+      <ClientDetail
+        initialClient={client}
+        summary={summary}
+        documents={documents ?? []}
+        portalLinkToken={portalLogin?.link_token ?? null}
+        isPro={profile?.subscription_status === "pro"}
+      />
     </div>
   );
 }

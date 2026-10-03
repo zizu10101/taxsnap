@@ -1,7 +1,11 @@
 import { jsPDF } from "jspdf";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
-import type { DocumentWithRelations, CommissionEntryWithRelations } from "@/lib/database.types";
+import type {
+  DocumentItem,
+  DocumentWithRelations,
+  CommissionEntryWithRelations,
+} from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
 function round2(n: number): number {
@@ -347,12 +351,44 @@ export function drawTotalsBlock(
 // Renders the same data shown on the on-screen detail view into a simple,
 // print-ready PDF, laid out by hand (no table plugin) since the column
 // layout is fixed and the item counts are small.
+// The fields generateDocumentPdf actually reads, so a caller that must not
+// hold the full documents row (the client portal - no signer_ip, tokens,
+// excluded_from_hst, ...) can hand over just these.
+export type PdfDocument = Pick<
+  DocumentWithRelations,
+  | "type"
+  | "status"
+  | "document_number"
+  | "issue_date"
+  | "due_date"
+  | "subtotal"
+  | "hst_amount"
+  | "total_amount"
+  | "is_progress_draw"
+  | "draw_number"
+  | "draw_percent_complete"
+  | "draw_description"
+> & {
+  items: Pick<DocumentItem, "description" | "quantity" | "unit_price">[];
+  client: Pick<NonNullable<DocumentWithRelations["client"]>, "name" | "email" | "address"> | null;
+  job?: Pick<NonNullable<DocumentWithRelations["job"]>, "contract_value"> | null;
+};
+
+export interface DocumentPdfOptions {
+  // Default true. The Progress Billing Summary block prints the job's
+  // contract value and billed-to-date, which is job data the client portal
+  // deliberately never shows - it passes false.
+  includeProgressSummary?: boolean;
+}
+
 export async function generateDocumentPdf(
-  doc: DocumentWithRelations,
+  doc: PdfDocument,
   business: BusinessInfo,
   logoDataUrl: string | null,
   priorDraws: PriorDraw[] = [],
+  options: DocumentPdfOptions = {},
 ): Promise<Blob> {
+  const { includeProgressSummary = true } = options;
   const { pdf, marginX, rightX } = newPdf();
   let y = 56;
 
@@ -449,7 +485,7 @@ export async function generateDocumentPdf(
     { label: "Total", value: formatCurrency(doc.total_amount), bold: true },
   ]);
 
-  if (doc.is_progress_draw) {
+  if (doc.is_progress_draw && includeProgressSummary) {
     y += 16;
     pdf.setDrawColor(210);
     pdf.line(marginX, y, rightX, y);

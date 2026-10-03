@@ -620,8 +620,10 @@ row, **no Supabase JWT ever issued** to an employee.
   the Employees page row offers "Set PIN" only to someone with no PIN, and
   "Reset PIN" / "Remove login" only to someone who has one. **Per-employee PIN
   management lives only on the Employees page** (the single home for employees);
-  Settings' "Employee login" section is just the shared sign-in link (create /
-  regenerate) plus a pointer to the Employees page. `verify_employee_pin` is `service_role`-only, with the
+  The shared sign-in link (create /
+  regenerate) is a card at the top of the Employees page too (`EmployeeLoginLinkCard`),
+  so Employees is the one home for all employee login; Settings' "Employee login"
+  section is only a pointer to it. `verify_employee_pin` is `service_role`-only, with the
   same 5-miss/15-min lockout as stylists, plus a per-IP failure throttle in
   `POST /api/employee-portal/login`.
 - **Sessions are server-side** (`employee_sessions`: sha256 of an opaque
@@ -664,6 +666,54 @@ row, **no Supabase JWT ever issued** to an employee.
   dialog) via `owner_delete_time_session` (`0045`), which deletes its linked
   `hour_entries` row in the same transaction - never leave the entry behind,
   the FK is `ON DELETE SET NULL` and would turn it into a manual entry.
+
+## Client portal (Pro)
+
+Migration `0050_client_portal.sql`. A read-only login per client, built on the
+employee-login pattern: a **PIN-only** sign-in at a **per-client** link
+(`/client-login/[token]`, `client_portal_logins.link_token`) - unlike employees'
+one shared link + name dropdown, because a shared picker would list the owner's
+other clients. No email, no password, no Supabase JWT ever issued.
+
+- **Tables**: `client_portal_logins` (row exists == has a login; PIN hash
+  revoked at the table level, only `link_token` etc. re-granted - same trap as
+  `employee_pins`), `client_sessions` (service-role only, sha256 of the
+  `ts_client_session` cookie, 30-day sliding), `client_login_failures`
+  (per-IP throttle). Owner functions `create_client_portal_login`,
+  `reset_client_portal_pin`, `regenerate_client_portal_link`,
+  `remove_client_portal_login`; `verify_client_pin` is `service_role`-only,
+  5 misses = 15-minute lockout. Reset/regenerate/remove each delete the
+  client's sessions; deleting the client cascades.
+- **Default-deny in `proxy.ts`** (`lib/client-route-guard.ts`, unit-tested): a
+  valid client cookie with no Supabase user may only reach `/client/**`,
+  `/client-login/**`, `/api/client-portal/**`. That includes blocking
+  `/invoice/[token]` and `/sign/[token]`, so the portal can never reach the
+  interactive signing flow. Anything added under those prefixes must call
+  `requireClientSession()`. Both portal logins clear the *other* cookie so the
+  employee and client guards never disagree.
+- **What a client sees**: documents past `draft` for their own `client_id`,
+  nothing else. `PORTAL_DOCUMENT_COLUMNS` in `lib/client-portal.ts` is an
+  explicit column list (never `*`), pinned by a test; a second test asserts the
+  portal code never queries jobs/receipts/hours/contract_changes. Pending
+  change orders live in `contract_changes`, not `documents`, so they can't
+  appear - a billed one shows up as an ordinary invoice. Every query filters on
+  `user_id` + `client_id` from the verified session row, never a request value.
+- **Outstanding Balance** = sum of per-invoice `max(total - paid, 0)` over
+  issued invoices, all-time (the date picker only filters the list, with a
+  separate "Invoiced in this period" line). Estimates never count. The label
+  and the "invoices issued to you only" note are deliberate - keep them. It is
+  per-invoice clamped, so it can differ slightly from the owner's
+  `buildClientSummaries` outstanding figure, which nets everything together.
+- **Rendering and PDF reuse existing code**: `/client/documents/[id]` renders
+  `PublicDocumentPaper` (the same renderer as `/invoice/[token]`; no second one).
+  Download PDF fetches `GET /api/client-portal/documents/[id]` (whitelisted
+  fields) and builds the PDF in the browser with `generateDocumentPdf` passing
+  `includeProgressSummary: false`, because that block prints the job's contract
+  value (job data). The portal also nulls `draw_description` /
+  `draw_percent_complete`.
+- **Owner side**: `ClientPortalAccess` on the client detail page
+  (`/api/clients/[id]/portal`, `requireProUser()`), plus a "Portal" badge in the
+  clients list. PINs are never shown again after being set.
 
 ## Commission tracking (per-stylist)
 

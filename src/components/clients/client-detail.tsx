@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
+import { ClientPortalAccess } from "@/components/clients/client-portal-access";
 import { formatDocumentNumber } from "@/lib/document-number";
 import type { Client, DocumentStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
@@ -51,10 +52,15 @@ export function ClientDetail({
   initialClient,
   summary,
   documents,
+  portalLinkToken,
+  isPro,
 }: {
   initialClient: Client;
   summary: ClientSummary;
   documents: ClientDocRow[];
+  // The client's portal sign-in token, or null when they have no login.
+  portalLinkToken: string | null;
+  isPro: boolean;
 }) {
   const [client, setClient] = useState(initialClient);
   const [editOpen, setEditOpen] = useState(false);
@@ -131,6 +137,13 @@ export function ClientDetail({
           </CardContent>
         </Card>
       </div>
+
+      <ClientPortalAccess
+        clientId={client.id}
+        clientName={client.name}
+        initialLinkToken={portalLinkToken}
+        isPro={isPro}
+      />
 
       <Card>
         <CardHeader>

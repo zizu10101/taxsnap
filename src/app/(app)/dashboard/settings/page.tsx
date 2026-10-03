@@ -56,16 +56,9 @@ export default async function SettingsPage() {
   ]);
 
   // Employee clock-in login is a general-business feature (salons use the
-  // commission/register flow instead). Settings only shows the shared link;
-  // per-employee PINs are managed on the Employees page.
+  // commission/register flow instead). Settings only points to the Employees
+  // page, where the shared link and per-employee PINs are managed.
   const showEmployeeLogin = profile?.business_type === "general";
-  const { data: loginSettings } = showEmployeeLogin
-    ? await supabase
-        .from("app_settings")
-        .select("employee_login_token")
-        .eq("user_id", user.id)
-        .maybeSingle()
-    : { data: null };
 
   // Bank accounts and custom expense categories are general-business lists
   // (salons don't invoice or log trade expenses the same way). Categories
@@ -157,9 +150,7 @@ export default async function SettingsPage() {
           pendingChangeEffectiveAt={profile?.pending_change_effective_at ?? null}
         />
 
-        {showEmployeeLogin && (
-          <EmployeeLoginSettings initialToken={loginSettings?.employee_login_token ?? null} />
-        )}
+        {showEmployeeLogin && <EmployeeLoginSettings />}
 
         {isGeneral && <BankAccountsSettings initialAccounts={bankAccounts ?? []} />}
         {showCategories && <ExpenseCategoriesSettings initialCategories={categories ?? []} />}

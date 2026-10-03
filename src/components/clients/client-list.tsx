@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
@@ -29,11 +30,14 @@ export function ClientList({
   subscriptionStatus,
   summaries,
   recentDocsByClient,
+  portalClientIds,
 }: {
   initialClients: Client[];
   subscriptionStatus: SubscriptionStatus;
   summaries: Record<string, ClientSummary>;
   recentDocsByClient: Record<string, ClientHistoryDoc[]>;
+  // Clients who currently have a portal login (shown as a small badge).
+  portalClientIds: string[];
 }) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
@@ -84,7 +88,14 @@ export function ClientList({
                     <div className="flex min-w-0 items-center gap-3">
                       <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{client.name}</p>
+                        <p className="flex items-center gap-2 font-medium">
+                          <span className="truncate">{client.name}</span>
+                          {portalClientIds.includes(client.id) && (
+                            <Badge variant="secondary" className="shrink-0">
+                              Portal
+                            </Badge>
+                          )}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {summary.invoiceCount} invoice{summary.invoiceCount === 1 ? "" : "s"}
                           {summary.outstandingBalance > 0 &&

@@ -1354,6 +1354,69 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      client_portal_logins: {
+        // pin_hash is never selectable; rows are written only through the
+        // create/reset/regenerate/remove_client_portal_* functions.
+        Row: {
+          client_id: string;
+          user_id: string;
+          link_token: string;
+          pin_failed_attempts: number;
+          pin_locked_until: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "client_portal_logins_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: true;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      client_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          user_id: string;
+          client_id: string;
+          created_at: string;
+          last_seen_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          user_id: string;
+          client_id: string;
+          created_at?: string;
+          last_seen_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          last_seen_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_sessions_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      client_login_failures: {
+        Row: { id: number; ip: string; created_at: string };
+        Insert: { ip: string; created_at?: string };
+        Update: never;
+        Relationships: [];
+      };
       time_sessions: {
         Row: {
           id: string;
@@ -1471,6 +1534,26 @@ export interface Database {
       };
       verify_employee_pin: {
         Args: { p_user_id: string; p_employee_id: string; p_pin: string };
+        Returns: boolean;
+      };
+      create_client_portal_login: {
+        Args: { p_client_id: string; p_pin: string; p_link_token: string };
+        Returns: undefined;
+      };
+      reset_client_portal_pin: {
+        Args: { p_client_id: string; p_pin: string };
+        Returns: undefined;
+      };
+      regenerate_client_portal_link: {
+        Args: { p_client_id: string; p_link_token: string };
+        Returns: undefined;
+      };
+      remove_client_portal_login: {
+        Args: { p_client_id: string };
+        Returns: undefined;
+      };
+      verify_client_pin: {
+        Args: { p_user_id: string; p_client_id: string; p_pin: string };
         Returns: boolean;
       };
       employee_clock_in: {

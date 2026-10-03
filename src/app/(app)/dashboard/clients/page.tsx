@@ -30,7 +30,7 @@ export default async function ClientsPage() {
     .eq("id", user.id)
     .single();
 
-  const [{ data: clients }, { data: documents }] = await Promise.all([
+  const [{ data: clients }, { data: documents }, { data: portalLogins }] = await Promise.all([
     supabase.from("clients").select("*").order("name", { ascending: true }),
     supabase
       .from("documents")
@@ -39,6 +39,7 @@ export default async function ClientsPage() {
       )
       .not("client_id", "is", null)
       .order("issue_date", { ascending: false }),
+    supabase.from("client_portal_logins").select("client_id"),
   ]);
 
   const clientIds = (clients ?? []).map((c) => c.id);
@@ -83,6 +84,7 @@ export default async function ClientsPage() {
         subscriptionStatus={profile?.subscription_status ?? "free"}
         summaries={Object.fromEntries(summaries)}
         recentDocsByClient={recentDocsByClient}
+        portalClientIds={(portalLogins ?? []).map((l) => l.client_id)}
       />
     </div>
   );

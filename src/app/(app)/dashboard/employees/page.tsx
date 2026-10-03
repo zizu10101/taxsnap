@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmployeeList } from "@/components/employees/employee-list";
+import { EmployeeLoginLinkCard } from "@/components/employees/employee-login-link-card";
 
 export const metadata: Metadata = {
   title: "Employees — TaxSnap",
@@ -34,12 +35,21 @@ export default async function EmployeesPage() {
   // PIN status (employee_pins exposes only non-secret columns to the owner)
   // and who is clocked in right now, so a forgotten clock-out is visible
   // on this page without opening anything.
-  const [{ data: pins }, { data: openRows }] = await Promise.all([
+  const showLoginLink = profile?.business_type === "general";
+  const [{ data: pins }, { data: openRows }, { data: loginSettings }] = await Promise.all([
     supabase.from("employee_pins").select("employee_id"),
     supabase
       .from("time_sessions")
       .select("id, employee_id, clock_in_at, job:jobs(name)")
       .is("clock_out_at", null),
+    // The shared sign-in link's token (owner-readable, see 0044).
+    showLoginLink
+      ? supabase
+          .from("app_settings")
+          .select("employee_login_token")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const openSessions = (openRows ?? []).map((row) => ({
@@ -56,6 +66,10 @@ export default async function EmployeesPage() {
         title="Employees"
         subtitle="Manage your team and their default hourly rates."
       />
+
+      {showLoginLink && (
+        <EmployeeLoginLinkCard initialToken={loginSettings?.employee_login_token ?? null} />
+      )}
 
       <EmployeeList
         initialEmployees={employees ?? []}
