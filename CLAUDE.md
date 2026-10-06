@@ -410,9 +410,10 @@ old receipts simply have no hash).
   (`no_receipt`) never count as saved receipts.
 - "View existing receipt" opens `/dashboard/expenses?receipt=<id>` in a NEW TAB (the Expenses
   page opens that receipt's drawer from the loaded list), so the scan in progress is kept.
-- `normalizeMerchant` duplicates the statement-import branch's `vendorKey` on purpose (this was
-  built off `main`); unify them when both are merged. The "this scan matches an expense that
-  already has a receipt attached" warning is NOT built here - it depends on statement import.
+- Merchant identity is `vendorKey` (`merchant-name.ts`) - the SAME function the statement matcher
+  uses, so the duplicate check and statement matching can never disagree about who a merchant is
+  (it briefly had its own `normalizeMerchant`, removed once both lived on `main`). The "this scan
+  matches an expense that already has a receipt attached" warning is not built yet.
 
 ## Tax logic
 

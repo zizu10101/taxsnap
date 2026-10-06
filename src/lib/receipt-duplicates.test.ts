@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeMerchant, similarReceipts, type DuplicateSummary } from "./receipt-duplicates.ts";
+import { similarReceipts, type DuplicateSummary } from "./receipt-duplicates.ts";
+import { vendorKey } from "./merchant-name.ts";
 
 const rec = (id: string, merchant: string, date: string, total: number, extra: object = {}) => ({
   id,
@@ -12,28 +13,46 @@ const rec = (id: string, merchant: string, date: string, total: number, extra: o
 const candidate = { merchant: "Rogers Communications Canada Inc.", total: 89.99, date: "2026-02-08" };
 
 // ---------------------------------------------------------------------------
-// The merchant normaliser
+// Merchant identity: the duplicate check uses the statement matcher's vendorKey - ONE rule
 // ---------------------------------------------------------------------------
 
-test("normalizeMerchant: case, punctuation, store numbers and trailing legal words don't matter", () => {
-  assert.equal(normalizeMerchant("Rogers Communications Canada Inc."), "rogers communications canada");
-  assert.equal(normalizeMerchant("ROGERS COMMUNICATIONS CANADA INC"), "rogers communications canada");
-  assert.equal(normalizeMerchant("HOME DEPOT #7042"), normalizeMerchant("Home Depot #7013"));
-  assert.equal(normalizeMerchant("Tim Horton's"), normalizeMerchant("TIM HORTONS"));
-  assert.equal(normalizeMerchant("A&W"), normalizeMerchant("A & W"));
-  assert.equal(normalizeMerchant("Acme Supply Ltd."), "acme supply");
+const asScan = (merchant: string) => ({ merchant, total: 50, date: "2026-02-08" });
+const saved = (merchant: string) => [rec("r", merchant, "2026-02-08", 50)];
+
+test("case, punctuation, store numbers and trailing legal/generic words don't make two merchants different", () => {
+  assert.equal(similarReceipts(asScan("HOME DEPOT #7042"), saved("Home Depot #7013")).length, 1);
+  assert.equal(similarReceipts(asScan("Tim Horton's"), saved("TIM HORTONS")).length, 1);
+  assert.equal(similarReceipts(asScan("A&W"), saved("A & W")).length, 1);
+  assert.equal(similarReceipts(asScan("Acme Supply Ltd."), saved("acme supply")).length, 1);
 });
 
-test("normalizeMerchant: never strips the last word, and gives null for nothing to compare", () => {
-  assert.equal(normalizeMerchant("Inc"), "inc");
-  assert.equal(normalizeMerchant(""), null);
-  assert.equal(normalizeMerchant("   "), null);
-  assert.equal(normalizeMerchant(null), null);
-  assert.equal(normalizeMerchant("#### 1234"), null);
+test("the receipt's long legal name and the card statement's short one are the same merchant (vendorKey drops Communications / Canada / Inc)", () => {
+  assert.equal(similarReceipts(asScan("Rogers Communications Canada Inc."), saved("Rogers")).length, 1);
+  assert.equal(similarReceipts(asScan("ROGERS *************3771"), saved("Rogers Communications")).length, 1);
 });
 
-test("normalizeMerchant: a LEADING 'the' is deliberately kept (no fuzzy matching)", () => {
-  assert.notEqual(normalizeMerchant("The Home Depot"), normalizeMerchant("Home Depot"));
+test("the duplicate check and the statement matcher can't disagree: it matches exactly when the vendor keys are equal", () => {
+  const pairs: [string, string][] = [
+    ["Rogers Communications Canada Inc.", "Rogers"],
+    ["HOME DEPOT #7042 TORONTO ON", "Home Depot"],
+    ["Shell", "Shell Energy"],
+    ["Home Depot", "Home Hardware"],
+    ["The Home Depot", "Home Depot"],
+    ["Staples", "Rogers"],
+  ];
+  for (const [a, b] of pairs) {
+    const sameKey = vendorKey(a) !== null && vendorKey(a) === vendorKey(b);
+    assert.equal(similarReceipts(asScan(a), saved(b)).length === 1, sameKey, a + " / " + b);
+  }
+});
+
+test("a leading 'the' is deliberately kept (no fuzzy matching)", () => {
+  assert.notEqual(vendorKey("The Home Depot"), vendorKey("Home Depot"));
+});
+
+test("nothing to compare (an empty or all-noise merchant) never matches anything", () => {
+  assert.equal(similarReceipts(asScan(""), saved("Rogers")).length, 0);
+  assert.equal(similarReceipts(asScan("   "), saved("Rogers")).length, 0);
 });
 
 // ---------------------------------------------------------------------------
