@@ -17,9 +17,12 @@ export interface ParsedReceipt {
   items: ReceiptItem[];
 }
 
+// One model for receipts and card statements, so a retired model is changed in one place.
+export const GEMINI_MODEL = "gemini-3.6-flash";
+
 let client: GoogleGenAI | null = null;
 
-function getClient() {
+export function getClient() {
   if (!client) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
@@ -153,7 +156,7 @@ export async function parseReceiptImage(
   const today = new Date().toISOString().slice(0, 10);
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
+    model: GEMINI_MODEL,
     contents: [
       {
         role: "user",
