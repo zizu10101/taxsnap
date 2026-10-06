@@ -43,6 +43,14 @@ import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { compressImage } from "@/lib/compress-image";
 import { periodChange } from "@/lib/statement-attach-period";
 import { AttachPicker, type PickerItem } from "@/components/dashboard/attach-picker";
+import { sha256Hex } from "@/lib/file-hash";
+import type { DuplicateSummary } from "@/lib/receipt-duplicates";
+import {
+  AlreadyAttachedWarning,
+  ExactFileDuplicateDialog,
+  SimilarReceiptsWarning,
+  useDuplicateChecks,
+} from "@/components/dashboard/duplicate-warnings";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 interface ParsedDraft {
@@ -59,6 +67,8 @@ interface ParsedDraft {
   paid_with_account_id: string;
   image_path: string | null;
   image_url: string | null;
+  /** SHA-256 of the ORIGINAL scanned file (before compression); only the hash is kept. */
+  file_sha256: string | null;
 }
 
 // An expense a card-statement import created that this scan could be the
@@ -174,6 +184,17 @@ export function UploadReceipt({
   // Re-checking matches while the person edits the merchant, total or date.
   const lastCheckedRef = useRef("");
   const checkSeqRef = useRef(0);
+  // The very same file was scanned before: shown BEFORE it is uploaded or read. "Continue anyway"
+  // re-sends it with force=1; the File is kept here so the person doesn't have to pick it again.
+  const [exactDuplicate, setExactDuplicate] = useState<{ file: File; matches: DuplicateSummary[] } | null>(null);
+  // Same merchant + total within 2 days of a saved receipt, or a statement expense that already has
+  // a receipt: soft warnings, never a block.
+  const duplicateChecks = useDuplicateChecks(
+    !!draft,
+    draft?.total_amount ?? 0,
+    draft?.transaction_date ?? "",
+    draft?.merchant_name ?? "",
+  );
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
@@ -268,10 +289,21 @@ export function UploadReceipt({
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    await processFile(file, false);
+  }
 
+  async function processFile(file: File, force: boolean) {
     setParsing(true);
 
     try {
+      // Fingerprint the ORIGINAL file, before it is compressed. Only this hash is ever stored.
+      let fileHash: string | null = null;
+      try {
+        fileHash = await sha256Hex(file);
+      } catch {
+        // No Web Crypto here: skip the exact-file check; everything else still works.
+      }
+
       const isPdf = file.type === "application/pdf";
       // PDFs can't be decoded by <img>/canvas, so compressing one would just
       // fail and fall back to the original anyway - skip the wasted attempt.
@@ -283,12 +315,23 @@ export function UploadReceipt({
 
       const formData = new FormData();
       formData.append("image", compressed);
+      if (fileHash) formData.append("file_sha256", fileHash);
+      if (force) formData.append("force", "1");
 
       const res = await fetch("/api/parse-receipt", {
         method: "POST",
         body: formData,
       });
       const data = await res.json();
+
+      // The server found this exact file among the owner's receipts and stopped before any upload
+      // or Gemini call. Show what it matched; nothing is lost either way.
+      if (res.ok && data.duplicate?.file?.length) {
+        setPreviewImage(null);
+        setPreviewIsPdf(false);
+        setExactDuplicate({ file, matches: data.duplicate.file as DuplicateSummary[] });
+        return;
+      }
 
       if (!res.ok) {
         if (data.code === "FREE_LIMIT_REACHED") {
@@ -309,6 +352,7 @@ export function UploadReceipt({
         paid_with_account_id: "",
         image_path: data.image_path,
         image_url: data.image_url,
+        file_sha256: fileHash,
       });
       setJobMode(NO_JOB);
       setNewJobName("");
@@ -363,6 +407,7 @@ export function UploadReceipt({
             merchant_name: draft.merchant_name,
             transaction_date: draft.transaction_date,
             items: draft.items.filter((i) => i.name.trim()),
+            file_sha256: draft.file_sha256,
             ...(mustChooseDate && { keep_statement_date: attachDateChoice === "statement" }),
           }),
         });
@@ -386,6 +431,7 @@ export function UploadReceipt({
           job_name: draft.job_name,
           paid_with_account_id: draft.paid_with_account_id,
           image_path: draft.image_path,
+          file_sha256: draft.file_sha256,
         }),
       });
       const data = await res.json();
@@ -399,6 +445,14 @@ export function UploadReceipt({
     } finally {
       setSaving(false);
     }
+  }
+
+  // "Continue anyway" on the exact-file warning: the same file goes through the normal scan, with
+  // the early stop switched off.
+  async function handleContinueAnyway() {
+    const pending = exactDuplicate;
+    setExactDuplicate(null);
+    if (pending) await processFile(pending.file, true);
   }
 
   function closeModal() {
@@ -704,6 +758,8 @@ export function UploadReceipt({
               </label>
             </div>
           )}
+          <AlreadyAttachedWarning matches={duplicateChecks.attached} />
+          <SimilarReceiptsWarning matches={duplicateChecks.similar} />
 
           {draft && (
             <div className="grid gap-4">
@@ -882,13 +938,23 @@ export function UploadReceipt({
             </Button>
             <Button onClick={handleApprove} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {attachChoice && attachChoice !== "new" ? "Attach & Save" : "Approve & Save"}
+              {attachChoice && attachChoice !== "new"
+                ? "Attach & Save"
+                : duplicateChecks.similar.length + duplicateChecks.attached.length > 0
+                  ? "Save anyway"
+                  : "Approve & Save"}
             </Button>
           </DialogFooter>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      <ExactFileDuplicateDialog
+        matches={exactDuplicate?.matches ?? null}
+        onCancel={() => setExactDuplicate(null)}
+        onContinue={handleContinueAnyway}
+      />
     </>
   );
 }

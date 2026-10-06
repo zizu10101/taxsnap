@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
+import { isSha256Hex } from "@/lib/file-hash";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
   if (!Array.isArray(items)) return [];
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     job_name,
     source_template_id,
     paid_with_account_id,
+    file_sha256,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -43,6 +45,12 @@ export async function POST(request: Request) {
       { error: "merchant_name, transaction_date, and total_amount are required." },
       { status: 400 },
     );
+  }
+
+  // Optional fingerprint of the original scanned file (see 0056). Only the hash is kept, never the
+  // file. A malformed one is refused rather than stored.
+  if (file_sha256 !== undefined && file_sha256 !== null && file_sha256 !== "" && !isSha256Hex(file_sha256)) {
+    return NextResponse.json({ error: "file_sha256 must be a SHA-256 hex string." }, { status: 400 });
   }
 
   const category = await resolveCategory(supabase, user.id, tax_category);
@@ -84,6 +92,7 @@ export async function POST(request: Request) {
       source_template_id: templateId,
       ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
+      ...(file_sha256 && { file_sha256 }),
     })
     .select()
     .single();

@@ -47,6 +47,7 @@ export function ExpensesBody({
   lastSignInAt,
   statementImportEnabled = false,
   openStatementDrafts = [],
+  initialOpenReceiptId = null,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
@@ -60,13 +61,19 @@ export function ExpensesBody({
   // "resume" banner for a draft in progress, and the scan-to-attach check.
   statementImportEnabled?: boolean;
   openStatementDrafts?: { id: string; issuer: string | null; created_at: string }[];
+  // A receipt to open in the detail drawer on first render (from ?receipt=<id>). Looked up among
+  // the loaded receipts regardless of the date and job filters; an id that isn't there (deleted,
+  // or not theirs) simply opens nothing.
+  initialOpenReceiptId?: string | null;
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [templates, setTemplates] = useState(initialTemplates);
   const [preset, setPreset] = useState<RangePreset>("this-month");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
-  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(() =>
+    initialOpenReceiptId ? (initialReceipts.find((r) => r.id === initialOpenReceiptId) ?? null) : null,
+  );
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [expenseTemplate, setExpenseTemplate] = useState<ExpenseTemplateWithJob | null>(null);

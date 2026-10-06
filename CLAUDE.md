@@ -387,6 +387,43 @@ catch that via the `<img>`'s own `onError`, not just the signing call's
 `error` field, or a missing photo renders as a broken-image icon instead of
 the "Couldn't load the original photo" fallback.
 
+## Receipt duplicate detection
+
+Two warnings on receipt scanning, both WARNINGS ONLY - nothing ever blocks a save, and every
+check has an override. Migration `0056_receipt_file_hash.sql` adds `receipts.file_sha256`
+(nullable, 64-hex check, partial index on `(user_id, file_sha256)`; NOT unique, no backfill -
+old receipts simply have no hash).
+
+- **Same file** (`file-hash.ts`, `receipt-duplicates-server.ts`): the browser SHA-256s the
+  ORIGINAL file BEFORE `compressImage` and sends `file_sha256` to `/api/parse-receipt`. If it
+  matches one of the owner's receipts the route returns `{ duplicate: { file: [...] } }` and
+  stops BEFORE the storage upload and the Gemini call (the compressed file has already been
+  posted; only storage and the model call are saved). The dialog offers Cancel / **Continue
+  anyway** (re-posts with `force=1`). Only the hash is stored, on save (`POST /api/receipts`
+  validates it with `isSha256Hex`), never the file's bytes. It is a fingerprint of the bytes, so a
+  renamed copy still matches and a re-photographed or re-compressed one doesn't.
+- **Same purchase** (`receipt-duplicates.ts`, `GET /api/receipts/duplicate-check`): same
+  `normalizeMerchant`, same total to the cent, date within 2 days. Re-checked (500 ms debounce)
+  as the merchant, total or date are edited; the review dialog's save button then reads **Save
+  anyway**. Deliberately not fuzzy: a leading "the" is NOT stripped (a known, accepted miss),
+  Shell != Shell Energy. Refunds and statement expenses still waiting for a receipt
+  (`no_receipt`) never count as saved receipts.
+- "View existing receipt" opens `/dashboard/expenses?receipt=<id>` in a NEW TAB (the Expenses
+  page opens that receipt's drawer from the loaded list), so the scan in progress is kept.
+- Merchant identity is `vendorKey` (`merchant-name.ts`) - the SAME function the statement matcher
+  uses, so the duplicate check and statement matching can never disagree about who a merchant is
+  (it briefly had its own `normalizeMerchant`, removed once both lived on `main`).
+- **"This charge already has a receipt"** (`attachedStatementMatches`, returned as `attached` by the
+  same `duplicate-check` route): the attach flow only offers statement expenses still WAITING for a
+  receipt, so scanning the same invoice again would otherwise save a second expense and count the
+  charge twice. It finds statement-created expenses (`from_statement`) that ALREADY have one
+  (`no_receipt = false`) using the statement matcher's `rankCandidates`, keeping only the `vendor`
+  kind: same vendor and the exact same amount within 30 days (so invoice Feb 8 / charge Feb 22
+  counts). A same-amount charge at a DIFFERENT merchant is deliberately not flagged - a warning
+  that says "you'd count it twice" has to be right. A receipt in both lists is shown once, under
+  this more specific message. The attach route also stores `file_sha256`, so re-scanning an
+  attached file is caught by the exact-file check as well.
+
 ## Tax logic
 
 `src/lib/hst.ts` computes a **planning estimate**, not a filing-ready
