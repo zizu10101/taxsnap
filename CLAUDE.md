@@ -848,6 +848,69 @@ owner-only entry (no stylist login), same tax boundary
   offline outbox (IndexedDB + background sync) was deliberately treated as
   separate future scope, not bundled into this feature.
 
+## Card statement import (allowlist-only)
+
+Migrations `0052_statement_import.sql` (tables + service-role functions) and
+`0053_statement_import_receipts.sql` (receipts columns + delete trigger); rollbacks
+are in `supabase/rollbacks/` and are NOT in `migrations/` on purpose (0053's first).
+Import a card statement (PDF or photos), review every line, match lines to existing
+receipts, save the rest as expenses. **Off for everyone** unless the user's id is in
+`STATEMENT_IMPORT_USER_IDS` (comma-separated, no wildcard; `lib/statement-config.ts`):
+routes return 404 and the Expenses page renders none of it. Monthly caps are
+`PLAN_LIMITS.*.statementImportsPerMonth` - **provisional placeholders** until real
+token cost is measured (`statement_imports` records input/output tokens per import).
+
+- **The statement file is never stored.** The browser hashes it, splits a PDF into
+  3-page chunks (1-page if a chunk would exceed the ~4 MB request limit; photos are
+  one chunk each) with `pdf-lib`, and posts one chunk at a time; the route reads it
+  into memory, sends it to Gemini, drops it. Only extracted lines, the SHA-256 and
+  token counts are kept. Limits: 20 MB, 30 pages, 500 lines.
+- **A PDF pdf-lib can't open** is not always unreadable. pdf-lib's errors are plain
+  `Error`s (`instanceof EncryptedPDFError` is false even for an encrypted file), so
+  `classifyPdfError` matches the message (`is encrypted`). An owner-password-only PDF
+  (common for banks) can't be split but Gemini reads it whole, so if it's under 4 MB
+  and has at most 10 known pages (`STATEMENT_WHOLE_FILE_MAX_PAGES`) it is sent as ONE
+  chunk; otherwise the user is told which case it is (password-protected vs damaged).
+  A user-password PDF can't be told apart until Gemini rejects it (400 ->
+  `UNREADABLE_FILE`, 422, never auto-retried).
+- **Writes**: the three statement tables are owner-SELECT-only (RLS + table grants);
+  every write is a `service_role`-only function or a service-client call in
+  `/api/statements/**`, using the user id from the verified session. Reads go through
+  the user's own session. `statement-import-isolation.test.ts` proves one user can't
+  read or write another's rows.
+- **Per-chunk retry**: `save_chunk_result` replaces only that chunk's lines;
+  `fail_chunk` keeps attempts/tokens; chunk 1 runs first (its header gives the period
+  for year inference). Fingerprints (`md5(account|date|amount|nth occurrence)`,
+  deliberately no description - OCR wording varies) are assigned only once every chunk
+  is done (`finalize_statement_lines`).
+- **Matching** (`statement-matching.ts`): date within 3 days + same cent amount. Auto-
+  accept only when unambiguous both ways (one exact candidate that no other line
+  wants); ties and near matches (4-7 days, or within $1/5%) go to the user. One-to-one
+  is enforced by a unique index. Refunds, fees, interest and payments never match.
+- **"Already imported"** lines are flagged at finalize and re-checked at commit under a
+  per-user lock; they default to skipped but stay visible, and Import anyway sets
+  `duplicate_override`. Commit refuses unoverridden duplicates (`DUPLICATE_LINES`).
+- **Saved expenses** have `tax_amount = 0` (HST is never estimated), `from_statement`,
+  `no_receipt`, and show "No receipt, ITC not claimed" (`statement-flags.ts`). Scanning
+  the receipt later offers to attach to that row (`/api/receipts/[id]/attach`: photo,
+  HST, items, merchant, date; keeps the statement's amount, category, paid-with) rather
+  than create a second expense. **Refunds** save as negative expenses with HST 0 until
+  the user types the refund slip's figure; `receiptsToQuickBooksCsv` writes them to the
+  Deposit column as a positive with a "Refund - " prefix, never a negative Payment.
+- **"Bank charges"** is deliberately not in global `TAX_CATEGORIES` (that list feeds the
+  receipt scanner for every user); the first commit that uses it creates it as the
+  owner's own category, which also stops `resolveCategory()` turning it into "Other".
+- **Gemini**: `thinkingLevel: LOW` (measured on a synthetic 3-page statement: 2,882
+  tokens/3.6 s vs 5,500/13 s at default, same lines) and a 50 s abort so a slow call is
+  recorded as a retryable failed chunk before Vercel's 60 s kill.
+- A daily Vercel Cron (`vercel.json`) purges drafts untouched for 14 days via
+  `purge_stale_statement_drafts` (lines deleted, a tombstone row kept so the cap and
+  cost audit still count it). The route needs `CRON_SECRET` and refuses without it.
+- **DB tests hit the shared project**: `statement-import-isolation.test.ts` and
+  `statement-import-db.test.ts` create and delete throwaway auth users, run only with
+  `RUN_DB_ISOLATION_TEST=1` (see each file's header), and the 0053 cases skip until that
+  migration is applied.
+
 ## Auth
 
 Supabase Auth via `src/app/auth/auth-form.tsx`: magic link, email/password,
