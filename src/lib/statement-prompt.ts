@@ -73,6 +73,8 @@ export interface StatementPromptInput {
   periodStart: string | null;
   periodEnd: string | null;
   categories: string[];
+  /** The owner's bank-charges category (current name) for interest and fees, or null if they removed it. */
+  bankChargesCategory: string | null;
 }
 
 export function buildStatementPrompt(input: StatementPromptInput): string {
@@ -80,6 +82,10 @@ export function buildStatementPrompt(input: StatementPromptInput): string {
     input.periodStart && input.periodEnd
       ? `This statement covers ${input.periodStart} to ${input.periodEnd}.`
       : "The statement period is not known yet - read it from the header if it is on these pages.";
+
+  const bankChargesRule = input.bankChargesCategory
+    ? `Use ${JSON.stringify(input.bankChargesCategory)} for interest and bank/card fees.`
+    : "Use null for interest and bank/card fees unless another allowed category clearly fits.";
 
   return `You read pages of a credit card statement for TaxSnap, an app used by \
 self-employed Canadian trade contractors to track business expenses. Extract every \
@@ -111,7 +117,7 @@ and its currency code in original_amount / original_currency.
 - Never invent, merge or split lines. If a line is illegible, still include it with your \
 best reading rather than skipping it.
 - suggested_category: pick exactly one from this list when a category is clearly \
-reasonable, otherwise null. Use "Bank charges" for interest and bank/card fees. \
+reasonable, otherwise null. ${bankChargesRule} \
 Allowed: ${input.categories.join(", ")}.
 - header: fill in only what is printed on these pages; use null otherwise. \
 closing_balance is the new/statement balance; opening_balance is the previous balance. \

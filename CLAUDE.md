@@ -860,6 +860,8 @@ rules yet**. It also REPLACES `rename_expense_category()` (the original plus one
 follow_category_rename(...)`), so renaming a custom category also renames its rules and
 open drafts; that helper is a `SECURITY DEFINER` acting only on `auth.uid()`'s rows because
 the rename function runs as the user and owners can't write those tables directly.
+`0055_category_system_key.sql` adds `expense_categories.system_key` (see "Bank charges" below);
+until it is applied the code falls back to finding that category by its name.
 Import a card statement (PDF or photos), review every line, match lines to existing
 receipts, save the rest as expenses. **Off for everyone** unless the user's id is in
 `STATEMENT_IMPORT_USER_IDS` (comma-separated, no wildcard; `lib/statement-config.ts`):
@@ -924,9 +926,18 @@ token cost is measured (`statement_imports` records input/output tokens per impo
   than create a second expense. **Refunds** save as negative expenses with HST 0 until
   the user types the refund slip's figure; `receiptsToQuickBooksCsv` writes them to the
   Deposit column as a positive with a "Refund - " prefix, never a negative Payment.
-- **"Bank charges"** is deliberately not in global `TAX_CATEGORIES` (that list feeds the
-  receipt scanner for every user); the first commit that uses it creates it as the
-  owner's own category, which also stops `resolveCategory()` turning it into "Other".
+- **"Bank charges"** (where interest and fees are filed) is deliberately not in global
+  `TAX_CATEGORIES` (that list feeds the receipt scanner for every user). It is an ordinary custom
+  category of the owner's, created the first time a saved statement uses it (which also stops
+  `resolveCategory()` turning it into "Other") - and found again by a STABLE KEY, not its name:
+  `expense_categories.system_key = 'bank_charges'` (0055). The owner can rename it ("Bank fees")
+  and the import keeps using it under the new name, with no second "Bank charges" created;
+  if they REMOVE it, that is respected: fees/interest get no suggestion and the import never
+  recreates or reactivates it. `statement-categories.ts` (`resolveBankCharges`: active /
+  virtual / removed) is the pure core, `statement-bank-charges.ts` the server half
+  (`ensureBankChargesCategory`, falling back to name matching if 0055 isn't applied). The AI
+  prompt and `sanitizeChunk` take the CURRENT name (`bankChargesCategory`, null when removed).
+  A decoy a user creates AFTER renaming the real one just stays an ordinary category.
 - **Merchant names**: `commit_statement_import` saves each expense under the line's raw
   description ("ROGERS *************3771"); the commit route then runs
   `tidyMerchantNames` (`lib/statement-merchant.ts`) which renames just the expenses that

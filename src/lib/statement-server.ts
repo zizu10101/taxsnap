@@ -3,7 +3,12 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { isStatementImportEnabled } from "@/lib/statement-config";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
-import { statementCategoryOptions } from "@/lib/statement-categories";
+import {
+  bankChargesSuggestion,
+  resolveBankCharges,
+  statementCategoryOptions,
+} from "@/lib/statement-categories";
+import { loadCategoryRows } from "@/lib/statement-bank-charges";
 import type { Database, StatementImport, SubscriptionStatus } from "@/lib/database.types";
 
 // Shared plumbing for every /api/statements route.
@@ -71,14 +76,22 @@ export async function loadOwnImport(ctx: StatementCtx, id: string): Promise<Stat
   return data ?? null;
 }
 
-// Built-ins + the owner's active custom categories + "Bank charges".
+// What a statement line can be filed under, and where interest and fees go (see
+// statement-categories.ts: the bank-charges category is found by a stable key, so it
+// can be renamed or removed in Settings).
+export async function loadCategoryContext(
+  ctx: StatementCtx,
+): Promise<{ options: string[]; bankChargesCategory: string | null }> {
+  const rows = await loadCategoryRows(ctx.supabase, ctx.user.id);
+  return {
+    options: statementCategoryOptions(rows),
+    bankChargesCategory: bankChargesSuggestion(resolveBankCharges(rows)),
+  };
+}
+
+// Built-ins + the owner's active custom categories (+ the bank-charges default if it doesn't exist yet).
 export async function loadCategoryOptions(ctx: StatementCtx): Promise<string[]> {
-  const { data } = await ctx.supabase
-    .from("expense_categories")
-    .select("name")
-    .eq("user_id", ctx.user.id)
-    .eq("is_active", true);
-  return statementCategoryOptions((data ?? []).map((c) => c.name));
+  return (await loadCategoryContext(ctx)).options;
 }
 
 // This user's monthly import cap from their plan (null = unlimited).

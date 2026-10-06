@@ -14,6 +14,7 @@ const ctx: SanitizeContext = {
   periodStart: "2026-08-15",
   periodEnd: "2026-09-14",
   allowedCategories: ["Supplies", "Meals", "Bank charges", "Other"],
+  bankChargesCategory: "Bank charges",
 };
 
 function line(overrides: Record<string, unknown> = {}) {
@@ -102,6 +103,30 @@ test("fees and interest get a Bank charges suggestion; payments get none", () =>
   assert.equal(lines[0].suggested_category, "Bank charges");
   assert.equal(lines[1].suggested_category, "Meals");
   assert.equal(lines[2].suggested_category, null);
+});
+
+test("fees and interest follow the bank-charges category when the owner has RENAMED it", () => {
+  const renamed = { ...ctx, allowedCategories: ["Supplies", "Bank fees", "Other"], bankChargesCategory: "Bank fees" };
+  const { lines } = sanitizeChunk(
+    { lines: [line({ kind: "interest", amount: 18.4, suggested_category: null }), line({ kind: "fee", amount: 120, suggested_category: null })] },
+    renamed,
+  );
+  assert.deepEqual(lines.map((l) => l.suggested_category), ["Bank fees", "Bank fees"]);
+});
+
+test("when the owner has REMOVED it, fees and interest get no suggestion at all", () => {
+  const removed = { ...ctx, allowedCategories: ["Supplies", "Meals", "Other"], bankChargesCategory: null };
+  const { lines } = sanitizeChunk(
+    { lines: [line({ kind: "interest", amount: 18.4, suggested_category: null }), line({ kind: "fee", amount: 120, suggested_category: null })] },
+    removed,
+  );
+  assert.deepEqual(lines.map((l) => l.suggested_category), [null, null]);
+});
+
+test("the model's own suggestion for a fee is kept when it is an allowed category, even with the bank-charges one removed", () => {
+  const removed = { ...ctx, allowedCategories: ["Supplies", "Meals", "Other"], bankChargesCategory: null };
+  const { lines } = sanitizeChunk({ lines: [line({ kind: "fee", amount: 120, suggested_category: "Meals" })] }, removed);
+  assert.equal(lines[0].suggested_category, "Meals");
 });
 
 test("a suggestion outside the allowed list is dropped, not invented", () => {

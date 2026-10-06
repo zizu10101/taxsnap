@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireStatementUser, loadOwnImport, loadCategoryOptions, notFound } from "@/lib/statement-server";
+import { requireStatementUser, loadOwnImport, loadCategoryContext, notFound } from "@/lib/statement-server";
 import { extractStatementChunk, StatementExtractError } from "@/lib/statement-gemini";
 import { ChunkValidationError, sanitizeChunk } from "@/lib/statement-lines";
 import {
@@ -83,8 +83,8 @@ export async function POST(
     return NextResponse.json({ error: "That part of the statement is too large to send." }, { status: 413 });
   }
 
-  const [categories, { count: otherLines }] = await Promise.all([
-    loadCategoryOptions(ctx),
+  const [{ options: categories, bankChargesCategory }, { count: otherLines }] = await Promise.all([
+    loadCategoryContext(ctx),
     ctx.supabase
       .from("statement_lines")
       .select("id", { count: "exact", head: true })
@@ -103,6 +103,7 @@ export async function POST(
       periodStart: imp.period_start,
       periodEnd: imp.period_end,
       categories,
+      bankChargesCategory,
     });
     inputTokens = result.inputTokens;
     outputTokens = result.outputTokens;
@@ -114,6 +115,7 @@ export async function POST(
       periodStart: imp.period_start,
       periodEnd: imp.period_end,
       allowedCategories: categories,
+      bankChargesCategory,
     });
     if ((otherLines ?? 0) + lines.length > STATEMENT_MAX_LINES) {
       throw new ChunkValidationError(`A statement can have at most ${STATEMENT_MAX_LINES} lines.`);

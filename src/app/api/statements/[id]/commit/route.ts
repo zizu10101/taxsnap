@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStatementUser, loadOwnImport, notFound } from "@/lib/statement-server";
 import { mapStatementDbError } from "@/lib/statement-errors";
 import { reconcileStatement } from "@/lib/statement-reconcile";
-import { BANK_CHARGES_CATEGORY } from "@/lib/statement-lines";
+import { ensureBankChargesCategory } from "@/lib/statement-bank-charges";
 import { tidyMerchantNames } from "@/lib/statement-merchant";
 
 export const runtime = "nodejs";
@@ -50,25 +50,16 @@ export async function POST(
     statement_total_kind: imp.statement_total_kind,
   });
 
-  // "Bank charges" is offered to every importing user but isn't in the global
-  // category list, so the first statement that uses it creates it as the
-  // owner's own category - otherwise the next edit of that expense would turn
-  // it into "Other" (resolveCategory only knows defaults + the owner's own).
-  const usesBankCharges = lines.some(
-    (l) => l.resolution === "new_expense" && l.category?.toLowerCase() === BANK_CHARGES_CATEGORY.toLowerCase(),
+  // The owner's bank-charges category (interest and fees) isn't in the global category
+  // list, so the first statement that uses it creates it as their own - otherwise the
+  // next edit of that expense would turn it into "Other" (resolveCategory only knows
+  // defaults + the owner's own). It is found by a stable key, not its name: a renamed
+  // one keeps being used, and a REMOVED one is never recreated or reactivated.
+  await ensureBankChargesCategory(
+    ctx.supabase,
+    ctx.user.id,
+    lines.filter((l) => l.resolution === "new_expense").map((l) => l.category),
   );
-  if (usesBankCharges) {
-    const { data: own } = await ctx.supabase
-      .from("expense_categories")
-      .select("name")
-      .eq("user_id", ctx.user.id);
-    const has = (own ?? []).some((c) => c.name.trim().toLowerCase() === BANK_CHARGES_CATEGORY.toLowerCase());
-    if (!has) {
-      await ctx.admin
-        .from("expense_categories")
-        .insert({ user_id: ctx.user.id, name: BANK_CHARGES_CATEGORY });
-    }
-  }
 
   const { data: result, error } = await ctx.admin.rpc("commit_statement_import", {
     p_user_id: ctx.user.id,

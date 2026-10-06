@@ -17,8 +17,6 @@ export const LINE_KINDS: readonly StatementLineKind[] = [
   "other",
 ];
 
-export const BANK_CHARGES_CATEGORY = "Bank charges";
-
 export interface ExtractedLine {
   page: number;
   line_no: number;
@@ -52,6 +50,12 @@ export interface SanitizeContext {
   periodEnd: string | null;
   /** Categories the model may suggest (defaults + this owner's custom ones). */
   allowedCategories: string[];
+  /**
+   * The category interest and fees are suggested under - the owner's bank-charges
+   * category under whatever it is currently called - or null when they removed it
+   * (then nothing is suggested for them). See statement-categories.ts.
+   */
+  bankChargesCategory: string | null;
 }
 
 export class ChunkValidationError extends Error {
@@ -147,9 +151,7 @@ export function sanitizeChunk(
     periodEnd ? dayNumber(periodEnd) + PERIOD_SLACK_DAYS : Number.POSITIVE_INFINITY,
   );
   const pagesInChunk = ctx.pageTo - ctx.pageFrom + 1;
-  const hasBankCharges = ctx.allowedCategories.some(
-    (c) => c.toLowerCase() === BANK_CHARGES_CATEGORY.toLowerCase(),
-  );
+  const bankCharges = canonicalCategory(ctx.bankChargesCategory, ctx.allowedCategories);
 
   const lineNoByPage = new Map<number, number>();
   const lines: ExtractedLine[] = [];
@@ -192,8 +194,8 @@ export function sanitizeChunk(
     if (kind === "purchase" && amount < 0) kind = "refund";
 
     let suggested = kind === "payment" ? null : canonicalCategory(l.suggested_category, ctx.allowedCategories);
-    if (!suggested && (kind === "fee" || kind === "interest") && hasBankCharges) {
-      suggested = ctx.allowedCategories.find((c) => c.toLowerCase() === BANK_CHARGES_CATEGORY.toLowerCase()) ?? null;
+    if (!suggested && (kind === "fee" || kind === "interest") && bankCharges) {
+      suggested = bankCharges;
     }
 
     const currency =

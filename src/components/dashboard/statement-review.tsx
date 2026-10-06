@@ -43,7 +43,7 @@ const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
   },
   bank_charges: {
     title: "Interest and fees",
-    help: "Filed under Bank charges. Accept the suggestion, or choose another category.",
+    help: "Interest and card fees. Accept the suggested category, or choose another.",
   },
   already_imported: {
     title: "Already imported",

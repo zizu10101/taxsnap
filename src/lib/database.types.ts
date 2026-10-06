@@ -441,6 +441,10 @@ export interface Database {
           user_id: string;
           name: string;
           is_active: boolean;
+          // 0055: marks the one category statement import files interest and fees
+          // under ('bank_charges'), whatever the owner has renamed it. Optional in
+          // the type until that migration is applied everywhere.
+          system_key?: "bank_charges" | null;
           created_at: string;
         };
         Insert: {
@@ -448,6 +452,7 @@ export interface Database {
           user_id: string;
           name: string;
           is_active?: boolean;
+          system_key?: "bank_charges" | null;
           created_at?: string;
         };
         Update: {
@@ -455,6 +460,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           is_active?: boolean;
+          system_key?: "bank_charges" | null;
           created_at?: string;
         };
         Relationships: [];

@@ -8,6 +8,7 @@ const input = {
   periodStart: "2026-08-15",
   periodEnd: "2026-09-14",
   categories: ["Supplies", "Bank charges"],
+  bankChargesCategory: "Bank charges" as string | null,
 };
 
 test("the prompt carries today's date, the period and the allowed categories", () => {
@@ -29,6 +30,23 @@ test("the prompt keeps the rules the importer depends on", () => {
   assert.ok(p.includes("last 4 digits"), "card-number rule");
   assert.ok(p.includes("page subtotals"), "no subtotal lines");
   assert.ok(p.includes("Bank charges"), "fees and interest category");
+});
+
+test("the prompt names the owner's bank-charges category by its CURRENT name", () => {
+  const p = buildStatementPrompt({ ...input, categories: ["Supplies", "Bank fees"], bankChargesCategory: "Bank fees" });
+  assert.ok(p.includes('Use "Bank fees" for interest and bank/card fees.'));
+  assert.ok(!p.includes('Use "Bank charges"'), "the old name must not survive a rename");
+});
+
+test("with the bank-charges category removed, the prompt doesn't point the model at it", () => {
+  const p = buildStatementPrompt({ ...input, categories: ["Supplies"], bankChargesCategory: null });
+  assert.ok(p.includes("Use null for interest and bank/card fees"));
+  assert.ok(!p.includes("Bank charges"));
+});
+
+test("a category name with quotes can't break out of the prompt's quoting", () => {
+  const p = buildStatementPrompt({ ...input, bankChargesCategory: 'Fees "and" more' });
+  assert.ok(p.includes('Use "Fees \\"and\\" more" for interest'));
 });
 
 test("the schema requires the fields sanitizeChunk needs", () => {
