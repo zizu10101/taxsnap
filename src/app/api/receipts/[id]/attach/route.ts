@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStatementUser, isUuid } from "@/lib/statement-server";
 import { isIsoDate, round2 } from "@/lib/statement-lines";
+import { attachDate } from "@/lib/statement-attach-period";
 import type { ReceiptItem } from "@/lib/database.types";
 
 export const runtime = "nodejs";
@@ -20,6 +21,12 @@ function sanitizeItems(items: unknown): ReceiptItem[] {
 //
 // The update is conditional on no_receipt still being true, so two scans racing
 // for one expense can't both attach: the loser gets a 409.
+//
+// Date: the receipt's date is used, UNLESS that moves the expense into a different
+// calendar month (and so possibly quarter) - then `keep_statement_date` must say
+// which date to keep (true = the statement's, false = the receipt's) and a request
+// that doesn't is refused with DATE_CHOICE_REQUIRED. There is deliberately no
+// default: it decides which HST period the expense lands in.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -32,7 +39,7 @@ export async function POST(
   if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const { image_path, tax_amount, merchant_name, transaction_date, items } = body ?? {};
+  const { image_path, tax_amount, merchant_name, transaction_date, items, keep_statement_date } = body ?? {};
 
   // The photo was uploaded by /api/parse-receipt under `<user id>/...`; refuse a
   // path that points anywhere else, so one user can't attach another's file.
@@ -74,13 +81,31 @@ export async function POST(
     return NextResponse.json({ error: "Sales tax can't be more than the total." }, { status: 400 });
   }
 
+  const date = attachDate(
+    target.transaction_date,
+    transaction_date,
+    typeof keep_statement_date === "boolean" ? keep_statement_date : undefined,
+  );
+  if (!date.ok) {
+    return NextResponse.json(
+      {
+        error:
+          date.code === "DATE_CHOICE_REQUIRED"
+            ? "This moves the expense into a different month. Choose which date to keep."
+            : "Invalid date.",
+        code: date.code,
+      },
+      { status: date.code === "DATE_CHOICE_REQUIRED" ? 409 : 400 },
+    );
+  }
+
   const { data: updated, error } = await ctx.supabase
     .from("receipts")
     .update({
       image_url: image_path,
       tax_amount: round2(tax),
       merchant_name: merchant_name.trim(),
-      transaction_date,
+      transaction_date: date.date,
       items: sanitizeItems(items),
       no_receipt: false,
       receipt_attached_at: new Date().toISOString(),

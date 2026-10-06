@@ -8,6 +8,8 @@ export interface CandidateLine {
   id: string;
   txn_date: string;
   amount: number;
+  /** The statement's printed description - the vendor, for a same-vendor match. */
+  description?: string;
   kind: StatementLineKind;
   resolution: "matched" | "new_expense" | "skipped" | null;
   duplicate_of_line_id: string | null;
@@ -38,7 +40,12 @@ export function computeLineCandidates(
   claimedBy: Map<string, string>,
 ): LineCandidates {
   const free = pool.filter((r) => !claimedBy.has(r.id));
-  const asRow = (l: CandidateLine): MatchRow => ({ id: l.id, date: l.txn_date, amount: l.amount });
+  const asRow = (l: CandidateLine): MatchRow => ({
+    id: l.id,
+    date: l.txn_date,
+    amount: l.amount,
+    vendor: l.description,
+  });
 
   const undecided = lines.filter((l) => isMatchable(l) && l.resolution === null);
   const { auto, ask } = matchRows(undecided.map(asRow), free);

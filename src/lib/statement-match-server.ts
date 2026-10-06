@@ -3,12 +3,14 @@ import type { StatementLine } from "@/lib/database.types";
 import { computeLineCandidates, isMatchable, type LineCandidates } from "@/lib/statement-candidates";
 import { dayNumber } from "@/lib/statement-lines";
 import type { MatchRow } from "@/lib/statement-matching";
+import { STATEMENT_VENDOR_WINDOW_DAYS } from "@/lib/statement-config";
 
 // Gathers the receipts a statement's lines could match (read through the
 // caller's session, so RLS scopes them) and runs the pure matcher.
 
 const DAY_MS = 86_400_000;
-const WINDOW_PADDING_DAYS = 8; // the widest near-match gap is 7 days
+// The widest gap any match can have: a same-vendor, same-amount bill (30 days), plus a day of slack.
+const WINDOW_PADDING_DAYS = STATEMENT_VENDOR_WINDOW_DAYS + 1;
 
 export interface ReceiptBrief {
   id: string;
@@ -58,7 +60,7 @@ export async function loadMatchPool(
     // Statement-created expenses are the other side of a match, not candidates
     // for one; a refund-shaped (non-positive) row can't back a charge.
     if (rc.from_statement || rc.total_amount <= 0) continue;
-    pool.push({ id: rc.id, date: rc.transaction_date, amount: rc.total_amount });
+    pool.push({ id: rc.id, date: rc.transaction_date, amount: rc.total_amount, vendor: rc.merchant_name });
     briefs.set(rc.id, {
       id: rc.id,
       merchant_name: rc.merchant_name,

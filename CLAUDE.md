@@ -883,10 +883,30 @@ token cost is measured (`statement_imports` records input/output tokens per impo
   for year inference). Fingerprints (`md5(account|date|amount|nth occurrence)`,
   deliberately no description - OCR wording varies) are assigned only once every chunk
   is done (`finalize_statement_lines`).
-- **Matching** (`statement-matching.ts`): date within 3 days + same cent amount. Auto-
-  accept only when unambiguous both ways (one exact candidate that no other line
-  wants); ties and near matches (4-7 days, or within $1/5%) go to the user. One-to-one
-  is enforced by a unique index. Refunds, fees, interest and payments never match.
+- **Matching** (`statement-matching.ts`, one matcher for both directions: import
+  lines -> receipts, and a scanned receipt -> statement expenses awaiting a receipt).
+  Kinds, best first: **vendor** (same vendor AND the exact same amount, within 30 days
+  either way - bills/utilities are invoiced before they're charged: invoice Feb 8, charge
+  Feb 22), **exact** (same cent amount within 3 days, any vendor), **near** (4-7 days, or
+  within $1/5%). A vendor+amount match always outranks a close-amount guess. "Same
+  vendor" is `vendorKey` equality (`merchant-name.ts`): cleaned name, store numbers and
+  punctuation dropped, only trailing legal/generic words (Inc, Canada, Communications...)
+  removed - so Rogers == Rogers Communications Canada Inc. but **Shell != Shell Energy**
+  and Home Depot != Home Hardware (a looser prefix rule was rejected on purpose; tests
+  mutate it to prove they fail). Nearest wins only when clearly nearest: a runner-up of
+  the same kind within `STATEMENT_TIE_MARGIN_DAYS` (2) is a tie and the person chooses.
+  The attach dialog PRESELECTS (`pickPreselect`), never attaches silently. Import
+  auto-accept needs mutual-nearest for a vendor match (two identical monthly bills pair
+  off by date) or a sole candidate on both sides for an exact one; near is never
+  auto-accepted. Expenses that already have a receipt are excluded (attach only reads
+  `no_receipt` rows; import excludes claimed receipts). One-to-one is also enforced by a
+  unique index. Refunds, fees, interest and payments never match.
+- **Attach changes the date**: the receipt's date replaces the expense's, so if that
+  crosses a calendar month (and maybe quarter) the person must choose which date to
+  keep - no default, enforced server-side (`attachDate`, 409 `DATE_CHOICE_REQUIRED`;
+  `statement-attach-period.ts`). `GET /api/statements/attach-candidates?mode=browse`
+  backs the manual picker: every waiting expense, ranked (matcher candidates first),
+  searchable, 100 per page (`statement-browse.ts`).
 - **"Already imported"** lines are flagged at finalize and re-checked at commit under a
   per-user lock; they default to skipped but stay visible, and Import anyway sets
   `duplicate_override`. Commit refuses unoverridden duplicates (`DUPLICATE_LINES`).

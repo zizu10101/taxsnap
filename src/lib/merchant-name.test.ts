@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanMerchantName } from "./merchant-name.ts";
+import { cleanMerchantName, vendorKey, vendorsMatch } from "./merchant-name.ts";
 
 // The three real descriptions this was written for.
 test("a masked card number is stripped: ROGERS *************3771", () => {
@@ -136,4 +136,65 @@ test("it is idempotent: cleaning a cleaned name changes nothing", () => {
 
 test("the result never exceeds the 200 character limit", () => {
   assert.ok(cleanMerchantName("A".repeat(500)).length <= 200);
+});
+
+// ---------------------------------------------------------------------------
+// vendorKey / vendorsMatch: "is this the same vendor?"
+// ---------------------------------------------------------------------------
+
+test("vendorKey: the noise around one vendor collapses to one key", () => {
+  for (const raw of ["ROGERS *************3771", "Rogers Communications Canada Inc.", "ROGERS", "rogers communications"]) {
+    assert.equal(vendorKey(raw), "rogers", raw);
+  }
+  assert.equal(vendorKey("HOME DEPOT #7042 TORONTO ON"), "home depot");
+  assert.equal(vendorKey("HOME DEPOT #7013 MISSISSAUGA ON"), "home depot");
+  assert.equal(vendorKey("Home Depot of Canada Inc"), "home depot");
+});
+
+test("vendorKey: apostrophes, dots, ampersands and case don't matter", () => {
+  assert.equal(vendorKey("TIM HORTON'S"), vendorKey("Tim Hortons"));
+  assert.equal(vendorKey("A&W RESTAURANTS"), vendorKey("A & W Restaurants"));
+  assert.equal(vendorKey("Amazon.ca"), vendorKey("AMAZON.CA"));
+});
+
+test("vendorKey: a transaction reference after a lone * is dropped, but a name after it is kept", () => {
+  assert.equal(vendorKey("AMZN MKTP CA*2K4QX7"), "amzn mktp ca");
+  assert.equal(vendorKey("AMZN MKTP CA*9ZT3L1"), "amzn mktp ca");
+  assert.equal(vendorKey("SQ *COFFEE SHOP"), "sq coffee shop");
+});
+
+test("vendorKey: only trailing generic words go, and never the last word left", () => {
+  assert.equal(vendorKey("Canada Post"), "canada post");
+  assert.equal(vendorKey("Canada"), "canada");
+  assert.equal(vendorKey("Acme Services Group Inc."), "acme");
+  assert.equal(vendorKey("Shell Energy"), "shell energy");
+});
+
+test("vendorKey: nothing to key on gives null", () => {
+  assert.equal(vendorKey(""), null);
+  assert.equal(vendorKey("   "), null);
+  assert.equal(vendorKey(null), null);
+  assert.equal(vendorKey(undefined), null);
+});
+
+test("vendorsMatch: Rogers on an invoice is the Rogers on the card statement", () => {
+  assert.equal(vendorsMatch("Rogers Communications Canada Inc.", "ROGERS *************3771"), true);
+});
+
+test("vendorsMatch: look-alike vendors are NOT the same vendor", () => {
+  assert.equal(vendorsMatch("Shell", "Shell Energy"), false);
+  assert.equal(vendorsMatch("Home Depot", "Home Hardware"), false);
+  assert.equal(vendorsMatch("Bell Canada", "Bell Mobility"), false);
+  assert.equal(vendorsMatch("Canadian Tire", "Canadian Tire Gas Bar"), false);
+});
+
+test("vendorsMatch: needs a vendor on both sides", () => {
+  assert.equal(vendorsMatch("Rogers", ""), false);
+  assert.equal(vendorsMatch(null, null), false);
+  assert.equal(vendorsMatch(undefined, "Rogers"), false);
+});
+
+test("vendorsMatch is symmetric", () => {
+  const pairs: [string, string][] = [["Rogers Communications", "ROGERS"], ["Shell", "Shell Energy"], ["TIM HORTONS #221", "Tim Hortons"]];
+  for (const [a, b] of pairs) assert.equal(vendorsMatch(a, b), vendorsMatch(b, a), a + " / " + b);
 });

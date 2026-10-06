@@ -21,6 +21,14 @@ export const STATEMENT_CHUNK_MAX_ATTEMPTS = 6;
 export const STATEMENT_STALE_DRAFT_DAYS = 14;
 // A receipt is a match candidate when its date is within this many days.
 export const STATEMENT_MATCH_WINDOW_DAYS = 3;
+// Same vendor AND the same amount to the cent: bills and utilities are usually
+// invoiced before they are charged (a preauthorised debit), so the window is wide.
+export const STATEMENT_VENDOR_WINDOW_DAYS = 30;
+// When two candidates of the same kind are this many days apart (or fewer) from the
+// target, neither is nearest: nothing is preselected or auto-matched.
+export const STATEMENT_TIE_MARGIN_DAYS = 2;
+// How many existing expenses the manual picker returns per page.
+export const STATEMENT_BROWSE_LIMIT = 100;
 
 // The feature is on only for the user ids in STATEMENT_IMPORT_USER_IDS
 // (comma-separated). No wildcard on purpose: it stays off for everyone until

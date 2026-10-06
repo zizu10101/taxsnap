@@ -134,3 +134,60 @@ export function cleanMerchantName(description: string): string {
   if (!name) return normalizeCase(trimSeparators(original) || original);
   return normalizeCase(name).slice(0, MAX_LENGTH);
 }
+
+// ---------------------------------------------------------------------------
+// Vendor identity
+// ---------------------------------------------------------------------------
+// One normalised key per vendor, used to decide "is this the same vendor?" - both
+// when matching a scanned receipt to a statement charge and (later) as the key of a
+// saved vendor rule, so the two can't drift apart.
+//
+// "ROGERS *************3771", "Rogers Communications Canada Inc." and "ROGERS"
+// all give "rogers"; "HOME DEPOT #7042 TORONTO ON" and "HOME DEPOT #7013
+// MISSISSAUGA ON" both give "home depot".
+//
+// Deliberately strict: it only drops words that say nothing about WHICH vendor it
+// is (legal suffixes and a short list of generic trailing words). "Shell" and
+// "Shell Energy" - a gas station and a home-energy provider - stay different keys,
+// and so do "Home Depot" and "Home Hardware". A looser rule (one name is the start
+// of the other) would merge those; with the same amount a few weeks apart that
+// would offer the wrong expense, so it errs towards "not the same vendor" and
+// leaves the call to the person.
+
+// Trailing words stripped from a key. Only trailing ones, and never the last word
+// left, so "Canada Post" and "Group of Seven Gallery" keep their meaning.
+const TRAILING_GENERIC = new Set([
+  "inc", "incorporated", "ltd", "limited", "corp", "corporation", "co", "company", "llc", "lp", "ulc", "plc",
+  "canada", "communications", "communication", "services", "service", "group", "holdings", "enterprises",
+  "international", "intl", "of", "the", "and",
+]);
+
+// "Amazon MKTP CA*2K4QX7": after a lone "*", a mixed letter+digit token is a
+// transaction reference, not part of the name ("SQ *COFFEE SHOP" keeps its name).
+const REFERENCE_AFTER_STAR = /\*(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{4,}/g;
+
+export function vendorKey(description: string | null | undefined): string | null {
+  const raw = collapse(description ?? "");
+  if (!raw) return null;
+
+  const cleaned = cleanMerchantName(raw.replace(REFERENCE_AFTER_STAR, " "));
+  const tokens = cleaned
+    .toLowerCase()
+    .replace(/#\s*\d+/g, " ") // store numbers
+    .replace(/['’.]/g, "") // apostrophes and dots: "tim horton's" == "tim hortons", "amazon.ca" == "amazonca"
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter(Boolean);
+
+  while (tokens.length > 1 && TRAILING_GENERIC.has(tokens[tokens.length - 1])) tokens.pop();
+  const key = tokens.join(" ");
+  return key || null;
+}
+
+// Same vendor? Both keys must exist and be equal.
+export function vendorsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ka = vendorKey(a);
+  const kb = vendorKey(b);
+  return ka !== null && ka === kb;
+}

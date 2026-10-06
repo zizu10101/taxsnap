@@ -41,6 +41,7 @@ import {
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { compressImage } from "@/lib/compress-image";
+import { periodChange } from "@/lib/statement-attach-period";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 interface ParsedDraft {
@@ -63,7 +64,9 @@ interface ParsedDraft {
 // receipt for (see /api/statements/attach-candidates).
 interface AttachCandidate {
   id: string;
-  kind: "exact" | "near";
+  kind: "vendor" | "exact" | "near";
+  /** Days between the scan's date and the expense's. */
+  day_diff: number;
   receipt: {
     id: string;
     merchant_name: string;
@@ -120,6 +123,18 @@ export function UploadReceipt({
   // "" = not chosen yet, "new" = save as a new expense, otherwise the id of the
   // statement expense to attach this scan to.
   const [attachChoice, setAttachChoice] = useState("");
+  // Which date the expense keeps when attaching would move it into another month.
+  // No default: it has to be chosen (and the server refuses without it).
+  const [attachDateChoice, setAttachDateChoice] = useState<"" | "receipt" | "statement">("");
+  const selectedCandidate =
+    attachChoice && attachChoice !== "new"
+      ? (attachCandidates.find((c) => c.id === attachChoice) ?? null)
+      : null;
+  const dateChange =
+    selectedCandidate && draft && /^\d{4}-\d{2}-\d{2}$/.test(draft.transaction_date)
+      ? periodChange(selectedCandidate.receipt.transaction_date, draft.transaction_date)
+      : null;
+  const mustChooseDate = !!dateChange?.crossesMonth;
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
@@ -145,19 +160,22 @@ export function UploadReceipt({
     setDraft({ ...draft, job_name: value });
   }
 
-  async function loadAttachCandidates(total: number, date: string) {
+  async function loadAttachCandidates(total: number, date: string, merchant: string) {
     setAttachCandidates([]);
     setAttachChoice("");
+    setAttachDateChoice("");
     if (!statementImportEnabled) return;
     try {
       const params = new URLSearchParams({ total: String(total), date });
+      if (merchant.trim()) params.set("merchant", merchant.trim());
       const res = await fetch(`/api/statements/attach-candidates?${params}`);
       if (!res.ok) return;
-      const found: AttachCandidate[] = (await res.json()).candidates ?? [];
-      setAttachCandidates(found);
-      // One same-amount candidate is the expected case, so it is preselected (the
-      // user can still choose "new"). A tie, or only close matches, must be chosen.
-      if (found.length === 1 && found[0].kind === "exact") setAttachChoice(found[0].id);
+      const body = await res.json();
+      setAttachCandidates((body.candidates ?? []) as AttachCandidate[]);
+      // The server preselects the nearest candidate only when it is clearly nearest
+      // (a tie, or only close-amount guesses, preselect nothing). It is a
+      // preselection: nothing is attached until Attach & Save is pressed.
+      if (typeof body.preselect_id === "string") setAttachChoice(body.preselect_id);
     } catch {
       // Best effort: saving a receipt works the same without this check.
     }
@@ -210,7 +228,11 @@ export function UploadReceipt({
       });
       setJobMode(NO_JOB);
       setNewJobName("");
-      await loadAttachCandidates(data.parsed.total_amount, data.parsed.transaction_date);
+      await loadAttachCandidates(
+        data.parsed.total_amount,
+        data.parsed.transaction_date,
+        data.parsed.merchant_name ?? "",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setPreviewImage(null);
@@ -228,6 +250,10 @@ export function UploadReceipt({
       toast.error("This may be a charge from your card statement. Choose which one, or Save as a new expense.");
       return;
     }
+    if (mustChooseDate && attachDateChoice === "") {
+      toast.error("Choose which date to keep: the receipt's or the statement's.");
+      return;
+    }
     setSaving(true);
     try {
       if (attachChoice && attachChoice !== "new") {
@@ -240,6 +266,7 @@ export function UploadReceipt({
             merchant_name: draft.merchant_name,
             transaction_date: draft.transaction_date,
             items: draft.items.filter((i) => i.name.trim()),
+            ...(mustChooseDate && { keep_statement_date: attachDateChoice === "statement" }),
           }),
         });
         const attached = await attachRes.json();
@@ -281,6 +308,7 @@ export function UploadReceipt({
     setDraft(null);
     setAttachCandidates([]);
     setAttachChoice("");
+    setAttachDateChoice("");
     setPreviewImage(null);
     setPreviewIsPdf(false);
   }
@@ -424,13 +452,22 @@ export function UploadReceipt({
                       name="attach-choice"
                       className="mt-0.5"
                       checked={attachChoice === c.id}
-                      onChange={() => setAttachChoice(c.id)}
+                      onChange={() => {
+                        setAttachChoice(c.id);
+                        setAttachDateChoice("");
+                      }}
                     />
                     <span>
                       {c.receipt.merchant_name} · {c.receipt.transaction_date} · $
                       {c.receipt.total_amount.toFixed(2)}
                       <span className="ml-1 text-muted-foreground">
-                        ({c.kind === "exact" ? "same amount" : "close, not exact"})
+                        (
+                        {c.kind === "vendor"
+                          ? `same vendor and amount, ${c.day_diff} day${c.day_diff === 1 ? "" : "s"} apart`
+                          : c.kind === "exact"
+                            ? "same amount"
+                            : "close, not exact"}
+                        )
                       </span>
                     </span>
                   </label>
@@ -441,9 +478,49 @@ export function UploadReceipt({
                     name="attach-choice"
                     className="mt-0.5"
                     checked={attachChoice === "new"}
-                    onChange={() => setAttachChoice("new")}
+                    onChange={() => {
+                      setAttachChoice("new");
+                      setAttachDateChoice("");
+                    }}
                   />
                   <span>Save as a new expense</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {mustChooseDate && dateChange && selectedCandidate && draft && (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium">
+                This moves the expense into a different {dateChange.crossesQuarter ? "quarter" : "month"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Your card was charged on {selectedCandidate.receipt.transaction_date}; this receipt is
+                dated {draft.transaction_date}. Attaching it would change the expense from{" "}
+                {dateChange.fromMonth} ({dateChange.fromQuarter}) to {dateChange.toMonth} (
+                {dateChange.toQuarter}), which can change the HST period it falls in. Choose the date
+                to keep.
+              </p>
+              <div className="space-y-1.5">
+                <label className="flex cursor-pointer items-start gap-2 text-xs">
+                  <input
+                    type="radio"
+                    name="attach-date-choice"
+                    className="mt-0.5"
+                    checked={attachDateChoice === "statement"}
+                    onChange={() => setAttachDateChoice("statement")}
+                  />
+                  <span>Keep the statement date ({selectedCandidate.receipt.transaction_date})</span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 text-xs">
+                  <input
+                    type="radio"
+                    name="attach-date-choice"
+                    className="mt-0.5"
+                    checked={attachDateChoice === "receipt"}
+                    onChange={() => setAttachDateChoice("receipt")}
+                  />
+                  <span>Use the receipt date ({draft.transaction_date})</span>
                 </label>
               </div>
             </div>
