@@ -1,5 +1,5 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
-import { formatDocumentNumber } from "@/lib/document-number";
+import { formatDocumentNumber } from "./document-number.ts";
 
 function escapeCsvField(value: string | number): string {
   const str = String(value);
@@ -117,15 +117,24 @@ export function receiptsToQuickBooksCsv(
 ): string {
   const header = ["Date", "Description", "Payment", "Deposit"];
 
-  const expenseRows = receipts.map((r) => ({
-    date: r.transaction_date,
-    row: [
-      toQuickBooksDate(r.transaction_date),
-      `${r.merchant_name} - ${r.tax_category}`,
-      r.total_amount.toFixed(2),
-      "",
-    ],
-  }));
+  // A refund (a card-statement import saves one as an expense with a negative
+  // total) is money coming back, so it goes in the Deposit column as a positive
+  // number - never a negative in Payment, which QuickBooks' importer doesn't
+  // treat as a credit. Labeled "Refund" so it can be categorized against the
+  // original expense rather than mistaken for income.
+  const expenseRows = receipts.map((r) => {
+    const isRefund = r.total_amount < 0;
+    const amount = Math.abs(r.total_amount).toFixed(2);
+    return {
+      date: r.transaction_date,
+      row: [
+        toQuickBooksDate(r.transaction_date),
+        `${isRefund ? "Refund - " : ""}${r.merchant_name} - ${r.tax_category}`,
+        isRefund ? "" : amount,
+        isRefund ? amount : "",
+      ],
+    };
+  });
 
   const revenueRows = invoicePayments.map((p) => ({
     date: p.paidDate,

@@ -59,6 +59,19 @@ interface ParsedDraft {
   image_url: string | null;
 }
 
+// An expense a card-statement import created that this scan could be the
+// receipt for (see /api/statements/attach-candidates).
+interface AttachCandidate {
+  id: string;
+  kind: "exact" | "near";
+  receipt: {
+    id: string;
+    merchant_name: string;
+    transaction_date: string;
+    total_amount: number;
+  };
+}
+
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
 
 // Sentinel values for the job Select, mirroring the client picker's
@@ -71,10 +84,17 @@ const NEW_JOB = "__new_job__";
 
 export function UploadReceipt({
   onSaved,
+  onAttached,
+  statementImportEnabled = false,
   existingJobs = [],
   variant = "hero",
 }: {
   onSaved: (receipt: Receipt) => void;
+  // Called instead of onSaved when the scan was attached to an existing
+  // statement-created expense (the row already exists, so it is replaced, not added).
+  onAttached?: (receipt: Receipt) => void;
+  // Card-statement import is allowlist-only; when off, no attach check runs.
+  statementImportEnabled?: boolean;
   existingJobs?: string[];
   // "tile" = quick-actions grid tile (flex-col, icon over label). "hero" =
   // the page header's own compact primary action, sized to sit inline next
@@ -96,6 +116,10 @@ export function UploadReceipt({
   const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [jobMode, setJobMode] = useState<string>(NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  const [attachCandidates, setAttachCandidates] = useState<AttachCandidate[]>([]);
+  // "" = not chosen yet, "new" = save as a new expense, otherwise the id of the
+  // statement expense to attach this scan to.
+  const [attachChoice, setAttachChoice] = useState("");
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
@@ -119,6 +143,24 @@ export function UploadReceipt({
     if (!draft) return;
     setNewJobName(value);
     setDraft({ ...draft, job_name: value });
+  }
+
+  async function loadAttachCandidates(total: number, date: string) {
+    setAttachCandidates([]);
+    setAttachChoice("");
+    if (!statementImportEnabled) return;
+    try {
+      const params = new URLSearchParams({ total: String(total), date });
+      const res = await fetch(`/api/statements/attach-candidates?${params}`);
+      if (!res.ok) return;
+      const found: AttachCandidate[] = (await res.json()).candidates ?? [];
+      setAttachCandidates(found);
+      // One same-amount candidate is the expected case, so it is preselected (the
+      // user can still choose "new"). A tie, or only close matches, must be chosen.
+      if (found.length === 1 && found[0].kind === "exact") setAttachChoice(found[0].id);
+    } catch {
+      // Best effort: saving a receipt works the same without this check.
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -168,6 +210,7 @@ export function UploadReceipt({
       });
       setJobMode(NO_JOB);
       setNewJobName("");
+      await loadAttachCandidates(data.parsed.total_amount, data.parsed.transaction_date);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setPreviewImage(null);
@@ -181,8 +224,31 @@ export function UploadReceipt({
 
   async function handleApprove() {
     if (!draft) return;
+    if (attachCandidates.length > 0 && attachChoice === "") {
+      toast.error("This may be a charge from your card statement. Choose which one, or Save as a new expense.");
+      return;
+    }
     setSaving(true);
     try {
+      if (attachChoice && attachChoice !== "new") {
+        const attachRes = await fetch(`/api/receipts/${attachChoice}/attach`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_path: draft.image_path,
+            tax_amount: draft.tax_amount,
+            merchant_name: draft.merchant_name,
+            transaction_date: draft.transaction_date,
+            items: draft.items.filter((i) => i.name.trim()),
+          }),
+        });
+        const attached = await attachRes.json();
+        if (!attachRes.ok) throw new Error(attached.error || "Failed to attach receipt");
+        (onAttached ?? onSaved)(attached.receipt as Receipt);
+        toast.success("Receipt attached to your statement expense");
+        closeModal();
+        return;
+      }
       const res = await fetch("/api/receipts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -213,6 +279,8 @@ export function UploadReceipt({
 
   function closeModal() {
     setDraft(null);
+    setAttachCandidates([]);
+    setAttachChoice("");
     setPreviewImage(null);
     setPreviewIsPdf(false);
   }
@@ -339,6 +407,46 @@ export function UploadReceipt({
               alt="Receipt preview"
               className="max-h-48 w-full rounded-md border object-contain"
             />
+          )}
+
+          {attachCandidates.length > 0 && (
+            <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">This may be a charge from your card statement</p>
+              <p className="text-xs text-muted-foreground">
+                Attaching adds this photo and its tax to that expense instead of creating a second
+                one. The expense keeps the amount that was charged to your card.
+              </p>
+              <div className="space-y-1.5">
+                {attachCandidates.map((c) => (
+                  <label key={c.id} className="flex cursor-pointer items-start gap-2 text-xs">
+                    <input
+                      type="radio"
+                      name="attach-choice"
+                      className="mt-0.5"
+                      checked={attachChoice === c.id}
+                      onChange={() => setAttachChoice(c.id)}
+                    />
+                    <span>
+                      {c.receipt.merchant_name} · {c.receipt.transaction_date} · $
+                      {c.receipt.total_amount.toFixed(2)}
+                      <span className="ml-1 text-muted-foreground">
+                        ({c.kind === "exact" ? "same amount" : "close, not exact"})
+                      </span>
+                    </span>
+                  </label>
+                ))}
+                <label className="flex cursor-pointer items-start gap-2 text-xs">
+                  <input
+                    type="radio"
+                    name="attach-choice"
+                    className="mt-0.5"
+                    checked={attachChoice === "new"}
+                    onChange={() => setAttachChoice("new")}
+                  />
+                  <span>Save as a new expense</span>
+                </label>
+              </div>
+            </div>
           )}
 
           {draft && (
@@ -518,7 +626,7 @@ export function UploadReceipt({
             </Button>
             <Button onClick={handleApprove} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Approve & Save
+              {attachChoice && attachChoice !== "new" ? "Attach & Save" : "Approve & Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

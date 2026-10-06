@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ExpensesBody } from "@/components/dashboard/expenses-body";
+import { isStatementImportEnabled } from "@/lib/statement-config";
 
 export const metadata: Metadata = {
   title: "Expenses — TaxSnap",
@@ -46,6 +47,17 @@ export default async function ExpensesPage() {
       .order("name", { ascending: true }),
   ]);
 
+  // Card-statement import is allowlist-only (STATEMENT_IMPORT_USER_IDS); for
+  // everyone else none of it renders and the extra query is skipped.
+  const statementImportEnabled = isStatementImportEnabled(user.id);
+  const { data: openStatementDrafts } = statementImportEnabled
+    ? await supabase
+        .from("statement_imports")
+        .select("id, issuer, created_at")
+        .eq("status", "draft")
+        .order("created_at", { ascending: false })
+    : { data: null };
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
       <PageHeader
@@ -66,6 +78,8 @@ export default async function ExpensesPage() {
         }}
         logoPath={profile?.logo_url ?? null}
         lastSignInAt={user.last_sign_in_at ?? null}
+        statementImportEnabled={statementImportEnabled}
+        openStatementDrafts={openStatementDrafts ?? []}
       />
     </div>
   );

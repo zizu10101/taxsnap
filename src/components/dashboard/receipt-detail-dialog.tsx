@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
+import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { accountDisplayName } from "@/lib/accounts";
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
@@ -430,6 +431,7 @@ function ReceiptSummaryContent({
           </span>
           <Badge variant="secondary">{receipt.tax_category}</Badge>
         </div>
+        <StatementFlagBadge receipt={receipt} className="mt-1.5" />
         {receipt.job_name && (
           <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Briefcase className="h-3.5 w-3.5" />
