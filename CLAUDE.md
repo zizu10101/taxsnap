@@ -915,7 +915,17 @@ token cost is measured (`statement_imports` records input/output tokens per impo
   keep - no default, enforced server-side (`attachDate`, 409 `DATE_CHOICE_REQUIRED`;
   `statement-attach-period.ts`). `GET /api/statements/attach-candidates?mode=browse`
   backs the manual picker: every waiting expense, ranked (matcher candidates first),
-  searchable, 100 per page (`statement-browse.ts`).
+  searchable, 100 per page with "Show more" (`statement-browse.ts`); the plain call also
+  returns `waiting_count`, which is what decides whether the picker is offered at all.
+- **The attach picker** (`attach-picker.tsx`) is a second VIEW inside the receipt review dialog,
+  not a nested dialog (stacked Base UI modals fight over focus and scroll-lock). A chosen
+  expense joins the banner as "chosen by you". If the receipt total differs from the card
+  amount the person must tick "I've checked the amounts"; that and the date choice are keyed to
+  EXACTLY what was confirmed (ids, dates, cents), so editing anything afterwards silently
+  invalidates them. Editing the merchant, total or date in the review form re-runs the lookup
+  after a 600 ms debounce (`loadAttachCandidates(..., keepChoice=true)`, stale answers dropped),
+  keeping a choice that is still on offer. Gotcha: the dialog is a CSS grid, so a grid child
+  needs `min-w-0` or a long list widens the column and adds a horizontal scrollbar.
 - **"Already imported"** lines are flagged at finalize and re-checked at commit under a
   per-user lock; they default to skipped but stay visible, and Import anyway sets
   `duplicate_override`. Commit refuses unoverridden duplicates (`DUPLICATE_LINES`).

@@ -25,7 +25,11 @@ function isoDay(dayNum: number): string {
 //   GET ?total=&date=&merchant=            -> the candidates, best first, and
 //                                             `preselect_id`: the nearest one when it
 //                                             is clearly nearest (a tie, or only a
-//                                             close-amount guess, preselects nothing).
+//                                             close-amount guess, preselects nothing),
+//                                             and `waiting_count`: how many statement
+//                                             expenses are waiting for a receipt AT ALL,
+//                                             which is what decides whether the manual
+//                                             picker is offered.
 //   GET ?mode=browse&date=&total=&merchant=&q=&offset=
 //                                          -> the manual picker: EVERY waiting
 //                                             expense, ranked, searchable, 100 a page.
@@ -44,7 +48,7 @@ export async function GET(request: Request) {
   const totalParam = url.searchParams.get("total");
   const total = totalParam === null || totalParam === "" ? null : Number(totalParam);
   if (!isIsoDate(date) || (total !== null && !Number.isFinite(total))) {
-    return NextResponse.json({ candidates: [], preselect_id: null });
+    return NextResponse.json({ candidates: [], preselect_id: null, waiting_count: 0 });
   }
 
   if (url.searchParams.get("mode") === "browse") {
@@ -82,7 +86,18 @@ export async function GET(request: Request) {
     });
   }
 
-  if (total === null || total <= 0) return NextResponse.json({ candidates: [], preselect_id: null });
+  // Every waiting expense, whatever its date: the manual picker lists them all.
+  const { count: waiting, error: waitingError } = await ctx.supabase
+    .from("receipts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", ctx.user.id)
+    .eq("no_receipt", true)
+    .gt("total_amount", 0);
+  const waitingCount = waitingError ? 0 : (waiting ?? 0);
+
+  if (total === null || total <= 0) {
+    return NextResponse.json({ candidates: [], preselect_id: null, waiting_count: waitingCount });
+  }
 
   const center = dayNumber(date);
   const { data, error } = await ctx.supabase
@@ -92,7 +107,7 @@ export async function GET(request: Request) {
     .eq("no_receipt", true)
     .gte("transaction_date", isoDay(center - WINDOW_DAYS))
     .lte("transaction_date", isoDay(center + WINDOW_DAYS));
-  if (error) return NextResponse.json({ candidates: [], preselect_id: null, unavailable: true });
+  if (error) return NextResponse.json({ candidates: [], preselect_id: null, waiting_count: 0, unavailable: true });
 
   const placeholders = (data ?? []).filter((r) => r.total_amount > 0);
   const ranked = rankCandidates(
@@ -121,5 +136,6 @@ export async function GET(request: Request) {
       };
     }),
     preselect_id: pickPreselect(ranked),
+    waiting_count: waitingCount,
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -42,6 +42,7 @@ import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { compressImage } from "@/lib/compress-image";
 import { periodChange } from "@/lib/statement-attach-period";
+import { AttachPicker, type PickerItem } from "@/components/dashboard/attach-picker";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
 interface ParsedDraft {
@@ -64,7 +65,7 @@ interface ParsedDraft {
 // receipt for (see /api/statements/attach-candidates).
 interface AttachCandidate {
   id: string;
-  kind: "vendor" | "exact" | "near";
+  kind: "vendor" | "exact" | "near" | "manual";
   /** Days between the scan's date and the expense's. */
   day_diff: number;
   receipt: {
@@ -120,21 +121,59 @@ export function UploadReceipt({
   const [jobMode, setJobMode] = useState<string>(NO_JOB);
   const [newJobName, setNewJobName] = useState("");
   const [attachCandidates, setAttachCandidates] = useState<AttachCandidate[]>([]);
+  // An expense the person picked BY HAND in the picker (not offered automatically).
+  const [manualCandidate, setManualCandidate] = useState<AttachCandidate | null>(null);
+  const manualIdRef = useRef<string | null>(null);
+  // How many statement expenses are waiting for a receipt in total. The manual picker
+  // is only offered when there is something in it to pick.
+  const [waitingCount, setWaitingCount] = useState(0);
+  // The dialog shows either the review form or the manual picker (a view swap, not a
+  // nested dialog: stacked Base UI modals fight over focus and scroll-lock).
+  const [view, setView] = useState<"review" | "picker">("review");
   // "" = not chosen yet, "new" = save as a new expense, otherwise the id of the
   // statement expense to attach this scan to.
   const [attachChoice, setAttachChoice] = useState("");
-  // Which date the expense keeps when attaching would move it into another month.
-  // No default: it has to be chosen (and the server refuses without it).
-  const [attachDateChoice, setAttachDateChoice] = useState<"" | "receipt" | "statement">("");
+  const allCandidates = useMemo(
+    () =>
+      manualCandidate && !attachCandidates.some((c) => c.id === manualCandidate.id)
+        ? [manualCandidate, ...attachCandidates]
+        : attachCandidates,
+    [manualCandidate, attachCandidates],
+  );
   const selectedCandidate =
     attachChoice && attachChoice !== "new"
-      ? (attachCandidates.find((c) => c.id === attachChoice) ?? null)
+      ? (allCandidates.find((c) => c.id === attachChoice) ?? null)
       : null;
   const dateChange =
     selectedCandidate && draft && /^\d{4}-\d{2}-\d{2}$/.test(draft.transaction_date)
       ? periodChange(selectedCandidate.receipt.transaction_date, draft.transaction_date)
       : null;
   const mustChooseDate = !!dateChange?.crossesMonth;
+  const cents = (n: number) => Math.round(n * 100);
+  // The receipt's total and the card charge differ (a tip, a mismatch, a wrong pick).
+  const amountMismatch =
+    !!selectedCandidate && !!draft && cents(draft.total_amount) !== cents(selectedCandidate.receipt.total_amount);
+  // Two confirmations the person must give, each tied to EXACTLY what they confirmed:
+  // change the expense, the receipt's date or its total afterwards and the confirmation
+  // stops applying, so it can never vouch for something they didn't look at.
+  //  - which date to keep, when attaching would move the expense into another month
+  //    (no default; the server refuses without it);
+  //  - "I've checked the amounts", when the two amounts differ.
+  const dateKey =
+    selectedCandidate && draft
+      ? `${selectedCandidate.id}|${selectedCandidate.receipt.transaction_date}|${draft.transaction_date}`
+      : "";
+  const amountsKey =
+    selectedCandidate && draft
+      ? `${selectedCandidate.id}|${cents(draft.total_amount)}|${cents(selectedCandidate.receipt.total_amount)}`
+      : "";
+  const [dateChoiceState, setDateChoiceState] = useState<{ key: string; value: "receipt" | "statement" } | null>(null);
+  const [amountsOk, setAmountsOk] = useState("");
+  const attachDateChoice = dateChoiceState && dateChoiceState.key === dateKey ? dateChoiceState.value : "";
+  const amountsChecked = amountsKey !== "" && amountsOk === amountsKey;
+  // Re-checking matches while the person edits the merchant, total or date.
+  const lastCheckedRef = useRef("");
+  const checkSeqRef = useRef(0);
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
@@ -160,26 +199,71 @@ export function UploadReceipt({
     setDraft({ ...draft, job_name: value });
   }
 
-  async function loadAttachCandidates(total: number, date: string, merchant: string) {
-    setAttachCandidates([]);
-    setAttachChoice("");
-    setAttachDateChoice("");
-    if (!statementImportEnabled) return;
-    try {
-      const params = new URLSearchParams({ total: String(total), date });
-      if (merchant.trim()) params.set("merchant", merchant.trim());
-      const res = await fetch(`/api/statements/attach-candidates?${params}`);
-      if (!res.ok) return;
-      const body = await res.json();
-      setAttachCandidates((body.candidates ?? []) as AttachCandidate[]);
-      // The server preselects the nearest candidate only when it is clearly nearest
-      // (a tie, or only close-amount guesses, preselect nothing). It is a
-      // preselection: nothing is attached until Attach & Save is pressed.
-      if (typeof body.preselect_id === "string") setAttachChoice(body.preselect_id);
-    } catch {
-      // Best effort: saving a receipt works the same without this check.
-    }
-  }
+  // Looks for statement expenses this scan could be the receipt for. Run when a receipt
+  // is scanned (keepChoice false: start clean) and again, debounced, whenever the person
+  // edits the merchant, total or date (keepChoice true: keep what they chose if it is
+  // still on offer, instead of pulling it away mid-edit). An answer that arrives after a
+  // newer request was sent is dropped.
+  const loadAttachCandidates = useCallback(
+    async (total: number, date: string, merchant: string, keepChoice = false) => {
+      const seq = ++checkSeqRef.current;
+      if (!keepChoice) {
+        setAttachCandidates([]);
+        setAttachChoice("");
+        setManualCandidate(null);
+        manualIdRef.current = null;
+        setWaitingCount(0);
+      }
+      if (!statementImportEnabled) return;
+      try {
+        const params = new URLSearchParams({ total: String(total), date });
+        if (merchant.trim()) params.set("merchant", merchant.trim());
+        const res = await fetch(`/api/statements/attach-candidates?${params}`);
+        if (!res.ok || seq !== checkSeqRef.current) return;
+        const body = await res.json();
+        if (seq !== checkSeqRef.current) return;
+        const found = (body.candidates ?? []) as AttachCandidate[];
+        setAttachCandidates(found);
+        setWaitingCount(Number(body.waiting_count ?? 0));
+        // The server preselects the nearest candidate only when it is clearly nearest
+        // (a tie, or only close-amount guesses, preselect nothing). It is a
+        // preselection: nothing is attached until Attach & Save is pressed.
+        const preselect = typeof body.preselect_id === "string" ? body.preselect_id : "";
+        setAttachChoice((prev) => {
+          if (!keepChoice) return preselect;
+          if (prev === "new") return prev; // they decided: a new expense
+          if (prev && (found.some((c) => c.id === prev) || prev === manualIdRef.current)) return prev;
+          return preselect;
+        });
+      } catch {
+        // Best effort: saving a receipt works the same without this check.
+      }
+    },
+    [statementImportEnabled],
+  );
+
+  const hasDraft = !!draft;
+  const draftTotal = draft?.total_amount ?? 0;
+  const draftDate = draft?.transaction_date ?? "";
+  const draftMerchant = draft?.merchant_name ?? "";
+  const pickerScan = useMemo(
+    () => ({ merchant: draftMerchant, date: draftDate, total: draftTotal }),
+    [draftMerchant, draftDate, draftTotal],
+  );
+
+  // Edit the merchant, total or date in the review form and the matches are looked up
+  // again after a short pause (not on every keystroke). The first lookup, at scan
+  // time, records its key so this doesn't repeat it.
+  useEffect(() => {
+    if (!statementImportEnabled || !hasDraft) return;
+    const key = `${draftTotal}|${draftDate}|${draftMerchant}`;
+    if (key === lastCheckedRef.current) return;
+    const timer = setTimeout(() => {
+      lastCheckedRef.current = key;
+      void loadAttachCandidates(draftTotal, draftDate, draftMerchant, true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [statementImportEnabled, hasDraft, draftTotal, draftDate, draftMerchant, loadAttachCandidates]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -228,6 +312,7 @@ export function UploadReceipt({
       });
       setJobMode(NO_JOB);
       setNewJobName("");
+      lastCheckedRef.current = `${data.parsed.total_amount}|${data.parsed.transaction_date}|${data.parsed.merchant_name ?? ""}`;
       await loadAttachCandidates(
         data.parsed.total_amount,
         data.parsed.transaction_date,
@@ -246,13 +331,25 @@ export function UploadReceipt({
 
   async function handleApprove() {
     if (!draft) return;
-    if (attachCandidates.length > 0 && attachChoice === "") {
+    if (allCandidates.length > 0 && attachChoice === "") {
       toast.error("This may be a charge from your card statement. Choose which one, or Save as a new expense.");
       return;
     }
     if (mustChooseDate && attachDateChoice === "") {
       toast.error("Choose which date to keep: the receipt's or the statement's.");
       return;
+    }
+    if (selectedCandidate) {
+      if (draft.tax_amount > selectedCandidate.receipt.total_amount + 0.005) {
+        toast.error(
+          `Sales tax can't be more than the expense's total ($${selectedCandidate.receipt.total_amount.toFixed(2)}).`,
+        );
+        return;
+      }
+      if (amountMismatch && !amountsChecked) {
+        toast.error("The receipt total and the expense amount differ. Tick \"I've checked the amounts\" to continue.");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -308,9 +405,35 @@ export function UploadReceipt({
     setDraft(null);
     setAttachCandidates([]);
     setAttachChoice("");
-    setAttachDateChoice("");
+    setManualCandidate(null);
+    manualIdRef.current = null;
+    setWaitingCount(0);
+    setView("review");
+    setDateChoiceState(null);
+    setAmountsOk("");
+    lastCheckedRef.current = "";
+    checkSeqRef.current += 1;
     setPreviewImage(null);
     setPreviewIsPdf(false);
+  }
+
+  // An expense chosen by hand in the picker becomes an option in the review view (labelled
+  // "chosen by you") and is selected there; the usual date and amount confirmations apply.
+  function handlePicked(item: PickerItem) {
+    setManualCandidate({
+      id: item.id,
+      kind: item.kind ?? "manual",
+      day_diff: item.day_diff,
+      receipt: {
+        id: item.id,
+        merchant_name: item.merchant_name,
+        transaction_date: item.date,
+        total_amount: item.amount,
+      },
+    });
+    manualIdRef.current = item.id;
+    setAttachChoice(item.id);
+    setView("review");
   }
 
   function updateItem(index: number, patch: Partial<ReceiptItem>) {
@@ -411,6 +534,24 @@ export function UploadReceipt({
 
       <Dialog open={!!draft} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          {view === "picker" && draft ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Attach to an existing expense</DialogTitle>
+                <DialogDescription>
+                  Choose the card-statement expense this receipt belongs to. It keeps the amount that
+                  was charged to your card.
+                </DialogDescription>
+              </DialogHeader>
+              <AttachPicker
+                scan={pickerScan}
+                selectedId={selectedCandidate?.id ?? null}
+                onChoose={handlePicked}
+                onBack={() => setView("review")}
+              />
+            </>
+          ) : (
+            <>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -437,7 +578,7 @@ export function UploadReceipt({
             />
           )}
 
-          {attachCandidates.length > 0 && (
+          {allCandidates.length > 0 && (
             <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
               <p className="font-medium">This may be a charge from your card statement</p>
               <p className="text-xs text-muted-foreground">
@@ -445,24 +586,23 @@ export function UploadReceipt({
                 one. The expense keeps the amount that was charged to your card.
               </p>
               <div className="space-y-1.5">
-                {attachCandidates.map((c) => (
+                {allCandidates.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-start gap-2 text-xs">
                     <input
                       type="radio"
                       name="attach-choice"
                       className="mt-0.5"
                       checked={attachChoice === c.id}
-                      onChange={() => {
-                        setAttachChoice(c.id);
-                        setAttachDateChoice("");
-                      }}
+                      onChange={() => setAttachChoice(c.id)}
                     />
                     <span>
                       {c.receipt.merchant_name} · {c.receipt.transaction_date} · $
                       {c.receipt.total_amount.toFixed(2)}
                       <span className="ml-1 text-muted-foreground">
                         (
-                        {c.kind === "vendor"
+                        {c.kind === "manual"
+                          ? "chosen by you"
+                          : c.kind === "vendor"
                           ? `same vendor and amount, ${c.day_diff} day${c.day_diff === 1 ? "" : "s"} apart`
                           : c.kind === "exact"
                             ? "same amount"
@@ -478,14 +618,33 @@ export function UploadReceipt({
                     name="attach-choice"
                     className="mt-0.5"
                     checked={attachChoice === "new"}
-                    onChange={() => {
-                      setAttachChoice("new");
-                      setAttachDateChoice("");
-                    }}
+                    onChange={() => setAttachChoice("new")}
                   />
                   <span>Save as a new expense</span>
                 </label>
               </div>
+              {waitingCount > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-primary underline underline-offset-2"
+                  onClick={() => setView("picker")}
+                >
+                  None of these? Attach to a different expense...
+                </button>
+              )}
+            </div>
+          )}
+
+          {statementImportEnabled && draft && allCandidates.length === 0 && waitingCount > 0 && (
+            <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">No statement expense matched this receipt</p>
+              <p className="text-xs text-muted-foreground">
+                Is it for a charge on a card statement you&apos;ve already imported? You can pick that
+                expense yourself and attach the receipt to it.
+              </p>
+              <Button size="sm" variant="outline" onClick={() => setView("picker")}>
+                Attach to an existing expense...
+              </Button>
             </div>
           )}
 
@@ -508,7 +667,7 @@ export function UploadReceipt({
                     name="attach-date-choice"
                     className="mt-0.5"
                     checked={attachDateChoice === "statement"}
-                    onChange={() => setAttachDateChoice("statement")}
+                    onChange={() => setDateChoiceState({ key: dateKey, value: "statement" })}
                   />
                   <span>Keep the statement date ({selectedCandidate.receipt.transaction_date})</span>
                 </label>
@@ -518,11 +677,31 @@ export function UploadReceipt({
                     name="attach-date-choice"
                     className="mt-0.5"
                     checked={attachDateChoice === "receipt"}
-                    onChange={() => setAttachDateChoice("receipt")}
+                    onChange={() => setDateChoiceState({ key: dateKey, value: "receipt" })}
                   />
                   <span>Use the receipt date ({draft.transaction_date})</span>
                 </label>
               </div>
+            </div>
+          )}
+
+          {amountMismatch && selectedCandidate && draft && (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium">The amounts don&apos;t match</p>
+              <p className="text-xs text-muted-foreground">
+                Your receipt says ${draft.total_amount.toFixed(2)}, but your card was charged $
+                {selectedCandidate.receipt.total_amount.toFixed(2)}. The expense keeps the card amount
+                (${selectedCandidate.receipt.total_amount.toFixed(2)}); only the photo, the tax and the
+                items come from this receipt.
+              </p>
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={amountsChecked}
+                  onChange={(e) => setAmountsOk(e.target.checked ? amountsKey : "")}
+                />
+                <span>I&apos;ve checked the amounts</span>
+              </label>
             </div>
           )}
 
@@ -706,6 +885,8 @@ export function UploadReceipt({
               {attachChoice && attachChoice !== "new" ? "Attach & Save" : "Approve & Save"}
             </Button>
           </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

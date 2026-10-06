@@ -32,6 +32,8 @@ export interface BrowseItem extends BrowseRow {
   /** How the matcher rates this expense against the scan; null = not a candidate. */
   kind: MatchKind | null;
   day_diff: number;
+  /** Signed: the expense's date minus the scan's, in days (positive = the expense is LATER). */
+  days_from_scan: number;
   /** Same amount to the cent as the scan. */
   amount_matches: boolean;
 }
@@ -83,6 +85,7 @@ export function browseExpenses(rows: BrowseRow[], scan: BrowseScan, options: Bro
         ...r,
         kind: candidate?.kind ?? null,
         day_diff: Math.abs(dayNumber(r.date) - scanDay),
+        days_from_scan: dayNumber(r.date) - scanDay,
         amount_matches: scan.total !== null && Math.round(scan.total * 100) === Math.round(r.amount * 100),
       };
     })

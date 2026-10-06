@@ -111,3 +111,19 @@ test("without a scan total there are no candidates: the list is ordered by how c
 test("an empty list is a valid, empty page", () => {
   assert.deepEqual(browseExpenses([], scan), { items: [], total: 0, hasMore: false, offset: 0 });
 });
+
+test("each item says how many days it is from the scan, signed: positive = the expense is later", () => {
+  const rows: BrowseRow[] = [
+    { id: "later", date: "2026-02-22", amount: 89.99, merchant_name: "Rogers", tax_category: "Phone" },
+    { id: "earlier", date: "2026-02-05", amount: 12, merchant_name: "Staples", tax_category: "Other" },
+    { id: "same", date: "2026-02-08", amount: 5, merchant_name: "Tim Hortons", tax_category: "Meals" },
+  ];
+  const byId = Object.fromEntries(
+    browseExpenses(rows, { date: "2026-02-08", total: null, merchant: null }).items.map((i) => [i.id, i]),
+  );
+  assert.equal(byId.later.days_from_scan, 14);
+  assert.equal(byId.earlier.days_from_scan, -3);
+  assert.equal(byId.same.days_from_scan, 0);
+  assert.equal(byId.later.day_diff, 14);
+  assert.equal(byId.earlier.day_diff, 3, "day_diff stays the absolute distance the ranking uses");
+});
