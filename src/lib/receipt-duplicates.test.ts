@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { similarReceipts, type DuplicateSummary } from "./receipt-duplicates.ts";
+import { attachedStatementMatches, similarReceipts, type DuplicateSummary } from "./receipt-duplicates.ts";
 import { vendorKey } from "./merchant-name.ts";
 
 const rec = (id: string, merchant: string, date: string, total: number, extra: object = {}) => ({
@@ -128,4 +128,69 @@ test("garbage input yields no warning rather than a crash", () => {
   assert.deepEqual(similarReceipts({ merchant: "", total: 89.99, date: "2026-02-08" }, rows), []);
   assert.deepEqual(similarReceipts({ merchant: "Rogers", total: 89.99, date: "Feb 8" }, rows), []);
   assert.deepEqual(similarReceipts({ merchant: "Rogers", total: Number.NaN, date: "2026-02-08" }, rows), []);
+});
+
+// ---------------------------------------------------------------------------
+// "This charge already has a receipt attached" (statement-created expenses)
+// ---------------------------------------------------------------------------
+
+// A card-statement expense that already had its receipt attached.
+const stmt = (id: string, merchant: string, date: string, total: number, extra: object = {}) =>
+  rec(id, merchant, date, total, { from_statement: true, no_receipt: false, receipt_attached_at: "2026-02-23T15:00:00Z", ...extra });
+const invoiceScan = { merchant: "Rogers Communications Canada Inc.", total: 89.99, date: "2026-02-08" };
+
+test("scanning the Feb 8 invoice again: the Feb 22 charge already has its receipt, so it is flagged (14 days apart)", () => {
+  const found = attachedStatementMatches(invoiceScan, [stmt("charge", "Rogers", "2026-02-22", 89.99)]);
+  assert.deepEqual(found, [
+    { id: "charge", merchant_name: "Rogers", transaction_date: "2026-02-22", total_amount: 89.99, attached_on: "2026-02-23" },
+  ]);
+});
+
+test("a statement expense still WAITING for its receipt is not flagged - the attach flow offers it instead", () => {
+  assert.equal(attachedStatementMatches(invoiceScan, [stmt("waiting", "Rogers", "2026-02-22", 89.99, { no_receipt: true })]).length, 0);
+});
+
+test("an ordinary scanned receipt is not flagged here (that is the soft same-purchase check's job)", () => {
+  assert.equal(attachedStatementMatches(invoiceScan, [rec("plain", "Rogers", "2026-02-22", 89.99)]).length, 0);
+  assert.equal(attachedStatementMatches(invoiceScan, [stmt("manual", "Rogers", "2026-02-22", 89.99, { from_statement: false })]).length, 0);
+});
+
+test("the window is 30 days either way: day 30 flags, day 31 doesn't", () => {
+  const rows = [stmt("in", "Rogers", "2026-03-10", 89.99), stmt("out", "Rogers", "2026-03-11", 89.99)]; // 30 and 31 days after Feb 8
+  assert.deepEqual(attachedStatementMatches(invoiceScan, rows).map((r) => r.id), ["in"]);
+});
+
+test("only the SAME VENDOR counts: a same-amount charge at another merchant is a coincidence, not 'counted twice'", () => {
+  assert.equal(attachedStatementMatches(invoiceScan, [stmt("other", "Staples", "2026-02-09", 89.99)]).length, 0);
+  assert.equal(attachedStatementMatches({ merchant: "Shell", total: 120, date: "2026-02-08" }, [stmt("e", "Shell Energy", "2026-02-09", 120)]).length, 0);
+});
+
+test("the amount must match to the cent", () => {
+  assert.equal(attachedStatementMatches(invoiceScan, [stmt("a", "Rogers", "2026-02-22", 89.98)]).length, 0);
+  assert.equal(attachedStatementMatches(invoiceScan, [stmt("a", "Rogers", "2026-02-22", 90.5)]).length, 0);
+});
+
+test("refunds never count, and the nearest charge is listed first (at most 3)", () => {
+  const rows = [
+    stmt("refund", "Rogers", "2026-02-08", -89.99),
+    stmt("far", "Rogers", "2026-03-05", 89.99),
+    stmt("near", "Rogers", "2026-02-10", 89.99),
+    stmt("mid", "Rogers", "2026-02-22", 89.99),
+    stmt("mid2", "Rogers", "2026-02-25", 89.99),
+  ];
+  const found = attachedStatementMatches(invoiceScan, rows);
+  assert.equal(found.length, 3);
+  assert.deepEqual(found.map((r) => r.id), ["near", "mid", "mid2"]);
+});
+
+test("garbage input yields nothing rather than a crash", () => {
+  const rows = [stmt("a", "Rogers", "2026-02-22", 89.99)];
+  assert.deepEqual(attachedStatementMatches({ merchant: "", total: 89.99, date: "2026-02-08" }, rows), []);
+  assert.deepEqual(attachedStatementMatches({ merchant: "Rogers", total: 0, date: "2026-02-08" }, rows), []);
+  assert.deepEqual(attachedStatementMatches({ merchant: "Rogers", total: 89.99, date: "Feb 8" }, rows), []);
+});
+
+test("a missing attach date is tolerated", () => {
+  const found = attachedStatementMatches(invoiceScan, [stmt("a", "Rogers", "2026-02-22", 89.99, { receipt_attached_at: null })]);
+  assert.equal(found[0].attached_on, null);
 });

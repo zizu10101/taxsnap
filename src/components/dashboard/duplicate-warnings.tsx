@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { DuplicateSummary } from "@/lib/receipt-duplicates";
+import type { AttachedSummary, DuplicateSummary } from "@/lib/receipt-duplicates";
 
 // The two duplicate warnings on receipt scanning. Both are only WARNINGS: neither ever blocks a
 // save, and each has an explicit way to go ahead.
@@ -19,6 +19,8 @@ import type { DuplicateSummary } from "@/lib/receipt-duplicates";
 //    Shown BEFORE any parsing or upload; "Continue anyway" carries on, "Cancel" stops.
 //  - SimilarReceiptsWarning: after extraction, a receipt with the same cleaned merchant, total and
 //    a date within 2 days already exists. The review dialog's save button then reads "Save anyway".
+//  - AlreadyAttachedWarning: this scan matches a card-statement expense that ALREADY has a receipt
+//    attached, so saving it as a new expense would count the charge twice.
 // "View existing receipt" opens the receipt in a NEW TAB (/dashboard/expenses?receipt=<id>), so the
 // scan in progress is never lost.
 
@@ -87,6 +89,25 @@ export function ExactFileDuplicateDialog({
   );
 }
 
+export function AlreadyAttachedWarning({ matches }: { matches: AttachedSummary[] }) {
+  if (matches.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+      <p className="flex items-center gap-1.5 font-medium">
+        <TriangleAlert className="h-4 w-4 shrink-0 text-destructive" />
+        This charge already has a receipt
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {matches.length === 1
+          ? `Your ${matches[0].merchant_name} charge on ${day(matches[0].transaction_date)} (${money(matches[0].total_amount)}) already has a receipt attached${matches[0].attached_on ? ` (on ${day(matches[0].attached_on)})` : ""}.`
+          : "These card charges already have a receipt attached."}{" "}
+        Saving this as a new expense would count it twice. If it&apos;s a different purchase, just save it.
+      </p>
+      <MatchList matches={matches} />
+    </div>
+  );
+}
+
 export function SimilarReceiptsWarning({ matches }: { matches: DuplicateSummary[] }) {
   if (matches.length === 0) return null;
   return (
@@ -103,12 +124,19 @@ export function SimilarReceiptsWarning({ matches }: { matches: DuplicateSummary[
   );
 }
 
-// Looks for similar saved receipts as the review form's merchant, total or date change, after a
+// Looks for similar saved receipts (and already-attached statement expenses) as the review form's
+// merchant, total or date change, after a
 // short pause (not on every keystroke). Only the answer for the CURRENT values is returned, so a
 // stale one never lingers while the person is typing.
-export function useSimilarReceipts(enabled: boolean, total: number, date: string, merchant: string): DuplicateSummary[] {
+export interface DuplicateChecks {
+  similar: DuplicateSummary[];
+  attached: AttachedSummary[];
+}
+const NO_MATCHES: DuplicateChecks = { similar: [], attached: [] };
+
+export function useDuplicateChecks(enabled: boolean, total: number, date: string, merchant: string): DuplicateChecks {
   const key = enabled && total > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date) && merchant.trim() ? `${total}|${date}|${merchant}` : "";
-  const [result, setResult] = useState<{ key: string; matches: DuplicateSummary[] }>({ key: "", matches: [] });
+  const [result, setResult] = useState<{ key: string; checks: DuplicateChecks }>({ key: "", checks: NO_MATCHES });
 
   useEffect(() => {
     if (!key) return;
@@ -119,7 +147,15 @@ export function useSimilarReceipts(enabled: boolean, total: number, date: string
         const res = await fetch(`/api/receipts/duplicate-check?${params}`);
         if (!res.ok || cancelled) return;
         const body = await res.json();
-        if (!cancelled) setResult({ key, matches: (body.similar ?? []) as DuplicateSummary[] });
+        if (!cancelled) {
+          setResult({
+            key,
+            checks: {
+              similar: (body.similar ?? []) as DuplicateSummary[],
+              attached: (body.attached ?? []) as AttachedSummary[],
+            },
+          });
+        }
       } catch {
         // Best effort: a warning that can't be fetched is simply not shown.
       }
@@ -130,5 +166,5 @@ export function useSimilarReceipts(enabled: boolean, total: number, date: string
     };
   }, [key, total, date, merchant]);
 
-  return key && result.key === key ? result.matches : [];
+  return key && result.key === key ? result.checks : NO_MATCHES;
 }

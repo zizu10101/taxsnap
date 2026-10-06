@@ -3,7 +3,7 @@ import { after, before, describe, it } from "node:test";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sha256Hex } from "./file-hash.ts";
-import { checkExactFile, findReceiptsByFileHash, findSimilarReceipts } from "./receipt-duplicates-server.ts";
+import { checkExactFile, findDuplicateChecks, findReceiptsByFileHash, findSimilarReceipts } from "./receipt-duplicates-server.ts";
 
 // Duplicate detection against the real database (migration 0056: receipts.file_sha256), as REAL
 // SIGNED-IN USERS - the same client the app's routes use, so row-level security is what scopes
@@ -161,6 +161,36 @@ describe("receipt duplicate detection (real database, signed-in users)", { skip:
     assert.equal((await near("2026-02-08", "Staples")).length, 0, "a different merchant");
     // Another owner never sees A's receipts, even for an identical purchase.
     assert.equal((await findSimilarReceipts(b.client, b.id, { merchant: "Rogers", total: 89.99, date: "2026-02-08" })).length, 0);
+  });
+
+  it("10. a statement expense that ALREADY has a receipt is flagged; one still waiting is not; nobody else sees it", async (t) => {
+    if (!hasColumn) return t.skip("migration 0056 is not applied yet");
+    const asStatement = (over: Record<string, unknown>) =>
+      admin
+        .from("receipts")
+        .insert({
+          user_id: a.id, merchant_name: "Rogers", total_amount: 89.99, tax_category: "Phone", from_statement: true,
+          ...over,
+        })
+        .select("id")
+        .single();
+    const attachedRow = await asStatement({ transaction_date: "2026-02-22", no_receipt: false, receipt_attached_at: new Date().toISOString() });
+    const waitingRow = await asStatement({ transaction_date: "2026-02-20", no_receipt: true });
+    const closeRow = await asStatement({ transaction_date: "2026-02-09", no_receipt: false, receipt_attached_at: new Date().toISOString() });
+    for (const r of [attachedRow, waitingRow, closeRow]) assert.ifError(r.error);
+
+    const scan = { merchant: "Rogers Communications Canada Inc.", total: 89.99, date: "2026-02-08" };
+    const checks = await findDuplicateChecks(a.client, a.id, scan);
+    const attachedIds = checks.attached.map((r) => r.id);
+    assert.ok(attachedIds.includes(attachedRow.data!.id), "the Feb 22 charge (14 days away) already has a receipt");
+    assert.ok(attachedIds.includes(closeRow.data!.id));
+    assert.ok(!attachedIds.includes(waitingRow.data!.id), "a charge still waiting for its receipt is not 'already attached'");
+    assert.ok(checks.attached.every((r) => r.attached_on !== null));
+    // The Feb 9 one is also within 2 days, but it is shown once - under the more specific message.
+    assert.ok(!checks.similar.some((r) => attachedIds.includes(r.id)), "no receipt appears in both lists");
+
+    const theirs = await findDuplicateChecks(b.client, b.id, scan);
+    assert.deepEqual([theirs.similar.length, theirs.attached.length], [0, 0], "another owner sees none of it");
   });
 
   it("9. deleting a receipt deletes its hash: scanning the file again no longer warns", async (t) => {

@@ -46,9 +46,10 @@ import { AttachPicker, type PickerItem } from "@/components/dashboard/attach-pic
 import { sha256Hex } from "@/lib/file-hash";
 import type { DuplicateSummary } from "@/lib/receipt-duplicates";
 import {
+  AlreadyAttachedWarning,
   ExactFileDuplicateDialog,
   SimilarReceiptsWarning,
-  useSimilarReceipts,
+  useDuplicateChecks,
 } from "@/components/dashboard/duplicate-warnings";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -186,8 +187,9 @@ export function UploadReceipt({
   // The very same file was scanned before: shown BEFORE it is uploaded or read. "Continue anyway"
   // re-sends it with force=1; the File is kept here so the person doesn't have to pick it again.
   const [exactDuplicate, setExactDuplicate] = useState<{ file: File; matches: DuplicateSummary[] } | null>(null);
-  // Same merchant + total within 2 days of a saved receipt: a soft warning, never a block.
-  const similarReceipts = useSimilarReceipts(
+  // Same merchant + total within 2 days of a saved receipt, or a statement expense that already has
+  // a receipt: soft warnings, never a block.
+  const duplicateChecks = useDuplicateChecks(
     !!draft,
     draft?.total_amount ?? 0,
     draft?.transaction_date ?? "",
@@ -405,6 +407,7 @@ export function UploadReceipt({
             merchant_name: draft.merchant_name,
             transaction_date: draft.transaction_date,
             items: draft.items.filter((i) => i.name.trim()),
+            file_sha256: draft.file_sha256,
             ...(mustChooseDate && { keep_statement_date: attachDateChoice === "statement" }),
           }),
         });
@@ -755,7 +758,8 @@ export function UploadReceipt({
               </label>
             </div>
           )}
-          <SimilarReceiptsWarning matches={similarReceipts} />
+          <AlreadyAttachedWarning matches={duplicateChecks.attached} />
+          <SimilarReceiptsWarning matches={duplicateChecks.similar} />
 
           {draft && (
             <div className="grid gap-4">
@@ -936,7 +940,7 @@ export function UploadReceipt({
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {attachChoice && attachChoice !== "new"
                 ? "Attach & Save"
-                : similarReceipts.length > 0
+                : duplicateChecks.similar.length + duplicateChecks.attached.length > 0
                   ? "Save anyway"
                   : "Approve & Save"}
             </Button>

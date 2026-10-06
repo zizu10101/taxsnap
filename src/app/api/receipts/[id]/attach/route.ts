@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStatementUser, isUuid } from "@/lib/statement-server";
 import { isIsoDate, round2 } from "@/lib/statement-lines";
 import { attachDate } from "@/lib/statement-attach-period";
+import { isSha256Hex } from "@/lib/file-hash";
 import type { ReceiptItem } from "@/lib/database.types";
 
 export const runtime = "nodejs";
@@ -39,7 +40,7 @@ export async function POST(
   if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const { image_path, tax_amount, merchant_name, transaction_date, items, keep_statement_date } = body ?? {};
+  const { image_path, tax_amount, merchant_name, transaction_date, items, keep_statement_date, file_sha256 } = body ?? {};
 
   // The photo was uploaded by /api/parse-receipt under `<user id>/...`; refuse a
   // path that points anywhere else, so one user can't attach another's file.
@@ -55,6 +56,11 @@ export async function POST(
   }
   if (!isIsoDate(transaction_date)) {
     return NextResponse.json({ error: "transaction_date is required." }, { status: 400 });
+  }
+  // Optional fingerprint of the original scanned file (0056): stored so scanning the same file
+  // again is caught by the exact-file check. A malformed one is refused, not stored.
+  if (file_sha256 !== undefined && file_sha256 !== null && file_sha256 !== "" && !isSha256Hex(file_sha256)) {
+    return NextResponse.json({ error: "file_sha256 must be a SHA-256 hex string." }, { status: 400 });
   }
   const tax = Number(tax_amount ?? 0);
   if (!Number.isFinite(tax) || tax < 0) {
@@ -107,6 +113,7 @@ export async function POST(
       merchant_name: merchant_name.trim(),
       transaction_date: date.date,
       items: sanitizeItems(items),
+      ...(file_sha256 && { file_sha256 }),
       no_receipt: false,
       receipt_attached_at: new Date().toISOString(),
     })

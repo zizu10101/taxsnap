@@ -412,8 +412,17 @@ old receipts simply have no hash).
   page opens that receipt's drawer from the loaded list), so the scan in progress is kept.
 - Merchant identity is `vendorKey` (`merchant-name.ts`) - the SAME function the statement matcher
   uses, so the duplicate check and statement matching can never disagree about who a merchant is
-  (it briefly had its own `normalizeMerchant`, removed once both lived on `main`). The "this scan
-  matches an expense that already has a receipt attached" warning is not built yet.
+  (it briefly had its own `normalizeMerchant`, removed once both lived on `main`).
+- **"This charge already has a receipt"** (`attachedStatementMatches`, returned as `attached` by the
+  same `duplicate-check` route): the attach flow only offers statement expenses still WAITING for a
+  receipt, so scanning the same invoice again would otherwise save a second expense and count the
+  charge twice. It finds statement-created expenses (`from_statement`) that ALREADY have one
+  (`no_receipt = false`) using the statement matcher's `rankCandidates`, keeping only the `vendor`
+  kind: same vendor and the exact same amount within 30 days (so invoice Feb 8 / charge Feb 22
+  counts). A same-amount charge at a DIFFERENT merchant is deliberately not flagged - a warning
+  that says "you'd count it twice" has to be right. A receipt in both lists is shown once, under
+  this more specific message. The attach route also stores `file_sha256`, so re-scanning an
+  attached file is caught by the exact-file check as well.
 
 ## Tax logic
 
