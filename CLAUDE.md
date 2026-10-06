@@ -853,6 +853,13 @@ owner-only entry (no stylist login), same tax boundary
 Migrations `0052_statement_import.sql` (tables + service-role functions) and
 `0053_statement_import_receipts.sql` (receipts columns + delete trigger); rollbacks
 are in `supabase/rollbacks/` and are NOT in `migrations/` on purpose (0053's first).
+`0054_vendor_rules.sql` adds the `vendor_rules` table (per-card rules plus an any-card
+fallback: vendor key -> category, never any tax figure) and four `statement_lines` columns
+for "where did this suggestion come from" - **schema only: no app code reads or writes
+rules yet**. It also REPLACES `rename_expense_category()` (the original plus one `perform
+follow_category_rename(...)`), so renaming a custom category also renames its rules and
+open drafts; that helper is a `SECURITY DEFINER` acting only on `auth.uid()`'s rows because
+the rename function runs as the user and owners can't write those tables directly.
 Import a card statement (PDF or photos), review every line, match lines to existing
 receipts, save the rest as expenses. **Off for everyone** unless the user's id is in
 `STATEMENT_IMPORT_USER_IDS` (comma-separated, no wildcard; `lib/statement-config.ts`):
