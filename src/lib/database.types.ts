@@ -134,6 +134,8 @@ export interface Database {
           no_receipt?: boolean;
           receipt_attached_at?: string | null;
           created_at: string;
+          // 0056: SHA-256 of the original scanned file (64 hex), the only thing kept of it.
+          file_sha256?: string | null;
         };
         Insert: {
           id?: string;
@@ -153,6 +155,7 @@ export interface Database {
           no_receipt?: boolean;
           receipt_attached_at?: string | null;
           created_at?: string;
+          file_sha256?: string | null;
         };
         Update: {
           id?: string;
@@ -172,6 +175,7 @@ export interface Database {
           no_receipt?: boolean;
           receipt_attached_at?: string | null;
           created_at?: string;
+          file_sha256?: string | null;
         };
         Relationships: [
           {

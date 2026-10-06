@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseReceiptImage } from "@/lib/gemini";
 import { FREE_SCAN_LIMIT } from "@/lib/pricing-plans";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
+import { checkExactFile } from "@/lib/receipt-duplicates-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -121,6 +122,21 @@ export async function POST(request: Request) {
       { error: "Image is too large. Max size is 10MB." },
       { status: 400 },
     );
+  }
+
+  // Exact same file already saved? Say so BEFORE spending a Gemini call or a storage upload. The
+  // browser sends the SHA-256 of the ORIGINAL file (before compression) as `file_sha256`; if it
+  // matches one of this owner's receipts we stop here with that receipt's details, unless the
+  // person already chose "Continue anyway" (`force=1`). Never blocks: forcing always proceeds.
+  const fileHash = formData.get("file_sha256");
+  const early = await checkExactFile(
+    supabase,
+    user.id,
+    typeof fileHash === "string" ? fileHash : null,
+    formData.get("force") === "1",
+  );
+  if (early.stop) {
+    return NextResponse.json({ duplicate: { file: early.matches } });
   }
 
   const arrayBuffer = await file.arrayBuffer();
