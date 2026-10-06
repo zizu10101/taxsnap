@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Repeat } from "lucide-react";
+import Link from "next/link";
+import { FileText, Plus, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
@@ -9,6 +10,7 @@ import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
+import { StatementImportButton } from "@/components/dashboard/statement-import-button";
 import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
 import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
@@ -43,6 +45,8 @@ export function ExpensesBody({
   business,
   logoPath,
   lastSignInAt,
+  statementImportEnabled = false,
+  openStatementDrafts = [],
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
@@ -52,6 +56,10 @@ export function ExpensesBody({
   // When the owner last signed in; receipts added since then that the current
   // filters hide are pinned in "Recently added".
   lastSignInAt: string | null;
+  // Card-statement import (allowlist-only): shows the Import button, the
+  // "resume" banner for a draft in progress, and the scan-to-attach check.
+  statementImportEnabled?: boolean;
+  openStatementDrafts?: { id: string; issuer: string | null; created_at: string }[];
 }) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [templates, setTemplates] = useState(initialTemplates);
@@ -111,6 +119,12 @@ export function ExpensesBody({
     setSelectedReceipt(updated);
   }
 
+  // A scan was attached to an expense a statement import created: that row is
+  // updated in place - it is not a new receipt, so it must not be prepended.
+  function handleAttached(updated: Receipt) {
+    setReceipts((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -123,9 +137,12 @@ export function ExpensesBody({
             <Repeat className="h-4 w-4" />
             From Template
           </Button>
+          {statementImportEnabled && <StatementImportButton />}
           <UploadReceipt
             variant="compact"
             onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+            onAttached={handleAttached}
+            statementImportEnabled={statementImportEnabled}
             existingJobs={existingJobs}
           />
           <Button
@@ -140,6 +157,30 @@ export function ExpensesBody({
           </Button>
         </div>
       </div>
+
+      {openStatementDrafts.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+          <span className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            {openStatementDrafts.length === 1
+              ? "You have a card statement import waiting for review."
+              : `You have ${openStatementDrafts.length} card statement imports waiting for review.`}
+          </span>
+          <span className="flex gap-2">
+            {openStatementDrafts.map((d, i) => (
+              <Button
+                key={d.id}
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={`/dashboard/expenses/statements/${d.id}`} />}
+              >
+                {openStatementDrafts.length === 1 ? "Continue" : `Continue #${i + 1}`}
+              </Button>
+            ))}
+          </span>
+        </div>
+      )}
 
       {lastSignInAt && (
         <RecentlyAddedReceipts

@@ -848,6 +848,126 @@ owner-only entry (no stylist login), same tax boundary
   offline outbox (IndexedDB + background sync) was deliberately treated as
   separate future scope, not bundled into this feature.
 
+## Card statement import (allowlist-only)
+
+Migrations `0052_statement_import.sql` (tables + service-role functions) and
+`0053_statement_import_receipts.sql` (receipts columns + delete trigger); rollbacks
+are in `supabase/rollbacks/` and are NOT in `migrations/` on purpose (0053's first).
+`0054_vendor_rules.sql` adds the `vendor_rules` table (per-card rules plus an any-card
+fallback: vendor key -> category, never any tax figure) and four `statement_lines` columns
+for "where did this suggestion come from" - **schema only: no app code reads or writes
+rules yet**. It also REPLACES `rename_expense_category()` (the original plus one `perform
+follow_category_rename(...)`), so renaming a custom category also renames its rules and
+open drafts; that helper is a `SECURITY DEFINER` acting only on `auth.uid()`'s rows because
+the rename function runs as the user and owners can't write those tables directly.
+`0055_category_system_key.sql` adds `expense_categories.system_key` (see "Bank charges" below);
+until it is applied the code falls back to finding that category by its name.
+Import a card statement (PDF or photos), review every line, match lines to existing
+receipts, save the rest as expenses. **Off for everyone** unless the user's id is in
+`STATEMENT_IMPORT_USER_IDS` (comma-separated, no wildcard; `lib/statement-config.ts`):
+routes return 404 and the Expenses page renders none of it. Monthly caps are
+`PLAN_LIMITS.*.statementImportsPerMonth` - **provisional placeholders** until real
+token cost is measured (`statement_imports` records input/output tokens per import).
+
+- **The statement file is never stored.** The browser hashes it, splits a PDF into
+  3-page chunks (1-page if a chunk would exceed the ~4 MB request limit; photos are
+  one chunk each) with `pdf-lib`, and posts one chunk at a time; the route reads it
+  into memory, sends it to Gemini, drops it. Only extracted lines, the SHA-256 and
+  token counts are kept. Limits: 20 MB, 30 pages, 500 lines.
+- **A PDF pdf-lib can't open** is not always unreadable. pdf-lib's errors are plain
+  `Error`s (`instanceof EncryptedPDFError` is false even for an encrypted file), so
+  `classifyPdfError` matches the message (`is encrypted`). An owner-password-only PDF
+  (common for banks) can't be split but Gemini reads it whole, so if it's under 4 MB
+  and has at most 10 known pages (`STATEMENT_WHOLE_FILE_MAX_PAGES`) it is sent as ONE
+  chunk; otherwise the user is told which case it is (password-protected vs damaged).
+  A user-password PDF can't be told apart until Gemini rejects it (400 ->
+  `UNREADABLE_FILE`, 422, never auto-retried).
+- **Writes**: the three statement tables are owner-SELECT-only (RLS + table grants);
+  every write is a `service_role`-only function or a service-client call in
+  `/api/statements/**`, using the user id from the verified session. Reads go through
+  the user's own session. `statement-import-isolation.test.ts` proves one user can't
+  read or write another's rows.
+- **Per-chunk retry**: `save_chunk_result` replaces only that chunk's lines;
+  `fail_chunk` keeps attempts/tokens; chunk 1 runs first (its header gives the period
+  for year inference). Fingerprints (`md5(account|date|amount|nth occurrence)`,
+  deliberately no description - OCR wording varies) are assigned only once every chunk
+  is done (`finalize_statement_lines`).
+- **Matching** (`statement-matching.ts`, one matcher for both directions: import
+  lines -> receipts, and a scanned receipt -> statement expenses awaiting a receipt).
+  Kinds, best first: **vendor** (same vendor AND the exact same amount, within 30 days
+  either way - bills/utilities are invoiced before they're charged: invoice Feb 8, charge
+  Feb 22), **exact** (same cent amount within 3 days, any vendor), **near** (4-7 days, or
+  within $1/5%). A vendor+amount match always outranks a close-amount guess. "Same
+  vendor" is `vendorKey` equality (`merchant-name.ts`): cleaned name, store numbers and
+  punctuation dropped, only trailing legal/generic words (Inc, Canada, Communications...)
+  removed - so Rogers == Rogers Communications Canada Inc. but **Shell != Shell Energy**
+  and Home Depot != Home Hardware (a looser prefix rule was rejected on purpose; tests
+  mutate it to prove they fail). Nearest wins only when clearly nearest: a runner-up of
+  the same kind within `STATEMENT_TIE_MARGIN_DAYS` (2) is a tie and the person chooses.
+  The attach dialog PRESELECTS (`pickPreselect`), never attaches silently. Import
+  auto-accept needs mutual-nearest for a vendor match (two identical monthly bills pair
+  off by date) or a sole candidate on both sides for an exact one; near is never
+  auto-accepted. Expenses that already have a receipt are excluded (attach only reads
+  `no_receipt` rows; import excludes claimed receipts). One-to-one is also enforced by a
+  unique index. Refunds, fees, interest and payments never match.
+- **Attach changes the date**: the receipt's date replaces the expense's, so if that
+  crosses a calendar month (and maybe quarter) the person must choose which date to
+  keep - no default, enforced server-side (`attachDate`, 409 `DATE_CHOICE_REQUIRED`;
+  `statement-attach-period.ts`). `GET /api/statements/attach-candidates?mode=browse`
+  backs the manual picker: every waiting expense, ranked (matcher candidates first),
+  searchable, 100 per page with "Show more" (`statement-browse.ts`); the plain call also
+  returns `waiting_count`, which is what decides whether the picker is offered at all.
+- **The attach picker** (`attach-picker.tsx`) is a second VIEW inside the receipt review dialog,
+  not a nested dialog (stacked Base UI modals fight over focus and scroll-lock). A chosen
+  expense joins the banner as "chosen by you". If the receipt total differs from the card
+  amount the person must tick "I've checked the amounts"; that and the date choice are keyed to
+  EXACTLY what was confirmed (ids, dates, cents), so editing anything afterwards silently
+  invalidates them. Editing the merchant, total or date in the review form re-runs the lookup
+  after a 600 ms debounce (`loadAttachCandidates(..., keepChoice=true)`, stale answers dropped),
+  keeping a choice that is still on offer. Gotcha: the dialog is a CSS grid, so a grid child
+  needs `min-w-0` or a long list widens the column and adds a horizontal scrollbar.
+- **"Already imported"** lines are flagged at finalize and re-checked at commit under a
+  per-user lock; they default to skipped but stay visible, and Import anyway sets
+  `duplicate_override`. Commit refuses unoverridden duplicates (`DUPLICATE_LINES`).
+- **Saved expenses** have `tax_amount = 0` (HST is never estimated), `from_statement`,
+  `no_receipt`, and show "No receipt, ITC not claimed" (`statement-flags.ts`). Scanning
+  the receipt later offers to attach to that row (`/api/receipts/[id]/attach`: photo,
+  HST, items, merchant, date; keeps the statement's amount, category, paid-with) rather
+  than create a second expense. **Refunds** save as negative expenses with HST 0 until
+  the user types the refund slip's figure; `receiptsToQuickBooksCsv` writes them to the
+  Deposit column as a positive with a "Refund - " prefix, never a negative Payment.
+- **"Bank charges"** (where interest and fees are filed) is deliberately not in global
+  `TAX_CATEGORIES` (that list feeds the receipt scanner for every user). It is an ordinary custom
+  category of the owner's, created the first time a saved statement uses it (which also stops
+  `resolveCategory()` turning it into "Other") - and found again by a STABLE KEY, not its name:
+  `expense_categories.system_key = 'bank_charges'` (0055). The owner can rename it ("Bank fees")
+  and the import keeps using it under the new name, with no second "Bank charges" created;
+  if they REMOVE it, that is respected: fees/interest get no suggestion and the import never
+  recreates or reactivates it. `statement-categories.ts` (`resolveBankCharges`: active /
+  virtual / removed) is the pure core, `statement-bank-charges.ts` the server half
+  (`ensureBankChargesCategory`, falling back to name matching if 0055 isn't applied). The AI
+  prompt and `sanitizeChunk` take the CURRENT name (`bankChargesCategory`, null when removed).
+  A decoy a user creates AFTER renaming the real one just stays an ordinary category.
+- **Merchant names**: `commit_statement_import` saves each expense under the line's raw
+  description ("ROGERS *************3771"); the commit route then runs
+  `tidyMerchantNames` (`lib/statement-merchant.ts`) which renames just the expenses that
+  commit created via `cleanMerchantName` (`lib/merchant-name.ts`: strips masked numbers
+  (runs of 2+ `*`), phone numbers and a trailing province/city from a Canadian city list,
+  re-cases ALL CAPS; keeps store numbers `#7042`, a city after "of", and a lone `*`).
+  It is best-effort (a failure leaves the raw name), only applies while the name is still
+  what commit wrote (never overwrites a user edit), and the statement line's own
+  `description` is never modified. The review screen shows "Saved as ...".
+- **Gemini**: `thinkingLevel: LOW` (measured on a synthetic 3-page statement: 2,882
+  tokens/3.6 s vs 5,500/13 s at default, same lines) and a 50 s abort so a slow call is
+  recorded as a retryable failed chunk before Vercel's 60 s kill.
+- A daily Vercel Cron (`vercel.json`) purges drafts untouched for 14 days via
+  `purge_stale_statement_drafts` (lines deleted, a tombstone row kept so the cap and
+  cost audit still count it). The route needs `CRON_SECRET` and refuses without it.
+- **DB tests hit the shared project**: `statement-import-isolation.test.ts` and
+  `statement-import-db.test.ts` create and delete throwaway auth users, run only with
+  `RUN_DB_ISOLATION_TEST=1` (see each file's header), and the 0053 cases skip until that
+  migration is applied.
+
 ## Auth
 
 Supabase Auth via `src/app/auth/auth-form.tsx`: magic link, email/password,

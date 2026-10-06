@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   downloadCsv,
@@ -228,6 +229,7 @@ export function ReceiptsList({
                           {r.tax_category}
                         </Badge>
                       </div>
+                      <StatementFlagBadge receipt={r} className="mt-0.5" />
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         {formatDate(r.transaction_date)}
                         {r.job_name && (
@@ -265,6 +267,7 @@ export function ReceiptsList({
                   {/* Desktop row (sm+) - one grid cell per column, same data. */}
                   <div className="hidden min-w-0 sm:block">
                     <p className="truncate text-sm font-medium">{r.merchant_name}</p>
+                    <StatementFlagBadge receipt={r} className="mt-0.5" />
                     {r.job_name && (
                       <p className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
                         <Briefcase className="h-3 w-3 shrink-0" />

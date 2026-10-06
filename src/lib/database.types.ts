@@ -11,6 +11,8 @@ export type PayType = "commission" | "hourly" | "salary";
 export type PayoutStatus = "active" | "voided";
 export type AppLockRole = "owner" | "staff";
 export type ThemePreference = "light" | "dark" | "system";
+export type StatementImportStatus = "draft" | "committed" | "discarded" | "expired" | "failed";
+export type StatementLineKind = "purchase" | "payment" | "refund" | "fee" | "interest" | "other";
 export type RateCadence = "weekly" | "monthly";
 export type AdminActionType =
   | "tier_override"
@@ -126,6 +128,11 @@ export interface Database {
           source_template_id: string | null;
           paid_with_account_id: string | null;
           items: ReceiptItem[] | null;
+          // 0053 (card statement import). Optional in the type until that migration
+          // is applied everywhere - rows read before then simply lack them.
+          from_statement?: boolean;
+          no_receipt?: boolean;
+          receipt_attached_at?: string | null;
           created_at: string;
         };
         Insert: {
@@ -142,6 +149,9 @@ export interface Database {
           source_template_id?: string | null;
           paid_with_account_id?: string | null;
           items?: ReceiptItem[] | null;
+          from_statement?: boolean;
+          no_receipt?: boolean;
+          receipt_attached_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -158,6 +168,9 @@ export interface Database {
           source_template_id?: string | null;
           paid_with_account_id?: string | null;
           items?: ReceiptItem[] | null;
+          from_statement?: boolean;
+          no_receipt?: boolean;
+          receipt_attached_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -428,6 +441,10 @@ export interface Database {
           user_id: string;
           name: string;
           is_active: boolean;
+          // 0055: marks the one category statement import files interest and fees
+          // under ('bank_charges'), whatever the owner has renamed it. Optional in
+          // the type until that migration is applied everywhere.
+          system_key?: "bank_charges" | null;
           created_at: string;
         };
         Insert: {
@@ -435,6 +452,7 @@ export interface Database {
           user_id: string;
           name: string;
           is_active?: boolean;
+          system_key?: "bank_charges" | null;
           created_at?: string;
         };
         Update: {
@@ -442,6 +460,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           is_active?: boolean;
+          system_key?: "bank_charges" | null;
           created_at?: string;
         };
         Relationships: [];
@@ -1492,9 +1511,153 @@ export interface Database {
           },
         ];
       };
+      statement_imports: {
+        Row: {
+          id: string;
+          user_id: string;
+          account_id: string;
+          status: StatementImportStatus;
+          file_sha256: string;
+          page_count: number;
+          issuer: string | null;
+          period_start: string | null;
+          period_end: string | null;
+          opening_balance: number | null;
+          closing_balance: number | null;
+          statement_total: number | null;
+          statement_total_kind: "purchases" | "new_balance" | null;
+          reconcile_diff: number | null;
+          reconcile_acknowledged: boolean;
+          line_count: number | null;
+          input_tokens: number;
+          output_tokens: number;
+          created_at: string;
+          updated_at: string;
+          committed_at: string | null;
+        };
+        // Created and changed through the service-role functions below (0052),
+        // never by an owner. The one direct write is touching updated_at when
+        // the user edits a line, so a draft in use isn't purged as stale.
+        Insert: never;
+        Update: { updated_at?: string };
+        Relationships: [];
+      };
+      statement_chunks: {
+        Row: {
+          id: string;
+          import_id: string;
+          user_id: string;
+          chunk_no: number;
+          page_from: number;
+          page_to: number;
+          status: "pending" | "done" | "failed";
+          attempts: number;
+          error_code: string | null;
+          input_tokens: number;
+          output_tokens: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      statement_lines: {
+        Row: {
+          id: string;
+          import_id: string;
+          chunk_id: string;
+          user_id: string;
+          account_id: string;
+          page: number;
+          line_no: number;
+          txn_date: string;
+          description: string;
+          amount: number;
+          kind: StatementLineKind;
+          currency: string;
+          original_amount: number | null;
+          original_currency: string | null;
+          line_fingerprint: string | null;
+          duplicate_of_line_id: string | null;
+          duplicate_override: boolean;
+          suggested_category: string | null;
+          category: string | null;
+          category_confirmed: boolean;
+          paid_with_account_id: string | null;
+          tax_amount: number;
+          resolution: "matched" | "new_expense" | "skipped" | null;
+          matched_receipt_id: string | null;
+          created_receipt_id: string | null;
+          committed: boolean;
+        };
+        Insert: never;
+        // Service-role only (the owner has SELECT, nothing else): the review
+        // routes write the user's per-line decisions through the admin client.
+        Update: Partial<
+          Omit<
+            Database["public"]["Tables"]["statement_lines"]["Row"],
+            "id" | "import_id" | "chunk_id" | "user_id" | "account_id"
+          >
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      start_statement_import: {
+        Args: {
+          p_user_id: string;
+          p_account_id: string;
+          p_file_sha256: string;
+          p_page_count: number;
+          p_chunks: Json;
+          p_monthly_cap: number | null;
+        };
+        Returns: string;
+      };
+      save_chunk_result: {
+        Args: {
+          p_user_id: string;
+          p_import_id: string;
+          p_chunk_no: number;
+          p_lines: Json;
+          p_header: Json;
+          p_input_tokens: number;
+          p_output_tokens: number;
+        };
+        Returns: number;
+      };
+      fail_chunk: {
+        Args: {
+          p_user_id: string;
+          p_import_id: string;
+          p_chunk_no: number;
+          p_error_code: string;
+          p_input_tokens: number;
+          p_output_tokens: number;
+        };
+        Returns: undefined;
+      };
+      finalize_statement_lines: {
+        Args: { p_user_id: string; p_import_id: string };
+        Returns: number;
+      };
+      commit_statement_import: {
+        Args: {
+          p_user_id: string;
+          p_import_id: string;
+          p_reconcile_diff: number | null;
+          p_reconcile_acknowledged: boolean;
+        };
+        Returns: Json;
+      };
+      discard_statement_import: {
+        Args: { p_user_id: string; p_import_id: string };
+        Returns: undefined;
+      };
+      purge_stale_statement_drafts: {
+        Args: { p_days?: number };
+        Returns: number;
+      };
       rename_expense_category: {
         Args: { p_id: string; p_new_name: string };
         Returns: Database["public"]["Tables"]["expense_categories"]["Row"];
@@ -1665,6 +1828,9 @@ export type Payment = Database["public"]["Tables"]["payments"]["Row"];
 export type Job = Database["public"]["Tables"]["jobs"]["Row"];
 export type BankAccount = Database["public"]["Tables"]["bank_accounts"]["Row"];
 export type ExpenseCategory = Database["public"]["Tables"]["expense_categories"]["Row"];
+export type StatementImport = Database["public"]["Tables"]["statement_imports"]["Row"];
+export type StatementChunk = Database["public"]["Tables"]["statement_chunks"]["Row"];
+export type StatementLine = Database["public"]["Tables"]["statement_lines"]["Row"];
 export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 export type ContractChange = Database["public"]["Tables"]["contract_changes"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];

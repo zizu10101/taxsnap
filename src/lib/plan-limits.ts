@@ -33,6 +33,14 @@ import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 //   description/unit_price at add time either way, so this was never
 //   forced by a downstream reference, just by wanting Deactivate/
 //   Reactivate instead of a permanent delete.
+// - statementImportsPerMonth: card-statement imports (api/statements), counted
+//   in the database by statement_imports.created_at in Toronto's calendar month
+//   (start_statement_import enforces it, so two tabs can't both slip under).
+//   Retries of one import never count again; an import where nothing could be
+//   read ('failed') is free. PROVISIONAL: these numbers are placeholders until
+//   real token cost per statement has been measured (statement_imports records
+//   input_tokens/output_tokens), and the feature is allowlist-only until then
+//   (STATEMENT_IMPORT_USER_IDS) - see lib/statement-config.ts.
 // - manualSalesEntriesPerMonth: rows in `sales`, counted by created_at
 //   (never touched by a later edit to the same period - see the upsert in
 //   api/sales/route.ts) - unlimited/null here still means "no cap", but
@@ -55,6 +63,7 @@ export const PLAN_LIMITS: Record<
     activeProducts: number | null;
     activeRenters: number | null;
     manualSalesEntriesPerMonth: number | null;
+    statementImportsPerMonth: number | null;
   }
 > = {
   free: {
@@ -70,6 +79,7 @@ export const PLAN_LIMITS: Record<
     activeProducts: 1,
     activeRenters: 1,
     manualSalesEntriesPerMonth: 3,
+    statementImportsPerMonth: 1, // provisional
   },
   basic: {
     scansPerMonth: null,
@@ -84,6 +94,7 @@ export const PLAN_LIMITS: Record<
     activeProducts: 3,
     activeRenters: 3,
     manualSalesEntriesPerMonth: 15,
+    statementImportsPerMonth: 3, // provisional
   },
   pro: {
     scansPerMonth: null,
@@ -98,6 +109,7 @@ export const PLAN_LIMITS: Record<
     activeProducts: null,
     activeRenters: null,
     manualSalesEntriesPerMonth: null,
+    statementImportsPerMonth: 10, // provisional
   },
 };
 
