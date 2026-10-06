@@ -387,6 +387,33 @@ catch that via the `<img>`'s own `onError`, not just the signing call's
 `error` field, or a missing photo renders as a broken-image icon instead of
 the "Couldn't load the original photo" fallback.
 
+## Receipt duplicate detection
+
+Two warnings on receipt scanning, both WARNINGS ONLY - nothing ever blocks a save, and every
+check has an override. Migration `0056_receipt_file_hash.sql` adds `receipts.file_sha256`
+(nullable, 64-hex check, partial index on `(user_id, file_sha256)`; NOT unique, no backfill -
+old receipts simply have no hash).
+
+- **Same file** (`file-hash.ts`, `receipt-duplicates-server.ts`): the browser SHA-256s the
+  ORIGINAL file BEFORE `compressImage` and sends `file_sha256` to `/api/parse-receipt`. If it
+  matches one of the owner's receipts the route returns `{ duplicate: { file: [...] } }` and
+  stops BEFORE the storage upload and the Gemini call (the compressed file has already been
+  posted; only storage and the model call are saved). The dialog offers Cancel / **Continue
+  anyway** (re-posts with `force=1`). Only the hash is stored, on save (`POST /api/receipts`
+  validates it with `isSha256Hex`), never the file's bytes. It is a fingerprint of the bytes, so a
+  renamed copy still matches and a re-photographed or re-compressed one doesn't.
+- **Same purchase** (`receipt-duplicates.ts`, `GET /api/receipts/duplicate-check`): same
+  `normalizeMerchant`, same total to the cent, date within 2 days. Re-checked (500 ms debounce)
+  as the merchant, total or date are edited; the review dialog's save button then reads **Save
+  anyway**. Deliberately not fuzzy: a leading "the" is NOT stripped (a known, accepted miss),
+  Shell != Shell Energy. Refunds and statement expenses still waiting for a receipt
+  (`no_receipt`) never count as saved receipts.
+- "View existing receipt" opens `/dashboard/expenses?receipt=<id>` in a NEW TAB (the Expenses
+  page opens that receipt's drawer from the loaded list), so the scan in progress is kept.
+- `normalizeMerchant` duplicates the statement-import branch's `vendorKey` on purpose (this was
+  built off `main`); unify them when both are merged. The "this scan matches an expense that
+  already has a receipt attached" warning is NOT built here - it depends on statement import.
+
 ## Tax logic
 
 `src/lib/hst.ts` computes a **planning estimate**, not a filing-ready

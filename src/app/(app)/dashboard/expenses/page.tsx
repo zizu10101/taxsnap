@@ -15,7 +15,13 @@ export const metadata: Metadata = {
 // rather than rendering. Salon accounts already see their own receipts
 // mixed into the main dashboard page and don't get an Expenses nav item
 // (see nav-config.ts).
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  // ?receipt=<id> opens that receipt's detail drawer (the duplicate warnings link to it, in a new tab).
+  searchParams: Promise<{ receipt?: string }>;
+}) {
+  const { receipt: openReceiptId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -80,6 +86,7 @@ export default async function ExpensesPage() {
         lastSignInAt={user.last_sign_in_at ?? null}
         statementImportEnabled={statementImportEnabled}
         openStatementDrafts={openStatementDrafts ?? []}
+        initialOpenReceiptId={openReceiptId ?? null}
       />
     </div>
   );
