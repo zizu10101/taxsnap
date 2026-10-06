@@ -3,6 +3,7 @@ import { requireStatementUser, loadOwnImport, notFound } from "@/lib/statement-s
 import { mapStatementDbError } from "@/lib/statement-errors";
 import { reconcileStatement } from "@/lib/statement-reconcile";
 import { BANK_CHARGES_CATEGORY } from "@/lib/statement-lines";
+import { tidyMerchantNames } from "@/lib/statement-merchant";
 
 export const runtime = "nodejs";
 
@@ -80,5 +81,9 @@ export async function POST(
     return NextResponse.json({ error: mapped.message, code: mapped.code }, { status: mapped.status });
   }
 
-  return NextResponse.json({ result });
+  const merchantsCleaned = await tidyMerchantNames(ctx, id).catch(() => 0);
+
+  return NextResponse.json({
+    result: { ...(result as Record<string, unknown>), merchants_cleaned: merchantsCleaned },
+  });
 }

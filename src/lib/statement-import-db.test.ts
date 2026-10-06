@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { tidyMerchantNames } from "./statement-merchant.ts";
 
 // Exercises the statement-import database functions (0052, and 0053 where it is
 // applied) as the service role, on throwaway users: monthly cap, resume, per-chunk
@@ -296,6 +297,44 @@ describe("statement import database functions", { skip: !RUN || !URL_ || !SERVIC
     const freed = (await lines(importId)).find((l) => l.amount === 61.11)!;
     assert.equal(freed.resolution, "skipped");
     assert.equal(freed.created_receipt_id, null);
+  });
+
+  it("0053: committed expenses get a tidy merchant name; the statement line keeps the original description", async (t) => {
+    if (!hasReceiptColumns) {
+      t.skip("migration 0053 is not applied yet");
+      return;
+    }
+    // "Already Tidy" is mixed-case, which the cleaner leaves exactly as it is.
+    const raw = ["ROGERS *************3771", "TELUS MOBILITY EDMONTON", "CANADA SPORTSWEAR CORP 416-7408020", "Already Tidy"];
+    const amounts = [40, 41, 42, 43];
+    const importId = await readyImport(raw.map((description, i) => line({ line_no: i + 1, description, amount: amounts[i], txn_date: "2026-02-02" })));
+    const rows = await lines(importId);
+    await admin.from("statement_lines").update({ resolution: "new_expense", category: "Phone", category_confirmed: true }).in("id", rows.map((r) => r.id));
+
+    assert.ifError((await commit(importId)).error);
+    const readReceipts = async () =>
+      (await admin.from("receipts").select("id, merchant_name, total_amount").eq("user_id", userId).in("total_amount", amounts)).data!;
+    const before = await readReceipts();
+    assert.deepEqual(before.map((r) => r.merchant_name).sort(), [...raw].sort(), "commit itself saves the raw description");
+
+    // The user renames one before the tidy step runs: it must not be overwritten.
+    const edited = before.find((r) => r.total_amount === 41)!;
+    await admin.from("receipts").update({ merchant_name: "My own name for Telus" }).eq("id", edited.id);
+
+    const changed = await tidyMerchantNames({ supabase: admin, user: { id: userId } }, importId);
+    assert.equal(changed, 2, "only ROGERS and CANADA SPORTSWEAR change; the user-edited and already-tidy names don't");
+
+    const byAmount = Object.fromEntries((await readReceipts()).map((r) => [r.total_amount, r.merchant_name]));
+    assert.equal(byAmount[40], "Rogers");
+    assert.equal(byAmount[41], "My own name for Telus");
+    assert.equal(byAmount[42], "Canada Sportswear Corp");
+    assert.equal(byAmount[43], "Already Tidy");
+
+    // Nothing is lost: every statement line still has its original description.
+    assert.deepEqual((await lines(importId)).map((l) => l.description), raw);
+
+    // Running it again changes nothing.
+    assert.equal(await tidyMerchantNames({ supabase: admin, user: { id: userId } }, importId), 0);
   });
 
   it("0053: deleting an ordinary receipt is untouched by the trigger; deleting a MATCHED one frees its line", async (t) => {

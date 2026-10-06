@@ -900,6 +900,15 @@ token cost is measured (`statement_imports` records input/output tokens per impo
 - **"Bank charges"** is deliberately not in global `TAX_CATEGORIES` (that list feeds the
   receipt scanner for every user); the first commit that uses it creates it as the
   owner's own category, which also stops `resolveCategory()` turning it into "Other".
+- **Merchant names**: `commit_statement_import` saves each expense under the line's raw
+  description ("ROGERS *************3771"); the commit route then runs
+  `tidyMerchantNames` (`lib/statement-merchant.ts`) which renames just the expenses that
+  commit created via `cleanMerchantName` (`lib/merchant-name.ts`: strips masked numbers
+  (runs of 2+ `*`), phone numbers and a trailing province/city from a Canadian city list,
+  re-cases ALL CAPS; keeps store numbers `#7042`, a city after "of", and a lone `*`).
+  It is best-effort (a failure leaves the raw name), only applies while the name is still
+  what commit wrote (never overwrites a user edit), and the statement line's own
+  `description` is never modified. The review screen shows "Saved as ...".
 - **Gemini**: `thinkingLevel: LOW` (measured on a synthetic 3-page statement: 2,882
   tokens/3.6 s vs 5,500/13 s at default, same lines) and a 50 s abort so a slow call is
   recorded as a retryable failed chunk before Vercel's 60 s kill.

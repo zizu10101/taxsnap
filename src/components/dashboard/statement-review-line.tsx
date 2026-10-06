@@ -25,6 +25,7 @@ import {
 import { useBankAccounts } from "@/components/owner-lists-provider";
 import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { LINE_KINDS } from "@/lib/statement-lines";
+import { cleanMerchantName } from "@/lib/merchant-name";
 import type { ReviewGroup } from "@/lib/statement-review-model";
 import type { ReviewLineData } from "@/lib/statement-review-data";
 import type { StatementLineKind } from "@/lib/database.types";
@@ -92,6 +93,8 @@ export function LineRow({
   const categoryValue = line.category ?? line.suggested_category ?? PLACEHOLDER;
   const isSuggestion = !line.category_confirmed && !!(line.category ?? line.suggested_category);
   const isExpenseGroup = group === "new" || group === "bank_charges" || group === "refunds";
+  // The merchant name the expense will be saved under (the line keeps the original).
+  const savedAs = cleanMerchantName(line.description);
 
   return (
     <li className="border-b py-3 last:border-b-0">
@@ -312,6 +315,12 @@ export function LineRow({
                 Never estimated. Until you enter it, HST on the original purchase is not reversed.
               </p>
             </div>
+          )}
+
+          {savedAs && savedAs !== line.description && (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Saved as <span className="font-medium text-foreground">{savedAs}</span>
+            </p>
           )}
 
           <div className="flex items-center gap-2 sm:col-span-2">
