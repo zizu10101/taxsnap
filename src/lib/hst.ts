@@ -14,11 +14,12 @@
 // like bad debts (unrelated to ITCs), and 115 isn't a line on the form at
 // all, so those numbers were dropped to avoid mislabeling.
 
-export const ONTARIO_HST_RATE = 0.13;
+// Defined in tax-codes.ts (the one home for the three tax-code numbers) and re-exported here so
+// every existing importer keeps working. ITCs on most meals & entertainment purchases are
+// restricted to 50% by the Excise Tax Act, mirroring the income tax treatment.
+export { MEALS_ITC_RESTRICTION_RATE, ONTARIO_HST_RATE } from "./tax-codes.ts";
 
-// The Excise Tax Act restricts ITCs on most meals & entertainment purchases
-// to 50%, mirroring the income tax treatment of those expenses.
-export const MEALS_ITC_RESTRICTION_RATE = 0.5;
+import { isCalculated, itcPct, needsTaxCode, ONTARIO_HST_RATE, type TaxedRow } from "./tax-codes.ts";
 
 export interface HSTReturnLines {
   /** Line 101 - Total sales and other revenue for the period. */
@@ -27,6 +28,15 @@ export interface HSTReturnLines {
   line103: number;
   /** Line 106 - Input tax credits (ITCs) claimable on business purchases. */
   line106: number;
+  /** Line 106's two parts, always both reported: ITCs backed by a receipt (or entered by the
+   *  owner), and ITCs CALCULATED from a card statement with no receipt yet. line106 is the
+   *  confirmed part plus the calculated part when includeCalculated is on. */
+  line106Confirmed: number;
+  line106Calculated: number;
+  /** Statement expenses with no receipt AND no tax code: nothing was calculated for them. */
+  needsTaxCodeCount: number;
+  /** How many statement expenses with no receipt carry a calculated figure. */
+  calculatedCount: number;
   /** Line 109 - Net tax: positive means owed to the CRA, negative means a refund. */
   line109: number;
 }
@@ -45,8 +55,10 @@ function round2(n: number): number {
 export function calculateHSTReturn(
   manualGrossSales: number,
   paidInvoices: PaidInvoiceInput[],
-  receipts: { tax_category: string; tax_amount: number }[],
+  receipts: TaxedRow[],
+  options: { includeCalculated?: boolean } = {},
 ): HSTReturnLines {
+  const includeCalculated = options.includeCalculated ?? true;
   const invoicedSubtotal = paidInvoices.reduce((sum, i) => sum + i.subtotal, 0);
   // Invoice HST is summed directly from each invoice's own line-item total
   // rather than re-derived at the flat rate, since it's already the actual
@@ -56,15 +68,34 @@ export function calculateHSTReturn(
   const line101 = round2(manualGrossSales + invoicedSubtotal);
   const line103 = round2(manualGrossSales * ONTARIO_HST_RATE + invoicedHst);
 
-  const line106 = round2(
-    receipts.reduce((sum, r) => {
-      const eligibleRate =
-        r.tax_category === "Meals" ? MEALS_ITC_RESTRICTION_RATE : 1;
-      return sum + r.tax_amount * eligibleRate;
-    }, 0),
-  );
+  // Each row's claim share comes from its own tax code when it has one, else the category (Meals
+  // 50%, everything else 100%) exactly as before tax codes existed.
+  let confirmed = 0;
+  let calculated = 0;
+  let calculatedCount = 0;
+  let needsCode = 0;
+  for (const r of receipts) {
+    const itc = r.tax_amount * itcPct(r);
+    if (isCalculated(r)) {
+      calculated += itc;
+      calculatedCount += 1;
+      if (needsTaxCode(r)) needsCode += 1;
+    } else {
+      confirmed += itc;
+    }
+  }
+  const line106 = round2(confirmed + (includeCalculated ? calculated : 0));
 
   const line109 = round2(line103 - line106);
 
-  return { line101, line103, line106, line109 };
+  return {
+    line101,
+    line103,
+    line106,
+    line109,
+    line106Confirmed: round2(confirmed),
+    line106Calculated: round2(calculated),
+    needsTaxCodeCount: needsCode,
+    calculatedCount,
+  };
 }

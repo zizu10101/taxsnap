@@ -10,6 +10,7 @@ import { getPresetRange, type DateRange, type RangePreset } from "@/lib/date-ran
 import { granularityForRange } from "@/lib/commission-overview";
 import { bucketExpenseTrendPoints } from "@/lib/expense-overview";
 import type { ExpenseOverviewData } from "@/lib/expense-overview-query";
+import { itcSplitNote } from "@/lib/tax-codes";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -23,11 +24,13 @@ function SummaryCard({
   value,
   highlight,
   className,
+  note,
 }: {
   label: string;
   value: number;
   highlight?: boolean;
   className?: string;
+  note?: string | null;
 }) {
   return (
     <Card className={className}>
@@ -40,6 +43,7 @@ function SummaryCard({
         >
           {formatCurrency(value)}
         </p>
+        {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
       </CardContent>
     </Card>
   );
@@ -72,6 +76,10 @@ const EMPTY_SUMMARY = {
   totalExpenses: 0,
   deductibleSpend: 0,
   estHstReclaimable: 0,
+  estHstConfirmed: 0,
+  estHstCalculated: 0,
+  calculatedCount: 0,
+  needsTaxCodeCount: 0,
   nonDeductibleSpend: 0,
 };
 
@@ -147,7 +155,11 @@ export function ExpenseOverview({
         <SummaryCard label="Total Sales" value={data.totalSales} />
         <SummaryCard label="Total Expenses" value={data.totalExpenses} />
         <SummaryCard label="Deductible Spend" value={data.deductibleSpend} highlight />
-        <SummaryCard label="Est. HST Reclaimable" value={data.estHstReclaimable} />
+        <SummaryCard
+          label="Est. HST Reclaimable"
+          value={data.estHstReclaimable}
+          note={itcSplitNote(data, formatCurrency)}
+        />
         <SummaryCard
           label="Non-Deductible Spend"
           value={data.nonDeductibleSpend}
@@ -183,6 +195,12 @@ export function ExpenseOverview({
               <TotalsRow label="Total Sales" value={data.totalSales} />
               <TotalsRow label="Total Expenses" value={data.totalExpenses} />
               <TotalsRow label="Est. HST Reclaimable" value={data.estHstReclaimable} />
+              {data.calculatedCount > 0 && (
+                <>
+                  <TotalsRow label="  Confirmed by receipt" value={data.estHstConfirmed} />
+                  <TotalsRow label="  Calculated from statement" value={data.estHstCalculated} />
+                </>
+              )}
               <TotalsRow label="Non-Deductible Spend" value={data.nonDeductibleSpend} />
               <div className="mt-2 rounded-lg bg-primary/10 p-3">
                 <TotalsRow label="Est. Profit" value={data.estProfit} emphasize />

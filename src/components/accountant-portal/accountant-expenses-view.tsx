@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
+import { isCalculated, TAX_BASIS_LABELS, taxBasis } from "@/lib/tax-codes";
 import { ReceiptFile } from "@/components/dashboard/receipt-file";
 import { formatCurrency, formatDate } from "@/components/accountant-portal/format";
 import { getPresetRange, filterByRange, type DateRange, type RangePreset } from "@/lib/date-range";
@@ -175,6 +176,9 @@ export function AccountantExpensesView({
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {formatCurrency(r.tax_amount)}
+                      {isCalculated(r) && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">calc.</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular-nums">
                       {formatCurrency(r.total_amount)}
@@ -247,7 +251,10 @@ function ReceiptDetail({ receipt, paidWith }: { receipt: Receipt; paidWith: stri
         <dt className="text-muted-foreground">Total</dt>
         <dd className="text-right font-medium tabular-nums">{formatCurrency(receipt.total_amount)}</dd>
         <dt className="text-muted-foreground">HST/tax</dt>
-        <dd className="text-right tabular-nums">{formatCurrency(receipt.tax_amount)}</dd>
+        <dd className="text-right tabular-nums">
+          {formatCurrency(receipt.tax_amount)}
+          <span className="block text-[11px] text-muted-foreground">{TAX_BASIS_LABELS[taxBasis(receipt)]}</span>
+        </dd>
         <dt className="text-muted-foreground">Job</dt>
         <dd className="text-right">{receipt.job_name ?? "—"}</dd>
         <dt className="text-muted-foreground">Paid with</dt>

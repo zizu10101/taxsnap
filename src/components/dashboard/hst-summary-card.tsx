@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
@@ -129,6 +130,9 @@ function HstSummaryCardBody({
   const [grossSales, setGrossSales] = useState(saved?.gross_sales ?? 0);
   const [cashDeposits, setCashDeposits] = useState(saved?.cash_deposits ?? 0);
   const [saving, setSaving] = useState(false);
+  // ITCs CALCULATED from a card statement (no receipt attached yet) count toward Line 106 by default;
+  // this lets the owner set them aside to see the figure backed by receipts alone.
+  const [includeCalculated, setIncludeCalculated] = useState(true);
   const router = useRouter();
 
   const paidInvoices: PaidInvoiceInput[] = useMemo(
@@ -140,8 +144,8 @@ function HstSummaryCardBody({
   );
 
   const lines = useMemo(
-    () => calculateHSTReturn(grossSales, paidInvoices, receipts),
-    [grossSales, paidInvoices, receipts],
+    () => calculateHSTReturn(grossSales, paidInvoices, receipts, { includeCalculated }),
+    [grossSales, paidInvoices, receipts, includeCalculated],
   );
 
   async function handleSave() {
@@ -283,6 +287,46 @@ function HstSummaryCardBody({
           label="Input Tax Credits (ITCs)"
           value={lines.line106}
         />
+        {/* What backs the Line 106 figure: ITCs on receipts (or entered by you) vs ITCs calculated
+            from a card statement with no receipt attached yet. Only shown when a statement expense
+            is in the period - otherwise there is nothing to split. */}
+        {lines.calculatedCount > 0 && (
+          <div className="ml-1 space-y-2 border-l-2 pl-3 text-xs">
+            <div className="flex items-center justify-between gap-3 text-muted-foreground">
+              <span>Confirmed by receipt</span>
+              <span className="tabular-nums">{formatCurrency(lines.line106Confirmed)}</span>
+            </div>
+            <div
+              className={`flex items-center justify-between gap-3 ${
+                includeCalculated ? "text-muted-foreground" : "text-muted-foreground line-through"
+              }`}
+            >
+              <span>Calculated from statement ({lines.calculatedCount})</span>
+              <span className="tabular-nums">{formatCurrency(lines.line106Calculated)}</span>
+            </div>
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="text-muted-foreground">
+                Include calculated ITCs in Line 106
+              </span>
+              <Switch
+                checked={includeCalculated}
+                onCheckedChange={setIncludeCalculated}
+                aria-label="Include calculated ITCs in Line 106"
+              />
+            </label>
+            <p className="text-muted-foreground">
+              Calculated ITCs come from your card statement, not a receipt. A statement alone may not
+              be enough support for a claim: confirm with your accountant.
+            </p>
+            {lines.needsTaxCodeCount > 0 && (
+              <p className="text-destructive">
+                {lines.needsTaxCodeCount} statement expense{lines.needsTaxCodeCount === 1 ? "" : "s"} still
+                need{lines.needsTaxCodeCount === 1 ? "s" : ""} a tax code, so no ITC is counted for{" "}
+                {lines.needsTaxCodeCount === 1 ? "it" : "them"}.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <Separator />
