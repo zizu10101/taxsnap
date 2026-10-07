@@ -1088,6 +1088,25 @@ token cost is measured (`statement_imports` records input/output tokens per impo
 - **Gemini**: `thinkingLevel: LOW` (measured on a synthetic 3-page statement: 2,882
   tokens/3.6 s vs 5,500/13 s at default, same lines) and a 50 s abort so a slow call is
   recorded as a retryable failed chunk before Vercel's 60 s kill.
+- **Timing, every stage** (`lib/statement-timing.ts`; no migration, no stored timestamps): each route
+  runs a `stopwatch()` and writes ONE `[statement-timing] {...}` log line per stage - `start` (cap + create),
+  `chunk` (auth, load, read upload, categories, base64, **model**, validate, save, with started/finished
+  times, bytes, tokens), `finalize` (fingerprint function + auto-match with its receipt-window sub-stages),
+  `review-load` (page and every reload, with the re-match's sub-stages and how many receipts it read) - and
+  returns the same numbers as `timings`. The browser times what only it can see (open + hash the file,
+  `slice`, upload/network = request minus the server's own total, per chunk) and sends it with the finalize
+  request, which logs it as `client-summary`; it is also `console.info`'d. Logged values are numbers and
+  short ids only - `statement-timing.test.ts` fails if a log call mentions a user id, description,
+  merchant, amount or category. The import dialog shows an elapsed clock, per-chunk "reading... 0:07" /
+  "done in 8.2 s", and for an unsplittable (whole-file) PDF one message: "Reading your statement (this
+  takes about 10-15 seconds)". Chunking, concurrency and date/year logic are untouched.
+- **The review page's re-match** (`loadStatementReview` -> `candidatesForLines`) runs on the first paint
+  AND after every edit. Profiled: the cost is ~4 sequential round trips plus a `select *` of the receipts
+  in the lines' date window +/-31 days; the pure matcher is ~0.2 ms on real data and ~49 ms at 500 lines x
+  5,000 receipts. KNOWN LATENT BUG (not fixed): `matchRows` assumes a near match is symmetric
+  (`between(p, t)!`), but the amount tolerance uses the *target's* amount, so two lines that both
+  near-match one receipt (e.g. $100.00 and $100.00 vs a $95.20 receipt) push a `null` and the sort throws
+  `TypeError: ... reading 'kind'`.
 - A daily Vercel Cron (`vercel.json`) purges drafts untouched for 14 days via
   `purge_stale_statement_drafts` (lines deleted, a tombstone row kept so the cap and
   cost audit still count it). The route needs `CRON_SECRET` and refuses without it.
