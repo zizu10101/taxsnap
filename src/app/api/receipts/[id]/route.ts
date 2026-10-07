@@ -5,7 +5,7 @@ import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { loadCategoryRows } from "@/lib/statement-bank-charges";
 import { bankChargesSuggestion, resolveBankCharges } from "@/lib/statement-categories";
-import { buildCategoryDefaults, isCalculated, taxAfterCategoryChange } from "@/lib/tax-codes";
+import { buildCategoryDefaults, drawerTaxCode, isCalculated, taxAfterCategoryChange } from "@/lib/tax-codes";
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -43,6 +43,7 @@ export async function PATCH(
     items,
     job_name,
     paid_with_account_id,
+    tax_code,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -78,7 +79,22 @@ export async function PATCH(
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (existing && isCalculated(existing) && existing.tax_source) {
+  if (tax_code !== undefined) {
+    // The owner applied a tax code to a statement expense that has no receipt yet. The tax is
+    // recalculated here (tax-included, from the total being saved) and the code is marked as their own
+    // pick; whatever tax figure the form carried is ignored. Refused for anything else: an expense
+    // with a receipt (or one the owner entered) has a confirmed figure a code must never overwrite.
+    const decided = drawerTaxCode(existing, newTotal, tax_code);
+    if (!decided.ok) return NextResponse.json({ error: decided.error }, { status: 400 });
+    const patch = decided.patch;
+    newTax = patch.tax_amount;
+    taxCode = {
+      tax_rate: patch.tax_rate,
+      itc_pct: patch.itc_pct,
+      deductible_pct: patch.deductible_pct,
+      tax_source: patch.tax_source,
+    };
+  } else if (existing && isCalculated(existing) && existing.tax_source) {
     if (round2(newTax) !== round2(Number(existing.tax_amount))) {
       taxCode = { tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null };
     } else if (category.toLowerCase() !== existing.tax_category.toLowerCase()) {
@@ -98,7 +114,7 @@ export async function PATCH(
     }
   }
 
-  const { data, error } = await supabase
+  let update = supabase
     .from("receipts")
     .update({
       merchant_name,
@@ -112,13 +128,22 @@ export async function PATCH(
       items: sanitizeItems(items),
     })
     .eq("id", id)
-    .eq("user_id", user.id)
-    .select()
-    .single();
+    .eq("user_id", user.id);
+  // A tax code is only ever applied to an expense that STILL has no receipt: if one was attached while
+  // this form was open, nothing is written (its actual tax stands) rather than overwriting it.
+  if (tax_code !== undefined) update = update.eq("no_receipt", true);
+  const { data, error } = await update.select().maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (!data && tax_code !== undefined) {
+    return NextResponse.json(
+      { error: "A receipt was attached to this expense, so a tax code can't be set. Reload it.", code: "RECEIPT_ATTACHED" },
+      { status: 409 },
+    );
+  }
+  if (!data) return NextResponse.json({ error: "Receipt not found." }, { status: 404 });
 
   return NextResponse.json({ receipt: data });
 }

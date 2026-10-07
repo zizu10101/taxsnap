@@ -287,3 +287,52 @@ export function taxAfterCategoryChange(row: RecalcRow, newCategory: string, defa
   const same = (Object.keys(next) as (keyof TaxPatch)[]).every((k) => next[k] === cur[k]);
   return same ? null : next;
 }
+
+// ---------------------------------------------------------------------------
+// Applying a tax code AFTER the expense is saved (the drawer, and bulk "Set tax code")
+// ---------------------------------------------------------------------------
+// Only a CALCULATED row may be given a code this way (from_statement and no receipt attached yet): a
+// row with a receipt, or one the owner entered, has a confirmed figure that a code must never
+// overwrite. The tax is recalculated tax-included from the row's total, and the code is marked as the
+// owner's own pick ('line'), so a later category change doesn't undo it. `null` clears the code: no
+// tax and "needs a tax code" again.
+export function taxPatchForCode(total: number, key: TaxCodeKey | null): TaxPatch {
+  if (key === null) return { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null };
+  const code = TAX_CODES[key];
+  return {
+    tax_amount: calculateTax(total, code),
+    tax_rate: code.tax_rate,
+    itc_pct: code.itc_pct,
+    deductible_pct: code.deductible_pct,
+    tax_source: "line",
+  };
+}
+
+export function samePatch(a: TaxPatch, b: TaxPatch): boolean {
+  return (Object.keys(a) as (keyof TaxPatch)[]).every((k) => a[k] === b[k]);
+}
+
+// A calculated row whose tax is a figure the owner typed (a refund's HST from the slip): no code and
+// no source, but a non-zero tax. Bulk leaves these alone rather than overwrite what they typed.
+export function hasTypedFigure(
+  row: Pick<RecalcRow, "from_statement" | "no_receipt" | "tax_rate" | "tax_source" | "tax_amount">,
+): boolean {
+  return isCalculated(row) && row.tax_rate == null && row.tax_source == null && Number(row.tax_amount) !== 0;
+}
+
+// The expense drawer's "Tax code" picker, as a pure decision so the route's rules are unit-tested:
+// a code may be applied only to a CALCULATED row (a statement expense with no receipt attached); the
+// tax is recalculated from the total being saved, whatever tax figure the form carried is ignored.
+export type DrawerTaxCodeResult = { ok: true; patch: TaxPatch } | { ok: false; error: string };
+
+export function drawerTaxCode(
+  existing: RecalcRow | null | undefined,
+  newTotal: number,
+  taxCode: unknown,
+): DrawerTaxCodeResult {
+  if (taxCode !== null && !isTaxCodeKey(taxCode)) return { ok: false, error: "Unknown tax code." };
+  if (!existing || !isCalculated(existing)) {
+    return { ok: false, error: "A tax code can only be set on a statement expense that has no receipt attached." };
+  }
+  return { ok: true, patch: taxPatchForCode(newTotal, taxCode) };
+}

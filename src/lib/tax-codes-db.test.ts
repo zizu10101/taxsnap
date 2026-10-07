@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { materializeStatementTaxes } from "./statement-tax-server.ts";
 import { handleBulkCategory } from "./bulk-category-server.ts";
+import { handleBulkTaxCode } from "./bulk-tax-code-server.ts";
+import { calculateHSTReturn } from "./hst.ts";
 
 // Tax codes against the real database (migration 0057): what commit_statement_import copies onto the
 // new expenses, the table constraints, and bulk recategorize recomputing CALCULATED rows while never
@@ -44,6 +46,9 @@ describe("tax codes (real database)", { skip: !RUN || !URL_ || !ANON || !SERVICE
       .select("id")
       .single();
     cardId = card!.id;
+    // Every real owner has this category once a statement using it has been saved; undo only restores
+    // into a category that exists for the owner, so the test needs it too.
+    assert.ifError((await admin.from("expense_categories").insert({ user_id: userId, name: "Bank charges" })).error);
     me = createClient(URL_!, ANON!, { auth: { persistSession: false } });
     assert.ifError((await me.auth.signInWithPassword({ email, password })).error);
   });
@@ -288,5 +293,113 @@ describe("tax codes (real database)", { skip: !RUN || !URL_ || !ANON || !SERVICE
     assert.equal(row.tax_category, "Bank charges");
     assert.equal(Number(row.tax_amount), 11.5, "the attached receipt's actual tax is not overwritten");
     assert.equal(row.tax_rate, null);
+  });
+
+  // ---- bulk "Set tax code" -----------------------------------------------------------------
+
+  const runTax = (body: unknown) => handleBulkTaxCode(me, userId, body);
+  const readAll = async (ids: string[]) =>
+    Object.fromEntries(
+      ((await me.from("receipts").select("*").in("id", ids)).data ?? []).map((r) => [r.id as string, r as Record<string, unknown>]),
+    );
+  const uncodedRow = (over: Record<string, unknown> = {}) =>
+    expenseRow({ tax_category: "Supplies", from_statement: true, no_receipt: true, ...over });
+
+  it("6. bulk Set tax code: only calculated rows change; receipts, confirmed and typed rows are untouched; the Line 106 split moves", async (t) => {
+    if (skipIfMissing(t)) return;
+    const target = await uncodedRow();
+    const typed = await uncodedRow({ total_amount: -113, tax_amount: -9.5 }); // a refund slip's HST, typed
+    const attachedRow = await expenseRow({ tax_category: "Supplies", from_statement: true, no_receipt: false, tax_amount: 13 });
+    const scannedRow = await expenseRow({ tax_category: "Supplies", tax_amount: 13 });
+    const already = await uncodedRow({ tax_amount: 13, tax_rate: 0.13, itc_pct: 1, deductible_pct: 1, tax_source: "line" });
+    const ids = [target.id, typed.id, attachedRow.id, scannedRow.id, already.id];
+    const untouched = [typed.id, attachedRow.id, scannedRow.id, already.id];
+    const snapshot = await readAll(untouched);
+    const hstBefore = calculateHSTReturn(0, [], Object.values(await readAll(ids)) as never[]);
+
+    const preview = await runTax({ mode: "preview", ids, code: "taxable" });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const plan = preview.body.plan as { will_change: number; skipped: Record<string, number>; changes: unknown[] };
+    assert.equal(plan.will_change, 1);
+    assert.deepEqual(plan.skipped, { has_receipt: 1, confirmed: 1, typed_figure: 1, already_set: 1 });
+
+    const applied = await runTax({ mode: "apply", code: "taxable", changes: plan.changes });
+    assert.equal(applied.status, 200, JSON.stringify(applied.body));
+    assert.equal(applied.body.changed, 1);
+
+    const row = await reread(target.id);
+    assert.deepEqual([Number(row.tax_amount), Number(row.tax_rate), Number(row.itc_pct), row.tax_source], [13, 0.13, 1, "line"]);
+    assert.deepEqual(await readAll(untouched), snapshot, "every other column of every skipped row is identical");
+
+    const hstAfter = calculateHSTReturn(0, [], Object.values(await readAll(ids)) as never[]);
+    assert.equal(hstAfter.line106Confirmed, hstBefore.line106Confirmed, "the receipt-backed part did not move");
+    assert.equal(Number((hstAfter.line106Calculated - hstBefore.line106Calculated).toFixed(2)), 13, "the new code's ITC is in the calculated part");
+    assert.equal(hstBefore.needsTaxCodeCount - hstAfter.needsTaxCodeCount, 1);
+
+    // Undo puts the target back to "needs a tax code".
+    const undo = await runTax({ mode: "undo", code: "taxable", changes: applied.body.previous });
+    assert.equal(undo.body.restored, 1);
+    const back = await reread(target.id);
+    assert.deepEqual([Number(back.tax_amount), back.tax_rate, back.tax_source], [0, null, null]);
+    assert.deepEqual(await readAll(untouched), snapshot);
+  });
+
+  it("7. bulk Set tax code: a receipt attached after the preview stops the whole apply; nothing is written", async (t) => {
+    if (skipIfMissing(t)) return;
+    const a1 = await uncodedRow();
+    const a2 = await uncodedRow();
+    const plan = (await runTax({ mode: "preview", ids: [a1.id, a2.id], code: "meals" })).body.plan as { changes: unknown[] };
+    // a receipt is attached to a2 while the dialog is open (what the attach route does)
+    assert.ifError((await admin.from("receipts").update({ no_receipt: false, tax_amount: 11.5 }).eq("id", a2.id)).error);
+    const res = await runTax({ mode: "apply", code: "meals", changes: plan.changes });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, "STALE_PREVIEW");
+    const [r1, r2] = [await reread(a1.id), await reread(a2.id)];
+    assert.deepEqual([Number(r1.tax_amount), r1.tax_rate, r1.tax_source], [0, null, null], "a1 was not written either");
+    assert.equal(Number(r2.tax_amount), 11.5, "the attached receipt's actual tax stands");
+    assert.equal(r2.tax_rate, null);
+  });
+
+  it("8. bulk Set tax code: undo leaves alone a row that was edited or given a receipt since", async (t) => {
+    if (skipIfMissing(t)) return;
+    const a1 = await uncodedRow();
+    const a2 = await uncodedRow();
+    const plan = (await runTax({ mode: "preview", ids: [a1.id, a2.id], code: "none" })).body.plan as { changes: unknown[] };
+    const applied = await runTax({ mode: "apply", code: "none", changes: plan.changes });
+    assert.equal(applied.status, 200);
+    assert.ifError((await admin.from("receipts").update({ no_receipt: false, tax_amount: 5, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null }).eq("id", a2.id)).error);
+    const undo = await runTax({ mode: "undo", code: "none", changes: applied.body.previous });
+    assert.deepEqual([undo.body.restored, undo.body.left_alone], [1, 1]);
+    const [r1, r2] = [await reread(a1.id), await reread(a2.id)];
+    assert.equal(r1.tax_rate, null, "a1 is back to needing a code");
+    assert.equal(Number(r2.tax_amount), 5, "a2's receipt tax is not overwritten");
+  });
+
+  it("9. bulk Set tax code: another owner's expenses are invisible and untouchable; bad input is refused", async (t) => {
+    if (skipIfMissing(t)) return;
+    const mine = await uncodedRow();
+    const otherEmail = `tax-codes-other-${randomUUID()}@example.com`;
+    const { data, error } = await admin.auth.admin.createUser({ email: otherEmail, password, email_confirm: true });
+    assert.ifError(error);
+    created.push(data.user!.id);
+    const other = createClient(URL_!, ANON!, { auth: { persistSession: false } });
+    assert.ifError((await other.auth.signInWithPassword({ email: otherEmail, password })).error);
+
+    const plan = (await handleBulkTaxCode(other, data.user!.id, { mode: "preview", ids: [mine.id], code: "taxable" })).body.plan as { missing: number; will_change: number };
+    assert.deepEqual([plan.missing, plan.will_change], [1, 0]);
+    const applied = await handleBulkTaxCode(other, data.user!.id, {
+      mode: "apply",
+      code: "taxable",
+      changes: [{ id: mine.id, prev: { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null } }],
+    });
+    assert.equal(applied.status, 409);
+    assert.equal(Number((await reread(mine.id)).tax_amount), 0);
+
+    assert.equal((await runTax({ mode: "preview", ids: [mine.id], code: "gst5" })).status, 400, "unknown code");
+    assert.equal((await runTax({ mode: "preview", ids: [], code: "taxable" })).status, 400);
+    assert.equal((await runTax({ mode: "nope", ids: [mine.id], code: "taxable" })).status, 400);
+    const tooMany = Array.from({ length: 501 }, () => randomUUID());
+    assert.equal((await runTax({ mode: "preview", ids: tooMany, code: "taxable" })).status, 400);
+    assert.equal((await runTax({ mode: "apply", code: "taxable", changes: [{ id: mine.id, prev: { tax_amount: 0 } }] })).status, 400, "a malformed previous state");
   });
 });
