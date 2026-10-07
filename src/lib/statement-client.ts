@@ -11,6 +11,7 @@ import {
   STATEMENT_MAX_FILE_BYTES,
   STATEMENT_MAX_PAGES,
 } from "@/lib/statement-config";
+import type { ClientChunkTiming, ClientTimings } from "@/lib/statement-timing";
 
 // Browser-only. Prepares a statement file for import (fingerprint + page chunks)
 // and drives the per-chunk extraction calls. The file is held in memory only:
@@ -152,8 +153,14 @@ export async function startImport(
   };
 }
 
-export async function finalizeImport(importId: string): Promise<void> {
-  const res = await fetch(`/api/statements/${importId}/finalize`, { method: "POST" });
+// `client` is the browser's own timing of the import (opening + hashing the file, upload and
+// network time per chunk): the server logs it next to its own numbers and does nothing else with it.
+export async function finalizeImport(importId: string, client?: ClientTimings): Promise<void> {
+  const res = await fetch(`/api/statements/${importId}/finalize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(client ? { client } : {}),
+  });
   if (!res.ok) throw apiError(res, await readJson(res), "Couldn't finish reading the statement.");
 }
 
@@ -162,11 +169,16 @@ export async function finalizeImport(importId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export type ChunkRunState =
-  | { status: "running" }
-  | { status: "done" }
+  // startedAt is Date.now() when the request began, so the screen can show how long it has been going.
+  | { status: "running"; startedAt: number }
+  // ms: how long the whole chunk took in the browser (retries included); serverMs: what the server
+  // reported for its own work, when it did.
+  | { status: "done"; ms: number; serverMs: number | null }
   | { status: "failed"; message: string; code?: string; retryable: boolean };
 
 const AUTO_RETRY_DELAYS_MS = [1500, 4000]; // two automatic retries per run
+
+const pagesOf = (row: ChunkRange) => (row.page_from === row.page_to ? `${row.page_from}` : `${row.page_from}-${row.page_to}`);
 const CONCURRENCY = 3;
 
 // A file the reader rejected outright won't read any better the next time.
@@ -179,7 +191,8 @@ function isRetryable(err: StatementApiError): boolean {
   return err.status === 429 || err.status >= 500;
 }
 
-async function postChunk(importId: string, chunkNo: number, file: File): Promise<void> {
+// Returns the server's own total for the request (its `timings.total_ms`), when it sent one.
+async function postChunk(importId: string, chunkNo: number, file: File): Promise<number | null> {
   const form = new FormData();
   form.append("file", file);
   let res: Response;
@@ -188,7 +201,10 @@ async function postChunk(importId: string, chunkNo: number, file: File): Promise
   } catch {
     throw new StatementApiError("Network problem. Check your connection and retry.", undefined, 0);
   }
-  if (!res.ok) throw apiError(res, await readJson(res), "Couldn't read these pages.");
+  const data = await readJson(res);
+  if (!res.ok) throw apiError(res, data, "Couldn't read these pages.");
+  const total = (data.timings as { total_ms?: unknown } | undefined)?.total_ms;
+  return typeof total === "number" ? total : null;
 }
 
 async function runOne(
@@ -197,14 +213,29 @@ async function runOne(
   prepared: PreparedStatement,
   onUpdate: (chunkNo: number, state: ChunkRunState) => void,
   signal?: AbortSignal,
+  collect?: ClientChunkTiming[],
 ): Promise<boolean> {
-  onUpdate(row.chunk_no, { status: "running" });
+  const began = performance.now();
+  onUpdate(row.chunk_no, { status: "running", startedAt: Date.now() });
   try {
     const file = await prepared.slice(row);
+    const sliceMs = Math.round(performance.now() - began);
     for (let attempt = 0; ; attempt++) {
       try {
-        await postChunk(importId, row.chunk_no, file);
-        onUpdate(row.chunk_no, { status: "done" });
+        const requestStart = performance.now();
+        const serverMs = await postChunk(importId, row.chunk_no, file);
+        const requestMs = Math.round(performance.now() - requestStart);
+        collect?.push({
+          chunk_no: row.chunk_no,
+          pages: pagesOf(row),
+          slice_ms: sliceMs,
+          request_ms: requestMs,
+          server_ms: serverMs,
+          // What the request spent outside the server's own work: upload, download, queueing, cold start.
+          transfer_ms: serverMs === null ? null : Math.max(requestMs - serverMs, 0),
+          retries: attempt,
+        });
+        onUpdate(row.chunk_no, { status: "done", ms: Math.round(performance.now() - began), serverMs });
         return true;
       } catch (err) {
         const apiErr = err instanceof StatementApiError ? err : new StatementApiError("Something went wrong.", undefined, 0);
@@ -245,6 +276,9 @@ export async function runChunks(
   prepared: PreparedStatement,
   onUpdate: (chunkNo: number, state: ChunkRunState) => void,
   signal?: AbortSignal,
+  // Optional: each finished chunk's browser-side timing is pushed here (the chunking and the
+  // concurrency are untouched).
+  collect?: ClientChunkTiming[],
 ): Promise<boolean> {
   const todo = plan.filter((c) => c.status !== "done").sort((a, b) => a.chunk_no - b.chunk_no);
   if (todo.length === 0) return true;
@@ -252,7 +286,7 @@ export async function runChunks(
   const first = plan.find((c) => c.chunk_no === 1);
   let rest = todo;
   if (first && first.status !== "done") {
-    const ok = await runOne(importId, first, prepared, onUpdate, signal);
+    const ok = await runOne(importId, first, prepared, onUpdate, signal, collect);
     if (!ok) return false; // the rest can't be read without chunk 1's period
     rest = todo.filter((c) => c.chunk_no !== 1);
   }
@@ -262,7 +296,7 @@ export async function runChunks(
   async function worker() {
     while (next < rest.length && !signal?.aborted) {
       const row = rest[next++];
-      if (!(await runOne(importId, row, prepared, onUpdate, signal))) allOk = false;
+      if (!(await runOne(importId, row, prepared, onUpdate, signal, collect))) allOk = false;
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rest.length) }, worker));

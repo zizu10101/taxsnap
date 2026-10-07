@@ -43,6 +43,8 @@ import {
   type AlreadyImportedInfo,
 } from "@/lib/statement-reimport";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
+import { ElapsedClock, WholeFileStatus } from "@/components/dashboard/statement-progress";
+import { formatDuration, type ClientChunkTiming, type ClientTimings } from "@/lib/statement-timing";
 
 type Phase = "idle" | "preparing" | "reading" | "partial" | "finalizing";
 
@@ -74,6 +76,14 @@ export function StatementImportButton() {
   const [states, setStates] = useState<Record<number, ChunkRunState>>({});
   const preparedRef = useRef<PreparedStatement | null>(null);
   const importIdRef = useRef<string | null>(null);
+  // When this run began (Date.now()), and how the file is being read, for the clock and the message.
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [readMode, setReadMode] = useState<"split" | "whole" | null>(null);
+  const [pageCount, setPageCount] = useState(0);
+  // The browser's own timing of this import, sent to the server's log with the finalize request.
+  const timingRef = useRef<{ prepare_ms: number; start_ms: number }>({ prepare_ms: 0, start_ms: 0 });
+  const chunkTimingsRef = useRef<ClientChunkTiming[]>([]);
+  const readStartRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,8 +97,12 @@ export function StatementImportButton() {
     setAlreadyImported(null);
     setPlan([]);
     setStates({});
+    setStartedAt(null);
+    setReadMode(null);
     preparedRef.current = null;
     importIdRef.current = null;
+    chunkTimingsRef.current = [];
+    readStartRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -104,6 +118,7 @@ export function StatementImportButton() {
 
   async function read(importId: string, rows: ChunkPlanRow[], prepared: PreparedStatement) {
     setPhase("reading");
+    readStartRef.current ??= performance.now();
     abortRef.current = new AbortController();
     const allDone = await runChunks(
       importId,
@@ -116,6 +131,7 @@ export function StatementImportButton() {
         }
       },
       abortRef.current.signal,
+      chunkTimingsRef.current,
     );
     if (abortRef.current.signal.aborted) return;
     if (!allDone) {
@@ -123,7 +139,18 @@ export function StatementImportButton() {
       return;
     }
     setPhase("finalizing");
-    await finalizeImport(importId);
+    // The browser's side of the timing goes to the server log with the finalize request, so one
+    // import's whole picture (browser and server) is in one place. Numbers only, no content.
+    const summary: ClientTimings = {
+      ...timingRef.current,
+      read_ms: Math.round(performance.now() - (readStartRef.current ?? performance.now())),
+      chunks: chunkTimingsRef.current,
+      mode: prepared.mode,
+      pages: prepared.pageCount,
+      file_bytes: files.reduce((sum, f) => sum + f.size, 0),
+    };
+    console.info("[statement-timing] browser", summary);
+    await finalizeImport(importId, summary);
     toast.success("Statement read. Review the lines before anything is saved.");
     router.push(`/dashboard/expenses/statements/${importId}`);
   }
@@ -137,11 +164,22 @@ export function StatementImportButton() {
     if (!effectiveCardId || files.length === 0) return;
     setError(null);
     setAlreadyImported(null);
+    setStartedAt(Date.now());
+    setReadMode(null);
+    chunkTimingsRef.current = [];
+    readStartRef.current = null;
     setPhase("preparing");
     try {
+      // Browser read + hash: opening the file, fingerprinting it, checking and slicing its pages.
+      const t0 = performance.now();
       const prepared = await prepareStatement(files);
+      const prepareMs = Math.round(performance.now() - t0);
       preparedRef.current = prepared;
+      setReadMode(prepared.mode);
+      setPageCount(prepared.pageCount);
+      const t1 = performance.now();
       const started = await startImport(effectiveCardId, prepared, { reimportOf });
+      timingRef.current = { prepare_ms: prepareMs, start_ms: Math.round(performance.now() - t1) };
       importIdRef.current = started.importId;
       if (started.resumed) toast.info("Picking up your earlier import of this file.");
       setPlan(started.chunks);
@@ -263,11 +301,25 @@ export function StatementImportButton() {
           {phase === "preparing" && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Opening the file...
+              Opening the file... <ElapsedClock since={startedAt} />
             </p>
           )}
 
-          {(phase === "reading" || phase === "partial" || phase === "finalizing") && (
+          {/* A PDF that can't be split is read in ONE piece: one clear message and a clock, never a
+              frozen spinner. (If it fails, the list below shows the reason.) */}
+          {readMode === "whole" && phase === "reading" && failed.length === 0 && (
+            <WholeFileStatus since={startedAt} pages={pageCount} />
+          )}
+
+          {(phase === "reading" || phase === "partial" || phase === "finalizing") &&
+            !(readMode === "whole" && phase === "reading" && failed.length === 0) && (
+            <p className="text-xs text-muted-foreground">
+              Reading your statement · <ElapsedClock since={startedAt} />
+            </p>
+          )}
+
+          {(phase === "reading" || phase === "partial" || phase === "finalizing") &&
+            !(readMode === "whole" && phase === "reading" && failed.length === 0) && (
             <ul className="space-y-1.5 text-sm">
               {plan.map((row) => {
                 const state = states[row.chunk_no];
@@ -285,6 +337,14 @@ export function StatementImportButton() {
                     )}
                     <span className="min-w-0">
                       {pagesLabel(row)}
+                      {state?.status === "running" && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          reading... <ElapsedClock since={state.startedAt} />
+                        </span>
+                      )}
+                      {state?.status === "done" && (
+                        <span className="ml-2 text-xs text-muted-foreground">{formatDuration(state.ms)}</span>
+                      )}
                       {state?.status === "failed" && (
                         <span className="block text-xs text-destructive">{state.message}</span>
                       )}

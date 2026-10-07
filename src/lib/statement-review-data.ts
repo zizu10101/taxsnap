@@ -2,6 +2,7 @@ import { loadCategoryContext, loadOwnImport, type StatementCtx } from "@/lib/sta
 import { candidatesForLines, type ReceiptBrief } from "@/lib/statement-match-server";
 import { reconcileStatement, type ReconcileResult } from "@/lib/statement-reconcile";
 import type { MatchCandidate } from "@/lib/statement-matching";
+import type { Stopwatch } from "@/lib/statement-timing";
 import type { StatementLineKind, StatementImportStatus, TaxSourceName } from "@/lib/database.types";
 
 // Everything the review screen needs in one read, shared by GET
@@ -77,11 +78,15 @@ export interface StatementReviewData {
   bank_charges_category: string | null;
 }
 
+// `timer` (optional) records where the time goes: the import row, the chunk/line/category reads,
+// and the receipt re-match with its own sub-stages (see statement-match-server.ts).
 export async function loadStatementReview(
   ctx: StatementCtx,
   id: string,
+  timer?: Stopwatch,
 ): Promise<StatementReviewData | null> {
   const imp = await loadOwnImport(ctx, id);
+  timer?.lap("import");
   if (!imp) return null;
 
   const [{ data: chunks }, { data: lines }, categories] = await Promise.all([
@@ -100,8 +105,9 @@ export async function loadStatementReview(
     loadCategoryContext(ctx),
   ]);
 
+  timer?.lap("chunks_lines_categories");
   const allLines = lines ?? [];
-  const { candidates, briefs } = await candidatesForLines(ctx, allLines);
+  const { candidates, briefs } = await candidatesForLines(ctx, allLines, timer);
 
   return {
     import: {
