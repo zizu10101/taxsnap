@@ -49,3 +49,28 @@ export async function resolveCategory(
   const custom = (data ?? []).find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
   return custom ? custom.name : "Other";
 }
+
+// Strict counterpart of resolveCategory for bulk actions: an unknown name is NOT collapsed to
+// "Other" (that would silently move many expenses somewhere the person never chose) - it returns
+// null. A built-in always passes; a custom one must belong to this user and, for a TARGET
+// (`activeOnly`), still be active. Moving expenses OUT of a since-deactivated category is fine,
+// so undo passes activeOnly = false.
+export async function resolveExistingCategory(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  value: unknown,
+  options: { activeOnly?: boolean } = {},
+): Promise<string | null> {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  const defaultMatch = TAX_CATEGORIES.find((c) => c.toLowerCase() === trimmed.toLowerCase());
+  if (defaultMatch) return defaultMatch;
+
+  const { data } = await supabase
+    .from("expense_categories")
+    .select("name, is_active")
+    .eq("user_id", userId);
+  const custom = (data ?? []).find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
+  if (!custom || (options.activeOnly && !custom.is_active)) return null;
+  return custom.name;
+}

@@ -1,4 +1,4 @@
-import { MEALS_ITC_RESTRICTION_RATE } from "@/lib/hst";
+import { MEALS_ITC_RESTRICTION_RATE } from "./hst.ts";
 
 // Shared by the Overview page's server-side aggregation
 // (expense-overview-query.ts) and the accountant export bundle

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Plus, Repeat } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
@@ -14,6 +15,10 @@ import { StatementImportButton } from "@/components/dashboard/statement-import-b
 import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
 import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
+import { CategoryFilter } from "@/components/dashboard/category-filter";
+import { BulkCategoryControls } from "@/components/dashboard/bulk-category-controls";
+import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { BULK_CATEGORY_MAX } from "@/lib/bulk-category";
 import {
   describeRange,
   filterByRange,
@@ -71,6 +76,10 @@ export function ExpensesBody({
   const [preset, setPreset] = useState<RangePreset>("this-month");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  // Rows ticked for a bulk action. Cleared whenever a filter changes, so what is selected is always
+  // what is on screen; the ids are frozen again when the change dialog opens.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(() =>
     initialOpenReceiptId ? (initialReceipts.find((r) => r.id === initialOpenReceiptId) ?? null) : null,
   );
@@ -84,10 +93,30 @@ export function ExpensesBody({
     return [...jobs].sort();
   }, [receipts, initialJobNames]);
 
+  // The built-in and active custom categories, plus any category an expense still carries that is
+  // no longer offered (a deactivated custom one), so it can still be filtered on.
+  const knownCategories = useExpenseCategoryOptions();
+  const categoryOptions = useMemo(() => {
+    const seen = new Set(knownCategories.map((c) => c.toLowerCase()));
+    const extra = [...new Set(receipts.map((r) => r.tax_category))].filter(
+      (c) => !seen.has(c.toLowerCase()),
+    );
+    return [...knownCategories, ...extra.sort()];
+  }, [knownCategories, receipts]);
+
   const filteredReceipts = useMemo(() => {
     const byRange = filterByRange(receipts, range);
-    return jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
-  }, [receipts, range, jobFilter]);
+    const byJob = jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
+    return categoryFilter
+      ? byJob.filter((r) => r.tax_category.toLowerCase() === categoryFilter.toLowerCase())
+      : byJob;
+  }, [receipts, range, jobFilter, categoryFilter]);
+
+  // Only rows that are still on screen count (a deleted row drops out by itself).
+  const selectedIds = useMemo(
+    () => filteredReceipts.filter((r) => selected.has(r.id)).map((r) => r.id),
+    [filteredReceipts, selected],
+  );
 
   const recentlyAdded = useMemo(
     () =>
@@ -108,14 +137,36 @@ export function ExpensesBody({
   );
 
   const rangeLabel = useMemo(() => describeRange(preset, range), [preset, range]);
-  const scopeLabel = jobFilter ? `${jobFilter} — ${rangeLabel}` : rangeLabel;
+  const scopeLabel = [jobFilter, categoryFilter].filter(Boolean).concat(rangeLabel).join(" — ");
 
   const exportFilenameBase = `taxsnap-expenses-${slugify(scopeLabel)}`;
 
   function handleRangeChange(nextPreset: RangePreset, nextRange: DateRange) {
     setPreset(nextPreset);
     setRange(nextRange);
+    setSelected(new Set());
   }
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  function toggleMany(ids: string[], on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  const selection = { selected, onToggle: toggleOne, onToggleMany: toggleMany };
 
   function handleDeleted(id: string) {
     setReceipts((prev) => prev.filter((r) => r.id !== id));
@@ -137,7 +188,22 @@ export function ExpensesBody({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
-          <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
+          <JobFilter
+            jobs={existingJobs}
+            value={jobFilter}
+            onChange={(job) => {
+              setJobFilter(job);
+              setSelected(new Set());
+            }}
+          />
+          <CategoryFilter
+            categories={categoryOptions}
+            value={categoryFilter}
+            onChange={(category) => {
+              setCategoryFilter(category);
+              setSelected(new Set());
+            }}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setTemplatesDialogOpen(true)}>
@@ -211,6 +277,7 @@ export function ExpensesBody({
         range={range}
         business={business}
         logoPath={logoPath}
+        selection={selection}
       />
 
       <ReceiptsList
@@ -223,6 +290,35 @@ export function ExpensesBody({
         range={range}
         business={business}
         logoPath={logoPath}
+        selection={selection}
+      />
+
+      <BulkCategoryControls
+        selectedIds={selectedIds}
+        visibleCount={filteredReceipts.length}
+        onSelectAllVisible={() => {
+          const ids = filteredReceipts.slice(0, BULK_CATEGORY_MAX).map((r) => r.id);
+          setSelected(new Set(ids));
+          if (filteredReceipts.length > BULK_CATEGORY_MAX) {
+            toast.info(
+              `Only the first ${BULK_CATEGORY_MAX} can be changed at once. Narrow the filters for the rest.`,
+            );
+          }
+        }}
+        onClear={() => setSelected(new Set())}
+        onMoved={({ category, previous }) => {
+          const moved = new Set(previous.map((p) => p.id));
+          setReceipts((prev) =>
+            prev.map((r) => (moved.has(r.id) ? { ...r, tax_category: category } : r)),
+          );
+          setSelected(new Set());
+        }}
+        onRestored={(rows) => {
+          const back = new Map(rows.map((r) => [r.id, r.category]));
+          setReceipts((prev) =>
+            prev.map((r) => (back.has(r.id) ? { ...r, tax_category: back.get(r.id)! } : r)),
+          );
+        }}
       />
 
       <ReceiptDetailDialog

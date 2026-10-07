@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -42,6 +43,47 @@ function formatDate(dateStr: string) {
   });
 }
 
+// Column templates. Full literal class names so Tailwind sees them: the selectable variant adds a
+// leading checkbox column.
+const ROW_COLS = "sm:grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px]";
+const ROW_COLS_SELECTABLE = "sm:grid-cols-[28px_minmax(0,2.1fr)_140px_120px_110px_36px]";
+
+// Opt-in multi-select (the Expenses page's bulk "Change category"). Absent = the list renders
+// exactly as before, which is how the Overview page uses it.
+export interface ReceiptSelection {
+  selected: ReadonlySet<string>;
+  onToggle: (id: string) => void;
+  onToggleMany: (ids: string[], on: boolean) => void;
+}
+
+// A checkbox inside a clickable row: clicks and key presses must not bubble up and open the row.
+function SelectBox({
+  checked,
+  indeterminate,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+}) {
+  return (
+    <span
+      className="flex items-center"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <Checkbox
+        checked={checked}
+        indeterminate={indeterminate}
+        onCheckedChange={(c) => onChange(c === true)}
+        aria-label={label}
+      />
+    </span>
+  );
+}
+
 export function ReceiptsList({
   receipts,
   title = "Receipts",
@@ -53,6 +95,7 @@ export function ReceiptsList({
   business,
   logoPath,
   invoicePayments = [],
+  selection,
 }: {
   receipts: Receipt[];
   // Lets a caller render more than one list on the same page (e.g. the
@@ -80,6 +123,7 @@ export function ReceiptsList({
   // Job/Overhead lists leave this empty so their QuickBooks export stays
   // expense-only, since revenue doesn't split cleanly into job/overhead.
   invoicePayments?: QuickBooksInvoicePayment[];
+  selection?: ReceiptSelection;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const bankAccounts = useBankAccounts();
@@ -92,6 +136,8 @@ export function ReceiptsList({
   const [exportingBundle, setExportingBundle] = useState(false);
 
   const subtotal = receipts.reduce((sum, r) => sum + r.total_amount, 0);
+  const rowCols = selection ? ROW_COLS_SELECTABLE : ROW_COLS;
+  const selectedHere = selection ? receipts.filter((r) => selection.selected.has(r.id)).length : 0;
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -198,7 +244,15 @@ export function ReceiptsList({
                 scrolling list. Hidden below sm; the mobile card-row list
                 below (unchanged from before this redesign) takes over
                 there instead of squeezing this grid into a narrow column. */}
-            <div className="mb-1 hidden grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] gap-3 rounded-md border-b bg-muted/40 px-3 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
+            <div className={`mb-1 hidden ${rowCols} gap-3 rounded-md border-b bg-muted/40 px-3 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid`}>
+              {selection && (
+                <SelectBox
+                  checked={receipts.length > 0 && selectedHere === receipts.length}
+                  indeterminate={selectedHere > 0 && selectedHere < receipts.length}
+                  onChange={(on) => selection.onToggleMany(receipts.map((r) => r.id), on)}
+                  label={`Select all ${title}`}
+                />
+              )}
               <span>Merchant</span>
               <span>Category</span>
               <span>Date</span>
@@ -218,10 +272,17 @@ export function ReceiptsList({
                       onSelect(r);
                     }
                   }}
-                  className="cursor-pointer rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 sm:grid sm:grid-cols-[minmax(0,2.1fr)_140px_120px_110px_36px] sm:items-center sm:gap-3 sm:px-3"
+                  className={`cursor-pointer rounded-md py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 sm:grid ${rowCols} sm:items-center sm:gap-3 sm:px-3`}
                 >
                   {/* Mobile row (below sm) - unchanged two-line card shape. */}
                   <div className="flex items-center justify-between gap-3 sm:hidden">
+                    {selection && (
+                      <SelectBox
+                        checked={selection.selected.has(r.id)}
+                        onChange={() => selection.onToggle(r.id)}
+                        label={`Select ${r.merchant_name}`}
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium">{r.merchant_name}</p>
@@ -265,6 +326,15 @@ export function ReceiptsList({
                   </div>
 
                   {/* Desktop row (sm+) - one grid cell per column, same data. */}
+                  {selection && (
+                    <span className="hidden sm:block">
+                      <SelectBox
+                        checked={selection.selected.has(r.id)}
+                        onChange={() => selection.onToggle(r.id)}
+                        label={`Select ${r.merchant_name}`}
+                      />
+                    </span>
+                  )}
                   <div className="hidden min-w-0 sm:block">
                     <p className="truncate text-sm font-medium">{r.merchant_name}</p>
                     <StatementFlagBadge receipt={r} className="mt-0.5" />
