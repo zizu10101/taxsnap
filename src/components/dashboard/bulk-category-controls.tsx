@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { BULK_CATEGORY_MAX, type BulkChange, type BulkPlan } from "@/lib/bulk-category";
+import type { TaxPatch } from "@/lib/tax-codes";
 
 function money(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -32,6 +33,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export interface BulkMove {
   category: string;
   previous: BulkChange[];
+  /** Calculated statement expenses whose tax code and calculated tax were recomputed. */
+  retaxed: { id: string; patch: TaxPatch }[];
 }
 
 async function call(body: unknown) {
@@ -62,7 +65,7 @@ export function BulkCategoryControls({
   onSelectAllVisible: () => void;
   onClear: () => void;
   onMoved: (move: BulkMove) => void;
-  onRestored: (rows: { id: string; category: string }[]) => void;
+  onRestored: (rows: { id: string; category: string; tax?: TaxPatch }[]) => void;
 }) {
   const [dialog, setDialog] = useState<{ key: number; ids: string[] } | null>(null);
   const [lastMove, setLastMove] = useState<(BulkMove & { count: number }) | null>(null);
@@ -94,8 +97,10 @@ export function BulkCategoryControls({
       {lastMove && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
           <span>
-            Moved {plural(lastMove.count, "expense")} to <strong>{lastMove.category}</strong>. Sales tax
-            wasn&apos;t changed.
+            Moved {plural(lastMove.count, "expense")} to <strong>{lastMove.category}</strong>.{" "}
+            {lastMove.retaxed.length > 0
+              ? `Tax was recalculated on ${plural(lastMove.retaxed.length, "statement expense")}; nothing with a receipt was touched.`
+              : "Sales tax wasn't changed."}
           </span>
           <span className="flex gap-2">
             <Button size="sm" variant="outline" onClick={handleUndo} disabled={undoing}>
@@ -208,7 +213,7 @@ function BulkCategoryDialog({
         return;
       }
       toast.success(`Moved ${plural(data.changed, "expense")} to ${data.category}`);
-      onApplied({ category: data.category, previous: data.previous });
+      onApplied({ category: data.category, previous: data.previous, retaxed: data.retaxed ?? [] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -302,7 +307,11 @@ function BulkCategoryDialog({
               )}
 
               <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-xs">
-                <p className="font-medium">Sales tax is not changed.</p>
+                <p className="font-medium">
+                  {plan.recalculated > 0
+                    ? `Tax is recalculated on ${plural(plan.recalculated, "statement expense")}; every expense with a receipt keeps its tax exactly.`
+                    : "Sales tax is not changed."}
+                </p>
                 <p className="text-muted-foreground">
                   Estimated reclaimable HST: {money(plan.effect.est_hst_reclaimable.before)} to{" "}
                   {money(plan.effect.est_hst_reclaimable.after)}. Deductible spend:{" "}

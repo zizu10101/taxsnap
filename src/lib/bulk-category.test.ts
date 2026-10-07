@@ -109,3 +109,80 @@ test("cleanChanges: each entry needs a uuid and the category it is moving from",
 test("the per-action cap is 500", () => {
   assert.equal(BULK_CATEGORY_MAX, 500);
 });
+
+// ---- calculated statement expenses follow their category; confirmed ones never do ----------
+
+import { buildCategoryDefaults, TAX_CODES } from "./tax-codes.ts";
+import { cleanTaxPatch } from "./bulk-category.ts";
+
+const defaults = buildCategoryDefaults({ bankChargesName: "Bank charges" });
+const calculated = (n: number, over: Partial<BulkRow> = {}): BulkRow => ({
+  ...row(n, "Bank charges", 113, 0),
+  from_statement: true,
+  no_receipt: true,
+  tax_rate: 0,
+  itc_pct: 0,
+  deductible_pct: 1,
+  tax_source: "category",
+  ...over,
+});
+
+test("a calculated row coded by its category is recomputed: out of the no-tax category it loses the code, and the plan says so", () => {
+  const plan = planBulkCategory([id(1)], [calculated(1)], "Supplies", defaults);
+  assert.equal(plan.recalculated, 1);
+  assert.deepEqual(plan.retax, [
+    { id: id(1), patch: { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null } },
+  ]);
+  // the change remembers the previous code and tax so Undo can put them back
+  assert.deepEqual(plan.changes[0].prev, { tax_amount: 0, tax_rate: 0, itc_pct: 0, deductible_pct: 1, tax_source: "category" });
+});
+
+test("confirmed rows are never recalculated: not a scanned receipt, not an attached one, not a typed figure", () => {
+  const rows = [
+    row(1, "Bank charges", 113, 13), // an ordinary scanned receipt
+    calculated(2, { no_receipt: false }), // a receipt was attached: now confirmed, stale code ignored
+    calculated(3, { tax_source: "line", tax_rate: 0.13, itc_pct: 1 }), // the owner's own pick
+  ];
+  const plan = planBulkCategory(rows.map((r) => r.id), rows, "Supplies", defaults);
+  assert.equal(plan.recalculated, 0);
+  assert.deepEqual(plan.retax, []);
+  assert.ok(plan.changes.every((c) => c.prev === undefined));
+  assert.equal(plan.confirmed_untouched, 2, "the scanned and the attached rows");
+});
+
+test("a mix: only the calculated, category-coded row changes tax; the confirmed row keeps its tax_amount in the effect", () => {
+  const withTaxable = new Map([["supplies", TAX_CODES.taxable]]);
+  const rows = [calculated(1), row(2, "Fuel", 113, 13)];
+  const plan = planBulkCategory([id(1), id(2)], rows, "Supplies", withTaxable);
+  assert.equal(plan.recalculated, 1);
+  assert.equal(plan.retax[0].patch.tax_amount, 13);
+  // before: only the confirmed row's $13 ITC counts (the calculated row had tax 0); after: both do
+  assert.equal(plan.effect.est_hst_reclaimable.before, 13);
+  assert.equal(plan.effect.est_hst_reclaimable.after, 26);
+});
+
+test("cleanTaxPatch accepts exactly a whole tax state and nothing else", () => {
+  assert.deepEqual(cleanTaxPatch({ tax_amount: 0, tax_rate: 0, itc_pct: 0, deductible_pct: 1, tax_source: "category" }), {
+    tax_amount: 0,
+    tax_rate: 0,
+    itc_pct: 0,
+    deductible_pct: 1,
+    tax_source: "category",
+  });
+  assert.deepEqual(
+    cleanTaxPatch({ tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null })?.tax_source,
+    null,
+  );
+  // half a code, an unknown source, an out-of-range share, or junk
+  assert.equal(cleanTaxPatch({ tax_amount: 0, tax_rate: 0.13, itc_pct: null, deductible_pct: null, tax_source: null }), null);
+  assert.equal(cleanTaxPatch({ tax_amount: 0, tax_rate: 0, itc_pct: 0, deductible_pct: 1, tax_source: "magic" }), null);
+  assert.equal(cleanTaxPatch({ tax_amount: 0, tax_rate: 7, itc_pct: 0, deductible_pct: 1, tax_source: "line" }), null);
+  assert.equal(cleanTaxPatch("x"), null);
+  assert.equal(cleanTaxPatch(null), null);
+});
+
+test("cleanChanges carries a valid previous tax state and refuses a malformed one", () => {
+  const prev = { tax_amount: 0, tax_rate: 0, itc_pct: 0, deductible_pct: 1, tax_source: "category" };
+  assert.deepEqual(cleanChanges([{ id: id(1), from: "Bank charges", prev }])?.[0].prev, prev);
+  assert.equal(cleanChanges([{ id: id(1), from: "Bank charges", prev: { tax_amount: "x" } }]), null);
+});
