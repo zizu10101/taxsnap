@@ -7,6 +7,7 @@ import { loadStatementReview } from "@/lib/statement-review-data";
 import { loadStatementDetail } from "@/lib/statement-groups-server";
 import { StatementDetailView } from "@/components/dashboard/statement-detail";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
+import { logTiming, shortId, stopwatch } from "@/lib/statement-timing";
 
 export const metadata: Metadata = {
   title: "Review statement — TaxSnap",
@@ -47,8 +48,18 @@ export default async function StatementReviewPage({
     );
   }
 
-  const data = await loadStatementReview(ctx, id);
+  // First paint of the review screen: timed like every reload (trigger: "page"), re-match included.
+  const timer = stopwatch();
+  const data = await loadStatementReview(ctx, id, timer);
   if (!data) notFound();
+  logTiming("review-load", {
+    import: shortId(id),
+    trigger: "page",
+    started_at: timer.startedAt(),
+    finished_at: new Date().toISOString(),
+    lines: data.lines.length,
+    ...timer.snapshot(),
+  });
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">

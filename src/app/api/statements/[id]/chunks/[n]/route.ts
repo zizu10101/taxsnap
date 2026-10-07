@@ -8,6 +8,7 @@ import {
   STATEMENT_MAX_LINES,
 } from "@/lib/statement-config";
 import type { Json } from "@/lib/database.types";
+import { logTiming, shortId, stopwatch } from "@/lib/statement-timing";
 
 export const runtime = "nodejs";
 // One chunk is a few pages; this is the same ceiling the receipt route uses.
@@ -26,13 +27,20 @@ const ALLOWED_MIME_TYPES = new Set([
 // memory, sent to Gemini and dropped - never written to storage. A failure is
 // recorded against this chunk only (fail_chunk), so the other chunks' results
 // are untouched and just this one can be retried.
+//
+// Every stage is timed (auth + loads, reading the upload, categories, base64, the model call,
+// validating the lines, saving them), written to the server log as one [statement-timing] line with
+// its start and finish, and returned as `timings` so the browser can show and report it. No
+// statement content, amounts or user id are ever logged.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string; n: string }> },
 ) {
+  const timer = stopwatch();
   const auth = await requireStatementUser();
   if ("response" in auth) return auth.response;
   const { ctx } = auth;
+  timer.lap("auth");
 
   const { id, n } = await params;
   const chunkNo = Number(n);
@@ -51,6 +59,8 @@ export async function POST(
     .order("chunk_no", { ascending: true });
   const chunk = chunks?.find((c) => c.chunk_no === chunkNo);
   if (!chunk || !chunks) return notFound();
+  timer.lap("load");
+  const pages = `${chunk.page_from}-${chunk.page_to}`;
 
   // Idempotent: a double-submit of a finished chunk is a no-op, not a second bill.
   if (chunk.status === "done") {
@@ -72,6 +82,7 @@ export async function POST(
   }
 
   const form = await request.formData().catch(() => null);
+  timer.lap("read_form");
   const file = form?.get("file");
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ error: "No file provided under the 'file' field." }, { status: 400 });
@@ -91,8 +102,11 @@ export async function POST(
       .eq("import_id", id)
       .neq("chunk_id", chunk.id),
   ]);
+  timer.lap("categories");
 
   const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+  timer.lap("base64");
+  timer.note("file_bytes", file.size);
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -105,6 +119,7 @@ export async function POST(
       categories,
       bankChargesCategory,
     });
+    timer.lap("model");
     inputTokens = result.inputTokens;
     outputTokens = result.outputTokens;
 
@@ -120,6 +135,7 @@ export async function POST(
     if ((otherLines ?? 0) + lines.length > STATEMENT_MAX_LINES) {
       throw new ChunkValidationError(`A statement can have at most ${STATEMENT_MAX_LINES} lines.`);
     }
+    timer.lap("sanitize");
 
     const { error } = await ctx.admin.rpc("save_chunk_result", {
       p_user_id: ctx.user.id,
@@ -131,8 +147,24 @@ export async function POST(
       p_output_tokens: outputTokens,
     });
     if (error) throw error;
+    timer.lap("save");
 
-    return NextResponse.json({ chunk_no: chunkNo, lines: lines.length });
+    const timings = {
+      ...timer.snapshot(),
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      lines: lines.length,
+    };
+    logTiming("chunk", {
+      import: shortId(id),
+      chunk_no: chunkNo,
+      pages,
+      ok: true,
+      started_at: timer.startedAt(),
+      finished_at: new Date().toISOString(),
+      ...timings,
+    });
+    return NextResponse.json({ chunk_no: chunkNo, lines: lines.length, timings });
   } catch (err) {
     let code = "UNKNOWN";
     let status = 500;
@@ -153,6 +185,19 @@ export async function POST(
     // Deliberately no statement content and no user id: the chunk's number and
     // the failure code are enough to tell a busy provider from a bad read.
     console.error("[statements] chunk failed", { chunk_no: chunkNo, code, status });
+    timer.lap("failed_after");
+    const timings = { ...timer.snapshot(), input_tokens: inputTokens, output_tokens: outputTokens };
+    logTiming("chunk", {
+      import: shortId(id),
+      chunk_no: chunkNo,
+      pages,
+      ok: false,
+      code,
+      status,
+      started_at: timer.startedAt(),
+      finished_at: new Date().toISOString(),
+      ...timings,
+    });
 
     await ctx.admin.rpc("fail_chunk", {
       p_user_id: ctx.user.id,
@@ -163,6 +208,6 @@ export async function POST(
       p_output_tokens: outputTokens,
     });
 
-    return NextResponse.json({ error: message, code, chunk_no: chunkNo }, { status });
+    return NextResponse.json({ error: message, code, chunk_no: chunkNo, timings }, { status });
   }
 }

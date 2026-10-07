@@ -10,6 +10,7 @@ import {
 } from "@/lib/statement-groups-server";
 import { alreadyImportedMessage, capAllowsReimport, capNote } from "@/lib/statement-reimport";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
+import { logTiming, shortId, stopwatch } from "@/lib/statement-timing";
 
 export const runtime = "nodejs";
 
@@ -30,9 +31,11 @@ export const runtime = "nodejs";
 // again. Either way the response carries the chunk plan the draft actually has,
 // which the browser must slice the file by.
 export async function POST(request: Request) {
+  const timer = stopwatch();
   const auth = await requireStatementUser();
   if ("response" in auth) return auth.response;
   const { ctx } = auth;
+  timer.lap("auth");
 
   let body: Record<string, unknown>;
   try {
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
   if (planError) return NextResponse.json({ error: planError }, { status: 400 });
 
   const cap = await monthlyCapFor(ctx);
+  timer.lap("cap");
 
   // Re-import: validate against what is actually saved, never against the request's word.
   let retiredImportId: string | null = null;
@@ -87,6 +91,8 @@ export async function POST(request: Request) {
     retiredImportId = reimport_of;
   }
 
+  timer.lap("reimport");
+
   const { data: importId, error } = await ctx.admin.rpc("start_statement_import", {
     p_user_id: ctx.user.id,
     p_account_id: account_id,
@@ -96,6 +102,7 @@ export async function POST(request: Request) {
     p_monthly_cap: cap,
   });
 
+  timer.lap("start_fn");
   let id = importId;
   let resumed = false;
 
@@ -142,8 +149,20 @@ export async function POST(request: Request) {
     .eq("import_id", id as string)
     .order("chunk_no", { ascending: true });
 
+  timer.lap("plan");
+  const timings = timer.snapshot();
+  logTiming("start", {
+    import: shortId(id as string),
+    started_at: timer.startedAt(),
+    finished_at: new Date().toISOString(),
+    resumed,
+    reimported: retiredImportId !== null,
+    pages: page_count,
+    chunks: plan?.length ?? 0,
+    ...timings,
+  });
   return NextResponse.json(
-    { import_id: id, resumed, reimported: retiredImportId !== null, chunks: plan ?? [] },
+    { import_id: id, resumed, reimported: retiredImportId !== null, chunks: plan ?? [], timings },
     { status: resumed ? 200 : 201 },
   );
 }
