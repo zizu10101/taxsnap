@@ -136,6 +136,12 @@ export interface Database {
           created_at: string;
           // 0056: SHA-256 of the original scanned file (64 hex), the only thing kept of it.
           file_sha256?: string | null;
+          // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
+          // scanned or typed receipt, and a statement line that needs one). Optional until applied.
+          tax_rate?: number | null;
+          itc_pct?: number | null;
+          deductible_pct?: number | null;
+          tax_source?: TaxSourceName | null;
         };
         Insert: {
           id?: string;
@@ -156,6 +162,12 @@ export interface Database {
           receipt_attached_at?: string | null;
           created_at?: string;
           file_sha256?: string | null;
+          // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
+          // scanned or typed receipt, and a statement line that needs one). Optional until applied.
+          tax_rate?: number | null;
+          itc_pct?: number | null;
+          deductible_pct?: number | null;
+          tax_source?: TaxSourceName | null;
         };
         Update: {
           id?: string;
@@ -176,6 +188,12 @@ export interface Database {
           receipt_attached_at?: string | null;
           created_at?: string;
           file_sha256?: string | null;
+          // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
+          // scanned or typed receipt, and a statement line that needs one). Optional until applied.
+          tax_rate?: number | null;
+          itc_pct?: number | null;
+          deductible_pct?: number | null;
+          tax_source?: TaxSourceName | null;
         };
         Relationships: [
           {
@@ -1592,6 +1610,11 @@ export interface Database {
           matched_receipt_id: string | null;
           created_receipt_id: string | null;
           committed: boolean;
+          // 0057 (tax codes): the owner's pick for the line, and the resolved code once saved.
+          tax_rate?: number | null;
+          itc_pct?: number | null;
+          deductible_pct?: number | null;
+          tax_source?: TaxSourceName | null;
         };
         Insert: never;
         // Service-role only (the owner has SELECT, nothing else): the review
@@ -1820,6 +1843,8 @@ export interface Database {
 }
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+export type TaxSourceName = "line" | "rule" | "foreign_currency" | "category" | "kind";
+
 export type Receipt = Database["public"]["Tables"]["receipts"]["Row"];
 export type Client = Database["public"]["Tables"]["clients"]["Row"];
 export type ClientUpdate = Database["public"]["Tables"]["clients"]["Update"];
