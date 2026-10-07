@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteStatementDialog } from "@/components/dashboard/delete-statement-dialog";
-import { formatDay, formatMoney } from "@/components/dashboard/statement-review-line";
+import { formatDay, formatMoney, formatSavedDate } from "@/lib/statement-format";
 import { expenseHref } from "@/lib/statement-routes";
 import type { DetailLine, StatementDetail } from "@/lib/statement-groups-server";
 import type { LineOutcome } from "@/lib/statement-summary";
@@ -79,7 +79,7 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
               {detail.period_start && detail.period_end
                 ? `${formatDay(detail.period_start)} to ${formatDay(detail.period_end)} · `
                 : ""}
-              saved {formatDay(detail.saved_at.slice(0, 10))}
+              saved {formatSavedDate(detail.saved_at)}
             </p>
           </div>
           {!detail.deleted && (

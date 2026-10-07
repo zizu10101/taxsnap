@@ -2,20 +2,11 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDay } from "@/components/dashboard/statement-review-line";
+import { formatDay, formatSavedDate } from "@/lib/statement-format";
 import { statementHref } from "@/lib/statement-routes";
 import type { StatementListItem } from "@/lib/statement-groups-server";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-function savedOn(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "America/Toronto",
-  });
-}
 
 // Every saved statement: its card, period, when it was saved, what it created / matched / skipped,
 // and whether it reconciled. A server component with plain links, so it can move under another tab
@@ -48,7 +39,7 @@ export function StatementsList({ items }: { items: StatementListItem[] }) {
                       {s.period_start && s.period_end
                         ? `${formatDay(s.period_start)} to ${formatDay(s.period_end)} · `
                         : ""}
-                      saved {savedOn(s.saved_at)}
+                      saved {formatSavedDate(s.saved_at)}
                     </p>
                     <p className="text-xs">
                       {plural(summary.created, "expense")} created

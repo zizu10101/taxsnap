@@ -26,6 +26,7 @@ import { useBankAccounts } from "@/components/owner-lists-provider";
 import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { LINE_KINDS } from "@/lib/statement-lines";
 import { cleanMerchantName } from "@/lib/merchant-name";
+import { formatDay, formatMoney } from "@/lib/statement-format";
 import { lineTax } from "@/lib/statement-tax";
 import {
   buildCategoryDefaults,
@@ -40,18 +41,6 @@ import type { ReviewLineData } from "@/lib/statement-review-data";
 import type { StatementLineKind } from "@/lib/database.types";
 
 export type PatchFn = (ids: string[], patch: Record<string, unknown>) => Promise<boolean>;
-
-export function formatMoney(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
-}
-
-export function formatDay(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 const KIND_LABELS: Record<StatementLineKind, string> = {
   purchase: "Purchase",

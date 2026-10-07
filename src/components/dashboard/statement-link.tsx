@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileText } from "lucide-react";
-import { formatDay } from "@/components/dashboard/statement-review-line";
+import { formatDay } from "@/lib/statement-format";
 import { statementHref } from "@/lib/statement-routes";
 import type { StatementForReceipt } from "@/lib/statement-groups-server";
 

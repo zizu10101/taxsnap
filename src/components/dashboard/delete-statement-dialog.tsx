@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatDay, formatMoney } from "@/components/dashboard/statement-review-line";
+import { formatDay, formatMoney } from "@/lib/statement-format";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
 import type { DeleteExpectation } from "@/lib/statement-delete";
 import type { DeletePreview } from "@/lib/statement-groups-server";

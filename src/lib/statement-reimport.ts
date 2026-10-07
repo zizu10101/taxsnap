@@ -1,6 +1,7 @@
 // The refusal shown when the same statement file is uploaded again ("ALREADY_IMPORTED"), and what a
 // re-import would do. Pure, so the wording and the "when is Re-import offered" rule are unit-tested.
 
+import { formatSavedDate } from "./statement-format.ts";
 import { summarizeLines, type ImportSummary, type SummaryLine } from "./statement-summary.ts";
 
 export interface AlreadyImportedInfo {
@@ -15,15 +16,8 @@ export interface AlreadyImportedInfo {
   cap: { used: number; cap: number | null };
 }
 
-export function dayLabel(iso: string): string {
-  // Toronto's calendar day, in words ("Oct 7, 2026"), so it matches what the owner sees elsewhere.
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "America/Toronto",
-  });
-}
+// Toronto's calendar day, in words ("Oct 7, 2026"), so it matches what the owner sees elsewhere.
+export const dayLabel = formatSavedDate;
 
 export function alreadyImportedInfo(
   importId: string,

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { LineRow, formatDay, formatMoney, type PatchFn } from "@/components/dashboard/statement-review-line";
+import { LineRow, type PatchFn } from "@/components/dashboard/statement-review-line";
+import { formatDay, formatMoney } from "@/lib/statement-format";
 import { useBankAccounts } from "@/components/owner-lists-provider";
 import {
   finalizeImport,
