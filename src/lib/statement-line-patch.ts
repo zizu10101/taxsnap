@@ -7,11 +7,17 @@ import {
   round2,
 } from "./statement-lines.ts";
 import { resolveStatementCategory } from "./statement-categories.ts";
+import { isTaxCodeKey, TAX_CODES, type TaxCodeKey, type TaxSource } from "./tax-codes.ts";
 
 // Turns one review-screen edit into a validated database update for one line.
 // All the rules the constraints in 0052 enforce are checked here first so the
 // user gets a plain-English reason instead of a database error, and so the rules
-// (refund sign, HST only on refunds, who can be matched) are unit-tested.
+// (refund sign, a typed HST figure only on refunds, who can be matched) are unit-tested.
+//
+// Tax: the only tax things stored on a draft line are the owner's OWN choices - a tax code picked on
+// the line (tax_source 'line'), or a refund's HST typed from the slip. Everything else is derived
+// (statement-tax.ts), so a category or type change can never strand a stale figure. A code and a
+// typed figure are exclusive: picking one clears the other.
 
 export interface LineState {
   kind: StatementLineKind;
@@ -22,6 +28,7 @@ export interface LineState {
   duplicate_of_line_id: string | null;
   duplicate_override: boolean;
   tax_amount: number;
+  tax_source?: TaxSource | null;
 }
 
 export interface LinePatch {
@@ -33,6 +40,8 @@ export interface LinePatch {
   paid_with_account_id?: string | null;
   /** A refund's HST as a positive number ("HST refunded"); stored as a credit. */
   tax_amount?: number;
+  /** Pick a tax code for this line; null clears the pick (back to the automatic code). */
+  tax_code?: TaxCodeKey | null;
   duplicate_override?: boolean;
   description?: string;
   txn_date?: string;
@@ -47,6 +56,10 @@ export type LineUpdate = Partial<{
   category_confirmed: boolean;
   paid_with_account_id: string | null;
   tax_amount: number;
+  tax_rate: number | null;
+  itc_pct: number | null;
+  deductible_pct: number | null;
+  tax_source: TaxSource | null;
   duplicate_override: boolean;
   description: string;
   txn_date: string;
@@ -191,16 +204,45 @@ export function buildLineUpdate(
     checkAccountId = patch.paid_with_account_id || null;
   }
 
+  // --- tax code: the owner's pick for this line ---------------------------------
+  if (patch.tax_code !== undefined) {
+    if (patch.tax_code !== null && !isTaxCodeKey(patch.tax_code)) return fail("Unknown tax code.");
+    if (patch.tax_amount !== undefined && patch.tax_amount !== 0 && patch.tax_code !== null) {
+      return fail("Choose a tax code or type the HST figure, not both.");
+    }
+    if (patch.tax_code === null) {
+      update.tax_rate = null;
+      update.itc_pct = null;
+      update.deductible_pct = null;
+      update.tax_source = null;
+    } else {
+      const code = TAX_CODES[patch.tax_code];
+      update.tax_rate = code.tax_rate;
+      update.itc_pct = code.itc_pct;
+      update.deductible_pct = code.deductible_pct;
+      update.tax_source = "line";
+    }
+    // A code calculates the tax itself: any figure typed earlier no longer applies.
+    if (line.tax_amount !== 0) update.tax_amount = 0;
+  }
+
   // --- HST: only ever on a refund, only ever typed by the user ------------------
   if (patch.tax_amount !== undefined) {
     if (kind !== "refund") {
-      return fail("HST can only be entered on a refund. Purchases saved without a receipt never get an HST estimate.");
+      return fail("An HST figure can only be typed on a refund. For a purchase, choose a tax code.");
     }
     const entered = Math.abs(Number(patch.tax_amount));
     if (!Number.isFinite(entered)) return fail("Enter the HST as a number.");
     if (entered > Math.abs(amount)) return fail("The HST can't be more than the refund itself.");
     update.tax_amount = entered === 0 ? 0 : -round2(entered);
-  } else if (line.tax_amount !== 0 && (kind !== "refund" || (patch.amount !== undefined && Math.abs(line.tax_amount) > Math.abs(amount)))) {
+    if (entered !== 0 && patch.tax_code === undefined && line.tax_source) {
+      // A typed figure replaces any code on the line (the two are exclusive).
+      update.tax_rate = null;
+      update.itc_pct = null;
+      update.deductible_pct = null;
+      update.tax_source = null;
+    }
+  } else if (patch.tax_code === undefined && line.tax_amount !== 0 && (kind !== "refund" || (patch.amount !== undefined && Math.abs(line.tax_amount) > Math.abs(amount)))) {
     // The HST no longer fits this line (type or amount changed).
     update.tax_amount = 0;
   }
