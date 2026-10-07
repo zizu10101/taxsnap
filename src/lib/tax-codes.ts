@@ -204,6 +204,14 @@ export function needsTaxCode(row: Pick<TaxedRow, "from_statement" | "no_receipt"
   return isCalculated(row) && row.tax_rate == null && row.tax_amount === 0;
 }
 
+// The input tax credit this expense contributes: its tax times its claim share (its own code's, else
+// the category's). Rounded to the cent with round2 - the very function the HST helper (Line 106) and
+// the expense summary round their totals with - so for any one expense the drawer, Line 106 and the
+// Overview's "Est. HST reclaimable" show the same number to the cent (a half cent rounds up).
+export function claimableItc(row: Pick<TaxedRow, "tax_amount" | "tax_category" | "itc_pct" | "deductible_pct">): number {
+  return round2(Number(row.tax_amount) * itcPct(row));
+}
+
 export type TaxBasis = "calculated" | "confirmed";
 export const taxBasis = (row: Pick<TaxedRow, "from_statement" | "no_receipt">): TaxBasis =>
   isCalculated(row) ? "calculated" : "confirmed";

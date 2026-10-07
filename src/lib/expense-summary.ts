@@ -4,6 +4,7 @@ import {
   itcPct,
   MEALS_ITC_RESTRICTION_RATE,
   needsTaxCode,
+  round2,
   type TaxedRow,
 } from "./tax-codes.ts";
 
@@ -39,10 +40,6 @@ export interface ExpenseSummary {
   /** Statement expenses with no receipt and no tax code: nothing was calculated for them. */
   needsTaxCodeCount: number;
   nonDeductibleSpend: number;
-}
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 // Meals & entertainment gets the same 50% restriction already established

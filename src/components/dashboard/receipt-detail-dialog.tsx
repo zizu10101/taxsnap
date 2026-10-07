@@ -35,6 +35,7 @@ import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge"
 import { accountDisplayName } from "@/lib/accounts";
 import {
   calculateTax,
+  claimableItc,
   codeFromRow,
   codeKeyOf,
   isCalculated,
@@ -353,6 +354,18 @@ function ReceiptSummaryContent({
                   ? "The sales tax is calculated from the total and this code when you save. Scanning the receipt later replaces it with the actual figure."
                   : "No receipt yet, so the tax is calculated. Pick a code to recalculate it; scanning the receipt later replaces it with the actual figure."}
               </p>
+              {taxPick !== NO_CODE && (
+                <p className="text-sm font-medium tabular-nums">
+                  Claimable ITC:{" "}
+                  {formatCurrency(
+                    claimableItc({
+                      tax_amount: form.tax_amount,
+                      tax_category: form.tax_category,
+                      itc_pct: TAX_CODES[taxPick as TaxCodeKey].itc_pct,
+                    }),
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -564,12 +577,19 @@ function ReceiptSummaryContent({
               {calculated && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Tax code</span>
-                  <span className={currentCodeKey === NO_CODE && receipt.tax_amount === 0 ? "text-destructive" : ""}>
+                  <span className={`text-right ${currentCodeKey === NO_CODE && receipt.tax_amount === 0 ? "text-destructive" : ""}`}>
                     {currentCodeKey !== NO_CODE
                       ? TAX_CODE_LABELS[currentCodeKey as TaxCodeKey]
                       : receipt.tax_amount === 0
                         ? "None - needs a tax code"
                         : "Typed from your slip"}
+                    {/* The ITC this expense adds: its tax times the code's claim share, to the cent -
+                        the same figure Line 106 and the Overview count for it. */}
+                    {currentCodeKey !== NO_CODE && (
+                      <span className="block text-xs font-medium tabular-nums text-foreground">
+                        Claimable ITC: {formatCurrency(claimableItc(receipt))}
+                      </span>
+                    )}
                   </span>
                 </div>
               )}

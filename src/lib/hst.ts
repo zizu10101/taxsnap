@@ -19,7 +19,7 @@
 // restricted to 50% by the Excise Tax Act, mirroring the income tax treatment.
 export { MEALS_ITC_RESTRICTION_RATE, ONTARIO_HST_RATE } from "./tax-codes.ts";
 
-import { isCalculated, itcPct, needsTaxCode, ONTARIO_HST_RATE, type TaxedRow } from "./tax-codes.ts";
+import { isCalculated, itcPct, needsTaxCode, ONTARIO_HST_RATE, round2, type TaxedRow } from "./tax-codes.ts";
 
 export interface HSTReturnLines {
   /** Line 101 - Total sales and other revenue for the period. */
@@ -46,10 +46,6 @@ export interface PaidInvoiceInput {
   subtotal: number;
   /** HST already calculated and collected on that invoice at issue time. */
   hst_amount: number;
-}
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 export function calculateHSTReturn(
