@@ -164,8 +164,12 @@ export function matchRows(targets: MatchRow[], pool: MatchRow[]): MatchResult {
       const c = between(t, p);
       if (!c) continue;
       (byTarget.get(t.row.id) ?? byTarget.set(t.row.id, []).get(t.row.id)!).push(c);
-      // The same pairing seen from the pool row's side.
-      const back = between(p, t)!;
+      // The same pairing seen from the pool row's side. A "near" match is NOT symmetric (its amount
+      // tolerance is 5% of the TARGET's amount), so $100.00 can loosely match a $95.20 receipt while
+      // $95.20 doesn't loosely match $100.00 - between(p, t) is then null. The pairing still exists, so
+      // the pool row's view keeps it (same kind and distances): it counts as a rival candidate, exactly
+      // as in the symmetric case. (Assuming it was never null made two lines near one receipt throw.)
+      const back = between(p, t) ?? { ...c, id: t.row.id };
       (byPool.get(p.row.id) ?? byPool.set(p.row.id, []).get(p.row.id)!).push(back);
     }
   }

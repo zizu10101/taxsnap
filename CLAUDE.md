@@ -1103,10 +1103,11 @@ token cost is measured (`statement_imports` records input/output tokens per impo
 - **The review page's re-match** (`loadStatementReview` -> `candidatesForLines`) runs on the first paint
   AND after every edit. Profiled: the cost is ~4 sequential round trips plus a `select *` of the receipts
   in the lines' date window +/-31 days; the pure matcher is ~0.2 ms on real data and ~49 ms at 500 lines x
-  5,000 receipts. KNOWN LATENT BUG (not fixed): `matchRows` assumes a near match is symmetric
-  (`between(p, t)!`), but the amount tolerance uses the *target's* amount, so two lines that both
-  near-match one receipt (e.g. $100.00 and $100.00 vs a $95.20 receipt) push a `null` and the sort throws
-  `TypeError: ... reading 'kind'`.
+  5,000 receipts. A "near" match is NOT symmetric (its amount tolerance is 5% of the *target's* amount:
+  $100.00 loosely matches a $95.20 receipt, $95.20 does not loosely match $100.00). `matchRows` used to assume
+  it was (`between(p, t)!`), so two lines near one receipt pushed a `null` and the sort threw `TypeError:
+  ... reading 'kind'`, breaking the review page and finalize; the pool row's view now keeps the pairing
+  (same kind and distances) as a rival candidate. Fixed, with a test of exactly that case.
 - A daily Vercel Cron (`vercel.json`) purges drafts untouched for 14 days via
   `purge_stale_statement_drafts` (lines deleted, a tombstone row kept so the cap and
   cost audit still count it). The route needs `CRON_SECRET` and refuses without it.
