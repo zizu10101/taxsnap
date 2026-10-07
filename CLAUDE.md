@@ -508,8 +508,9 @@ everything else 100% - for any row with no code, so every receipt from before th
     refuses (409 `STALE_PREVIEW`) unless every row is STILL a calculated row in exactly that state - recomputing
     the new tax server-side, never trusting the request. Undo restores only rows still exactly as apply left
     them (one edited or given a receipt since is left alone).
-- Until 0057 is applied the code degrades: the Overview and bulk queries retry without the new columns, and
-  materialize writes nothing.
+- 0057 is applied everywhere, so the temporary "retry without the new columns" fallbacks (bulk, Overview,
+  materialize, and the 0055 `system_key` one) are gone; `statement-groups-static.test.ts` fails if a
+  `42703` special case comes back. Migrations are applied BEFORE the code that needs them ships.
 
 ## Tax logic
 
@@ -1094,6 +1095,48 @@ token cost is measured (`statement_imports` records input/output tokens per impo
   `statement-import-db.test.ts` create and delete throwaway auth users, run only with
   `RUN_DB_ISOLATION_TEST=1` (see each file's header), and the 0053 cases skip until that
   migration is applied.
+
+## Saved statements: the Statements list, Delete statement and Re-import
+
+Migration `0058_statement_line_release.sql` (+ rollback; cost of goods is now 0059) adds
+`statement_lines.released_at` / `released_from` and REPLACES the 0053 trigger
+`release_statement_lines_on_receipt_delete()` (the original body plus those two assignments). Before it, deleting
+an expense freed its line by rewriting it to `skipped`, ERASING what it was; now the line remembers
+(`released_from` 'new_expense' or 'matched'), so a saved statement's created/matched/skipped counts stay true after
+deletes. Lines freed before 0058 stay "not saved" (history already gone) - no backfill is guessed.
+
+- **Where it lives:** `/dashboard/expenses/statements` (list; `?deleted=1` shows deleted ones) and
+  `/dashboard/expenses/statements/[id]` (the same route as the draft review: a draft is the review screen, a
+  saved or deleted import is the read-only detail). Reached from a "Statements" button on Expenses - NOT a new
+  nav tab. **Every href comes from `lib/statement-routes.ts`**, and the UI is route-agnostic, so the Bank tab can
+  take it over by changing that one file. All of it is behind `STATEMENT_IMPORT_USER_IDS`
+  (`requireStatementUser` / `getStatementPageCtx`) and nothing is in the accountant portal
+  (`statement-groups-static.test.ts` asserts both).
+- **Outcomes** (`statement-summary.ts`, pure): new_expense, matched, expense_deleted, match_removed, excluded,
+  payment. *Free* lines (what a re-import could bring back) = excluded + expense_deleted + match_removed;
+  **payments are never free**. The reconcile label comes from `reconcile_diff`: 0 = "Reconciled"; an accepted
+  difference = "Difference acknowledged ($x)" and is NEVER called reconciled.
+- **Delete statement** (`statement-delete.ts` + `statement-groups-server.ts`, `POST /api/statements/[id]/delete`):
+  always a preview first, never automatic. Deletes the statement's expenses with NO receipt attached; frees the
+  line of a matched receipt (the receipt is never deleted); marks the import `discarded` LAST so the same file can
+  be uploaded again. **An expense that has a receipt attached stays AND its line stays linked to it on
+  purpose**: statement-created expenses aren't import match candidates, so freeing that line would let a
+  re-import create a second expense for the same charge. (If that expense is deleted later, the trigger frees
+  the line then.) Apply sends back what the preview showed; if anything changed (a receipt attached, an expense
+  deleted by hand) nothing is written (409 `STALE_PREVIEW`, fresh counts), and each delete is also guarded on
+  `no_receipt = true`. The steps are idempotent, so a half-finished run is just run again. Deleted statements are
+  hidden behind "Show deleted"; their lines stay as history.
+- **ALREADY_IMPORTED + Re-import:** the refusal now carries the saved import's date, how many of its expenses
+  still exist, what a re-import would bring back ("N lines you excluded and N lines whose expense was
+  deleted"), the cap and a link to Statements (`alreadyImportedFor`). **Re-import** is offered only when at least
+  one line is free: `POST /api/statements` with `reimport_of` validates it against what is saved, checks the cap,
+  retires the old import (committed -> discarded) and starts a fresh draft in one request; if starting fails the
+  old import is put back. **It is charged like any import** (it reads the statement again): the retired import
+  still counts, so with the provisional caps one re-import in the same month uses 2 slots. Line fingerprints keep
+  protecting every line whose expense still exists. `torontoMonthStart()` makes the app's usage count match the
+  database's.
+- The expense drawer shows "From statement: TD, Jan 6 to Feb 5 - View" (`StatementLink`,
+  `GET /api/statements/for-receipt/[receiptId]`), or "From a deleted statement".
 
 ## Auth
 

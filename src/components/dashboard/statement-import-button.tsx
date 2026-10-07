@@ -35,6 +35,14 @@ import {
   type PreparedStatement,
 } from "@/lib/statement-client";
 import { STATEMENT_MAX_FILE_BYTES, STATEMENT_MAX_PAGES } from "@/lib/statement-config";
+import {
+  alreadyImportedMessage,
+  capAllowsReimport,
+  capNote,
+  reimportBringsBack,
+  type AlreadyImportedInfo,
+} from "@/lib/statement-reimport";
+import { STATEMENTS_HREF } from "@/lib/statement-routes";
 
 type Phase = "idle" | "preparing" | "reading" | "partial" | "finalizing";
 
@@ -60,6 +68,8 @@ export function StatementImportButton() {
   const [files, setFiles] = useState<File[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  // Set when this exact file was already saved: shows what exists and offers Re-import.
+  const [alreadyImported, setAlreadyImported] = useState<AlreadyImportedInfo | null>(null);
   const [plan, setPlan] = useState<ChunkPlanRow[]>([]);
   const [states, setStates] = useState<Record<number, ChunkRunState>>({});
   const preparedRef = useRef<PreparedStatement | null>(null);
@@ -74,6 +84,7 @@ export function StatementImportButton() {
     setFiles([]);
     setPhase("idle");
     setError(null);
+    setAlreadyImported(null);
     setPlan([]);
     setStates({});
     preparedRef.current = null;
@@ -122,21 +133,28 @@ export function StatementImportButton() {
     return err instanceof Error ? err.message : "Something went wrong.";
   }
 
-  async function handleStart() {
+  async function handleStart(reimportOf?: string) {
     if (!effectiveCardId || files.length === 0) return;
     setError(null);
+    setAlreadyImported(null);
     setPhase("preparing");
     try {
       const prepared = await prepareStatement(files);
       preparedRef.current = prepared;
-      const started = await startImport(effectiveCardId, prepared);
+      const started = await startImport(effectiveCardId, prepared, { reimportOf });
       importIdRef.current = started.importId;
       if (started.resumed) toast.info("Picking up your earlier import of this file.");
       setPlan(started.chunks);
       setStates({});
       await read(started.importId, started.chunks, prepared);
     } catch (err) {
-      setError(describe(err));
+      const info = err instanceof StatementApiError ? (err.details?.already_imported as AlreadyImportedInfo | undefined) : undefined;
+      if (err instanceof StatementApiError && err.code === "ALREADY_IMPORTED" && info) {
+        // Not a dead end: say what exists, link to it, and offer Re-import when there is something to bring back.
+        setAlreadyImported(info);
+      } else {
+        setError(describe(err));
+      }
       setPhase("idle");
     }
   }
@@ -228,7 +246,10 @@ export function StatementImportButton() {
                   multiple
                   accept="application/pdf,image/*"
                   className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-muted file:px-3 file:py-1.5 file:text-sm"
-                  onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                  onChange={(e) => {
+                    setFiles(Array.from(e.target.files ?? []));
+                    setAlreadyImported(null);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
                   A PDF (up to {Math.round(STATEMENT_MAX_FILE_BYTES / 1024 / 1024)} MB and{" "}
@@ -289,15 +310,49 @@ export function StatementImportButton() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          {alreadyImported && phase === "idle" && (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium">{alreadyImportedMessage(alreadyImported)}</p>
+              {alreadyImported.can_reimport ? (
+                <>
+                  <p className="text-xs text-muted-foreground">{reimportBringsBack(alreadyImported.free)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Lines whose expense still exists stay protected: they come up as &quot;Already
+                    imported&quot;, so nothing is added twice.
+                  </p>
+                  <p className="text-xs text-muted-foreground">{capNote(alreadyImported.cap)}</p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Every line that could be an expense still has one, so there is nothing to bring back.
+                </p>
+              )}
+              <p className="text-xs">
+                <Link href={STATEMENTS_HREF} className="text-primary underline underline-offset-2">
+                  View your statements
+                </Link>
+              </p>
+            </div>
+          )}
+
           <DialogFooter>
             {phase === "idle" && (
               <>
                 <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleStart} disabled={!effectiveCardId || files.length === 0}>
-                  Read statement
-                </Button>
+                {alreadyImported?.can_reimport ? (
+                  <Button
+                    onClick={() => handleStart(alreadyImported.import_id)}
+                    disabled={!effectiveCardId || files.length === 0 || !capAllowsReimport(alreadyImported.cap)}
+                  >
+                    Re-import this statement
+                  </Button>
+                ) : (
+                  <Button onClick={() => handleStart()} disabled={!effectiveCardId || files.length === 0 || !!alreadyImported}>
+                    Read statement
+                  </Button>
+                )}
               </>
             )}
             {phase === "partial" && (

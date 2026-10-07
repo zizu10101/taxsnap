@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { FileText, Plus, Repeat } from "lucide-react";
+import { FileText, Files, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
@@ -19,6 +19,7 @@ import { CategoryFilter } from "@/components/dashboard/category-filter";
 import { BulkCategoryControls } from "@/components/dashboard/bulk-category-controls";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { BULK_CATEGORY_MAX } from "@/lib/bulk-category";
+import { STATEMENTS_HREF } from "@/lib/statement-routes";
 import {
   describeRange,
   filterByRange,
@@ -210,6 +211,12 @@ export function ExpensesBody({
             <Repeat className="h-4 w-4" />
             From Template
           </Button>
+          {statementImportEnabled && (
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={STATEMENTS_HREF} />}>
+              <Files className="h-4 w-4" />
+              Statements
+            </Button>
+          )}
           {statementImportEnabled && <StatementImportButton />}
           <UploadReceipt
             variant="compact"
@@ -342,6 +349,7 @@ export function ExpensesBody({
         onOpenChange={(open) => !open && setSelectedReceipt(null)}
         onDeleted={handleDeleted}
         onUpdated={handleUpdated}
+        statementImportEnabled={statementImportEnabled}
       />
 
       <ManualExpenseDialog
