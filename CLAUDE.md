@@ -424,6 +424,37 @@ old receipts simply have no hash).
   this more specific message. The attach route also stores `file_sha256`, so re-scanning an
   attached file is caught by the exact-file check as well.
 
+## Bulk change category (Expenses)
+
+Tick rows on the Expenses page (per-list header boxes, "Select all N in this view", capped at 500) and
+"Change category...". `ReceiptsList` takes an optional `selection` prop (absent = unchanged, which is how
+Overview uses it); the selection lives in `ExpensesBody` and is cleared whenever a filter changes. The page
+gained a category filter (`CategoryFilter`, same shape as `JobFilter`, also lists a category an expense still
+carries but that is no longer offered).
+
+- **It writes ONE column: `receipts.tax_category`.** Never `tax_amount`, never a vendor rule, never
+  `statement_lines` history. The single-expense `PATCH /api/receipts/[id]` rewrites the whole form (incl.
+  tax) and collapses unknown categories to "Other", so it can't be reused; `POST /api/receipts/bulk-category`
+  (rules in `lib/bulk-category-server.ts`, `handleBulkCategory(db, userId, body)` so it is testable as a real
+  signed-in user) has three modes: **preview** (a dry run through the same `planBulkCategory` the apply
+  uses), **apply** and **undo**.
+- **Frozen at preview.** Apply sends back exactly the preview's `changes: [{id, from}]`; every row must still
+  be in its `from` category or NOTHING is written (409 `STALE_PREVIEW`; a post-write count check is a second
+  layer that reverts what moved). Unknown categories are refused (`resolveExistingCategory`, never "Other");
+  a target must be built-in or the owner's ACTIVE custom category.
+- **Why Meals gets its own confirmation:** `tax_amount` isn't touched, but `deductibleRate()` gives Meals 50%
+  and everything else 100%, so moving $65 of HST into/out of Meals changes the ESTIMATED reclaimable HST by
+  $32.50. The preview shows before->after for reclaimable HST and deductible spend, and the server refuses
+  (400 `MEALS_CONFIRM_REQUIRED`) unless `confirm_meals === true`.
+- **Undo is session-only** (a strip on the page; a reload drops it). It only restores rows still in the
+  category they were moved to - one edited since is left alone and reported.
+- **When tax codes arrive** (the statement tax-codes scope), a recategorize of a *calculated* statement
+  expense must recompute its tax through the same function and must never touch a *confirmed* one. Today
+  that is moot - no calculated rows exist, and bulk deliberately leaves `tax_amount` alone.
+- Tests: `bulk-category.test.ts` (pure: Meals maths, skip counts, id validation) and
+  `bulk-category-db.test.ts` (real DB, `RUN_DB_ISOLATION_TEST=1`: only `tax_category` changes, other
+  owner untouchable, 500 cap, stale, Meals confirm, undo, no rules learned).
+
 ## Tax logic
 
 `src/lib/hst.ts` computes a **planning estimate**, not a filing-ready
