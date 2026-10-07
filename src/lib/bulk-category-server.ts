@@ -49,23 +49,19 @@ const fail = (status: number, error: string, code?: string): BulkResult => ({
   body: { error, ...(code && { code }) },
 });
 
-const FULL_COLUMNS =
+const COLUMNS =
   "id, tax_category, total_amount, tax_amount, from_statement, no_receipt, tax_rate, itc_pct, deductible_pct, tax_source";
-const BASIC_COLUMNS = "id, tax_category, total_amount, tax_amount, from_statement, no_receipt";
 
 async function loadRows(db: Db, userId: string, ids: string[]): Promise<BulkRow[]> {
   const rows: BulkRow[] = [];
-  let columns = FULL_COLUMNS;
   for (let i = 0; i < ids.length; i += SLICE) {
-    const slice = ids.slice(i, i + SLICE);
-    let res = await db.from("receipts").select(columns).eq("user_id", userId).in("id", slice);
-    if (res.error?.code === "42703" && columns === FULL_COLUMNS) {
-      // 0057 (tax codes) isn't applied yet: no row has a code, so only the category moves.
-      columns = BASIC_COLUMNS;
-      res = await db.from("receipts").select(columns).eq("user_id", userId).in("id", slice);
-    }
-    if (res.error) throw new Error(res.error.message);
-    rows.push(...((res.data ?? []) as unknown as BulkRow[]));
+    const { data, error } = await db
+      .from("receipts")
+      .select(COLUMNS)
+      .eq("user_id", userId)
+      .in("id", ids.slice(i, i + SLICE));
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as unknown as BulkRow[]));
   }
   return rows;
 }

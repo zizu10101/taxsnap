@@ -12,25 +12,15 @@ import {
 // statement is about to use it. Relative imports only, so the database test can run
 // this exact code. `client` is the caller's own session in the app (RLS scopes it).
 
-// 42703 = "column does not exist": migration 0055 (system_key) isn't applied yet, so
-// fall back to the name-only behaviour rather than failing.
-function isMissingColumn(error: { code?: string } | null): boolean {
-  return error?.code === "42703";
-}
-
 export async function loadCategoryRows(
   client: SupabaseClient<Database>,
   userId: string,
 ): Promise<CategoryRow[]> {
-  const withKey = await client
+  const { data, error } = await client
     .from("expense_categories")
     .select("name, is_active, system_key")
     .eq("user_id", userId);
-  if (!withKey.error) return (withKey.data ?? []) as CategoryRow[];
-  if (!isMissingColumn(withKey.error)) return [];
-
-  const plain = await client.from("expense_categories").select("name, is_active").eq("user_id", userId);
-  return (plain.data ?? []) as CategoryRow[];
+  return error ? [] : ((data ?? []) as CategoryRow[]);
 }
 
 export type EnsureOutcome = "created" | "keyed" | "none";
@@ -49,12 +39,9 @@ export async function ensureBankChargesCategory(
   const used = (name: string) => usedCategories.some((c) => c?.trim().toLowerCase() === name.trim().toLowerCase());
 
   if (state.state === "virtual" && used(state.name)) {
-    let { error } = await client
+    const { error } = await client
       .from("expense_categories")
       .insert({ user_id: userId, name: state.name, system_key: BANK_CHARGES_KEY });
-    if (isMissingColumn(error)) {
-      ({ error } = await client.from("expense_categories").insert({ user_id: userId, name: state.name }));
-    }
     // 23505: it appeared in the meantime (another tab saving at the same moment) - fine.
     if (error && error.code !== "23505") throw error;
     return { outcome: "created", state };
@@ -66,7 +53,7 @@ export async function ensureBankChargesCategory(
       .update({ system_key: BANK_CHARGES_KEY })
       .eq("user_id", userId)
       .ilike("name", state.name.trim());
-    if (error && !isMissingColumn(error) && error.code !== "23505") throw error;
+    if (error && error.code !== "23505") throw error;
     return { outcome: error ? "none" : "keyed", state };
   }
 

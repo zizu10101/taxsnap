@@ -10,8 +10,7 @@ import { buildCategoryDefaults } from "./tax-codes.ts";
 // this user and this import. Relative imports only, so the database test runs this exact code.
 //
 // Returns how many lines were written (0 when nothing differed, e.g. a retry after a failed
-// commit). If 0057 isn't applied yet the columns don't exist: nothing is written and the commit
-// carries on exactly as it did before tax codes.
+// commit).
 
 type Db = SupabaseClient<Database>;
 
@@ -30,10 +29,7 @@ export async function materializeStatementTaxes(
     .select(COLUMNS)
     .eq("import_id", importId)
     .eq("user_id", userId);
-  if (error) {
-    if (error.code === "42703") return 0; // 0057 not applied yet
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const lines = (data ?? []) as unknown as (TaxLineInput & { id: string; resolution: string | null })[];
   const writes = taxWritesFor(lines, buildCategoryDefaults({ bankChargesName }));
