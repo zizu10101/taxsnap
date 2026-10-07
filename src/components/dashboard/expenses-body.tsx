@@ -316,6 +316,15 @@ export function ExpensesBody({
           );
           setSelected(new Set());
         }}
+        onTaxCodeSet={({ retaxed }) => {
+          const newTax = new Map(retaxed.map((t) => [t.id, t.patch]));
+          setReceipts((prev) => prev.map((r) => (newTax.has(r.id) ? { ...r, ...newTax.get(r.id)! } : r)));
+          setSelected(new Set());
+        }}
+        onTaxCodeRestored={(rows) => {
+          const back = new Map(rows.map((r) => [r.id, r.tax]));
+          setReceipts((prev) => prev.map((r) => (back.has(r.id) ? { ...r, ...back.get(r.id)! } : r)));
+        }}
         onRestored={(rows) => {
           const back = new Map(rows.map((r) => [r.id, r]));
           setReceipts((prev) =>

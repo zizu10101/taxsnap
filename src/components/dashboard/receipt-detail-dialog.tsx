@@ -33,6 +33,16 @@ import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-l
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { accountDisplayName } from "@/lib/accounts";
+import {
+  calculateTax,
+  codeFromRow,
+  codeKeyOf,
+  isCalculated,
+  TAX_CODES,
+  TAX_CODE_KEYS,
+  TAX_CODE_LABELS,
+  type TaxCodeKey,
+} from "@/lib/tax-codes";
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 
@@ -82,6 +92,9 @@ interface EditForm {
   paid_with_account_id: string;
 }
 
+// The tax-code picker's "no code" choice: no tax is calculated and the expense needs a code again.
+const NO_CODE = "__none__";
+
 function toForm(receipt: Receipt): EditForm {
   const items = itemsOf(receipt);
   return {
@@ -114,6 +127,21 @@ function ReceiptSummaryContent({
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
   const categoryOptions = useExpenseCategoryOptions(form.tax_category);
+  // A tax code can be applied after saving, but ONLY to a statement expense with no receipt attached
+  // (its tax is calculated). Anything with a receipt, or entered by the owner, has a confirmed figure.
+  const calculated = isCalculated(receipt);
+  const currentCodeKey: string = codeKeyOf(codeFromRow(receipt)) ?? NO_CODE;
+  const [taxPick, setTaxPick] = useState<string>(currentCodeKey);
+  const taxPickDirty = calculated && taxPick !== currentCodeKey;
+  const taxItems = useMemo(() => {
+    const map: Record<string, string> = { [NO_CODE]: "No code (needs a tax code)" };
+    for (const k of TAX_CODE_KEYS) map[k] = TAX_CODE_LABELS[k];
+    return map;
+  }, []);
+  // The tax the picked code gives at this total (shown live; the server recalculates on save).
+  function taxFor(pick: string, total: number): number {
+    return pick === NO_CODE ? 0 : calculateTax(total, TAX_CODES[pick as TaxCodeKey]);
+  }
   const bankAccounts = useBankAccounts();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -168,6 +196,9 @@ function ReceiptSummaryContent({
           items: form.items.filter((i) => i.name.trim()),
           job_name: form.job_name,
           paid_with_account_id: form.paid_with_account_id,
+          // Only when the owner changed the picker: the server recalculates the tax and marks the code
+          // as their own pick. Left out otherwise, so saving other edits never touches the tax code.
+          ...(taxPickDirty && { tax_code: taxPick === NO_CODE ? null : taxPick }),
         }),
       });
       const data = await res.json();
@@ -272,7 +303,11 @@ function ReceiptSummaryContent({
                 step="0.01"
                 value={form.total_amount}
                 onValueChange={(total_amount) =>
-                  setForm({ ...form, total_amount })
+                  setForm({
+                    ...form,
+                    total_amount,
+                    ...(taxPickDirty && { tax_amount: taxFor(taxPick, total_amount) }),
+                  })
                 }
               />
             </div>
@@ -282,10 +317,44 @@ function ReceiptSummaryContent({
                 id="edit-tax"
                 step="0.01"
                 value={form.tax_amount}
+                disabled={taxPickDirty}
                 onValueChange={(tax_amount) => setForm({ ...form, tax_amount })}
               />
             </div>
           </div>
+
+          {calculated && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-tax-code">Tax code</Label>
+              <Select
+                items={taxItems}
+                value={taxPick}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setTaxPick(v);
+                  // Show what the code gives right away; it is recalculated on save.
+                  setForm({ ...form, tax_amount: v === currentCodeKey ? receipt.tax_amount : taxFor(v, form.total_amount) });
+                }}
+              >
+                <SelectTrigger id="edit-tax-code" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CODE}>{taxItems[NO_CODE]}</SelectItem>
+                  {TAX_CODE_KEYS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {TAX_CODE_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {taxPickDirty
+                  ? "The sales tax is calculated from the total and this code when you save. Scanning the receipt later replaces it with the actual figure."
+                  : "No receipt yet, so the tax is calculated. Pick a code to recalculate it; scanning the receipt later replaces it with the actual figure."}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Items purchased</Label>
@@ -382,6 +451,7 @@ function ReceiptSummaryContent({
               setForm(reverted);
               setJobMode(initialJobMode(reverted.job_name, existingJobs));
               setNewJobName(reverted.job_name);
+              setTaxPick(currentCodeKey);
               setIsEditing(false);
             }}
             disabled={saving}
@@ -491,6 +561,18 @@ function ReceiptSummaryContent({
                   {formatCurrency(receipt.tax_amount)}
                 </span>
               </div>
+              {calculated && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Tax code</span>
+                  <span className={currentCodeKey === NO_CODE && receipt.tax_amount === 0 ? "text-destructive" : ""}>
+                    {currentCodeKey !== NO_CODE
+                      ? TAX_CODE_LABELS[currentCodeKey as TaxCodeKey]
+                      : receipt.tax_amount === 0
+                        ? "None - needs a tax code"
+                        : "Typed from your slip"}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Separator />

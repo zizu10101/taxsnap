@@ -493,6 +493,21 @@ everything else 100% - for any row with no code, so every receipt from before th
 - **Attach** replaces the calculated tax with the receipt's actual figure and clears the code (the row is now
   confirmed). The expense drawer's PATCH follows the same rules as bulk when a calculated row's category
   changes, and a different tax figure typed there replaces the calculation.
+- **Applying a code AFTER saving** (a statement expense that has no receipt attached - and only that):
+  - **Drawer:** a "Tax code" picker (Taxable / Meals / No tax / "No code") on a calculated expense. Saving
+    sends `tax_code` only if the picker changed; `PATCH /api/receipts/[id]` runs `drawerTaxCode()`, recalculates
+    the tax tax-included from the total being saved (the form's own tax figure is ignored), and marks the code
+    `tax_source 'line'` (the owner's own pick, so a later category change doesn't undo it). It refuses a
+    receipt-attached, scanned or entered expense (400), and the update is guarded on `no_receipt = true`, so a
+    receipt attached while the form was open wins (409 `RECEIPT_ATTACHED`).
+  - **Bulk "Set tax code"** beside "Change category" (`POST /api/receipts/bulk-tax-code`, rules in
+    `lib/bulk-tax-code-server.ts` + `lib/bulk-tax-code.ts`): same preview / apply / undo / stale-protection
+    shape as bulk category. It NEVER touches a row with a receipt attached, a confirmed row, or a row whose
+    tax the owner typed (a refund slip's HST); the preview says how many were skipped and why, and shows the
+    calculated-tax and ITC effect. Apply sends back `[{id, prev}]` (each row's exact tax state at preview) and
+    refuses (409 `STALE_PREVIEW`) unless every row is STILL a calculated row in exactly that state - recomputing
+    the new tax server-side, never trusting the request. Undo restores only rows still exactly as apply left
+    them (one edited or given a receipt since is left alone).
 - Until 0057 is applied the code degrades: the Overview and bulk queries retry without the new columns, and
   materialize writes nothing.
 
