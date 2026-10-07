@@ -106,6 +106,8 @@ export class StatementApiError extends Error {
     message: string,
     readonly code: string | undefined,
     readonly status: number,
+    // The rest of the response body (e.g. what ALREADY_IMPORTED knows about the saved import).
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -120,12 +122,15 @@ function apiError(res: Response, data: Record<string, unknown>, fallback: string
     typeof data.error === "string" ? data.error : fallback,
     typeof data.code === "string" ? data.code : undefined,
     res.status,
+    data,
   );
 }
 
 export async function startImport(
   accountId: string,
   prepared: PreparedStatement,
+  // The saved import to retire first (Re-import): only valid for that import's own file.
+  options: { reimportOf?: string } = {},
 ): Promise<{ importId: string; resumed: boolean; chunks: ChunkPlanRow[] }> {
   const res = await fetch("/api/statements", {
     method: "POST",
@@ -135,6 +140,7 @@ export async function startImport(
       file_sha256: prepared.sha256,
       page_count: prepared.pageCount,
       chunks: prepared.defaultPlan,
+      ...(options.reimportOf && { reimport_of: options.reimportOf }),
     }),
   });
   const data = await readJson(res);

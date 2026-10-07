@@ -3,7 +3,7 @@ import { recognizePayments } from "@/lib/payment-revenue";
 import { computeExpenseSummary, type ExpenseSummary } from "@/lib/expense-summary";
 import { deductiblePct } from "@/lib/tax-codes";
 
-// What the Overview reads off each expense (the code columns are absent before 0057).
+// What the Overview reads off each expense.
 interface OverviewReceiptRow {
   transaction_date: string;
   total_amount: number;
@@ -76,20 +76,16 @@ export async function getExpenseOverviewData(
   from: string | null,
   to: string | null,
 ): Promise<ExpenseOverviewData> {
-  // The columns that say whether an expense's tax is CALCULATED (a card-statement expense with no
-  // receipt) or confirmed, and the tax code it carries. Before migration 0057 the code columns
-  // don't exist: that one query is repeated without them rather than breaking the Overview, and every
-  // expense is then read exactly as it always was.
-  const BASE_COLUMNS = "transaction_date, total_amount, tax_amount, tax_category, job_id";
-  const receiptsFor = (columns: string) => {
-    let q = supabase.from("receipts").select(columns).order("transaction_date", { ascending: true });
-    if (from) q = q.gte("transaction_date", from);
-    if (to) q = q.lte("transaction_date", to);
-    return q;
-  };
-  const receiptsQuery = receiptsFor(
-    `${BASE_COLUMNS}, from_statement, no_receipt, tax_rate, itc_pct, deductible_pct`,
-  );
+  // Besides the figures, the columns that say whether an expense's tax is CALCULATED (a card-statement
+  // expense with no receipt) or confirmed, and the tax code it carries (0057).
+  let receiptsQuery = supabase
+    .from("receipts")
+    .select(
+      "transaction_date, total_amount, tax_amount, tax_category, job_id, from_statement, no_receipt, tax_rate, itc_pct, deductible_pct",
+    )
+    .order("transaction_date", { ascending: true });
+  if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
+  if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
 
   // Total Sales deliberately only covers paid invoices, not manual cash-
   // sales entries (the `sales` table) - see expense-overview-query.ts's
@@ -103,9 +99,7 @@ export async function getExpenseOverviewData(
     .select("subtotal, total_amount, excluded_from_hst, payments(amount, paid_date)")
     .eq("type", "invoice");
 
-  const [receiptsResult, { data: documents }] = await Promise.all([receiptsQuery, documentsQuery]);
-  const receipts =
-    receiptsResult.error?.code === "42703" ? (await receiptsFor(BASE_COLUMNS)).data : receiptsResult.data;
+  const [{ data: receipts }, { data: documents }] = await Promise.all([receiptsQuery, documentsQuery]);
 
   const receiptRows = (receipts ?? []) as unknown as OverviewReceiptRow[];
 

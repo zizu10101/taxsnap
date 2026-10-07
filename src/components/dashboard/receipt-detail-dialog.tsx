@@ -32,6 +32,7 @@ import {
 import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
+import { StatementLink } from "@/components/dashboard/statement-link";
 import { accountDisplayName } from "@/lib/accounts";
 import {
   calculateTax,
@@ -118,12 +119,14 @@ function ReceiptSummaryContent({
   onOpenChange,
   onDeleted,
   onUpdated,
+  statementImportEnabled,
 }: {
   receipt: Receipt;
   existingJobs: string[];
   onOpenChange: (open: boolean) => void;
   onDeleted: (id: string) => void;
   onUpdated: (receipt: Receipt) => void;
+  statementImportEnabled: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
@@ -515,6 +518,7 @@ function ReceiptSummaryContent({
           <Badge variant="secondary">{receipt.tax_category}</Badge>
         </div>
         <StatementFlagBadge receipt={receipt} className="mt-1.5" />
+        <StatementLink receiptId={receipt.id} enabled={statementImportEnabled} />
         {receipt.job_name && (
           <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Briefcase className="h-3.5 w-3.5" />
@@ -652,12 +656,15 @@ export function ReceiptDetailDialog({
   onOpenChange,
   onDeleted,
   onUpdated,
+  statementImportEnabled = false,
 }: {
   receipt: Receipt | null;
   existingJobs?: string[];
   onOpenChange: (open: boolean) => void;
   onDeleted: (id: string) => void;
   onUpdated: (receipt: Receipt) => void;
+  // Card-statement import is on for this user (allowlist): turns on the "From statement" link.
+  statementImportEnabled?: boolean;
 }) {
   // The parent nulls `receipt` out the instant closing starts, but the
   // Sheet's own popup stays mounted for its ~200ms slide-out animation
@@ -699,6 +706,7 @@ export function ReceiptDetailDialog({
             onOpenChange={onOpenChange}
             onDeleted={onDeleted}
             onUpdated={onUpdated}
+            statementImportEnabled={statementImportEnabled}
           />
         )}
       </SheetContent>

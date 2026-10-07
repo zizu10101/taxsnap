@@ -1561,7 +1561,10 @@ export interface Database {
         // never by an owner. The one direct write is touching updated_at when
         // the user edits a line, so a draft in use isn't purged as stale.
         Insert: never;
-        Update: { updated_at?: string };
+        // Service role only. Besides touching updated_at, the app moves a SAVED import between
+        // 'committed' and 'discarded' (Delete statement, Re-import and its rollback); every other
+        // change goes through the statement functions.
+        Update: { updated_at?: string; status?: StatementImportStatus };
         Relationships: [];
       };
       statement_chunks: {
@@ -1615,6 +1618,10 @@ export interface Database {
           itc_pct?: number | null;
           deductible_pct?: number | null;
           tax_source?: TaxSourceName | null;
+          // 0058: set when the line was freed by deleting its expense / matched receipt, and what
+          // it was before ('new_expense' | 'matched'). Null on every line freed before 0058.
+          released_at?: string | null;
+          released_from?: "new_expense" | "matched" | null;
         };
         Insert: never;
         // Service-role only (the owner has SELECT, nothing else): the review

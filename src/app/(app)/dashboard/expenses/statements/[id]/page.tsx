@@ -2,13 +2,19 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatementReview } from "@/components/dashboard/statement-review";
-import { getStatementPageCtx } from "@/lib/statement-server";
+import { getStatementPageCtx, loadOwnImport } from "@/lib/statement-server";
 import { loadStatementReview } from "@/lib/statement-review-data";
+import { loadStatementDetail } from "@/lib/statement-groups-server";
+import { StatementDetailView } from "@/components/dashboard/statement-detail";
+import { STATEMENTS_HREF } from "@/lib/statement-routes";
 
 export const metadata: Metadata = {
   title: "Review statement — TaxSnap",
 };
 
+// A draft is the review screen. A SAVED statement (or one deleted since) is its read-only detail:
+// the transactions grouped by outcome, each linking to its expense, plus Delete statement.
+//
 // Allowlist-only (see lib/statement-config.ts): anyone else gets a plain 404, as
 // if the page didn't exist. The data is loaded on the server through the user's
 // own session, so what renders is only ever their own import.
@@ -21,10 +27,28 @@ export default async function StatementReviewPage({
   if (!ctx) notFound();
 
   const { id } = await params;
+  const imp = await loadOwnImport(ctx, id);
+  if (!imp) notFound();
+
+  if (imp.status !== "draft") {
+    const detail = await loadStatementDetail(ctx.supabase, ctx.user.id, id);
+    // An abandoned or purged draft has nothing to show.
+    if (!detail) redirect("/dashboard/expenses");
+    return (
+      <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
+        <PageHeader
+          backHref={STATEMENTS_HREF}
+          backLabel="Back to statements"
+          title={detail.issuer ?? "Card statement"}
+          subtitle={detail.deleted ? "This statement was deleted." : "A saved statement."}
+        />
+        <StatementDetailView detail={detail} />
+      </div>
+    );
+  }
+
   const data = await loadStatementReview(ctx, id);
   if (!data) notFound();
-  // Saved, discarded or purged imports have nothing left to review.
-  if (data.import.status !== "draft") redirect("/dashboard/expenses");
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
