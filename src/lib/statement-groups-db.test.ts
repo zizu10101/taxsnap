@@ -92,6 +92,10 @@ describe("saved statement grouping (real database)", { skip: !RUN || !URL_ || !A
     return res.data!;
   }
 
+  // Each fixture statement gets its own dates: line fingerprints are (card, date, amount, nth), so two
+  // statements with identical lines on one card would - correctly - trip the "already imported" guard.
+  let fixtureNo = 0;
+
   // A SAVED import: 0 and 1 become expenses, 2 is matched to an ordinary receipt, 3 is excluded and
   // 4 is a payment. Returns everything a test needs to poke at.
   async function savedImport(p: Person = me, hash = sha()) {
@@ -104,6 +108,7 @@ describe("saved statement grouping (real database)", { skip: !RUN || !URL_ || !A
       p_monthly_cap: null,
     });
     assert.ifError(error);
+    const day = String(1 + (fixtureNo++ % 27)).padStart(2, "0");
     const rows = [
       { amount: 113, description: "VENDOR ONE" },
       { amount: 50, description: "VENDOR TWO" },
@@ -113,7 +118,7 @@ describe("saved statement grouping (real database)", { skip: !RUN || !URL_ || !A
     ].map((r, i) => ({
       page: 1,
       line_no: i + 1,
-      txn_date: "2026-02-08",
+      txn_date: `2026-02-${day}`,
       kind: "purchase",
       currency: "CAD",
       original_amount: null,
