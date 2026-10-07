@@ -110,6 +110,12 @@ export async function POST(
     .update({
       image_url: image_path,
       tax_amount: round2(tax),
+      // The receipt's actual tax replaces the calculated one, and the tax code that produced the
+      // calculation is dropped with it: the row is confirmed and read like any scanned receipt.
+      tax_rate: null,
+      itc_pct: null,
+      deductible_pct: null,
+      tax_source: null,
       merchant_name: merchant_name.trim(),
       transaction_date: date.date,
       items: sanitizeItems(items),

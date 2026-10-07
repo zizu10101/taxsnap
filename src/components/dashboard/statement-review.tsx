@@ -27,6 +27,8 @@ import {
   type ReviewLine,
 } from "@/lib/statement-review-model";
 import type { ReviewLineData, StatementReviewData } from "@/lib/statement-review-data";
+import { lineTax } from "@/lib/statement-tax";
+import { buildCategoryDefaults } from "@/lib/tax-codes";
 
 const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
   possible_matches: {
@@ -35,15 +37,15 @@ const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
   },
   new: {
     title: "New expenses",
-    help: "No receipt on file. Saved with no HST and flagged \"No receipt, ITC not claimed\". Scan the receipt later and it fills this expense in.",
+    help: "No receipt on file. The tax is calculated from the tax code you choose on each line, or left at 0 and flagged \"needs a tax code\" when none applies. Scan the receipt later and its actual tax replaces the calculated one.",
   },
   refunds: {
     title: "Refunds and credits",
-    help: "Saved as a negative expense. HST is not adjusted unless you enter the HST from your refund slip.",
+    help: "Saved as a negative expense. Its tax is calculated with the same tax code (reversing the credit), or type the HST from your refund slip.",
   },
   bank_charges: {
     title: "Interest and fees",
-    help: "Interest and card fees. Accept the suggested category, or choose another.",
+    help: "Interest and card fees, saved as no-tax. Accept the suggested category, or choose another.",
   },
   already_imported: {
     title: "Already imported",
@@ -118,6 +120,13 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
     }
     return map;
   }, [data.lines]);
+
+  // Expenses that will be saved with no tax code: nothing is calculated for them (tax 0, no ITC
+  // counted) until a code is chosen here or a receipt is attached. Shown, never blocking.
+  const needsCodeCount = useMemo(() => {
+    const defaults = buildCategoryDefaults({ bankChargesName: data.bank_charges_category });
+    return data.lines.filter((l) => l.resolution === "new_expense" && lineTax(l, defaults).needs_code).length;
+  }, [data.lines, data.bank_charges_category]);
 
   const incomplete = data.chunks.some((c) => c.status !== "done");
   const ready = canSave(reviewLines, data.reconcile, acknowledged);
@@ -265,6 +274,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                   group={g}
                   categories={data.categories}
                   cardId={data.import.account_id}
+                  bankChargesCategory={data.bank_charges_category}
                   disabled={busy || saving}
                   onPatch={patchLines}
                 />
@@ -282,6 +292,11 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
             {confirmDiscard ? "Click again to discard" : "Discard import"}
           </Button>
           <div className="flex items-center gap-3">
+            {needsCodeCount > 0 && (
+              <span className="hidden text-xs text-destructive sm:inline">
+                {needsCodeCount} expense{needsCodeCount === 1 ? "" : "s"} will be saved without a tax code
+              </span>
+            )}
             {summary.needsDecision > 0 && (
               <span className="hidden text-xs text-muted-foreground sm:inline">
                 {summary.needsDecision} line{summary.needsDecision === 1 ? "" : "s"} still need a decision

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { PiggyBank, Receipt as ReceiptIcon, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeExpenseSummary } from "@/lib/expense-summary";
+import { itcSplitNote } from "@/lib/tax-codes";
 import type { Receipt } from "@/lib/database.types";
 
 function formatCurrency(amount: number) {
@@ -36,6 +37,8 @@ export function ReceiptsSummary({
       deductibleSpend: summary.deductibleSpend,
       totalExpenses: summary.totalExpenses,
       estHstReclaimable: summary.estHstReclaimable,
+      // "$a confirmed · $b calculated from statements" - null unless a statement expense is in view.
+      itcNote: itcSplitNote(summary, formatCurrency),
     };
   }, [receipts]);
 
@@ -70,6 +73,7 @@ export function ReceiptsSummary({
             <p className="text-xs text-muted-foreground">
               {rangeLabel} · {stats.count} receipt{stats.count === 1 ? "" : "s"}
             </p>
+            {stats.itcNote && <p className="text-[11px] text-muted-foreground">{stats.itcNote}</p>}
           </div>
         </CardContent>
       </Card>

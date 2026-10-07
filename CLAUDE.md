@@ -448,12 +448,68 @@ carries but that is no longer offered).
   (400 `MEALS_CONFIRM_REQUIRED`) unless `confirm_meals === true`.
 - **Undo is session-only** (a strip on the page; a reload drops it). It only restores rows still in the
   category they were moved to - one edited since is left alone and reported.
-- **When tax codes arrive** (the statement tax-codes scope), a recategorize of a *calculated* statement
-  expense must recompute its tax through the same function and must never touch a *confirmed* one. Today
-  that is moot - no calculated rows exist, and bulk deliberately leaves `tax_amount` alone.
+- **Tax codes:** a recategorize of a *calculated* statement expense whose code came from its
+  category's default recomputes that code and its calculated tax (`taxAfterCategoryChange`); a code the
+  owner picked on the line, a fee/foreign default, and EVERY confirmed row keep their tax exactly. The
+  preview says how many are recalculated, apply recomputes server-side (never trusting the request),
+  and undo restores the previous code and tax (unless a receipt was attached meanwhile).
 - Tests: `bulk-category.test.ts` (pure: Meals maths, skip counts, id validation) and
   `bulk-category-db.test.ts` (real DB, `RUN_DB_ISOLATION_TEST=1`: only `tax_category` changes, other
   owner untouchable, 500 cap, stale, Meals confirm, undo, no rules learned).
+
+## Tax codes (statement expenses)
+
+Migration `0057_tax_codes.sql` (+ rollback; it also REPLACES `commit_statement_import()` - the 0052 body plus
+four columns). A tax code is THREE separate numbers, deliberately not merged (`src/lib/tax-codes.ts`, pure):
+`tax_rate` (tax embedded in the price: 13% or 0), `itc_pct` (share claimable: 100/50/0) and `deductible_pct`.
+Meals is why: 13% is still in the price, only half is claimable, so it can't be a rate in
+`total * rate / (1 + rate)`. The tax is EXTRACTED at `tax_rate` (`calculateTax`, tax-included, signed for
+refunds) and `tax_amount` stores the full embedded tax, exactly as it does for a scanned receipt; the claim
+share is applied when READ (`itcPct()`/`deductiblePct()`, which fall back to the category - Meals 50%,
+everything else 100% - for any row with no code, so every receipt from before this is unchanged).
+
+- **Calculated vs confirmed:** *calculated* = `from_statement` and `no_receipt` (`isCalculated`); everything else
+  - scanned, attached, manually typed - is *confirmed*. No new status column. Reports split the two:
+  `computeExpenseSummary` (`estHstConfirmed`/`estHstCalculated`/`calculatedCount`/`needsTaxCodeCount`), Line 106
+  in the HST helper (`calculateHSTReturn`, with an **include-calculated toggle, on by default**), the Overview
+  and Expenses summary notes (`itcSplitNote`), the accountant bundle summary, a "Tax Basis" CSV column and a
+  "calc." marker in the accountant portal. A card statement alone may not be adequate support for an ITC claim
+  (not verified against canada.ca) - hence the split and the toggle.
+- **Which code applies to a line** (`resolveTaxCode`, most specific first): the owner's pick on the line
+  (`tax_source 'line'`) > a vendor rule (the input exists; vendor rules' app code is a later phase) > foreign
+  currency (no tax; a rule can override) > the category's default > fees and interest (no tax) > **nothing**.
+  **A line with no code calculates NOTHING** (tax 0, no ITC) and is flagged "needs a tax code" - there is
+  deliberately no fallback rate, a guess would overclaim. Only the bank charges category (found by its stable
+  key) is seeded as no-tax; every other category default waits for the accountant's table, and the
+  statement-import allowlist stays closed until it arrives. The defaults are code constants
+  (`buildCategoryDefaults`), not data.
+- **Where it lives:** a draft `statement_lines` row stores only the owner's own choices (a picked code, or a
+  refund's typed HST figure - exclusive); everything else is DERIVED (`statement-tax.ts` `lineTax`) so a category
+  or type change can never strand a stale figure. Just before `commit_statement_import`, the commit route
+  runs `materializeStatementTaxes` (`statement-tax-server.ts`) which writes the resolved code and tax onto the
+  lines, and the SQL function copies them onto the new expenses (`receipts.tax_rate/itc_pct/deductible_pct/
+  tax_source`; only a statement expense may carry one, enforced by a check). Province: Ontario 13% only; the
+  rate is stored on every row so adding provinces later needs no migration.
+- **Attach** replaces the calculated tax with the receipt's actual figure and clears the code (the row is now
+  confirmed). The expense drawer's PATCH follows the same rules as bulk when a calculated row's category
+  changes, and a different tax figure typed there replaces the calculation.
+- **Applying a code AFTER saving** (a statement expense that has no receipt attached - and only that):
+  - **Drawer:** a "Tax code" picker (Taxable / Meals / No tax / "No code") on a calculated expense. Saving
+    sends `tax_code` only if the picker changed; `PATCH /api/receipts/[id]` runs `drawerTaxCode()`, recalculates
+    the tax tax-included from the total being saved (the form's own tax figure is ignored), and marks the code
+    `tax_source 'line'` (the owner's own pick, so a later category change doesn't undo it). It refuses a
+    receipt-attached, scanned or entered expense (400), and the update is guarded on `no_receipt = true`, so a
+    receipt attached while the form was open wins (409 `RECEIPT_ATTACHED`).
+  - **Bulk "Set tax code"** beside "Change category" (`POST /api/receipts/bulk-tax-code`, rules in
+    `lib/bulk-tax-code-server.ts` + `lib/bulk-tax-code.ts`): same preview / apply / undo / stale-protection
+    shape as bulk category. It NEVER touches a row with a receipt attached, a confirmed row, or a row whose
+    tax the owner typed (a refund slip's HST); the preview says how many were skipped and why, and shows the
+    calculated-tax and ITC effect. Apply sends back `[{id, prev}]` (each row's exact tax state at preview) and
+    refuses (409 `STALE_PREVIEW`) unless every row is STILL a calculated row in exactly that state - recomputing
+    the new tax server-side, never trusting the request. Undo restores only rows still exactly as apply left
+    them (one edited or given a receipt since is left alone).
+- Until 0057 is applied the code degrades: the Overview and bulk queries retry without the new columns, and
+  materialize writes nothing.
 
 ## Tax logic
 
@@ -922,7 +978,8 @@ Migrations `0052_statement_import.sql` (tables + service-role functions) and
 `0053_statement_import_receipts.sql` (receipts columns + delete trigger); rollbacks
 are in `supabase/rollbacks/` and are NOT in `migrations/` on purpose (0053's first).
 `0054_vendor_rules.sql` adds the `vendor_rules` table (per-card rules plus an any-card
-fallback: vendor key -> category, never any tax figure) and four `statement_lines` columns
+fallback: vendor key -> category; it has no tax column yet - a vendor's tax code is a later phase, see
+"Tax codes") and four `statement_lines` columns
 for "where did this suggestion come from" - **schema only: no app code reads or writes
 rules yet**. It also REPLACES `rename_expense_category()` (the original plus one `perform
 follow_category_rename(...)`), so renaming a custom category also renames its rules and
@@ -997,13 +1054,15 @@ token cost is measured (`statement_imports` records input/output tokens per impo
 - **"Already imported"** lines are flagged at finalize and re-checked at commit under a
   per-user lock; they default to skipped but stay visible, and Import anyway sets
   `duplicate_override`. Commit refuses unoverridden duplicates (`DUPLICATE_LINES`).
-- **Saved expenses** have `tax_amount = 0` (HST is never estimated), `from_statement`,
-  `no_receipt`, and show "No receipt, ITC not claimed" (`statement-flags.ts`). Scanning
-  the receipt later offers to attach to that row (`/api/receipts/[id]/attach`: photo,
-  HST, items, merchant, date; keeps the statement's amount, category, paid-with) rather
-  than create a second expense. **Refunds** save as negative expenses with HST 0 until
-  the user types the refund slip's figure; `receiptsToQuickBooksCsv` writes them to the
-  Deposit column as a positive with a "Refund - " prefix, never a negative Payment.
+- **Saved expenses** have `from_statement`, `no_receipt` and a CALCULATED tax from a tax code,
+  or tax 0 flagged "needs a tax code" when none applies - see "Tax codes" below (this reverses
+  the original "tax_amount = 0, never estimated" rule). Scanning the receipt later offers to
+  attach to that row (`/api/receipts/[id]/attach`: photo, HST, items, merchant, date; keeps the
+  statement's amount, category, paid-with) rather than create a second expense; the receipt's
+  actual tax REPLACES the calculated one and the tax code is cleared. **Refunds** save as negative
+  expenses whose tax is calculated with the same code (a credit), or the figure the owner typed
+  from the refund slip; `receiptsToQuickBooksCsv` writes them to the Deposit column as a positive
+  with a "Refund - " prefix, never a negative Payment.
 - **"Bank charges"** (where interest and fees are filed) is deliberately not in global
   `TAX_CATEGORIES` (that list feeds the receipt scanner for every user). It is an ordinary custom
   category of the owner's, created the first time a saved statement uses it (which also stops

@@ -306,17 +306,32 @@ export function ExpensesBody({
           }
         }}
         onClear={() => setSelected(new Set())}
-        onMoved={({ category, previous }) => {
+        onMoved={({ category, previous, retaxed }) => {
           const moved = new Set(previous.map((p) => p.id));
+          const newTax = new Map(retaxed.map((t) => [t.id, t.patch]));
           setReceipts((prev) =>
-            prev.map((r) => (moved.has(r.id) ? { ...r, tax_category: category } : r)),
+            prev.map((r) =>
+              moved.has(r.id) ? { ...r, tax_category: category, ...(newTax.get(r.id) ?? {}) } : r,
+            ),
           );
           setSelected(new Set());
         }}
+        onTaxCodeSet={({ retaxed }) => {
+          const newTax = new Map(retaxed.map((t) => [t.id, t.patch]));
+          setReceipts((prev) => prev.map((r) => (newTax.has(r.id) ? { ...r, ...newTax.get(r.id)! } : r)));
+          setSelected(new Set());
+        }}
+        onTaxCodeRestored={(rows) => {
+          const back = new Map(rows.map((r) => [r.id, r.tax]));
+          setReceipts((prev) => prev.map((r) => (back.has(r.id) ? { ...r, ...back.get(r.id)! } : r)));
+        }}
         onRestored={(rows) => {
-          const back = new Map(rows.map((r) => [r.id, r.category]));
+          const back = new Map(rows.map((r) => [r.id, r]));
           setReceipts((prev) =>
-            prev.map((r) => (back.has(r.id) ? { ...r, tax_category: back.get(r.id)! } : r)),
+            prev.map((r) => {
+              const b = back.get(r.id);
+              return b ? { ...r, tax_category: b.category, ...(b.tax ?? {}) } : r;
+            }),
           );
         }}
       />

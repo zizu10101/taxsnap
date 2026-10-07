@@ -1,8 +1,8 @@
-import { loadCategoryOptions, loadOwnImport, type StatementCtx } from "@/lib/statement-server";
+import { loadCategoryContext, loadOwnImport, type StatementCtx } from "@/lib/statement-server";
 import { candidatesForLines, type ReceiptBrief } from "@/lib/statement-match-server";
 import { reconcileStatement, type ReconcileResult } from "@/lib/statement-reconcile";
 import type { MatchCandidate } from "@/lib/statement-matching";
-import type { StatementLineKind, StatementImportStatus } from "@/lib/database.types";
+import type { StatementLineKind, StatementImportStatus, TaxSourceName } from "@/lib/database.types";
 
 // Everything the review screen needs in one read, shared by GET
 // /api/statements/[id] (client reloads after an edit) and the review page (first
@@ -31,6 +31,12 @@ export interface ReviewLineData {
   category_confirmed: boolean;
   paid_with_account_id: string | null;
   tax_amount: number;
+  // The owner's own tax-code pick for the line (tax_source 'line'); null otherwise. What the line
+  // is actually saved with is derived from these, the category and the kind (statement-tax.ts).
+  tax_rate: number | null;
+  itc_pct: number | null;
+  deductible_pct: number | null;
+  tax_source: TaxSourceName | null;
   resolution: "matched" | "new_expense" | "skipped" | null;
   matched_receipt_id: string | null;
   matched_receipt: ReceiptBrief | null;
@@ -67,6 +73,8 @@ export interface StatementReviewData {
   lines: ReviewLineData[];
   reconcile: ReconcileResult;
   categories: string[];
+  /** The owner's bank-charges category (the one no-tax category default), or null if they removed it. */
+  bank_charges_category: string | null;
 }
 
 export async function loadStatementReview(
@@ -89,7 +97,7 @@ export async function loadStatementReview(
       .eq("user_id", ctx.user.id)
       .order("page", { ascending: true })
       .order("line_no", { ascending: true }),
-    loadCategoryOptions(ctx),
+    loadCategoryContext(ctx),
   ]);
 
   const allLines = lines ?? [];
@@ -131,6 +139,10 @@ export async function loadStatementReview(
       category_confirmed: l.category_confirmed,
       paid_with_account_id: l.paid_with_account_id,
       tax_amount: l.tax_amount,
+      tax_rate: l.tax_rate ?? null,
+      itc_pct: l.itc_pct ?? null,
+      deductible_pct: l.deductible_pct ?? null,
+      tax_source: l.tax_source ?? null,
       resolution: l.resolution,
       matched_receipt_id: l.matched_receipt_id,
       matched_receipt: l.matched_receipt_id ? (briefs.get(l.matched_receipt_id) ?? null) : null,
@@ -143,6 +155,7 @@ export async function loadStatementReview(
       statement_total: imp.statement_total,
       statement_total_kind: imp.statement_total_kind,
     }),
-    categories,
+    categories: categories.options,
+    bank_charges_category: categories.bankChargesCategory,
   };
 }

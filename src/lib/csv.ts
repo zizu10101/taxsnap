@@ -1,5 +1,6 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
 import { formatDocumentNumber } from "./document-number.ts";
+import { TAX_BASIS_LABELS, taxBasis } from "./tax-codes.ts";
 
 function escapeCsvField(value: string | number): string {
   const str = String(value);
@@ -29,6 +30,7 @@ export function receiptsToCsv(
     "Deductible Amount",
     "Notes",
     "Paid With",
+    "Tax Basis",
   ];
 
   const rows = receipts.map((r) => {
@@ -45,6 +47,9 @@ export function receiptsToCsv(
       r.total_amount.toFixed(2),
       notes,
       (r.paid_with_account_id && accountNames.get(r.paid_with_account_id)) || "",
+      // "Calculated from statement" (tax worked out from a card statement, no receipt yet) or
+      // "Confirmed by receipt" (a scanned/attached receipt, or a figure the owner entered).
+      TAX_BASIS_LABELS[taxBasis(r)],
     ];
   });
 
@@ -57,6 +62,7 @@ export function receiptsToCsv(
     totalAmount.toFixed(2),
     totalTax.toFixed(2),
     totalAmount.toFixed(2),
+    "",
     "",
     "",
   ];

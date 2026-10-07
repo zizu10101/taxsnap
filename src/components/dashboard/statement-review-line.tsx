@@ -26,6 +26,15 @@ import { useBankAccounts } from "@/components/owner-lists-provider";
 import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { LINE_KINDS } from "@/lib/statement-lines";
 import { cleanMerchantName } from "@/lib/merchant-name";
+import { lineTax } from "@/lib/statement-tax";
+import {
+  buildCategoryDefaults,
+  codeFromRow,
+  codeKeyOf,
+  TAX_CODE_KEYS,
+  TAX_CODE_LABELS,
+  type TaxSource,
+} from "@/lib/tax-codes";
 import type { ReviewGroup } from "@/lib/statement-review-model";
 import type { ReviewLineData } from "@/lib/statement-review-data";
 import type { StatementLineKind } from "@/lib/database.types";
@@ -54,12 +63,23 @@ const KIND_LABELS: Record<StatementLineKind, string> = {
 };
 
 const PLACEHOLDER = "__choose__";
+const AUTO = "__auto__";
+
+// Why a calculated tax is what it is, in the owner's words.
+const SOURCE_COPY: Record<TaxSource, string> = {
+  line: "your choice",
+  rule: "your vendor rule",
+  foreign_currency: "foreign currency, no tax assumed",
+  category: "this category's default",
+  kind: "fees and interest carry no tax",
+};
 
 export function LineRow({
   line,
   group,
   categories,
   cardId,
+  bankChargesCategory,
   disabled,
   onPatch,
 }: {
@@ -67,6 +87,7 @@ export function LineRow({
   group: ReviewGroup;
   categories: string[];
   cardId: string;
+  bankChargesCategory: string | null;
   disabled: boolean;
   onPatch: PatchFn;
 }) {
@@ -88,6 +109,19 @@ export function LineRow({
     for (const a of paidOptions) map[a.id] = accountDisplayName(a, { withType: true });
     return map;
   }, [paidOptions]);
+
+  // What this line would be saved with, tax-wise: the owner's pick, else a clear default, else
+  // nothing (it needs a tax code). Derived here the same way the commit step derives it.
+  const tax = useMemo(
+    () => lineTax(line, buildCategoryDefaults({ bankChargesName: bankChargesCategory })),
+    [line, bankChargesCategory],
+  );
+  const taxItems = useMemo(() => {
+    const map: Record<string, string> = { [AUTO]: "Automatic" };
+    for (const k of TAX_CODE_KEYS) map[k] = TAX_CODE_LABELS[k];
+    return map;
+  }, []);
+  const pickedCode = line.tax_source === "line" ? codeKeyOf(codeFromRow(line)) : null;
 
   const id = line.id;
   const categoryValue = line.category ?? line.suggested_category ?? PLACEHOLDER;
@@ -297,6 +331,50 @@ export function LineRow({
             </Select>
           </div>
 
+          <div className="space-y-1 sm:col-span-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Tax code</Label>
+              {tax.needs_code ? (
+                <Badge variant="destructive">Needs a tax code</Badge>
+              ) : tax.manual ? (
+                <span className="text-xs text-muted-foreground">
+                  HST typed from your refund slip: {formatMoney(tax.tax_amount)}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Tax {formatMoney(tax.tax_amount)}
+                  {tax.code && tax.code.tax_rate > 0
+                    ? ` (${Math.round(tax.code.tax_rate * 100)}% HST in the price, ${Math.round(tax.code.itc_pct * 100)}% claimable)`
+                    : " (no tax)"}
+                  {tax.source ? ` · ${SOURCE_COPY[tax.source]}` : ""}
+                </span>
+              )}
+            </div>
+            <Select
+              items={taxItems}
+              value={pickedCode ?? AUTO}
+              onValueChange={(v) => v && onPatch([id], { tax_code: v === AUTO ? null : v })}
+            >
+              <SelectTrigger className="w-full" disabled={disabled || tax.manual}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AUTO}>{taxItems[AUTO]}</SelectItem>
+                {TAX_CODE_KEYS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {TAX_CODE_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {tax.needs_code && (
+              <p className="text-xs text-muted-foreground">
+                Nothing is calculated until a code applies, so no ITC is counted. Choose one, or attach
+                the receipt later and its actual tax is used.
+              </p>
+            )}
+          </div>
+
           {group === "refunds" && (
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor={`hst-${id}`} className="text-xs text-muted-foreground">
@@ -312,7 +390,8 @@ export function LineRow({
                 onBlur={() => hst !== Math.abs(line.tax_amount) && onPatch([id], { tax_amount: hst })}
               />
               <p className="text-xs text-muted-foreground">
-                Never estimated. Until you enter it, HST on the original purchase is not reversed.
+                Leave blank to calculate it from the tax code above, or type the figure from your refund
+                slip (that replaces the code).
               </p>
             </div>
           )}
@@ -324,7 +403,11 @@ export function LineRow({
           )}
 
           <div className="flex items-center gap-2 sm:col-span-2">
-            <Badge variant="destructive">No receipt, ITC not claimed</Badge>
+            {tax.needs_code ? (
+              <Badge variant="destructive">No receipt, needs a tax code</Badge>
+            ) : (
+              <Badge variant="secondary">Tax calculated from statement</Badge>
+            )}
             <Button
               size="sm"
               variant="ghost"

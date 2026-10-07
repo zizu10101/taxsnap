@@ -63,7 +63,7 @@ test("a refund must be negative, including when the kind is changed to refund", 
 });
 
 test("HST can only be entered on a refund and is stored as a credit", () => {
-  assert.match(errorOf(run(line(), { tax_amount: 1.63 }))!, /only be entered on a refund/);
+  assert.match(errorOf(run(line(), { tax_amount: 1.63 }))!, /only be typed on a refund/);
   const refund = line({ kind: "refund", amount: -12.5 });
   assert.equal(ok(run(refund, { tax_amount: 1.63 })).update.tax_amount, -1.63);
   assert.equal(ok(run(refund, { tax_amount: 0 })).update.tax_amount, 0);
@@ -140,4 +140,51 @@ test("paid-with is passed through for the caller to verify", () => {
   const o = ok(run(line(), { paid_with_account_id: "acct" }));
   assert.equal(o.checkAccountId, "acct");
   assert.equal(ok(run(line(), { paid_with_account_id: null })).update.paid_with_account_id, null);
+});
+
+// ---- tax codes -------------------------------------------------------------------
+
+test("picking a tax code stores the three numbers and marks it as the owner's own pick", () => {
+  const o = ok(run(line(), { tax_code: "meals" }));
+  assert.deepEqual(
+    [o.update.tax_rate, o.update.itc_pct, o.update.deductible_pct, o.update.tax_source],
+    [0.13, 0.5, 0.5, "line"],
+  );
+  const none = ok(run(line(), { tax_code: "none" }));
+  assert.deepEqual([none.update.tax_rate, none.update.itc_pct, none.update.deductible_pct], [0, 0, 1]);
+});
+
+test("clearing the pick puts all four columns back to null (the automatic code applies again)", () => {
+  const o = ok(run(line({ tax_source: "line" }), { tax_code: null }));
+  assert.deepEqual(
+    [o.update.tax_rate, o.update.itc_pct, o.update.deductible_pct, o.update.tax_source],
+    [null, null, null, null],
+  );
+});
+
+test("an unknown code is refused", () => {
+  assert.match(errorOf(run(line(), { tax_code: "gst5" as never }))!, /Unknown tax code/);
+});
+
+test("picking a code drops a typed refund figure; typing a figure drops the code (they are exclusive)", () => {
+  const typed = line({ kind: "refund", amount: -12.5, tax_amount: -1.63 });
+  assert.equal(ok(run(typed, { tax_code: "taxable" })).update.tax_amount, 0);
+
+  const coded = line({ kind: "refund", amount: -12.5, tax_source: "line" });
+  const o = ok(run(coded, { tax_amount: 1.63 }));
+  assert.equal(o.update.tax_amount, -1.63);
+  assert.deepEqual([o.update.tax_rate, o.update.tax_source], [null, null]);
+
+  assert.match(errorOf(run(coded, { tax_code: "taxable", tax_amount: 1.63 }))!, /not both/);
+});
+
+test("a purchase can't be given a typed HST figure - it gets a code instead", () => {
+  assert.match(errorOf(run(line(), { tax_amount: 5 }))!, /choose a tax code/);
+});
+
+test("changing the category or amount does not touch a picked code (nothing stale to strand)", () => {
+  const picked = line({ tax_source: "line" });
+  const o = ok(run(picked, { category: "Meals", amount: 60 }));
+  assert.equal(o.update.tax_rate, undefined);
+  assert.equal(o.update.tax_source, undefined);
 });

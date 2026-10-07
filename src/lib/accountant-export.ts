@@ -34,6 +34,14 @@ function summaryToCsv(receipts: Receipt[]): string {
     ["Total Expenses", summary.totalExpenses.toFixed(2)],
     ["Deductible Spend", summary.deductibleSpend.toFixed(2)],
     ["Est. HST Reclaimable", summary.estHstReclaimable.toFixed(2)],
+    // The ITC split: what a receipt backs vs what was calculated from a card statement.
+    ...(summary.calculatedCount > 0
+      ? ([
+          ["  Confirmed by receipt", summary.estHstConfirmed.toFixed(2)],
+          ["  Calculated from statement", summary.estHstCalculated.toFixed(2)],
+          ["  Statement expenses needing a tax code", summary.needsTaxCodeCount],
+        ] as (string | number)[][])
+      : []),
     ["Non-Deductible Spend", summary.nonDeductibleSpend.toFixed(2)],
     ["", ""],
     ["Job vs. Overhead", ""],

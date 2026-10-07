@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireStatementUser, loadOwnImport, notFound } from "@/lib/statement-server";
+import { requireStatementUser, loadOwnImport, loadCategoryContext, notFound } from "@/lib/statement-server";
 import { mapStatementDbError } from "@/lib/statement-errors";
 import { reconcileStatement } from "@/lib/statement-reconcile";
 import { ensureBankChargesCategory } from "@/lib/statement-bank-charges";
 import { tidyMerchantNames } from "@/lib/statement-merchant";
+import { materializeStatementTaxes } from "@/lib/statement-tax-server";
 
 export const runtime = "nodejs";
 
 // Saves the reviewed import: matched lines are linked to their receipts, new
-// expenses are created (HST 0, flagged "No receipt"), the rest are skipped - all
+// expenses are created (flagged "No receipt"; their tax is CALCULATED from a tax code, or left at 0
+// and flagged "needs a tax code" when none applies), the rest are skipped - all
 // in one database transaction (commit_statement_import), so it either fully
 // happens or doesn't.
 //
@@ -60,6 +62,19 @@ export async function POST(
     ctx.user.id,
     lines.filter((l) => l.resolution === "new_expense").map((l) => l.category),
   );
+
+  // Put every line that will become an expense onto its resolved tax code and calculated tax, so the
+  // commit function (which only copies what the lines carry) saves what the review screen showed.
+  // After ensureBankChargesCategory, so the category's current name is known.
+  try {
+    const { bankChargesCategory } = await loadCategoryContext(ctx);
+    await materializeStatementTaxes(ctx.supabase, ctx.admin, ctx.user.id, id, bankChargesCategory);
+  } catch {
+    return NextResponse.json(
+      { error: "Couldn't work out the tax for these lines. Nothing was saved - try again." },
+      { status: 500 },
+    );
+  }
 
   const { data: result, error } = await ctx.admin.rpc("commit_statement_import", {
     p_user_id: ctx.user.id,
