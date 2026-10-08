@@ -47,6 +47,9 @@ function formatDate(dateStr: string) {
   });
 }
 
+/** Stable empty fallback for `convertedMap` (see its use in DocumentList). */
+const NO_CONVERSIONS: Record<string, string> = {};
+
 const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
   draft: "outline",
   sent: "secondary",
@@ -62,7 +65,7 @@ export function DocumentList({
   initialProfile,
   businessType,
   subscriptionStatus,
-  convertedMap = {},
+  convertedMap,
 }: {
   type: DocumentType;
   basePath: string;
@@ -89,7 +92,12 @@ export function DocumentList({
   // this list in place, so this can just read the server-fetched value
   // directly rather than needing its own state.
   const documents = initialDocuments;
-  const [converted, setConverted] = useSyncedState(convertedMap);
+  // `?? NO_CONVERSIONS`, not a `= {}` default in the props: useSyncedState re-seeds
+  // whenever the value it is given is a different object, and a default written in
+  // the parameter list is a NEW {} on every render. The Invoices page doesn't pass
+  // convertedMap, so React's dev double render (StrictMode) saw a "changed" prop each
+  // pass, looped, and threw "Too many re-renders" while hydrating.
+  const [converted, setConverted] = useSyncedState(convertedMap ?? NO_CONVERSIONS);
   const [typeFilter, setTypeFilter] = useState<InvoiceTypeFilter>("all");
 
   // Progress draws are invoices too and are listed with the rest; this only
