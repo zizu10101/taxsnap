@@ -1210,3 +1210,5 @@ account to claim.
   the old flat `invoices` table from an earlier prototype was intentionally
   retired in favor of `documents`/`document_items`/`clients`. It may still
   exist in Supabase, unused; don't resurrect code that reads from it.
+
+The card above has the standing rules from this project: branch and push flow, migration safety, testing and reporting, and the tax and delete rules. Save it if it looks right. After that, your prompts can shrink to the task itself.
