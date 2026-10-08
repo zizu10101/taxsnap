@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BookmarkPlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,16 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ContractChange, Job, LineItem } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
 import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
+import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
+import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
 
 interface ChangeItemDraft {
   description: string;
@@ -36,8 +31,6 @@ interface ChangeItemDraft {
 }
 
 const EMPTY_ITEM: ChangeItemDraft = { description: "", quantity: 1, unit_price: 0 };
-const INSERT_SAVED_PLACEHOLDER = "__pick_saved_item__";
-
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
@@ -102,7 +95,6 @@ export function LogContractChangeDialog({
   const [reason, setReason] = useState(editingChange?.reason ?? "");
   const [changedAt, setChangedAt] = useState(editingChange?.changedAt ?? toIsoDate(new Date()));
   const [items, setItems] = useState<ChangeItemDraft[]>(initialItems);
-  const [insertPick, setInsertPick] = useState(INSERT_SAVED_PLACEHOLDER);
   const [saving, setSaving] = useState(false);
 
   function reset() {
@@ -111,28 +103,12 @@ export function LogContractChangeDialog({
     setItems(initialItems());
   }
 
-  const savedItemSelectItems = useMemo(() => {
-    const map: Record<string, string> = { [INSERT_SAVED_PLACEHOLDER]: "Insert a saved item..." };
-    for (const item of savedLineItems) {
-      map[item.id] = `${item.description} — ${formatCurrency(item.unit_price)}`;
-    }
-    return map;
-  }, [savedLineItems]);
-
   function updateItem(index: number, patch: Partial<ChangeItemDraft>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
 
-  function insertSavedItem(id: string | null) {
-    const saved = savedLineItems.find((i) => i.id === id);
-    if (!saved) return;
-    setItems((prev) => {
-      const emptyIndex = prev.findIndex((i) => !i.description.trim());
-      const filled = { description: saved.description, quantity: 1, unit_price: saved.unit_price };
-      if (emptyIndex === -1) return [...prev, filled];
-      return prev.map((i, idx) => (idx === emptyIndex ? filled : i));
-    });
-    setInsertPick(INSERT_SAVED_PLACEHOLDER);
+  function insertSavedItem(saved: SavedItemLike) {
+    setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
   }
 
   const total = round2(
@@ -228,23 +204,7 @@ export function LogContractChangeDialog({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Line items</Label>
               {savedLineItems.length > 0 && (
-                <Select
-                  value={insertPick}
-                  onValueChange={insertSavedItem}
-                  items={savedItemSelectItems}
-                >
-                  <SelectTrigger className="h-8 w-auto max-w-[200px] text-xs">
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedLineItems.map((saved) => (
-                      <SelectItem key={saved.id} value={saved.id}>
-                        {saved.description} — {formatCurrency(saved.unit_price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SavedItemPicker items={savedLineItems} onPick={insertSavedItem} />
               )}
             </div>
             {items.map((item, i) => {

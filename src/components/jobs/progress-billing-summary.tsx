@@ -30,6 +30,7 @@ import { formatDocumentNumber } from "@/lib/document-number";
 import { formatContractNumber } from "@/lib/contract-number";
 import { cn } from "@/lib/utils";
 import type { Client, DocumentStatus, LineItem } from "@/lib/database.types";
+import { invoiceDetailHref } from "@/lib/invoice-back";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -461,7 +462,7 @@ export function ProgressBillingSummary({
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <Link
-                                href={`/dashboard/invoices/${draw.id}`}
+                                href={invoiceDetailHref(draw.id, `progress-billing:${job.id}`)}
                                 className="font-medium hover:underline print:no-underline"
                               >
                                 {formatDocumentNumber("invoice", draw.documentNumber)}
@@ -568,11 +569,11 @@ export function ProgressBillingSummary({
                             key={draw.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => router.push(`/dashboard/invoices/${draw.id}`)}
+                            onClick={() => router.push(invoiceDetailHref(draw.id, `progress-billing:${job.id}`))}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
-                                router.push(`/dashboard/invoices/${draw.id}`);
+                                router.push(invoiceDetailHref(draw.id, `progress-billing:${job.id}`));
                               }
                             }}
                             className="cursor-pointer border-b outline-none last:border-0 hover:bg-muted/50 focus-visible:bg-muted/50"
@@ -663,7 +664,7 @@ export function ProgressBillingSummary({
                       <div className="flex flex-wrap items-center gap-2 border-t pt-2 print:hidden">
                         {isBilled ? (
                           <Link
-                            href={`/dashboard/invoices/${change.billedDocumentId}`}
+                            href={invoiceDetailHref(change.billedDocumentId!, `progress-billing:${job.id}`)}
                             className="text-xs text-success hover:underline"
                           >
                             Billed via{" "}
@@ -767,7 +768,7 @@ export function ProgressBillingSummary({
         presetItems={[
           { description: "Remaining balance", quantity: 1, unit_price: notYetInvoiced },
         ]}
-        onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
+        onSaved={(saved) => router.push(invoiceDetailHref(saved.id, `progress-billing:${job.id}`))}
         onClientCreated={() => router.refresh()}
       />
 
@@ -784,7 +785,7 @@ export function ProgressBillingSummary({
         jobs={jobs}
         savedLineItems={lineItems}
         progressDrawJob={{ name: job.name }}
-        onSaved={(saved) => router.push(`/dashboard/invoices/${saved.id}`)}
+        onSaved={(saved) => router.push(invoiceDetailHref(saved.id, `progress-billing:${job.id}`))}
         onClientCreated={() => router.refresh()}
       />
 
@@ -815,7 +816,7 @@ export function ProgressBillingSummary({
               body: JSON.stringify({ billed_document_id: saved.id }),
             }).catch(() => {});
           }
-          router.push(`/dashboard/invoices/${saved.id}`);
+          router.push(invoiceDetailHref(saved.id, `progress-billing:${job.id}`));
         }}
         onClientCreated={() => router.refresh()}
       />

@@ -41,6 +41,9 @@ import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type { PriorDraw } from "@/lib/invoice-pdf";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { dueDateLabel } from "@/lib/document-labels";
+import { localIsoDate, isFuturePaymentDate } from "@/lib/payment-date";
 import type {
   Client,
   DocumentStatus,
@@ -53,16 +56,14 @@ import type {
 // four statuses DocumentList's STATUS_VARIANT badges use, just mapped to
 // solid pill backgrounds instead of badge outlines (see the mockup's
 // title-adjacent status pill).
+const MANUAL_STATUS_ITEMS = { draft: "Draft", sent: "Sent" };
+
 const STATUS_PILL_CLASS: Record<DocumentStatus, string> = {
   draft: "border-transparent bg-primary text-primary-foreground",
   sent: "border-transparent bg-secondary text-secondary-foreground",
   partial: "border-transparent bg-secondary text-secondary-foreground",
   paid: "border-transparent bg-success text-success-foreground",
 };
-
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -95,6 +96,7 @@ export function DocumentDetail({
   business,
   logoPath,
   basePath,
+  backLink,
   convertedToInvoiceId = null,
 }: {
   document: DocumentWithRelations;
@@ -108,6 +110,8 @@ export function DocumentDetail({
   business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
+  /** Where Back goes when the page knows where the user came from (invoices: ?from=). */
+  backLink?: { href: string; label: string };
   convertedToInvoiceId?: string | null;
 }) {
   const router = useRouter();
@@ -116,6 +120,9 @@ export function DocumentDetail({
   const [editorOpen, setEditorOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [confirmDeleteDocOpen, setConfirmDeleteDocOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [futureDateConfirmOpen, setFutureDateConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const [paymentAmount, setPaymentAmount] = useState(0);
@@ -127,7 +134,7 @@ export function DocumentDetail({
   // owner actually talks about a partial payment).
   const [paymentMode, setPaymentMode] = useState<"dollar" | "percent">("dollar");
   const [paymentPercent, setPaymentPercent] = useState(0);
-  const [paymentDate, setPaymentDate] = useState(() => toIsoDate(new Date()));
+  const [paymentDate, setPaymentDate] = useState(() => localIsoDate());
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   // "" = not specified. Optional on every payment.
@@ -147,12 +154,11 @@ export function DocumentDetail({
     : doc.type === "invoice"
       ? "Invoice"
       : "Estimate";
-  // A progress draw was opened from the Progress Billing tab, not the
-  // regular Invoices list basePath always points at - back navigation
-  // (and the post-delete redirect) should return there instead, not to
-  // Invoices.
-  const backHref = doc.is_progress_draw ? "/dashboard/progress-billing" : basePath;
-  const backLabel = doc.is_progress_draw ? "Progress Billing" : `${label.toLowerCase()}s`;
+  // Back (and the post-delete redirect) go where the user came from: the
+  // invoice page resolves ?from= (lib/invoice-back.ts) into backLink, and
+  // defaults to the Invoices list.
+  const backHref = backLink?.href ?? basePath;
+  const backLabel = backLink?.label ?? `${label.toLowerCase()}s`;
   const shortId = doc.is_progress_draw
     ? `${formatDocumentNumber(doc.type, doc.document_number)} — Draw #${doc.draw_number}`
     : formatDocumentNumber(doc.type, doc.document_number);
@@ -163,6 +169,10 @@ export function DocumentDetail({
   // permanent. Status changes and payments still go through their own
   // dedicated routes/controls, unaffected by this.
   const isLocked = doc.status !== "draft" || doc.payments.length > 0;
+  // Partial / Paid are derived from payments; only Draft / Sent are hand-set.
+  const statusIsPaymentDriven =
+    doc.payments.length > 0 || doc.status === "partial" || doc.status === "paid";
+  const hasBalance = doc.type === "invoice" && balanceDue > 0.005;
 
   const paymentAmountFromPercent =
     Math.round(((paymentPercent / 100) * doc.total_amount + Number.EPSILON) * 100) / 100;
@@ -241,13 +251,25 @@ export function DocumentDetail({
     setEditingPaymentId(null);
     setPaymentAmount(0);
     setPaymentPercent(0);
-    setPaymentDate(toIsoDate(new Date()));
+    setPaymentDate(localIsoDate());
     setPaymentMethod("");
     setPaymentNote("");
     setPaymentBankAccountId("");
   }
 
-  async function handleSavePayment() {
+  // Opens the payment form on the whole unpaid amount: dollars mode, today's
+  // date, the balance in the amount box.
+  function collectRemainingBalance() {
+    setEditingPaymentId(null);
+    setPaymentMode("dollar");
+    setPaymentAmount(Math.round((balanceDue + Number.EPSILON) * 100) / 100);
+    setPaymentPercent(0);
+    setPaymentDate(localIsoDate());
+    window.document.getElementById("payment-amount")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    window.document.getElementById("payment-amount")?.focus({ preventScroll: true });
+  }
+
+  async function handleSavePayment(futureDateConfirmed = false) {
     const isEditing = !!editingPaymentId;
     if (effectivePaymentAmount <= 0) {
       toast.error(
@@ -265,6 +287,13 @@ export function DocumentDetail({
       toast.error(
         `This payment would exceed the invoice total by ${formatCurrency(over)} — edit the invoice or adjust the payment amount.`,
       );
+      return;
+    }
+    // A date after today is usually a typo (and would count as revenue in a
+    // period that hasn't happened). Warn, but allow it: post-dated payments
+    // are real.
+    if (!futureDateConfirmed && isFuturePaymentDate(paymentDate)) {
+      setFutureDateConfirmOpen(true);
       return;
     }
     setAddingPayment(true);
@@ -316,6 +345,7 @@ export function DocumentDetail({
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setDeletingPaymentId(null);
+      setPaymentToDelete(null);
     }
   }
 
@@ -370,23 +400,34 @@ export function DocumentDetail({
         // title as a colored pill trigger instead of a plain dropdown in
         // the toolbar.
         titleBadge={
-          <Select
-            value={doc.status}
-            onValueChange={(v) => v && handleStatusChange(v as DocumentStatus)}
-          >
-            <SelectTrigger
-              className={`h-7 rounded-full border px-3 text-xs font-semibold capitalize ${STATUS_PILL_CLASS[doc.status]}`}
-              disabled={statusSaving}
+          statusIsPaymentDriven ? (
+            // Partial / Paid follow the recorded payments (and can't be set by
+            // hand - the API refuses them), so once an invoice has payments
+            // the status is shown, not offered as a choice.
+            <span
+              className={`inline-flex h-7 items-center rounded-full border px-3 text-xs font-semibold capitalize ${STATUS_PILL_CLASS[doc.status]}`}
+              title="Set automatically from the payments recorded below"
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
-              <SelectItem value="partial">Partial</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-            </SelectContent>
-          </Select>
+              {doc.status}
+            </span>
+          ) : (
+            <Select
+              value={doc.status}
+              items={MANUAL_STATUS_ITEMS}
+              onValueChange={(v) => v && handleStatusChange(v as DocumentStatus)}
+            >
+              <SelectTrigger
+                className={`h-7 rounded-full border px-3 text-xs font-semibold capitalize ${STATUS_PILL_CLASS[doc.status]}`}
+                disabled={statusSaving}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+              </SelectContent>
+            </Select>
+          )
         }
         subtitle={`${shortId} · ${formatDate(doc.issue_date)}`}
         actions={
@@ -473,7 +514,7 @@ export function DocumentDetail({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDelete}
+              onClick={() => setConfirmDeleteDocOpen(true)}
               disabled={deleting || isLocked}
               title={
                 isLocked
@@ -582,7 +623,7 @@ export function DocumentDetail({
             {doc.due_date && (
               <div>
                 <p className="text-xs text-muted-foreground uppercase">
-                  Due date
+                  {dueDateLabel(doc.type)}
                 </p>
                 <p>{formatDate(doc.due_date)}</p>
               </div>
@@ -776,7 +817,7 @@ export function DocumentDetail({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => handleDeletePayment(payment.id)}
+                          onClick={() => setPaymentToDelete(payment)}
                           disabled={deletingPaymentId === payment.id}
                         >
                           {deletingPaymentId === payment.id ? (
@@ -792,6 +833,19 @@ export function DocumentDetail({
             )}
 
             <Separator />
+
+            {hasBalance && !editingPaymentId && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 p-2.5 text-sm">
+                <span>
+                  Balance due{" "}
+                  <span className="font-semibold tabular-nums">{formatCurrency(balanceDue)}</span>
+                </span>
+                <Button type="button" size="sm" onClick={collectRemainingBalance}>
+                  <DollarSign className="h-4 w-4" />
+                  Collect remaining balance
+                </Button>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -843,6 +897,11 @@ export function DocumentDetail({
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
                 />
+                {isFuturePaymentDate(paymentDate) && (
+                  <p className="text-xs text-warning" role="status">
+                    This date is in the future. Check the year and month.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="payment-method">Method (optional)</Label>
@@ -872,7 +931,7 @@ export function DocumentDetail({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleSavePayment}
+                onClick={() => handleSavePayment()}
                 disabled={addingPayment}
               >
                 {addingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -894,6 +953,41 @@ export function DocumentDetail({
         )}
       </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteDocOpen}
+        onOpenChange={setConfirmDeleteDocOpen}
+        title={`Delete this ${label.toLowerCase()}?`}
+        description={`${shortId} will be permanently deleted. This can't be undone.`}
+        confirmLabel={`Delete ${label.toLowerCase()}`}
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        open={paymentToDelete !== null}
+        onOpenChange={(next) => !next && setPaymentToDelete(null)}
+        title="Remove this payment?"
+        description={
+          paymentToDelete
+            ? `The ${formatCurrency(paymentToDelete.amount)} payment dated ${formatDate(paymentToDelete.paid_date)} will be removed, and the invoice balance and status will be recalculated.`
+            : ""
+        }
+        confirmLabel="Remove payment"
+        loading={deletingPaymentId !== null}
+        onConfirm={() => paymentToDelete && handleDeletePayment(paymentToDelete.id)}
+      />
+      <ConfirmDialog
+        open={futureDateConfirmOpen}
+        onOpenChange={setFutureDateConfirmOpen}
+        title="Record a future-dated payment?"
+        description={`This payment is dated ${formatDate(paymentDate)}, which is after today. It will count as revenue in that period, not this one.`}
+        confirmLabel="Record anyway"
+        destructive={false}
+        onConfirm={() => {
+          setFutureDateConfirmOpen(false);
+          void handleSavePayment(true);
+        }}
+      />
 
       <DocumentBuilder
         open={editorOpen}

@@ -12,6 +12,7 @@ import { StartProgressBillingDialog } from "@/components/jobs/start-progress-bil
 import { formatDocumentNumber } from "@/lib/document-number";
 import { formatContractNumber } from "@/lib/contract-number";
 import type { Client, DocumentStatus, Job, LineItem } from "@/lib/database.types";
+import { invoiceDetailHref } from "@/lib/invoice-back";
 
 const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"> = {
   draft: "outline",
@@ -202,7 +203,7 @@ export function ProgressBillingList({
                       return (
                         <Link
                           key={draw.id}
-                          href={`/dashboard/invoices/${draw.id}`}
+                          href={invoiceDetailHref(draw.id, "progress-billing")}
                           className="grid grid-cols-2 items-center gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 sm:grid-cols-4"
                         >
                           {/* Title+date live inside the same grid as

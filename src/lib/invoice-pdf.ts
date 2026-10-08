@@ -7,6 +7,7 @@ import type {
   CommissionEntryWithRelations,
 } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
+import { dueDateLabel } from "@/lib/document-labels";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -449,7 +450,7 @@ export async function generateDocumentPdf(
   pdf.setTextColor(120);
   pdf.text(`Issue date: ${formatDate(doc.issue_date)}`, marginX, y);
   if (doc.due_date) {
-    pdf.text(`Due date: ${formatDate(doc.due_date)}`, marginX + colWidth, y);
+    pdf.text(`${dueDateLabel(doc.type)}: ${formatDate(doc.due_date)}`, marginX + colWidth, y);
   }
   pdf.setTextColor(0);
   y += 18;

@@ -1,6 +1,8 @@
 export interface ReusableItemInput {
   description: string;
   unit_price: number;
+  /** Saved with the item so picking it later fills the quantity too. */
+  quantity?: number;
 }
 
 export interface SaveReusableItemsResult {
@@ -31,7 +33,12 @@ export async function saveReusableItems(
       const res = await fetchImpl("/api/line-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: item.description, unit_price: item.unit_price }),
+        body: JSON.stringify({
+          description: item.description,
+          unit_price: item.unit_price,
+          // Omitted when it isn't a usable number; the server then keeps the default of 1.
+          ...(Number(item.quantity) > 0 ? { quantity: Number(item.quantity) } : {}),
+        }),
       });
       if (res.ok) {
         result.saved += 1;

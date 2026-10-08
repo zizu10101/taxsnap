@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatDocumentNumber } from "@/lib/document-number";
 import type { DocumentType } from "@/lib/database.types";
+import { dueDateLabel } from "@/lib/document-labels";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -92,7 +93,7 @@ export function PublicDocumentPaper({
           </div>
           {dueDate && (
             <div>
-              <p className="text-xs text-muted-foreground uppercase">Due date</p>
+              <p className="text-xs text-muted-foreground uppercase">{dueDateLabel(type)}</p>
               <p>{formatDate(dueDate)}</p>
             </div>
           )}
