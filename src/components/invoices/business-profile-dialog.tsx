@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { BusinessLogoUpload } from "@/components/invoices/business-logo";
 import type { Profile } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 export type BusinessProfileFields = Pick<
   Profile,
@@ -40,6 +41,7 @@ export function BusinessProfileDialog({
   onSaved: (profile: BusinessProfileFields) => void;
   allowSkip: boolean;
 }) {
+  const router = useRouter();
   const [logoPath, setLogoPath] = useState(profile.logo_url);
   const [name, setName] = useState(profile.business_name ?? "");
   const [address, setAddress] = useState(profile.business_address ?? "");
@@ -69,6 +71,7 @@ export function BusinessProfileDialog({
       });
       onSaved({ ...saved, logo_url: logoPath });
       toast.success("Business info saved");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

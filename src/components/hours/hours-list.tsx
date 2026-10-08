@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { EditSessionTimesDialog } from "@/components/hours/edit-session-times-di
 import { DeleteSessionDialog } from "@/components/hours/delete-session-dialog";
 import { ReviewBadge } from "@/components/employees/employee-sessions-dialog";
 import type { Employee, HourEntryWithRelations, Job } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -56,9 +58,10 @@ export function HoursList({
   initialEmployees: Employee[];
   initialJobs: Job[];
 }) {
-  const [entries, setEntries] = useState(initialEntries);
-  const [employees] = useState(initialEmployees);
-  const [jobs, setJobs] = useState(initialJobs);
+  const router = useRouter();
+  const [entries, setEntries] = useSyncedState(initialEntries);
+  const [employees] = useSyncedState(initialEmployees);
+  const [jobs, setJobs] = useSyncedState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
   // Which row is being edited: a manually logged entry opens the regular
   // hours dialog; a clocked one opens the start/end time editor instead,
@@ -113,6 +116,7 @@ export function HoursList({
       if (!res.ok) throw new Error(data.error || "Failed to delete");
       setEntries((prev) => prev.filter((e) => e.id !== id));
       toast.success("Entry deleted");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     }

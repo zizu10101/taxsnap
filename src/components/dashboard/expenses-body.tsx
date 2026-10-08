@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
 import { FileText, Files, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
@@ -72,8 +73,8 @@ export function ExpensesBody({
   // or not theirs) simply opens nothing.
   initialOpenReceiptId?: string | null;
 }) {
-  const [receipts, setReceipts] = useState(initialReceipts);
-  const [templates, setTemplates] = useState(initialTemplates);
+  const [receipts, setReceipts] = useSyncedState(initialReceipts);
+  const [templates, setTemplates] = useSyncedState(initialTemplates);
   const [preset, setPreset] = useState<RangePreset>("this-month");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);

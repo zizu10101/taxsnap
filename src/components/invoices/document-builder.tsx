@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
 import { BookmarkPlus, Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -288,20 +289,12 @@ export function DocumentBuilder({
       }
       onSaved(saved);
 
-      // Best-effort: save any items the user flagged for reuse. Failures
-      // here (e.g. the saved-items cap) shouldn't block the document save
-      // that already succeeded, so these are fire-and-forget.
-      const toSave = cleanItems.filter((i) => i.saveForReuse);
-      for (const item of toSave) {
-        fetch("/api/line-items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: item.description,
-            unit_price: item.unit_price,
-          }),
-        }).catch(() => {});
-      }
+      // Saved-for-reuse items: a failure here never undoes the document save
+      // that already succeeded, but it is reported rather than swallowed.
+      const savedItems = await saveReusableItems(cleanItems.filter((i) => i.saveForReuse));
+      const savedItemsFailure = savedItemsFailureMessage(savedItems);
+      if (savedItemsFailure) toast.warning(savedItemsFailure);
+      router.refresh();
 
       toast.success(isEditing ? `${type === "invoice" ? "Invoice" : "Estimate"} updated` : `${type === "invoice" ? "Invoice" : "Estimate"} created`);
       onOpenChange(false);

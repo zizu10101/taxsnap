@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import type { Employee, HourEntryWithRelations, Job } from "@/lib/database.types";
 import { validateWorkDateForDialog } from "@/lib/work-date";
+import { useRouter } from "next/navigation";
 
 const NEW_JOB = "__new_job__";
 
@@ -55,6 +56,7 @@ export function HourEntryDialog({
   onSaved: (entry: HourEntryWithRelations) => void;
   onJobCreated?: (job: Job) => void;
 }) {
+  const router = useRouter();
   const isEditing = !!entry;
   const activeEmployees = employees.filter((e) => e.is_active || e.id === entry?.employee_id);
 
@@ -152,6 +154,7 @@ export function HourEntryDialog({
       if (jobId === NEW_JOB && onJobCreated) onJobCreated(saved.job);
       onSaved(saved);
       toast.success(isEditing ? "Hour entry updated" : "Hours logged");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       fail(err instanceof Error ? err.message : "Something went wrong");

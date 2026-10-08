@@ -40,6 +40,7 @@ import { EmailSignatureLinkButton } from "@/components/invoices/email-signature-
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type { PriorDraw } from "@/lib/invoice-pdf";
+import { useSyncedState } from "@/lib/use-synced-state";
 import type {
   Client,
   DocumentStatus,
@@ -110,8 +111,8 @@ export function DocumentDetail({
   convertedToInvoiceId?: string | null;
 }) {
   const router = useRouter();
-  const [doc, setDoc] = useState(document);
-  const [allClients, setAllClients] = useState(clients);
+  const [doc, setDoc] = useSyncedState(document);
+  const [allClients, setAllClients] = useSyncedState(clients);
   const [editorOpen, setEditorOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -198,6 +199,7 @@ export function DocumentDetail({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update status");
       setDoc((prev) => ({ ...prev, status: data.document.status }));
+      router.refresh();
       toast.success(`Marked as ${status}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -215,6 +217,7 @@ export function DocumentDetail({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to convert");
       toast.success("Converted to a draft invoice");
+      router.refresh();
       router.push(`/dashboard/invoices/${data.document.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -288,6 +291,7 @@ export function DocumentDetail({
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
       cancelEditPayment();
       toast.success(isEditing ? "Payment updated" : "Payment recorded");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -307,6 +311,7 @@ export function DocumentDetail({
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
       if (editingPaymentId === paymentId) cancelEditPayment();
       toast.success("Payment removed");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -324,6 +329,7 @@ export function DocumentDetail({
       }
       toast.success(`${label} deleted`);
       router.push(backHref);
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setDeleting(false);
@@ -897,7 +903,10 @@ export function DocumentDetail({
         clients={allClients}
         jobs={jobs}
         savedLineItems={lineItems}
-        onSaved={(updated) => setDoc(updated)}
+        onSaved={(updated) => {
+          setDoc(updated);
+          router.refresh();
+        }}
         onClientCreated={(client) => setAllClients((prev) => [...prev, client])}
       />
     </div>

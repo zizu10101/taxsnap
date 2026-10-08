@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, SubscriptionStatus } from "@/lib/database.types";
-import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
+import type { Database, SubscriptionStatus } from "./database.types.ts";
+import { getPresetRange, rangeToUtcBounds } from "./date-range.ts";
 
 // Single source of truth for every tier's usage caps under the
 // capped-forever-freemium model: every tier gets every feature, only the

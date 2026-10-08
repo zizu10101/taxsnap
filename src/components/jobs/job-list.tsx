@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Briefcase, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +24,7 @@ export function JobList({
   costSummaries: Record<string, JobCostSummary>;
 }) {
   const router = useRouter();
-  const [jobs, setJobs] = useState(initialJobs);
+  const [jobs, setJobs] = useSyncedState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 

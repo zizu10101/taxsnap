@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Package, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +33,7 @@ export function ProductList({
   // Only threaded through to CommissionNav (Overview tab visibility).
   isPro?: boolean;
 }) {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useSyncedState(initialProducts);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const router = useRouter();

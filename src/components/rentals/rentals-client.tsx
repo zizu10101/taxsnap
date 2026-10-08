@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { Loader2, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ export function RentalsClient({
   // Only threaded through to CommissionNav, to show/hide the Overview tab.
   isPro: boolean;
 }) {
-  const [renters, setRenters] = useState(initialRenters);
+  const [renters, setRenters] = useSyncedState(initialRenters);
   const [renterDialogOpen, setRenterDialogOpen] = useState(false);
   const [editingRenter, setEditingRenter] = useState<Renter | null>(null);
 

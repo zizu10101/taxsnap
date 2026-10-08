@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { FileText, Pencil, Plus, Receipt as ReceiptIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ export function JobDetail({
   linkedInvoiceCount: number;
   jobRevenue: number;
 }) {
-  const [hourEntries, setHourEntries] = useState(initialHourEntries);
+  const [hourEntries, setHourEntries] = useSyncedState(initialHourEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [invoiceBuilderOpen, setInvoiceBuilderOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

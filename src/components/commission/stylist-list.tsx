@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +33,7 @@ export function StylistList({
   // but isn't part of the Commission section's own tab row.
   showNav?: boolean;
 }) {
-  const [stylists, setStylists] = useState(initialStylists);
+  const [stylists, setStylists] = useSyncedState(initialStylists);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StylistPublic | null>(null);
   const router = useRouter();

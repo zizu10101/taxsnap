@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { Building2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,7 @@ export function BusinessProfileCard({
 }: {
   initialProfile: BusinessProfileFields;
 }) {
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useSyncedState(initialProfile);
   // Auto-open once on first visit: no business name yet and the user hasn't
   // explicitly dismissed the prompt before. A lazy initializer reads this
   // from props at mount instead of an effect, so there's nothing to

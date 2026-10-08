@@ -1,10 +1,17 @@
-const CACHE_NAME = "taxsnap-shell-v2";
+importScripts("/sw-routing.js");
+
+// v3: bumped when RSC / page-data requests stopped being cached. Changing
+// this string changes sw.js's bytes, which is what makes the browser install
+// this worker over the old one; activate then deletes every other cache, so
+// the stale page data the v2 worker stored is dropped.
+const CACHE_NAME = "taxsnap-shell-v3";
 const APP_SHELL = ["/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)),
   );
+  // Don't wait for every tab on the old worker to close.
   self.skipWaiting();
 });
 
@@ -20,21 +27,27 @@ self.addEventListener("activate", (event) => {
         ),
       ),
   );
+  // Take over pages that are already open instead of waiting for a reload.
   self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (request.method !== "GET") return;
 
-  const url = new URL(request.url);
-  if (url.pathname.startsWith("/api/")) return;
+  // The decision lives in sw-routing.js (unit-tested).
+  const strategy = self.TaxSnapSwRouting.decideFetchStrategy(
+    request,
+    self.location.origin,
+  );
 
-  // Pages (navigations and RSC data requests) change on every deploy, so
-  // always prefer a fresh network response - cache is only an offline
-  // fallback. Using request.mode catches both full navigations and the
-  // same-document RSC fetches Next.js makes when navigating client-side.
-  if (request.mode === "navigate") {
+  // Not intercepted at all: the browser fetches it directly. This is also how
+  // "network-only" works - no respondWith, so nothing is read from or written
+  // to the cache, and Next's RSC / page-data requests always see the server.
+  if (strategy === "bypass" || strategy === "network-only") return;
+
+  // Full page loads: always prefer a fresh response; the cache is only an
+  // offline fallback.
+  if (strategy === "network-first") {
     event.respondWith(
       fetch(request)
         .then((response) => {

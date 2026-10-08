@@ -65,6 +65,7 @@ export function LineItemDialog({
 
       onSaved(data.lineItem as LineItem);
       toast.success(isEditing ? "Item updated" : "Item added");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

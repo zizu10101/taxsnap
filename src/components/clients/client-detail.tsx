@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
 import { Mail, MapPin, Pencil, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +63,7 @@ export function ClientDetail({
   portalLinkToken: string | null;
   isPro: boolean;
 }) {
-  const [client, setClient] = useState(initialClient);
+  const [client, setClient] = useSyncedState(initialClient);
   const [editOpen, setEditOpen] = useState(false);
 
   return (

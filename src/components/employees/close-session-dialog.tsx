@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { fromLocalInput, toLocalInput } from "@/lib/datetime-local";
+import { useRouter } from "next/navigation";
 
 export type OpenSessionInfo = {
   id: string;
@@ -39,6 +40,7 @@ export function CloseSessionDialog({
   onOpenChange: (open: boolean) => void;
   onClosed: (employeeId: string) => void;
 }) {
+  const router = useRouter();
   // Parent keys this dialog by session id, so this seeds fresh per session.
   const [endValue, setEndValue] = useState(() => toLocalInput(new Date()));
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,7 @@ export function CloseSessionDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't close the session.");
       toast.success(`Closed ${employeeName}'s session`);
+      router.refresh();
       onClosed(session.employeeId);
       onOpenChange(false);
     } catch (err) {

@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Job } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 // Rename-only: a job's name is its one free-form field (contract value and
 // retainage are set through the Progress Billing flow). Same shape as
@@ -29,6 +30,7 @@ export function EditJobDialog({
   job: Job;
   onSaved: (job: Job) => void;
 }) {
+  const router = useRouter();
   const [name, setName] = useState(job.name);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,7 @@ export function EditJobDialog({
 
       onSaved(data.job as Job);
       toast.success("Job updated");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       // Inline as well as a toast - a toast alone lands dimmed behind the

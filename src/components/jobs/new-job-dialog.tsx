@@ -64,6 +64,7 @@ export function NewJobDialog({
       }
 
       onCreated(data.job as Job);
+      router.refresh();
       setName("");
       onOpenChange(false);
     } catch (err) {
