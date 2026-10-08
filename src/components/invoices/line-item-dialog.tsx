@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { LineItem } from "@/lib/database.types";
+import { savedItemQuantity } from "@/lib/saved-items";
 
 export function LineItemDialog({
   open,
@@ -31,12 +32,18 @@ export function LineItemDialog({
   const isEditing = !!lineItem;
   const [description, setDescription] = useState(lineItem?.description ?? "");
   const [unitPrice, setUnitPrice] = useState(lineItem?.unit_price ?? 0);
+  const [quantity, setQuantity] = useState(lineItem ? savedItemQuantity(lineItem) : 1);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function handleSave() {
     if (!description.trim()) {
       toast.error("Enter a description for this item.");
+      return;
+    }
+
+    if (!(quantity > 0)) {
+      toast.error("Quantity must be greater than 0.");
       return;
     }
 
@@ -47,7 +54,7 @@ export function LineItemDialog({
         {
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description, unit_price: unitPrice }),
+          body: JSON.stringify({ description, unit_price: unitPrice, quantity }),
         },
       );
       const data = await res.json();
@@ -92,7 +99,16 @@ export function LineItemDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="line-item-price">Price</Label>
+            <Label htmlFor="line-item-quantity">Quantity</Label>
+            <NumberInput
+              id="line-item-quantity"
+              step="0.01"
+              value={quantity}
+              onValueChange={setQuantity}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="line-item-price">Price (each)</Label>
             <NumberInput
               id="line-item-price"
               step="0.01"

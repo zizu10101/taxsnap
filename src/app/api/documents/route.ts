@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { validateManualStatus } from "@/lib/document-status";
 import { requireUser } from "@/lib/require-pro";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import {
@@ -72,6 +73,12 @@ export async function POST(request: Request) {
     draw_description,
     draw_percent_complete,
   } = body ?? {};
+
+  // 'partial' / 'paid' follow the recorded payments; they can't be created by hand.
+  const statusError = validateManualStatus(status);
+  if (statusError) {
+    return NextResponse.json({ error: statusError }, { status: 400 });
+  }
 
   if (!DOCUMENT_TYPES.includes(type)) {
     return NextResponse.json(
@@ -221,7 +228,7 @@ export async function POST(request: Request) {
       client_id: clientId,
       job_id: jobId,
       type,
-      status: status === "sent" || status === "paid" ? status : "draft",
+      status: status === "sent" ? "sent" : "draft",
       issue_date,
       due_date: due_date || null,
       subtotal,

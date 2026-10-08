@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
-import { BookmarkPlus, Clock, Loader2, Plus, Trash2 } from "lucide-react";
+import { Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
+import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
+import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { dueDateLabel } from "@/lib/document-labels";
 import type {
   Client,
   DocumentType,
@@ -49,8 +52,6 @@ interface LineItemDraft {
 }
 
 const EMPTY_ITEM: LineItemDraft = { description: "", quantity: 1, unit_price: 0 };
-
-const INSERT_SAVED_PLACEHOLDER = "__pick_saved_item__";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -179,36 +180,8 @@ export function DocumentBuilder({
     return map;
   }, [jobs]);
 
-  // Saved-item picker's value (an id) never matches its displayed label
-  // (description + price), same fix as the client/job selects above.
-  const [insertPick, setInsertPick] = useState(INSERT_SAVED_PLACEHOLDER);
-  const savedItemSelectItems = useMemo(() => {
-    const map: Record<string, string> = {
-      [INSERT_SAVED_PLACEHOLDER]: "Insert a saved item...",
-    };
-    for (const item of savedLineItems) {
-      map[item.id] = `${item.description} — ${formatCurrency(item.unit_price)}`;
-    }
-    return map;
-  }, [savedLineItems]);
-
-  function insertSavedItem(id: string | null) {
-    const saved = savedLineItems.find((i) => i.id === id);
-    if (!saved) return;
-    setItems((prev) => {
-      // Reuse the first still-empty row instead of always appending, so
-      // picking a saved item right after opening the dialog (still just
-      // one blank row) doesn't leave that blank row behind.
-      const emptyIndex = prev.findIndex((i) => !i.description.trim());
-      const filled = {
-        description: saved.description,
-        quantity: 1,
-        unit_price: saved.unit_price,
-      };
-      if (emptyIndex === -1) return [...prev, filled];
-      return prev.map((i, idx) => (idx === emptyIndex ? filled : i));
-    });
-    setInsertPick(INSERT_SAVED_PLACEHOLDER);
+  function insertSavedItem(saved: SavedItemLike) {
+    setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
   }
 
   function handleJobModeChange(value: string) {
@@ -461,7 +434,7 @@ export function DocumentBuilder({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="due-date">Due date (optional)</Label>
+              <Label htmlFor="due-date">{dueDateLabel(type)} (optional)</Label>
               <Input
                 id="due-date"
                 type="date"
@@ -486,23 +459,7 @@ export function DocumentBuilder({
                   Add labor
                 </Button>
                 {savedLineItems.length > 0 && (
-                  <Select
-                    value={insertPick}
-                    onValueChange={insertSavedItem}
-                    items={savedItemSelectItems}
-                  >
-                    <SelectTrigger className="h-8 w-auto max-w-[200px] text-xs">
-                      <BookmarkPlus className="h-3.5 w-3.5" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savedLineItems.map((saved) => (
-                        <SelectItem key={saved.id} value={saved.id}>
-                          {saved.description} — {formatCurrency(saved.unit_price)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SavedItemPicker items={savedLineItems} onPick={insertSavedItem} />
                 )}
               </div>
             </div>

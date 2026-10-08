@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
-import { ArrowLeft, BookmarkPlus, Loader2, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,9 @@ import type {
   LineItem,
 } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
+import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
+import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { dueDateLabel } from "@/lib/document-labels";
 
 // Full-page counterpart to DocumentBuilder (screens 4a/5a of the Invoice
 // Editor design handoff) - deliberately NOT a replacement for it.
@@ -43,8 +46,6 @@ import type { BusinessInfo } from "@/components/invoices/document-detail";
 const NEW_CLIENT = "__new__";
 const NO_JOB = "__no_job__";
 const NEW_JOB = "__new_job__";
-const INSERT_SAVED_PLACEHOLDER = "__pick_saved_item__";
-
 interface LineItemDraft {
   description: string;
   quantity: number;
@@ -139,7 +140,6 @@ export function DocumentEditor({
   const [saving, setSaving] = useState(false);
   const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
-  const [insertPick, setInsertPick] = useState(INSERT_SAVED_PLACEHOLDER);
 
   const clientSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NEW_CLIENT]: "+ Add new client" };
@@ -153,16 +153,6 @@ export function DocumentEditor({
     return map;
   }, [jobs]);
 
-  const savedItemSelectItems = useMemo(() => {
-    const map: Record<string, string> = {
-      [INSERT_SAVED_PLACEHOLDER]: "Insert a saved item...",
-    };
-    for (const item of savedLineItems) {
-      map[item.id] = `${item.description} — ${formatCurrency(item.unit_price)}`;
-    }
-    return map;
-  }, [savedLineItems]);
-
   const selectedClient =
     clientId === NEW_CLIENT
       ? newClient.name
@@ -170,16 +160,8 @@ export function DocumentEditor({
         : null
       : (clients.find((c) => c.id === clientId) ?? null);
 
-  function insertSavedItem(id: string | null) {
-    const saved = savedLineItems.find((i) => i.id === id);
-    if (!saved) return;
-    setItems((prev) => {
-      const emptyIndex = prev.findIndex((i) => !i.description.trim());
-      const filled = { description: saved.description, quantity: 1, unit_price: saved.unit_price };
-      if (emptyIndex === -1) return [...prev, filled];
-      return prev.map((i, idx) => (idx === emptyIndex ? filled : i));
-    });
-    setInsertPick(INSERT_SAVED_PLACEHOLDER);
+  function insertSavedItem(saved: SavedItemLike) {
+    setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
   }
 
   function handleJobModeChange(value: string) {
@@ -440,7 +422,7 @@ export function DocumentEditor({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="due-date" className={darkLabelClass}>
-                  Due Date (optional)
+                  {dueDateLabel(type)} (optional)
                 </Label>
                 <Input
                   id="due-date"
@@ -456,19 +438,7 @@ export function DocumentEditor({
           <FormPanel title={`Line Items · ${items.length} line${items.length === 1 ? "" : "s"}`}>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {savedLineItems.length > 0 && (
-                <Select value={insertPick} onValueChange={insertSavedItem} items={savedItemSelectItems}>
-                  <SelectTrigger className={`h-8 w-auto max-w-[220px] text-xs ${darkFieldClass}`}>
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedLineItems.map((saved) => (
-                      <SelectItem key={saved.id} value={saved.id}>
-                        {saved.description} — {formatCurrency(saved.unit_price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SavedItemPicker items={savedLineItems} onPick={insertSavedItem} triggerClassName={darkFieldClass} />
               )}
             </div>
             <div className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground">
@@ -597,7 +567,7 @@ export function DocumentEditor({
                   </p>
                   <p className="text-xs text-muted-foreground">{formatDate(issueDate)}</p>
                   {dueDate && (
-                    <p className="text-xs text-muted-foreground">Due {formatDate(dueDate)}</p>
+                    <p className="text-xs text-muted-foreground">{type === "estimate" ? "Valid until" : "Due"} {formatDate(dueDate)}</p>
                   )}
                 </div>
               </div>

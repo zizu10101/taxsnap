@@ -599,6 +599,8 @@ export interface Database {
           user_id: string;
           description: string;
           unit_price: number;
+          // Migration 0059. Reads must treat a missing/invalid value as 1 (savedItemQuantity).
+          quantity: number;
           is_active: boolean;
           created_at: string;
         };
@@ -607,6 +609,7 @@ export interface Database {
           user_id: string;
           description: string;
           unit_price?: number;
+          quantity?: number;
           is_active?: boolean;
           created_at?: string;
         };
@@ -615,6 +618,7 @@ export interface Database {
           user_id?: string;
           description?: string;
           unit_price?: number;
+          quantity?: number;
           is_active?: boolean;
           created_at?: string;
         };

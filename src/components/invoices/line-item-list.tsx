@@ -12,6 +12,7 @@ import { LineItemDialog } from "@/components/invoices/line-item-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { LineItem, SubscriptionStatus } from "@/lib/database.types";
+import { savedItemQuantity } from "@/lib/saved-items";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -126,7 +127,7 @@ export function LineItemList({
                         {!item.is_active && <Badge variant="outline">Inactive</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground tabular-nums">
-                        {formatCurrency(item.unit_price)}
+                        {savedItemQuantity(item) !== 1 && `${savedItemQuantity(item)} × `}{formatCurrency(item.unit_price)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -152,7 +153,7 @@ export function LineItemList({
                     {item.description}
                   </p>
                   <span className="hidden text-sm tabular-nums sm:block">
-                    {formatCurrency(item.unit_price)}
+                    {savedItemQuantity(item) !== 1 && `${savedItemQuantity(item)} × `}{formatCurrency(item.unit_price)}
                   </span>
                   <span className="hidden sm:block">
                     {item.is_active ? (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { validateManualStatus } from "@/lib/document-status";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import {
   findClientByName,
@@ -14,7 +15,6 @@ import {
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
-const DOCUMENT_STATUSES: DocumentStatus[] = ["draft", "sent", "partial", "paid"];
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -74,6 +74,13 @@ export async function PATCH(
 
   const body = await request.json();
 
+  // 'partial' / 'paid' follow the recorded payments; they can't be set by hand.
+  // Checked before the lock below so the answer is the clear 400, not a 403.
+  const statusError = validateManualStatus(body?.status);
+  if (statusError) {
+    return NextResponse.json({ error: statusError }, { status: 400 });
+  }
+
   // Once a document has been sent (status past draft) or has any payment
   // recorded, its actual content (amounts, line items, client, job,
   // dates) is locked - same "permanent once real money/commitment is
@@ -127,8 +134,8 @@ export async function PATCH(
   }
 
   if (body.type && DOCUMENT_TYPES.includes(body.type)) updates.type = body.type;
-  if (body.status && DOCUMENT_STATUSES.includes(body.status)) {
-    updates.status = body.status;
+  if (body.status) {
+    updates.status = body.status as DocumentStatus;
   }
   if (body.issue_date) updates.issue_date = body.issue_date;
   if (body.due_date !== undefined) updates.due_date = body.due_date || null;

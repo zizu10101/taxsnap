@@ -106,6 +106,27 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     assert.equal((await pickerItems(free)).length, 1);
   });
 
+  // Needs migration 0059; skips until it has been applied (like the 0053 cases elsewhere).
+  it("quantity is stored and comes back in the next picker load; a bad quantity writes nothing", async (t) => {
+    const probe = await admin.from("line_items").select("quantity").limit(1);
+    if (probe.error) return t.skip("migration 0059 (line_items.quantity) is not applied yet");
+
+    const pro = await makePerson("qty", "pro");
+    const r = await saveReusableItems([{ description: "Potlight, installed", unit_price: 120, quantity: 6 }], asFetch(pro));
+    assert.deepEqual(r, { saved: 1, failures: [] });
+
+    const [item] = (await pickerItems(pro)) as { description: string; unit_price: number; quantity: number }[];
+    assert.equal(item.description, "Potlight, installed");
+    assert.equal(Number(item.unit_price), 120);
+    assert.equal(Number(item.quantity), 6);
+
+    for (const bad of [0, -2, "abc"]) {
+      const res = await createLineItem(pro.client as never, pro.id, { description: "Bad", unit_price: 1, quantity: bad });
+      assert.equal(res.status, 400, String(bad));
+    }
+    assert.equal((await pickerItems(pro)).length, 1);
+  });
+
   it("one owner never sees another's saved items", async () => {
     const a = await makePerson("iso-a", "pro");
     const b = await makePerson("iso-b", "pro");
