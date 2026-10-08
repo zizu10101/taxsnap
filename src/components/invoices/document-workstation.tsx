@@ -13,6 +13,7 @@ import { formatDocumentNumber } from "@/lib/document-number";
 import { cn } from "@/lib/utils";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { DocumentStatus, DocumentType, DocumentWithRelations } from "@/lib/database.types";
+import { documentLabel } from "@/lib/document-label";
 import { drawBadgeLabel } from "@/lib/document-filter";
 import { RecordPaymentDialog } from "@/components/invoices/record-payment-dialog";
 import type { UpdatedDocument } from "@/components/invoices/payment-form";
@@ -129,7 +130,7 @@ export function DocumentWorkstation({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium">
-                      {doc.client?.name ?? "No client"}
+                      {documentLabel(doc.client?.name, doc.job?.name)}
                     </p>
                     {convertedToId ? (
                       <Badge className="border-transparent bg-success text-success-foreground">

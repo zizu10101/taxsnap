@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,24 +8,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Job } from "@/lib/database.types";
+import type { Client, Job } from "@/lib/database.types";
+import { MAX_PLACE_LENGTH } from "@/lib/job-fields";
+
+const NO_CUSTOMER = "__none__";
 
 export function NewJobDialog({
   open,
   onOpenChange,
+  clients,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  clients: Pick<Client, "id" | "name">[];
   onCreated: (job: Job) => void;
 }) {
   const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [clientId, setClientId] = useState(NO_CUSTOMER);
+  const clientItems = useMemo(() => {
+    const map: Record<string, string> = { [NO_CUSTOMER]: "No customer" };
+    for (const c of clients) map[c.id] = c.name;
+    return map;
+  }, [clients]);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
@@ -40,7 +59,11 @@ export function NewJobDialog({
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          location,
+          client_id: clientId === NO_CUSTOMER ? null : clientId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -66,6 +89,8 @@ export function NewJobDialog({
       onCreated(data.job as Job);
       router.refresh();
       setName("");
+      setLocation("");
+      setClientId(NO_CUSTOMER);
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -90,6 +115,40 @@ export function NewJobDialog({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="job-location">Location (optional)</Label>
+          <Input
+            id="job-location"
+            placeholder="e.g. 123 Main St, Toronto"
+            maxLength={MAX_PLACE_LENGTH}
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+        </div>
+
+        {clients.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="job-customer">Customer (optional)</Label>
+            <Select
+              items={clientItems}
+              value={clientId}
+              onValueChange={(v) => v && setClientId(v)}
+            >
+              <SelectTrigger id="job-customer" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_CUSTOMER}>No customer</SelectItem>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

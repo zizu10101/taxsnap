@@ -1,5 +1,6 @@
 "use client";
 
+import { documentLabel } from "@/lib/document-label";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +130,7 @@ export function AccountantDocumentsView({ documents }: { documents: AccountantDo
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">{formatDate(d.issue_date)}</td>
-                    <td className="px-3 py-2">{d.client_name ?? "—"}</td>
+                    <td className="px-3 py-2">{documentLabel(d.client_name, d.job_name, "—")}</td>
                     <td className="px-3 py-2">
                       <StatusBadge row={d} />
                     </td>

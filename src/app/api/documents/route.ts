@@ -13,6 +13,7 @@ import {
   limitReachedMessage,
 } from "@/lib/plan-limits";
 import { getNextDocumentNumber, getNextDrawNumber } from "@/lib/document-number";
+import { parsePlaceText, placeOfWorkForNew } from "@/lib/job-fields";
 import type { DocumentType } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -72,7 +73,11 @@ export async function POST(request: Request) {
     is_progress_draw,
     draw_description,
     draw_percent_complete,
+    place_of_work: placeInput,
   } = body ?? {};
+
+  const place = parsePlaceText(placeInput, "Place of work");
+  if (!place.ok) return NextResponse.json({ error: place.error }, { status: 400 });
 
   // 'partial' / 'paid' follow the recorded payments; they can't be created by hand.
   const statusError = validateManualStatus(status);
@@ -132,6 +137,21 @@ export async function POST(request: Request) {
   }
 
   let clientId: string | null = clientIdInput ?? null;
+  // A FK alone proves the client exists, not that it is this owner's.
+  if (clientIdInput) {
+    const { data: ownClient } =
+      typeof clientIdInput === "string"
+        ? await supabase
+            .from("clients")
+            .select("id")
+            .eq("id", clientIdInput)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : { data: null };
+    if (!ownClient) {
+      return NextResponse.json({ error: "Client not found." }, { status: 404 });
+    }
+  }
   if (!clientId && new_client?.name?.trim()) {
     // The client cap applies here too, not just POST /api/clients - this
     // is the "+ Add new client" inline-create path off the invoice/
@@ -210,6 +230,18 @@ export async function POST(request: Request) {
     }
   }
 
+  // Defaults to the linked job's location when none was typed (a snapshot, see 0060).
+  let jobLocation: string | null = null;
+  if (jobId && !place.value) {
+    const { data: jobRow } = await supabase
+      .from("jobs")
+      .select("location")
+      .eq("id", jobId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    jobLocation = jobRow?.location ?? null;
+  }
+
   const subtotal = round2(
     cleanItems.reduce(
       (sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
@@ -227,6 +259,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       client_id: clientId,
       job_id: jobId,
+      place_of_work: placeOfWorkForNew(place.value, jobLocation),
       type,
       status: status === "sent" ? "sent" : "draft",
       issue_date,

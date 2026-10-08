@@ -46,20 +46,16 @@ export default async function InvoiceDetailPage({
       supabase.from("clients").select("*").order("name", { ascending: true }),
       supabase
         .from("jobs")
-        .select("id, name, contract_value")
+        .select("id, name, location, client_id, contract_value")
         .order("name", { ascending: true }),
       supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
     ]);
 
   if (!document) notFound();
 
-  // Progress-billed jobs are excluded from the job picker - see the same
-  // filter's comment in invoices/new/page.tsx. This document's own current
-  // job (if any) stays visible even if progress-billed, so re-saving
-  // without touching the job field doesn't silently clear it.
-  const eligibleJobs = (jobs ?? []).filter(
-    (j) => j.contract_value === null || j.id === document.job_id,
-  );
+  // Every job is offered (with its customer); the builder disables a progress-billed job for a
+  // plain invoice, but this document's own job stays pickable - see jobPickerOptions.
+  const eligibleJobs = jobs ?? [];
 
   // Only fetched when actually needed - depends on this document's own
   // job_id, so it can't join the parallel fetch above. Every *other*

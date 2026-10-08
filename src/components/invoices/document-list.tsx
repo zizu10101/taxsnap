@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRightLeft, CheckCircle2, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { documentLabel } from "@/lib/document-label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
@@ -266,7 +267,7 @@ export function DocumentList({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">
-                        {doc.client?.name ?? "No client"}
+                        {documentLabel(doc.client?.name, doc.job?.name)}
                       </p>
                       {convertedToId ? (
                         <Badge className="border-transparent bg-success text-success-foreground">

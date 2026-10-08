@@ -34,6 +34,7 @@ import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link
 import { EmailSignatureLinkButton } from "@/components/invoices/email-signature-link-button";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
+import { documentLabel } from "@/lib/document-label";
 import type { PriorDraw } from "@/lib/invoice-pdf";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -268,7 +269,7 @@ export function DocumentDetail({
 
       <PageHeader
         eyebrow={label}
-        title={doc.client?.name ?? "No client"}
+        title={documentLabel(doc.client?.name, doc.job?.name)}
         // Status is real, editable data (manual override, still recomputed
         // by the payments API - see hst-summary-card.tsx's own CLAUDE.md
         // note on this), not a static pill like the mockup shows - kept as
@@ -488,6 +489,13 @@ export function DocumentDetail({
               {doc.client?.address && <p>{doc.client.address}</p>}
             </div>
           </div>
+
+          {doc.place_of_work && (
+            <div className="text-sm">
+              <p className="text-xs text-muted-foreground uppercase">Place of work</p>
+              <p>{doc.place_of_work}</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>

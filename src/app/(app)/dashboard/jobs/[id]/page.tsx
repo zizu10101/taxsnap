@@ -86,6 +86,7 @@ export default async function JobDetailPage({
         clients={clients ?? []}
         savedLineItems={lineItems ?? []}
         linkedInvoiceCount={invoiceCount}
+        linkedDocuments={documents.map((d) => ({ ...d, has_payments: d.payments.length > 0 }))}
         jobRevenue={jobRevenue}
       />
     </div>

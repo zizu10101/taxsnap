@@ -63,6 +63,7 @@ export interface AccountantDocumentRow {
   total_amount: number;
   excluded_from_hst: boolean;
   client_name: string | null;
+  job_name: string | null;
   // Payments received against an invoice (0 for an estimate).
   paid: number;
 }
@@ -76,18 +77,20 @@ export async function listAccountantDocuments(db: ReadDb): Promise<AccountantDoc
   const { data } = await db
     .from("documents")
     .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, client:clients(name), payments(amount)",
+      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, client:clients(name), job:jobs(name), payments(amount)",
     )
     .order("issue_date", { ascending: false })
     .order("document_number", { ascending: false });
 
-  type Raw = Omit<AccountantDocumentRow, "client_name" | "paid"> & {
+  type Raw = Omit<AccountantDocumentRow, "client_name" | "job_name" | "paid"> & {
     client: { name: string } | null;
+    job: { name: string } | null;
     payments: { amount: number }[] | null;
   };
-  return ((data ?? []) as unknown as Raw[]).map(({ client, payments, ...rest }) => ({
+  return ((data ?? []) as unknown as Raw[]).map(({ client, job, payments, ...rest }) => ({
     ...rest,
     client_name: client?.name ?? null,
+    job_name: job?.name ?? null,
     paid: rest.type === "invoice" ? round2((payments ?? []).reduce((s, p) => s + p.amount, 0)) : 0,
   }));
 }
@@ -119,7 +122,7 @@ export async function getAccountantDocument(
     db
       .from("documents")
       .select(
-        "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, client:clients(name, email, address), items:document_items(id, description, quantity, unit_price, sort_order), payments(id, amount, paid_date, method, note, bank_account_id)",
+        "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, place_of_work, job:jobs(name), client:clients(name, email, address), items:document_items(id, description, quantity, unit_price, sort_order), payments(id, amount, paid_date, method, note, bank_account_id)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -140,6 +143,8 @@ export async function getAccountantDocument(
     excluded_from_hst: boolean;
     is_progress_draw: boolean;
     draw_number: number | null;
+    place_of_work: string | null;
+    job: { name: string } | null;
     client: { name: string; email: string | null; address: string | null } | null;
     items: { id: string; description: string; quantity: number; unit_price: number; sort_order: number }[];
     payments: {
@@ -180,6 +185,9 @@ export async function getAccountantDocument(
       draw_number: raw.draw_number,
       draw_percent_complete: null,
       draw_description: null,
+      place_of_work: raw.place_of_work,
+      // The name only - never the job's contract value or costs.
+      job: raw.job ? { name: raw.job.name } : null,
       client: raw.client,
       items: [...raw.items]
         .sort((a, b) => a.sort_order - b.sort_order)

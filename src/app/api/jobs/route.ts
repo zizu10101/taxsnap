@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
 import { findJobByName, isUniqueViolation } from "@/lib/find-by-name";
+import { parsePlaceText } from "@/lib/job-fields";
 
 export async function GET() {
   const result = await requireUser();
@@ -43,10 +44,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Job name is required." }, { status: 400 });
   }
 
+  const location = parsePlaceText(body?.location, "Location");
+  if (!location.ok) return NextResponse.json({ error: location.error }, { status: 400 });
+
+  // Find-or-create: an existing job is returned as is - a location typed on the create form
+  // never overwrites the one already on file (that is what Edit job is for).
   const existing = await findJobByName(supabase, user.id, name);
 
   if (existing) {
     return NextResponse.json({ job: existing });
+  }
+
+  const clientId: unknown = body?.client_id ?? null;
+  if (clientId !== null) {
+    const { data: client } =
+      typeof clientId === "string"
+        ? await supabase
+            .from("clients")
+            .select("id")
+            .eq("id", clientId)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : { data: null };
+    if (!client) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }
 
   const totalCheck = await wouldExceedTotalLimit(supabase, user.id, "jobs");
@@ -59,7 +79,12 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("jobs")
-    .insert({ user_id: user.id, name })
+    .insert({
+      user_id: user.id,
+      name,
+      location: location.value ?? null,
+      client_id: (clientId as string | null) ?? null,
+    })
     .select()
     .single();
 

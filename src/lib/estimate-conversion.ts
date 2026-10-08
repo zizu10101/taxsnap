@@ -89,6 +89,7 @@ export async function convertEstimateToInvoice(
       user_id: userId,
       client_id: estimate.client_id,
       job_id: estimate.job_id,
+      place_of_work: estimate.place_of_work,
       type: "invoice",
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
