@@ -1,4 +1,5 @@
 // Pure logic for the saved-item picker on estimates, invoices and change orders.
+import { searchList } from "./list-search.ts";
 
 export interface SavedItemLike {
   id: string;
@@ -21,20 +22,15 @@ export function savedItemQuantity(item: Pick<SavedItemLike, "quantity">): number
 }
 
 /**
- * Live search: case-insensitive, ignores surrounding space, and every word
- * typed must appear in the description (so "paint room" finds "Interior
+ * Live search - the shared list-search rule (lib/list-search.ts): case- and accent-insensitive, and
+ * every word typed must appear in the description, in any order (so "paint room" finds "Interior
  * paint, per room"). An empty query returns everything, in the original order.
  */
 export function filterSavedItems<T extends Pick<SavedItemLike, "description">>(
   items: T[],
   query: string,
 ): T[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return items;
-  return items.filter((item) => {
-    const haystack = item.description.toLowerCase();
-    return words.every((w) => haystack.includes(w));
-  });
+  return searchList(items, query, (item) => [item.description]);
 }
 
 /** What picking a saved item fills into a line: description, quantity and price. */

@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { nameSearchFields } from "@/lib/list-search-fields";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -48,6 +51,8 @@ export function EmployeeList({
 }) {
   const [employees, setEmployees] = useSyncedState(initialEmployees);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Employee | null>(null);
   const router = useRouter();
   const showAccess = showNav && pinEmployeeIds !== undefined && openSessions !== undefined;
@@ -137,8 +142,9 @@ export function EmployeeList({
     }
   }
 
-  const active = employees.filter((e) => e.is_active);
-  const inactive = employees.filter((e) => !e.is_active);
+  const shown = searchList(employees, query, (e) => nameSearchFields(e));
+  const active = shown.filter((e) => e.is_active);
+  const inactive = shown.filter((e) => !e.is_active);
 
   return (
     <div className="space-y-4">
@@ -162,6 +168,10 @@ export function EmployeeList({
         New employee
       </Button>
 
+      {showNav && employees.length > 0 && (
+        <ListSearch value={query} onChange={setQuery} placeholder="Search employees..." />
+      )}
+
       {employees.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
@@ -169,6 +179,8 @@ export function EmployeeList({
             <p className="text-sm">No employees yet.</p>
           </CardContent>
         </Card>
+      ) : shown.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
       ) : showNav ? (
         // Desktop table (this page only - see the `showNav` note above).
         // EmployeeList's other caller, the onboarding staff step, sits in a

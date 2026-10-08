@@ -15,6 +15,9 @@ import { InvoiceBillingSummary } from "@/components/invoices/invoice-billing-sum
 import { DocumentWorkstation } from "@/components/invoices/document-workstation";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { documentSearchFields } from "@/lib/list-search-fields";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import { invoiceDetailHref } from "@/lib/invoice-back";
@@ -100,6 +103,8 @@ export function DocumentList({
   // pass, looped, and threw "Too many re-renders" while hydrating.
   const [converted, setConverted] = useSyncedState(convertedMap ?? NO_CONVERSIONS);
   const [typeFilter, setTypeFilter] = useState<InvoiceTypeFilter>("all");
+  // Search text is its own state (never a prop default).
+  const [query, setQuery] = useState("");
 
   // Progress draws are invoices too and are listed with the rest; this only
   // narrows what is SHOWN. The usage bar and billing summary below keep using
@@ -108,6 +113,15 @@ export function DocumentList({
   const visibleDocuments = useMemo(
     () => (type === "invoice" ? filterByInvoiceType(documents, typeFilter) : documents),
     [documents, type, typeFilter],
+  );
+  // Search narrows WITHIN the Type filter (and never changes the usage counts above); it filters
+  // the rows already loaded, and keeps the same array when the box is empty.
+  const shownDocuments = useMemo(
+    () =>
+      searchList(visibleDocuments, query, (d) =>
+        documentSearchFields(d, { converted: type === "estimate" && !!converted[d.id] }),
+      ),
+    [visibleDocuments, query, type, converted],
   );
   // An invoice opens remembering it was opened from this list (its Back link).
   const detailHref = (id: string) =>
@@ -233,8 +247,18 @@ export function DocumentList({
         </div>
       )}
 
+      {documents.length > 0 && (
+        <ListSearch
+          value={query}
+          onChange={setQuery}
+          placeholder={`Search ${label.toLowerCase()}s by number, client, job, place or status...`}
+        />
+      )}
+
       <div className="space-y-4 lg:hidden">
-      {visibleDocuments.length === 0 ? (
+      {visibleDocuments.length > 0 && shownDocuments.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
+      ) : visibleDocuments.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
             <FileText className="h-8 w-8" />
@@ -247,7 +271,7 @@ export function DocumentList({
         </Card>
       ) : (
         <div className="space-y-3">
-          {visibleDocuments.map((doc) => {
+          {shownDocuments.map((doc) => {
             const convertedToId = type === "estimate" ? converted[doc.id] : undefined;
             return (
               <Card
@@ -334,9 +358,12 @@ export function DocumentList({
       </div>
 
       <div className="hidden lg:block">
+        {visibleDocuments.length > 0 && shownDocuments.length === 0 ? (
+          <NoSearchResults query={query} onClear={() => setQuery("")} />
+        ) : (
         <DocumentWorkstation
           type={type}
-          documents={visibleDocuments}
+          documents={shownDocuments}
           business={{
             name: initialProfile.business_name,
             email: initialProfile.business_email ?? "",
@@ -348,6 +375,7 @@ export function DocumentList({
           convertedMap={converted}
           onConvert={handleConvert}
         />
+        )}
       </div>
     </div>
   );

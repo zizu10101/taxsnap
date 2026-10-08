@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { savedItemSearchFields } from "@/lib/list-search-fields";
 import { useRouter } from "next/navigation";
 import { ListPlus, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -34,6 +37,8 @@ export function LineItemList({
 }) {
   const [items, setItems] = useSyncedState(initialLineItems);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<LineItem | null>(null);
   const router = useRouter();
 
@@ -70,8 +75,9 @@ export function LineItemList({
     }
   }
 
-  const active = items.filter((i) => i.is_active);
-  const inactive = items.filter((i) => !i.is_active);
+  const shown = searchList(items, query, (i) => savedItemSearchFields(i));
+  const active = shown.filter((i) => i.is_active);
+  const inactive = shown.filter((i) => !i.is_active);
 
   return (
     <div className="space-y-4">
@@ -93,6 +99,10 @@ export function LineItemList({
         New saved item
       </Button>
 
+      {items.length > 0 && (
+        <ListSearch value={query} onChange={setQuery} placeholder="Search saved items..." />
+      )}
+
       {items.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
@@ -100,6 +110,8 @@ export function LineItemList({
             <p className="text-sm">No saved items yet.</p>
           </CardContent>
         </Card>
+      ) : shown.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
       ) : (
         <Card className="gap-0 py-0">
           <CardContent className="p-0">

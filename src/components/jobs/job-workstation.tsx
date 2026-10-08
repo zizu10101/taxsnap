@@ -46,7 +46,8 @@ export function JobWorkstation({
   onEdit: (job: Job) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(jobs[0]?.id ?? null);
-  const selected = jobs.find((j) => j.id === selectedId) ?? null;
+  // The selected row can fall out of a search; show the first match then.
+  const selected = jobs.find((j) => j.id === selectedId) ?? jobs[0] ?? null;
 
   if (jobs.length === 0) {
     return (

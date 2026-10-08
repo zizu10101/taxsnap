@@ -73,7 +73,8 @@ export function ClientWorkstation({
   onEdit: (client: Client) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(clients[0]?.id ?? null);
-  const selected = clients.find((c) => c.id === selectedId) ?? null;
+  // The selected row can fall out of a search; show the first match then.
+  const selected = clients.find((c) => c.id === selectedId) ?? clients[0] ?? null;
 
   if (clients.length === 0) {
     return (

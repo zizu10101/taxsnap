@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
+import { ListSearch } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { expenseSearchFields } from "@/lib/list-search-fields";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
@@ -79,6 +82,8 @@ export function ExpensesBody({
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  // Search text is its own state; it narrows within the date, job and category filters.
+  const [query, setQuery] = useState("");
   // Rows ticked for a bulk action. Cleared whenever a filter changes, so what is selected is always
   // what is on screen; the ids are frozen again when the change dialog opens.
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -109,10 +114,11 @@ export function ExpensesBody({
   const filteredReceipts = useMemo(() => {
     const byRange = filterByRange(receipts, range);
     const byJob = jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
-    return categoryFilter
+    const byCategory = categoryFilter
       ? byJob.filter((r) => r.tax_category.toLowerCase() === categoryFilter.toLowerCase())
       : byJob;
-  }, [receipts, range, jobFilter, categoryFilter]);
+    return searchList(byCategory, query, (r) => expenseSearchFields(r));
+  }, [receipts, range, jobFilter, categoryFilter, query]);
 
   // Only rows that are still on screen count (a deleted row drops out by itself).
   const selectedIds = useMemo(
@@ -273,12 +279,27 @@ export function ExpensesBody({
         />
       )}
 
+      {receipts.length > 0 && (
+        <ListSearch
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            setSelected(new Set());
+          }}
+          placeholder="Search by vendor, category, item or amount..."
+        />
+      )}
+
       <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
 
       <ReceiptsList
         receipts={jobExpenses}
         title="Job Expenses"
-        emptyLabel="No job expenses in this date range."
+        emptyLabel={
+          query.trim()
+            ? `No results for “${query.trim()}”`
+            : "No job expenses in this date range."
+        }
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
         exportFilenameBase={`${exportFilenameBase}-job`}
@@ -291,7 +312,11 @@ export function ExpensesBody({
       <ReceiptsList
         receipts={overheadExpenses}
         title="Overhead Expenses"
-        emptyLabel="No overhead expenses in this date range."
+        emptyLabel={
+          query.trim()
+            ? `No results for “${query.trim()}”`
+            : "No overhead expenses in this date range."
+        }
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
         exportFilenameBase={`${exportFilenameBase}-overhead`}

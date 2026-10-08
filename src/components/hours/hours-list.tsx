@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { hourSearchFields } from "@/lib/list-search-fields";
 import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -63,6 +66,8 @@ export function HoursList({
   const [employees] = useSyncedState(initialEmployees);
   const [jobs, setJobs] = useSyncedState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
   // Which row is being edited: a manually logged entry opens the regular
   // hours dialog; a clocked one opens the start/end time editor instead,
   // because its hours/date are derived from the session and the API refuses
@@ -122,6 +127,8 @@ export function HoursList({
     }
   }
 
+  const shown = searchList(entries, query, (e) => hourSearchFields(e));
+
   return (
     <div className="space-y-4">
       <EmployeesNav active="hours" />
@@ -131,6 +138,10 @@ export function HoursList({
         Log hours
       </Button>
 
+      {entries.length > 0 && (
+        <ListSearch value={query} onChange={setQuery} placeholder="Search by employee or job..." />
+      )}
+
       {entries.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
@@ -138,6 +149,8 @@ export function HoursList({
             <p className="text-sm">No hours logged yet.</p>
           </CardContent>
         </Card>
+      ) : shown.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
       ) : (
         <Card className="gap-0 py-0">
           <CardContent className="p-0">
@@ -152,7 +165,7 @@ export function HoursList({
               <span />
             </div>
             <div className="divide-y">
-              {entries.map((entry) => (
+              {shown.map((entry) => (
                 <div
                   key={entry.id}
                   className="px-4 py-3 sm:grid sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_150px_130px_110px_auto] sm:items-center sm:gap-3"

@@ -16,6 +16,9 @@ import {
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { getEmptyClientSummary } from "@/lib/client-summary";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { clientSearchFields } from "@/lib/list-search-fields";
 import type { Client, SubscriptionStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
 
@@ -44,6 +47,9 @@ export function ClientList({
   const [clients, setClients] = useSyncedState(initialClients);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
+  const visibleClients = searchList(clients, query, (c) => clientSearchFields(c));
 
   return (
     <div className="space-y-4">
@@ -53,6 +59,14 @@ export function ClientList({
         limit={PLAN_LIMITS[subscriptionStatus].clients}
         noun="client"
       />
+
+      {clients.length > 0 && (
+        <ListSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search clients by name, email or address..."
+        />
+      )}
 
       <div className="space-y-3 lg:hidden">
         <Button className="w-full" onClick={() => setDialogOpen(true)}>
@@ -67,9 +81,11 @@ export function ClientList({
               <p className="text-sm">No clients yet. Add one to start invoicing.</p>
             </CardContent>
           </Card>
+        ) : visibleClients.length === 0 ? (
+          <NoSearchResults query={query} onClear={() => setQuery("")} />
         ) : (
           <div className="space-y-3">
-            {clients.map((client) => {
+            {visibleClients.map((client) => {
               const summary = summaries[client.id] ?? getEmptyClientSummary();
               return (
                 <Card
@@ -137,12 +153,16 @@ export function ClientList({
           <Plus className="h-4 w-4" />
           New client
         </Button>
-        <ClientWorkstation
-          clients={clients}
-          summaries={summaries}
-          recentDocsByClient={recentDocsByClient}
-          onEdit={setEditingClient}
-        />
+        {clients.length > 0 && visibleClients.length === 0 ? (
+          <NoSearchResults query={query} onClear={() => setQuery("")} />
+        ) : (
+          <ClientWorkstation
+            clients={visibleClients}
+            summaries={summaries}
+            recentDocsByClient={recentDocsByClient}
+            onEdit={setEditingClient}
+          />
+        )}
       </div>
 
       {editingClient && (

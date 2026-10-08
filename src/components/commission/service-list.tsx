@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { nameSearchFields } from "@/lib/list-search-fields";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Scissors } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +44,8 @@ export function ServiceList({
 }) {
   const [services, setServices] = useSyncedState(initialServices);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Service | null>(null);
   const router = useRouter();
 
@@ -82,8 +87,9 @@ export function ServiceList({
     }
   }
 
-  const active = services.filter((s) => s.is_active);
-  const inactive = services.filter((s) => !s.is_active);
+  const shown = searchList(services, query, (x) => nameSearchFields(x, x.default_price));
+  const active = shown.filter((s) => s.is_active);
+  const inactive = shown.filter((s) => !s.is_active);
 
   return (
     <div className="space-y-4">
@@ -107,6 +113,14 @@ export function ServiceList({
         New service
       </Button>
 
+      {services.length > 0 && (
+        <ListSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search services..."
+        />
+      )}
+
       {services.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
@@ -114,6 +128,8 @@ export function ServiceList({
             <p className="text-sm">No services yet.</p>
           </CardContent>
         </Card>
+      ) : shown.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
       ) : (
         <div className="space-y-3">
           {[...active, ...inactive].map((service) => (

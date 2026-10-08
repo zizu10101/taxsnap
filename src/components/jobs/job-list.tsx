@@ -11,6 +11,9 @@ import { JobWorkstation } from "@/components/jobs/job-workstation";
 import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { ListSearch, NoSearchResults } from "@/components/ui/list-search";
+import { searchList } from "@/lib/list-search";
+import { jobSearchFields } from "@/lib/list-search-fields";
 import type { Client, Job, SubscriptionStatus } from "@/lib/database.types";
 import type { JobCostSummary } from "@/lib/job-revenue";
 
@@ -29,6 +32,10 @@ export function JobList({
   const [jobs, setJobs] = useSyncedState(initialJobs);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
+  // Search text is its own state (never a prop default), and filters rows already loaded.
+  const [query, setQuery] = useState("");
+  const customerName = (id: string | null) => clients.find((c) => c.id === id)?.name ?? null;
+  const visibleJobs = searchList(jobs, query, (j) => jobSearchFields(j, customerName(j.client_id)));
 
   return (
     <div className="space-y-4">
@@ -38,6 +45,14 @@ export function JobList({
         limit={PLAN_LIMITS[subscriptionStatus].jobs}
         noun="job"
       />
+
+      {jobs.length > 0 && (
+        <ListSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search jobs by name, location, customer or contract no..."
+        />
+      )}
 
       <div className="space-y-3 lg:hidden">
       <Button className="w-full" onClick={() => setDialogOpen(true)}>
@@ -54,9 +69,11 @@ export function JobList({
             </p>
           </CardContent>
         </Card>
+      ) : visibleJobs.length === 0 ? (
+        <NoSearchResults query={query} onClear={() => setQuery("")} />
       ) : (
         <div className="space-y-3">
-          {jobs.map((job) => (
+          {visibleJobs.map((job) => (
             <Card
               key={job.id}
               role="button"
@@ -85,7 +102,11 @@ export function JobList({
           <Plus className="h-4 w-4" />
           New job
         </Button>
-        <JobWorkstation jobs={jobs} costSummaries={costSummaries} onEdit={setEditingJob} />
+        {jobs.length > 0 && visibleJobs.length === 0 ? (
+          <NoSearchResults query={query} onClear={() => setQuery("")} />
+        ) : (
+          <JobWorkstation jobs={visibleJobs} costSummaries={costSummaries} onEdit={setEditingJob} />
+        )}
       </div>
 
       {editingJob && (
