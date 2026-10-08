@@ -36,6 +36,8 @@ export function PublicDocumentPaper({
   totalAmount,
   business,
   client,
+  placeOfWork = null,
+  jobName = null,
   logoUrl,
 }: {
   type: DocumentType;
@@ -48,6 +50,8 @@ export function PublicDocumentPaper({
   totalAmount: number;
   business: { name: string | null; email: string; phone: string | null; address: string | null };
   client: { name: string; email: string | null; address: string | null } | null;
+  placeOfWork?: string | null;
+  jobName?: string | null;
   logoUrl: string | null;
 }) {
   const label = type === "invoice" ? "Invoice" : "Estimate";
@@ -83,8 +87,16 @@ export function PublicDocumentPaper({
             <p className="font-medium">{client?.name ?? "—"}</p>
             {client?.email && <p>{client.email}</p>}
             {client?.address && <p>{client.address}</p>}
+            {jobName && <p>Job: {jobName}</p>}
           </div>
         </div>
+
+        {placeOfWork && (
+          <div className="text-sm">
+            <p className="text-xs text-muted-foreground uppercase">Place of work</p>
+            <p>{placeOfWork}</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>

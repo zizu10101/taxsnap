@@ -23,12 +23,11 @@ export default async function NewEstimatePage() {
 
   const [{ data: clients }, { data: jobs }, { data: lineItems }] = await Promise.all([
     supabase.from("clients").select("*").order("name", { ascending: true }),
-    // Progress-billed jobs are excluded - see the same filter's comment in
-    // invoices/new/page.tsx.
+    // Every job of the owner, with its customer and contract value. A progress-billed job is not
+    // hidden: the builder shows it disabled for a plain invoice (lib/job-fields.ts jobPickerOptions).
     supabase
       .from("jobs")
-      .select("id, name")
-      .is("contract_value", null)
+      .select("id, name, location, client_id, contract_value")
       .order("name", { ascending: true }),
     supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
   ]);

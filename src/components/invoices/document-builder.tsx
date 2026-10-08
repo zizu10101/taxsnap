@@ -29,6 +29,14 @@ import { ONTARIO_HST_RATE } from "@/lib/hst";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
 import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
 import { dueDateLabel } from "@/lib/document-labels";
+import {
+  MAX_PLACE_LENGTH,
+  clientForJobChange,
+  defaultPlaceOfWork,
+  jobClientIdByName,
+  jobPickerOptions,
+  type ClientPick,
+} from "@/lib/job-fields";
 import type {
   Client,
   DocumentType,
@@ -89,7 +97,14 @@ export function DocumentBuilder({
   // in favor of a plain placeholder row). Left as-is rather than
   // unwound back to name-only, in case a future feature wants a real
   // job id here again.
-  jobs?: { id: string; name: string }[];
+  // location prefills the place of work when the job is picked.
+  jobs?: {
+    id: string;
+    name: string;
+    location?: string | null;
+    client_id?: string | null;
+    contract_value?: number | null;
+  }[];
   savedLineItems?: LineItem[];
   // Pre-selects a job by name, editable (e.g. opened from the Job
   // Detail page's "New Invoice for this job").
@@ -118,7 +133,19 @@ export function DocumentBuilder({
   const [type, setType] = useState<DocumentType>(
     progressDrawJob ? "invoice" : (document?.type ?? defaultType),
   );
-  const [clientId, setClientId] = useState<string>(document?.client_id ?? NEW_CLIENT);
+  const initialJobName =
+    document?.job?.name ?? presetJob?.name ?? progressDrawJob?.name ?? null;
+  // A new document opened for a job (from the job page, or a progress draw) starts with that job's
+  // customer; an existing document keeps its own client.
+  const initialClient: ClientPick = document
+    ? { clientId: document.client_id, source: "user" }
+    : clientForJobChange(
+        { clientId: null, source: "user" },
+        jobClientIdByName(jobs, initialJobName),
+        clients.map((c) => c.id),
+      );
+  const [clientId, setClientId] = useState<string>(initialClient.clientId ?? NEW_CLIENT);
+  const [clientSource, setClientSource] = useState<ClientPick["source"]>(initialClient.source);
   const [newClient, setNewClient] = useState({ name: "", email: "", address: "" });
   const [issueDate, setIssueDate] = useState(document?.issue_date ?? todayIso());
   const [dueDate, setDueDate] = useState(document?.due_date ?? "");
@@ -134,10 +161,14 @@ export function DocumentBuilder({
         : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
-  const initialJobName =
-    document?.job?.name ?? presetJob?.name ?? progressDrawJob?.name ?? null;
   const [jobMode, setJobMode] = useState<string>(initialJobName ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  // Defaults to the picked job's location until the user types their own; a saved document keeps
+  // its own value (it is a snapshot, not a live link to the job).
+  const [placeOfWork, setPlaceOfWork] = useState(
+    document ? (document.place_of_work ?? "") : defaultPlaceOfWork(jobs, initialJobName),
+  );
+  const [placeEdited, setPlaceEdited] = useState(!!document);
   const [drawDescription, setDrawDescription] = useState(document?.draw_description ?? "");
   // NumberInput takes a plain number (0 already displays as an empty
   // field, same convention as every other dollar/qty input in this app)
@@ -174,11 +205,16 @@ export function DocumentBuilder({
     return map;
   }, [clients]);
 
+  // Every job, with its customer; a progress-billed job is shown disabled for a plain invoice.
+  const jobOptions = useMemo(
+    () => jobPickerOptions(jobs, clients, { type, isDraw, selectedName: jobMode }),
+    [jobs, clients, type, isDraw, jobMode],
+  );
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
-    for (const job of jobs) map[job.name] = job.name;
+    for (const o of jobOptions) map[o.value] = o.label;
     return map;
-  }, [jobs]);
+  }, [jobOptions]);
 
   function insertSavedItem(saved: SavedItemLike) {
     setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
@@ -187,6 +223,21 @@ export function DocumentBuilder({
   function handleJobModeChange(value: string) {
     setJobMode(value);
     if (value === NEW_JOB) setNewJobName("");
+    if (!placeEdited) {
+      setPlaceOfWork(defaultPlaceOfWork(jobs, value === NO_JOB || value === NEW_JOB ? null : value));
+    }
+    const jobName = value === NO_JOB || value === NEW_JOB ? null : value;
+    // The job's customer prefills the client only while it is empty or was last set by a job
+    // prefill; a client picked (or typed) by hand stays.
+    const current: ClientPick = {
+      clientId: clientId === NEW_CLIENT ? (newClient.name.trim() ? "__typed__" : null) : clientId,
+      source: clientSource,
+    };
+    const next = clientForJobChange(current, jobClientIdByName(jobs, jobName), clients.map((c) => c.id));
+    if (next !== current && next.clientId) {
+      setClientId(next.clientId);
+      setClientSource("job");
+    }
   }
 
   const totals = useMemo(() => {
@@ -225,6 +276,7 @@ export function DocumentBuilder({
         client_id: clientId === NEW_CLIENT ? null : clientId,
         new_client: clientId === NEW_CLIENT ? newClient : undefined,
         ...(jobName ? { job_name: jobName } : { job_id: null }),
+        place_of_work: placeOfWork.trim() || null,
         items: cleanItems,
         ...(isDraw && {
           is_progress_draw: true,
@@ -304,7 +356,11 @@ export function DocumentBuilder({
             <Select
               items={clientSelectItems}
               value={clientId}
-              onValueChange={(v) => v && setClientId(v)}
+              onValueChange={(v) => {
+                if (!v) return;
+                setClientId(v);
+                setClientSource("user");
+              }}
             >
               <SelectTrigger id="doc-client" className="w-full">
                 <SelectValue />
@@ -383,9 +439,9 @@ export function DocumentBuilder({
                   <SelectContent>
                     <SelectItem value={NO_JOB}>No job</SelectItem>
                     <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.name}>
-                        {job.name}
+                    {jobOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -399,6 +455,23 @@ export function DocumentBuilder({
                 )}
               </>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="doc-place">Place of work (optional)</Label>
+            <Input
+              id="doc-place"
+              placeholder="e.g. 123 Main St, Toronto"
+              maxLength={MAX_PLACE_LENGTH}
+              value={placeOfWork}
+              onChange={(e) => {
+                setPlaceOfWork(e.target.value);
+                setPlaceEdited(true);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Fills in from the job&apos;s location; change it here for just this document.
+            </p>
           </div>
 
           {isDraw && (

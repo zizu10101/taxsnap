@@ -11,17 +11,19 @@ import { JobWorkstation } from "@/components/jobs/job-workstation";
 import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
-import type { Job, SubscriptionStatus } from "@/lib/database.types";
+import type { Client, Job, SubscriptionStatus } from "@/lib/database.types";
 import type { JobCostSummary } from "@/lib/job-revenue";
 
 export function JobList({
   initialJobs,
   subscriptionStatus,
   costSummaries,
+  clients,
 }: {
   initialJobs: Job[];
   subscriptionStatus: SubscriptionStatus;
   costSummaries: Record<string, JobCostSummary>;
+  clients: Pick<Client, "id" | "name">[];
 }) {
   const router = useRouter();
   const [jobs, setJobs] = useSyncedState(initialJobs);
@@ -94,6 +96,7 @@ export function JobList({
             if (!open) setEditingJob(null);
           }}
           job={editingJob}
+          clients={clients}
           onSaved={(saved) =>
             setJobs((prev) =>
               prev.map((j) => (j.id === saved.id ? saved : j)).sort((a, b) => a.name.localeCompare(b.name)),
@@ -105,6 +108,7 @@ export function JobList({
       <NewJobDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        clients={clients}
         onCreated={(job) => {
           // An existing job can come back from find-or-create - don't list it twice.
           setJobs((prev) =>

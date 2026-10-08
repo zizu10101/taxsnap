@@ -3,13 +3,22 @@
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
-import { FileText, Pencil, Plus, Receipt as ReceiptIcon } from "lucide-react";
+import Link from "next/link";
+import { FileText, MapPin, Pencil, Plus, Trash2, Receipt as ReceiptIcon, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HourEntryDialog } from "@/components/hours/hour-entry-dialog";
 import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
 import { EmployeeLink } from "@/components/employees/employee-link";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
+import { deleteConfirmText, jobDeleteBlocker, unlinkSummary } from "@/lib/job-delete";
+import { groupJobDocuments, type JobDocumentRow } from "@/lib/job-documents";
+import { formatDocumentNumber } from "@/lib/document-number";
+import { drawBadgeLabel } from "@/lib/document-filter";
+import { invoiceDetailHref } from "@/lib/invoice-back";
 import type {
   Client,
   Employee,
@@ -48,6 +57,7 @@ export function JobDetail({
   clients,
   savedLineItems,
   linkedInvoiceCount,
+  linkedDocuments,
   jobRevenue,
 }: {
   job: Job;
@@ -58,12 +68,16 @@ export function JobDetail({
   clients: Client[];
   savedLineItems: LineItem[];
   linkedInvoiceCount: number;
+  // The estimates/invoices/draws already fetched for the revenue figure - no extra query.
+  linkedDocuments: JobDocumentRow[];
   jobRevenue: number;
 }) {
   const [hourEntries, setHourEntries] = useSyncedState(initialHourEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [invoiceBuilderOpen, setInvoiceBuilderOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const receipts = initialReceipts;
   const router = useRouter();
 
@@ -81,6 +95,49 @@ export function JobDetail({
   const totalLaborRevenue = hourEntries.reduce((sum, h) => sum + h.labor_revenue, 0);
   const laborMargin = totalLaborRevenue - totalLaborCost;
 
+  const customer = job.client_id ? clients.find((c) => c.id === job.client_id) : undefined;
+  const { estimates, invoices, draws } = groupJobDocuments(linkedDocuments);
+
+  const unlinkCounts = {
+    documents: linkedDocuments.length,
+    expenses: receipts.length,
+    templates: 0, // only the server knows; it reports the real figure after the delete
+  };
+
+  function openDelete() {
+    // What this page already knows; the server re-checks everything (including change orders).
+    const blocker = jobDeleteBlocker({
+      draws: draws.length,
+      changeOrders: 0,
+      documentsWithPayments: linkedDocuments.filter((d) => d.has_payments).length,
+      hourEntries: hourEntries.length,
+      timeSessions: 0,
+    });
+    if (blocker) {
+      toast.error(blocker);
+      return;
+    }
+    setDeleteOpen(true);
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete");
+      const unlinked = unlinkSummary(data.unlinked);
+      toast.success(unlinked ? `Job deleted. Unlinked ${unlinked}.` : "Job deleted");
+      router.push("/dashboard/jobs");
+      router.refresh();
+    } catch (err) {
+      setDeleteOpen(false);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function upsertEntry(entry: HourEntryWithRelations) {
     setHourEntries((prev) => {
       const exists = prev.some((e) => e.id === entry.id);
@@ -90,12 +147,59 @@ export function JobDetail({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="h-4 w-4" />
           Edit job
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={openDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </Button>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this job?"
+        description={deleteConfirmText(unlinkCounts)}
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
+
+      <Card>
+        <CardContent className="grid gap-3 py-4 text-sm sm:grid-cols-2">
+          <div className="flex items-start gap-2">
+            <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground uppercase">Customer</p>
+              {customer ? (
+                <Link
+                  href={`/dashboard/clients/${customer.id}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  {customer.name}
+                </Link>
+              ) : (
+                <p className="text-muted-foreground">Not set</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground uppercase">Location</p>
+              <p className={job.location ? "font-medium" : "text-muted-foreground"}>
+                {job.location ?? "Not set"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Three stat cards side by side at lg+ instead of stacked full-width
           - each one's own content (a 3-column mini-grid) stays exactly as
@@ -217,12 +321,36 @@ export function JobDetail({
       </div>
 
       <EditJobDialog
-        key={job.name}
+        key={`${job.name}|${job.location}|${job.client_id}|${job.contract_value}|${job.retainage_rate}`}
         open={editOpen}
         onOpenChange={setEditOpen}
         job={job}
+        clients={clients}
         onSaved={() => router.refresh()}
       />
+
+      {linkedDocuments.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="font-heading text-lg font-semibold">Estimates &amp; invoices</h2>
+          <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+            <LinkedDocuments
+              title="Estimates"
+              docs={estimates}
+              hrefFor={(d) => `/dashboard/estimates/${d.id}`}
+            />
+            <LinkedDocuments
+              title="Invoices"
+              docs={invoices}
+              hrefFor={(d) => invoiceDetailHref(d.id, "invoices")}
+            />
+            <LinkedDocuments
+              title="Progress draws"
+              docs={draws}
+              hrefFor={(d) => invoiceDetailHref(d.id, `progress-billing:${job.id}`)}
+            />
+          </div>
+        </div>
+      )}
 
       <DocumentBuilder
         open={invoiceBuilderOpen}
@@ -322,5 +450,47 @@ export function JobDetail({
         onSaved={upsertEntry}
       />
     </div>
+  );
+}
+
+function LinkedDocuments({
+  title,
+  docs,
+  hrefFor,
+}: {
+  title: string;
+  docs: JobDocumentRow[];
+  hrefFor: (doc: JobDocumentRow) => string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">None linked to this job.</p>
+        ) : (
+          docs.map((d) => (
+            <Link
+              key={d.id}
+              href={hrefFor(d)}
+              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
+            >
+              <span className="min-w-0">
+                <span className="block font-mono text-xs text-primary">
+                  {formatDocumentNumber(d.type, d.document_number)}
+                </span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                  <Badge variant="outline">{d.status}</Badge>
+                  {drawBadgeLabel(d) && <Badge variant="outline">{drawBadgeLabel(d)}</Badge>}
+                </span>
+              </span>
+              <span className="font-semibold tabular-nums">{formatCurrency(d.total_amount)}</span>
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }

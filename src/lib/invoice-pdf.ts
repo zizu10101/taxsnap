@@ -372,7 +372,10 @@ export type PdfDocument = Pick<
 > & {
   items: Pick<DocumentItem, "description" | "quantity" | "unit_price">[];
   client: Pick<NonNullable<DocumentWithRelations["client"]>, "name" | "email" | "address"> | null;
-  job?: Pick<NonNullable<DocumentWithRelations["job"]>, "contract_value"> | null;
+  // name prints as "Job:" under Bill To; contract_value only feeds the owner's progress summary.
+  job?: { contract_value?: number | null; name?: string | null } | null;
+  // Where the work is done (documents.place_of_work); absent/null prints nothing.
+  place_of_work?: string | null;
 };
 
 export interface DocumentPdfOptions {
@@ -438,6 +441,7 @@ export async function generateDocumentPdf(
     doc.client?.name ?? "—",
     doc.client?.email ?? null,
     doc.client?.address ?? null,
+    doc.job?.name ? `Job: ${doc.job.name}` : null,
   ].filter((line): line is string => !!line);
   for (const line of billLines) {
     pdf.text(line, marginX + colWidth, billY, { maxWidth: colWidth - 16 });
@@ -445,6 +449,22 @@ export async function generateDocumentPdf(
   }
 
   y = Math.max(fromY, billY) + 10;
+
+  const placeOfWork = doc.place_of_work?.trim();
+  if (placeOfWork) {
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text("PLACE OF WORK", marginX, y);
+    pdf.setTextColor(0);
+    pdf.setFontSize(11);
+    y += 14;
+    const placeLines: string[] = pdf.splitTextToSize(placeOfWork, rightX - marginX);
+    for (const line of placeLines) {
+      pdf.text(line, marginX, y);
+      y += 14;
+    }
+    y += 10;
+  }
 
   pdf.setFontSize(9);
   pdf.setTextColor(120);

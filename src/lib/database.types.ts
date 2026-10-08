@@ -245,6 +245,7 @@ export interface Database {
           user_id: string;
           client_id: string | null;
           job_id: string | null;
+          place_of_work: string | null;
           type: DocumentType;
           status: DocumentStatus;
           issue_date: string;
@@ -274,6 +275,7 @@ export interface Database {
           user_id: string;
           client_id?: string | null;
           job_id?: string | null;
+          place_of_work?: string | null;
           type: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;
@@ -303,6 +305,7 @@ export interface Database {
           user_id?: string;
           client_id?: string | null;
           job_id?: string | null;
+          place_of_work?: string | null;
           type?: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;
@@ -492,6 +495,8 @@ export interface Database {
           id: string;
           user_id: string;
           name: string;
+          location: string | null;
+          client_id: string | null;
           contract_value: number | null;
           contract_number: number | null;
           retainage_rate: number | null;
@@ -501,6 +506,8 @@ export interface Database {
           id?: string;
           user_id: string;
           name: string;
+          location?: string | null;
+          client_id?: string | null;
           contract_value?: number | null;
           contract_number?: number | null;
           retainage_rate?: number | null;
@@ -510,6 +517,8 @@ export interface Database {
           id?: string;
           user_id?: string;
           name?: string;
+          location?: string | null;
+          client_id?: string | null;
           contract_value?: number | null;
           contract_number?: number | null;
           retainage_rate?: number | null;

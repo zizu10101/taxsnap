@@ -69,7 +69,7 @@ export default async function ProgressBillingSummaryPage({
       .eq("type", "invoice")
       .eq("job_id", jobId)
       .order("draw_number", { ascending: true }),
-    supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+    supabase.from("jobs").select("id, name, location, client_id").order("name", { ascending: true }),
     supabase.from("clients").select("*").order("name", { ascending: true }),
     supabase
       .from("line_items")

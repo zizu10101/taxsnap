@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/require-pro";
 import { getNextContractNumber } from "@/lib/contract-number";
 import type { JobUpdate } from "@/lib/database.types";
 import { findJobByName, duplicateJobMessage, isUniqueViolation } from "@/lib/find-by-name";
+import { validateJobPatch } from "@/lib/job-fields";
+import { jobDeleteBlocker } from "@/lib/job-delete";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -58,11 +60,14 @@ export async function GET(
   });
 }
 
-// Renames a job (EditJobDialog) and sets contract_value/retainage_rate (the
-// Progress Billing tab's own "Start Progress Billing" flow). Editing an
-// already-capped job doesn't consume a new job slot - it's an edit to an
-// existing row, not a create. Renames are case-insensitively unique per
-// account, excluding the job being renamed ("abc" -> "ABC" is fine).
+// Edits a job (EditJobDialog: name, location, customer, contract value, retainage) and sets
+// contract_value/retainage_rate (the Progress Billing tab's own "Start Progress Billing" flow).
+// Every rule lives in lib/job-fields.ts (tested): contract value must be a real positive amount,
+// retainage 0-100, and once the job has progress draws or change orders the contract numbers are
+// frozen (change orders are the only way to move contract_value from then on). Editing an
+// already-capped job doesn't consume a new job slot - it's an edit to an existing row, not a
+// create. Renames are case-insensitively unique per account, excluding the job being renamed
+// ("abc" -> "ABC" is fine).
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -74,45 +79,66 @@ export async function PATCH(
   const { supabase, user } = result;
   const { id } = await params;
 
-  const body = await request.json();
-  const { name, contract_value, retainage_rate } = body ?? {};
+  const body = await request.json().catch(() => null);
 
-  const update: JobUpdate = {};
-  if (name !== undefined) {
-    const trimmed = typeof name === "string" ? name.trim() : "";
-    if (!trimmed) {
-      return NextResponse.json({ error: "Job name is required." }, { status: 400 });
-    }
-    if (await findJobByName(supabase, user.id, trimmed, id)) {
-      return NextResponse.json({ error: duplicateJobMessage(trimmed) }, { status: 409 });
-    }
-    update.name = trimmed;
+  const [{ data: current }, { count: drawCount }, { count: changeCount }] = await Promise.all([
+    supabase
+      .from("jobs")
+      .select("contract_value, contract_number, retainage_rate")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", id)
+      .eq("user_id", user.id)
+      .eq("is_progress_draw", true),
+    supabase
+      .from("contract_changes")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", id),
+  ]);
+  if (!current) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+
+  const checked = validateJobPatch(body, current, {
+    hasDraws: (drawCount ?? 0) > 0,
+    hasChanges: (changeCount ?? 0) > 0,
+  });
+  if (!checked.ok) {
+    return NextResponse.json({ error: checked.error }, { status: checked.status });
   }
-  if (contract_value !== undefined) {
-    update.contract_value = contract_value === null ? null : Number(contract_value) || 0;
+  const update: JobUpdate = { ...checked.update };
+
+  if (typeof update.name === "string" && (await findJobByName(supabase, user.id, update.name, id))) {
+    return NextResponse.json({ error: duplicateJobMessage(update.name) }, { status: 409 });
   }
-  // Set once, alongside contract_value, in the Start Progress Billing
-  // flow - 0/blank collapses to null (same "not using retainage" meaning)
-  // so every gate elsewhere can just check truthiness.
-  if (retainage_rate !== undefined) {
-    update.retainage_rate =
-      retainage_rate === null ? null : Number(retainage_rate) || null;
+
+  // A FK alone proves the client exists, not that it is this owner's.
+  if (typeof update.client_id === "string") {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", update.client_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!client) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
   }
 
   // Assigned exactly once, the moment a job becomes progress-billed
   // (contract_value going from null to a real value) - never reassigned
   // after, same as document_number.
-  if (update.contract_value !== undefined && update.contract_value !== null) {
-    const { data: current } = await supabase
-      .from("jobs")
-      .select("contract_value, contract_number")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+  if (
+    typeof update.contract_value === "number" &&
+    current.contract_value === null &&
+    current.contract_number === null
+  ) {
+    update.contract_number = await getNextContractNumber(supabase, user.id);
+  }
 
-    if (current && current.contract_value === null && current.contract_number === null) {
-      update.contract_number = await getNextContractNumber(supabase, user.id);
-    }
+  if (Object.keys(update).length === 0) {
+    const { data: unchanged } = await supabase.from("jobs").select("*").eq("id", id).single();
+    return NextResponse.json({ job: unchanged });
   }
 
   const { data, error } = await supabase
@@ -128,4 +154,86 @@ export async function PATCH(
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ job: data });
+}
+
+// Hard-deletes a job - the same pattern as documents/payments/clients (only employees and
+// stylists are "deactivated", because history needs their row; a job is just a label). It never
+// deletes what points at it: documents, expenses and expense templates are unlinked by the
+// foreign keys (`on delete set null`), and the delete is REFUSED (409) while the job has progress
+// draws, change orders, a document with payments, or hours / clock sessions. See lib/job-delete.ts.
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await requireUser();
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  const { supabase, user } = result;
+  const { id } = await params;
+
+  const { data: job } = await supabase
+    .from("jobs")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+
+  const [documents, changeOrders, hourEntries, timeSessions, expenses, templates] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("id, is_progress_draw, payments(id)")
+        .eq("job_id", id)
+        .eq("user_id", user.id),
+      supabase.from("contract_changes").select("id", { count: "exact", head: true }).eq("job_id", id),
+      supabase
+        .from("hour_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id)
+        .eq("user_id", user.id),
+      supabase
+        .from("time_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id)
+        .eq("user_id", user.id),
+      supabase
+        .from("receipts")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id)
+        .eq("user_id", user.id),
+      supabase
+        .from("expense_templates")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id)
+        .eq("user_id", user.id),
+    ]);
+
+  const failed = [documents, changeOrders, hourEntries, timeSessions, expenses, templates].find(
+    (r) => r.error,
+  );
+  if (failed?.error) return NextResponse.json({ error: failed.error.message }, { status: 500 });
+
+  const docs = (documents.data ?? []) as { is_progress_draw: boolean; payments: { id: string }[] }[];
+  const blocker = jobDeleteBlocker({
+    draws: docs.filter((d) => d.is_progress_draw).length,
+    changeOrders: changeOrders.count ?? 0,
+    documentsWithPayments: docs.filter((d) => d.payments.length > 0).length,
+    hourEntries: hourEntries.count ?? 0,
+    timeSessions: timeSessions.count ?? 0,
+  });
+  if (blocker) return NextResponse.json({ error: blocker }, { status: 409 });
+
+  const { error } = await supabase.from("jobs").delete().eq("id", id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({
+    success: true,
+    unlinked: {
+      documents: docs.length,
+      expenses: expenses.count ?? 0,
+      templates: templates.count ?? 0,
+    },
+  });
 }

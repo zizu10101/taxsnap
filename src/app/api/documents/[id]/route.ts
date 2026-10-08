@@ -12,6 +12,7 @@ import {
   wouldExceedTotalLimit,
   limitReachedMessage,
 } from "@/lib/plan-limits";
+import { parsePlaceText } from "@/lib/job-fields";
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -98,6 +99,7 @@ export async function PATCH(
     "new_client",
     "job_id",
     "job_name",
+    "place_of_work",
     "items",
   ];
   if (isLocked && CONTENT_KEYS.some((key) => key in body)) {
@@ -139,6 +141,11 @@ export async function PATCH(
   }
   if (body.issue_date) updates.issue_date = body.issue_date;
   if (body.due_date !== undefined) updates.due_date = body.due_date || null;
+  // Place of work: undefined = leave as is, blank clears it (it is a per-document override of the
+  // job's location, not a live link to it).
+  const place = parsePlaceText(body.place_of_work, "Place of work");
+  if (!place.ok) return NextResponse.json({ error: place.error }, { status: 400 });
+  if (place.value !== undefined) updates.place_of_work = place.value;
   if (typeof body.excluded_from_hst === "boolean") {
     updates.excluded_from_hst = body.excluded_from_hst;
   }
@@ -157,6 +164,21 @@ export async function PATCH(
   }
 
   let clientId: string | undefined = body.client_id ?? undefined;
+  // A FK alone proves the client exists, not that it is this owner's.
+  if (body.client_id) {
+    const { data: ownClient } =
+      typeof body.client_id === "string"
+        ? await supabase
+            .from("clients")
+            .select("id")
+            .eq("id", body.client_id)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : { data: null };
+    if (!ownClient) {
+      return NextResponse.json({ error: "Client not found." }, { status: 404 });
+    }
+  }
   if (!clientId && body.new_client?.name?.trim()) {
     // Same cap as the inline-create path in POST /api/documents - editing
     // a document is a second real way to create a client row via

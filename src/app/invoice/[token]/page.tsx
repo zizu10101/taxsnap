@@ -22,7 +22,7 @@ export default async function PublicInvoicePage({
 
   const { data: invoice } = await supabase
     .from("documents")
-    .select("*, items:document_items(*), client:clients(*)")
+    .select("*, items:document_items(*), client:clients(*), job:jobs(name)")
     .eq("view_token", token)
     .eq("type", "invoice")
     .maybeSingle();
@@ -63,6 +63,8 @@ export default async function PublicInvoicePage({
         totalAmount={invoice.total_amount}
         business={business}
         client={invoice.client}
+        placeOfWork={invoice.place_of_work}
+        jobName={invoice.job?.name ?? null}
         logoUrl={logoUrl}
       />
     </div>

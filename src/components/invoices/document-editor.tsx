@@ -32,6 +32,14 @@ import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
 import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
 import { dueDateLabel } from "@/lib/document-labels";
+import {
+  MAX_PLACE_LENGTH,
+  clientForJobChange,
+  defaultPlaceOfWork,
+  jobClientIdByName,
+  jobPickerOptions,
+  type ClientPick,
+} from "@/lib/job-fields";
 
 // Full-page counterpart to DocumentBuilder (screens 4a/5a of the Invoice
 // Editor design handoff) - deliberately NOT a replacement for it.
@@ -114,7 +122,13 @@ export function DocumentEditor({
   // to when its type doesn't change.
   basePath: string;
   clients: Client[];
-  jobs?: { id: string; name: string }[];
+  jobs?: {
+    id: string;
+    name: string;
+    location?: string | null;
+    client_id?: string | null;
+    contract_value?: number | null;
+  }[];
   savedLineItems?: LineItem[];
   business: BusinessInfo;
   logoPath: string | null;
@@ -124,6 +138,7 @@ export function DocumentEditor({
 
   const [type, setType] = useState<DocumentType>(document?.type ?? defaultType);
   const [clientId, setClientId] = useState<string>(document?.client_id ?? NEW_CLIENT);
+  const [clientSource, setClientSource] = useState<ClientPick["source"]>("user");
   const [newClient, setNewClient] = useState({ name: "", email: "", address: "" });
   const [issueDate, setIssueDate] = useState(document?.issue_date ?? todayIso());
   const [dueDate, setDueDate] = useState(document?.due_date ?? "");
@@ -140,6 +155,11 @@ export function DocumentEditor({
   const [saving, setSaving] = useState(false);
   const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
+  // Defaults to the picked job's location until typed over; a saved document keeps its own value.
+  const [placeOfWork, setPlaceOfWork] = useState(
+    document ? (document.place_of_work ?? "") : "",
+  );
+  const [placeEdited, setPlaceEdited] = useState(!!document);
 
   const clientSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NEW_CLIENT]: "+ Add new client" };
@@ -147,11 +167,16 @@ export function DocumentEditor({
     return map;
   }, [clients]);
 
+  // Every job, with its customer; a progress-billed job is shown disabled for a plain invoice.
+  const jobOptions = useMemo(
+    () => jobPickerOptions(jobs, clients, { type, isDraw: false, selectedName: jobMode }),
+    [jobs, clients, type, jobMode],
+  );
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
-    for (const job of jobs) map[job.name] = job.name;
+    for (const o of jobOptions) map[o.value] = o.label;
     return map;
-  }, [jobs]);
+  }, [jobOptions]);
 
   const selectedClient =
     clientId === NEW_CLIENT
@@ -167,6 +192,21 @@ export function DocumentEditor({
   function handleJobModeChange(value: string) {
     setJobMode(value);
     if (value === NEW_JOB) setNewJobName("");
+    if (!placeEdited) {
+      setPlaceOfWork(defaultPlaceOfWork(jobs, value === NO_JOB || value === NEW_JOB ? null : value));
+    }
+    const jobName = value === NO_JOB || value === NEW_JOB ? null : value;
+    // The job's customer prefills the client only while it is empty or was last set by a job
+    // prefill; a client picked (or typed) by hand stays.
+    const current: ClientPick = {
+      clientId: clientId === NEW_CLIENT ? (newClient.name.trim() ? "__typed__" : null) : clientId,
+      source: clientSource,
+    };
+    const next = clientForJobChange(current, jobClientIdByName(jobs, jobName), clients.map((c) => c.id));
+    if (next !== current && next.clientId) {
+      setClientId(next.clientId);
+      setClientSource("job");
+    }
   }
 
   const totals = useMemo(() => {
@@ -204,6 +244,7 @@ export function DocumentEditor({
         client_id: clientId === NEW_CLIENT ? null : clientId,
         new_client: clientId === NEW_CLIENT ? newClient : undefined,
         ...(jobName ? { job_name: jobName } : { job_id: null }),
+        place_of_work: placeOfWork.trim() || null,
         items: cleanItems,
       };
 
@@ -313,7 +354,11 @@ export function DocumentEditor({
                 <Select
                   items={clientSelectItems}
                   value={clientId}
-                  onValueChange={(v) => v && setClientId(v)}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setClientId(v);
+                    setClientSource("user");
+                  }}
                 >
                   <SelectTrigger id="doc-client" className={`w-full ${darkFieldClass}`}>
                     <SelectValue />
@@ -343,9 +388,9 @@ export function DocumentEditor({
                   <SelectContent>
                     <SelectItem value={NO_JOB}>No job</SelectItem>
                     <SelectItem value={NEW_JOB}>+ Add new job</SelectItem>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.name}>
-                        {job.name}
+                    {jobOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -358,6 +403,22 @@ export function DocumentEditor({
                     onChange={(e) => setNewJobName(e.target.value)}
                   />
                 )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="doc-place" className={darkLabelClass}>
+                  Place of work (optional)
+                </Label>
+                <Input
+                  id="doc-place"
+                  placeholder="Fills in from the job's location"
+                  maxLength={MAX_PLACE_LENGTH}
+                  className={darkFieldClass}
+                  value={placeOfWork}
+                  onChange={(e) => {
+                    setPlaceOfWork(e.target.value);
+                    setPlaceEdited(true);
+                  }}
+                />
               </div>
             </div>
 
@@ -589,6 +650,13 @@ export function DocumentEditor({
                   </div>
                 )}
               </div>
+
+              {placeOfWork.trim() && (
+                <div className="text-sm">
+                  <p className="text-xs text-muted-foreground uppercase">Place of work</p>
+                  <p>{placeOfWork.trim()}</p>
+                </div>
+              )}
 
               <table className="w-full text-sm">
                 <thead>

@@ -27,7 +27,7 @@ export default async function JobsPage() {
     .eq("id", user.id)
     .single();
 
-  const [{ data: jobs }, { data: receipts }, { data: hourEntries }, { data: documents }] =
+  const [{ data: jobs }, { data: receipts }, { data: hourEntries }, { data: documents }, { data: clients }] =
     await Promise.all([
       supabase.from("jobs").select("*").order("name", { ascending: true }),
       supabase
@@ -42,6 +42,7 @@ export default async function JobsPage() {
         .from("documents")
         .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount)")
         .not("job_id", "is", null),
+      supabase.from("clients").select("id, name").order("name", { ascending: true }),
     ]);
 
   // Every job's cost/revenue rollup, computed once here so the lg+
@@ -68,6 +69,7 @@ export default async function JobsPage() {
         initialJobs={jobs ?? []}
         subscriptionStatus={profile?.subscription_status ?? "free"}
         costSummaries={Object.fromEntries(costSummaries)}
+        clients={clients ?? []}
       />
     </div>
   );
