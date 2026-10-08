@@ -72,6 +72,16 @@ if you copy Radix-style shadcn patterns from memory or training data:
   See `src/components/install-prompt-cards.tsx` (standalone-display-mode and
   iOS detection) for the pattern - also used in
   `share-document-button.tsx`'s mobile-vs-desktop share button check.
+- **`useSyncedState(prop)`** (`src/lib/use-synced-state.ts`) is `useState(prop)` that
+  re-seeds when the server hands down NEW data (after `router.refresh()`); lists
+  that copy a server prop into state use it, never plain `useState(initialX)`. It
+  compares by reference, so the value must be stable between renders: **never give
+  a synced prop a default in the parameter list (`convertedMap = {}`) or build it
+  inline (`x ?? []`)** - that is a new object every render, the hook re-seeds every
+  pass, and React's dev double render (StrictMode) throws "Too many re-renders"
+  while hydrating (it took down the Invoices tab and showed up as "Encountered a
+  script tag while rendering React component"). Use a module-level constant
+  fallback (`NO_CONVERSIONS` in `document-list.tsx`); a test scans for this.
 - shadcn's `Sheet` (`src/components/ui/sheet.tsx`) wraps one Base UI Dialog
   behind two `side` variants: `side="bottom"` (default, dark `bg-sidebar`
   surface) is the mobile nav's "More" overflow sheet; `side="right"` (light

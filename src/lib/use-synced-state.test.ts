@@ -119,7 +119,6 @@ const SYNCED: [file: string, prop: string][] = [
   ["hours/hours-list", "initialJobs"],
   ["invoices/business-profile-card", "initialProfile"],
   ["invoices/line-item-list", "initialLineItems"],
-  ["invoices/document-list", "convertedMap"],
   ["invoices/document-detail", "document"],
   ["jobs/job-detail", "initialHourEntries"],
   ["jobs/job-list", "initialJobs"],
@@ -136,3 +135,45 @@ for (const [file, prop] of SYNCED) {
     assert.doesNotMatch(src, new RegExp(`useState\\(${prop}\\)`), "no plain useState seed left");
   });
 }
+
+// ---- The Invoices-tab hydration bug: a prop that is a NEW object on every render ----
+//
+// useSyncedState re-seeds whenever it is handed a different object. A default written in the
+// parameter list (`convertedMap = {}`) is a different object on every render, so a component that
+// renders twice (React's dev StrictMode double render, any later re-render) loops until React throws
+// "Too many re-renders". The server renderer renders once, so the HTML looked fine; on the client
+// the throw during hydration made React client-render the whole document (which is what logs
+// "Encountered a script tag while rendering React component").
+
+test("a prop that is a fresh object on every render never settles (what `x = {}` in a signature does)", () => {
+  const h = createHarness((p: { v?: Record<string, string> }) => {
+    const { v = {} } = p; // new {} each call
+    return useSyncedState(v);
+  });
+  h.render({}); // first render: fine
+  assert.throws(() => h.render({}), /Too many re-renders/);
+});
+
+test("a stable fallback constant settles however often it re-renders", () => {
+  const NONE: Record<string, string> = {};
+  const h = createHarness((p: { v?: Record<string, string> }) => useSyncedState(p.v ?? NONE));
+  for (let i = 0; i < 5; i++) assert.equal(h.render({})[0], NONE);
+});
+
+test("no component gives its synced prop a fresh default (`= {}`, `= []`, `= new ...`)", () => {
+  const files = new Set([...SYNCED.map(([f]) => f), "invoices/document-list"]);
+  for (const file of files) {
+    const src = readFileSync(new URL(`../components/${file}.tsx`, import.meta.url), "utf8");
+    assert.doesNotMatch(
+      src,
+      /^\s*(initial\w+|convertedMap|document|clients)\s*=\s*(\{\}|\[\]|new\s)/m,
+      `${file} defaults a synced prop to a new object on every render`,
+    );
+  }
+});
+
+test("invoices/document-list seeds convertedMap from a stable fallback", () => {
+  const src = readFileSync(new URL("../components/invoices/document-list.tsx", import.meta.url), "utf8");
+  assert.match(src, /useSyncedState\(convertedMap \?\? NO_CONVERSIONS\)/);
+  assert.match(src, /^const NO_CONVERSIONS: Record<string, string> = \{\};/m);
+});
