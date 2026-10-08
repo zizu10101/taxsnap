@@ -16,9 +16,6 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NumberInput } from "@/components/ui/number-input";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -27,12 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
-import { BankAccountSelect } from "@/components/invoices/bank-account-select";
 import { useBankAccounts } from "@/components/owner-lists-provider";
 import { ShareDocumentButton } from "@/components/invoices/share-document-button";
 import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link-button";
@@ -43,7 +38,8 @@ import type { PriorDraw } from "@/lib/invoice-pdf";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { dueDateLabel } from "@/lib/document-labels";
-import { localIsoDate, isFuturePaymentDate } from "@/lib/payment-date";
+import { PaymentForm } from "@/components/invoices/payment-form";
+import { mergeUpdatedDocument } from "@/lib/payment-form";
 import type {
   Client,
   DocumentStatus,
@@ -122,32 +118,14 @@ export function DocumentDetail({
   const [converting, setConverting] = useState(false);
   const [confirmDeleteDocOpen, setConfirmDeleteDocOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
-  const [futureDateConfirmOpen, setFutureDateConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  // % mode is a separate entry field, not a live conversion of
-  // paymentAmount - switching modes doesn't try to reverse-derive one
-  // from the other, it just enters the other one blank. The % basis is
-  // this document's own total_amount (a draw's total, not the overall
-  // contract value - "90%" means 90% of *this invoice*, matching how an
-  // owner actually talks about a partial payment).
-  const [paymentMode, setPaymentMode] = useState<"dollar" | "percent">("dollar");
-  const [paymentPercent, setPaymentPercent] = useState(0);
-  const [paymentDate, setPaymentDate] = useState(() => localIsoDate());
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [paymentNote, setPaymentNote] = useState("");
-  // "" = not specified. Optional on every payment.
-  const [paymentBankAccountId, setPaymentBankAccountId] = useState("");
   const bankAccounts = useBankAccounts();
-  const [addingPayment, setAddingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(
     null,
   );
-  // Set while editing an existing payment - the same amount/date/method/
-  // note fields double as the edit form, PATCHing instead of POSTing on
-  // save. Null means the form is in its normal "add a new payment" mode.
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  // The payment being edited (the PaymentForm follows it); null = adding a new one.
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
 
   const label = doc.is_progress_draw
     ? "Progress Invoice"
@@ -172,21 +150,6 @@ export function DocumentDetail({
   // Partial / Paid are derived from payments; only Draft / Sent are hand-set.
   const statusIsPaymentDriven =
     doc.payments.length > 0 || doc.status === "partial" || doc.status === "paid";
-  const hasBalance = doc.type === "invoice" && balanceDue > 0.005;
-
-  const paymentAmountFromPercent =
-    Math.round(((paymentPercent / 100) * doc.total_amount + Number.EPSILON) * 100) / 100;
-  const effectivePaymentAmount =
-    paymentMode === "percent" ? paymentAmountFromPercent : paymentAmount;
-
-  // While editing an existing payment, that payment's current amount is
-  // still counted in paidToDate/balanceDue above - add it back so editing
-  // a payment doesn't immediately read as "over the balance" against its
-  // own prior value.
-  const paymentBeingEdited = editingPaymentId
-    ? (doc.payments.find((p) => p.id === editingPaymentId) ?? null)
-    : null;
-  const effectiveBalanceDue = balanceDue + (paymentBeingEdited?.amount ?? 0);
 
   // Same pre-tax (subtotal) math as generateDocumentPdf's Progress
   // Billing Summary, kept in sync by hand since one is jsPDF drawing
@@ -237,95 +200,8 @@ export function DocumentDetail({
   }
 
   function startEditPayment(payment: Payment) {
-    setEditingPaymentId(payment.id);
-    setPaymentMode("dollar");
-    setPaymentAmount(payment.amount);
-    setPaymentPercent(0);
-    setPaymentDate(payment.paid_date);
-    setPaymentMethod(payment.method ?? "");
-    setPaymentNote(payment.note ?? "");
-    setPaymentBankAccountId(payment.bank_account_id ?? "");
-  }
-
-  function cancelEditPayment() {
-    setEditingPaymentId(null);
-    setPaymentAmount(0);
-    setPaymentPercent(0);
-    setPaymentDate(localIsoDate());
-    setPaymentMethod("");
-    setPaymentNote("");
-    setPaymentBankAccountId("");
-  }
-
-  // Opens the payment form on the whole unpaid amount: dollars mode, today's
-  // date, the balance in the amount box.
-  function collectRemainingBalance() {
-    setEditingPaymentId(null);
-    setPaymentMode("dollar");
-    setPaymentAmount(Math.round((balanceDue + Number.EPSILON) * 100) / 100);
-    setPaymentPercent(0);
-    setPaymentDate(localIsoDate());
+    setEditingPayment(payment);
     window.document.getElementById("payment-amount")?.scrollIntoView({ block: "center", behavior: "smooth" });
-    window.document.getElementById("payment-amount")?.focus({ preventScroll: true });
-  }
-
-  async function handleSavePayment(futureDateConfirmed = false) {
-    const isEditing = !!editingPaymentId;
-    if (effectivePaymentAmount <= 0) {
-      toast.error(
-        paymentMode === "percent"
-          ? "Enter a percentage greater than 0%."
-          : "Enter a payment amount greater than $0.",
-      );
-      return;
-    }
-    // Instant feedback before the round trip - the server enforces this
-    // too (authoritative, catches a stale balanceDue or a direct API
-    // call), see POST/PATCH /api/documents/[id]/payments's own comment.
-    if (effectivePaymentAmount > effectiveBalanceDue + 0.001) {
-      const over = effectivePaymentAmount - effectiveBalanceDue;
-      toast.error(
-        `This payment would exceed the invoice total by ${formatCurrency(over)} — edit the invoice or adjust the payment amount.`,
-      );
-      return;
-    }
-    // A date after today is usually a typo (and would count as revenue in a
-    // period that hasn't happened). Warn, but allow it: post-dated payments
-    // are real.
-    if (!futureDateConfirmed && isFuturePaymentDate(paymentDate)) {
-      setFutureDateConfirmOpen(true);
-      return;
-    }
-    setAddingPayment(true);
-    try {
-      const res = await fetch(
-        isEditing
-          ? `/api/documents/${doc.id}/payments/${editingPaymentId}`
-          : `/api/documents/${doc.id}/payments`,
-        {
-          method: isEditing ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: effectivePaymentAmount,
-            paid_date: paymentDate,
-            method: paymentMethod,
-            note: paymentNote,
-            bank_account_id: paymentBankAccountId,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.error || `Failed to ${isEditing ? "update" : "record"} payment`);
-      setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
-      cancelEditPayment();
-      toast.success(isEditing ? "Payment updated" : "Payment recorded");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setAddingPayment(false);
-    }
   }
 
   async function handleDeletePayment(paymentId: string) {
@@ -338,7 +214,7 @@ export function DocumentDetail({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete payment");
       setDoc((prev) => ({ ...prev, ...data.document, items: prev.items }));
-      if (editingPaymentId === paymentId) cancelEditPayment();
+      if (editingPayment?.id === paymentId) setEditingPayment(null);
       toast.success("Payment removed");
       router.refresh();
     } catch (err) {
@@ -785,7 +661,7 @@ export function DocumentDetail({
                     <div
                       key={payment.id}
                       className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm ${
-                        editingPaymentId === payment.id ? "border-primary bg-primary/5" : ""
+                        editingPayment?.id === payment.id ? "border-primary bg-primary/5" : ""
                       }`}
                     >
                       <div className="min-w-0">
@@ -834,120 +710,15 @@ export function DocumentDetail({
 
             <Separator />
 
-            {hasBalance && !editingPaymentId && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 p-2.5 text-sm">
-                <span>
-                  Balance due{" "}
-                  <span className="font-semibold tabular-nums">{formatCurrency(balanceDue)}</span>
-                </span>
-                <Button type="button" size="sm" onClick={collectRemainingBalance}>
-                  <DollarSign className="h-4 w-4" />
-                  Collect remaining balance
-                </Button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="payment-amount">
-                    {paymentMode === "percent" ? "Amount (%)" : "Amount ($)"}
-                  </Label>
-                  <Tabs
-                    value={paymentMode}
-                    onValueChange={(v) => v && setPaymentMode(v as "dollar" | "percent")}
-                  >
-                    <TabsList className="h-6 p-[2px]">
-                      <TabsTrigger value="dollar" className="h-5 px-2 text-xs">
-                        $
-                      </TabsTrigger>
-                      <TabsTrigger value="percent" className="h-5 px-2 text-xs">
-                        %
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                {paymentMode === "percent" ? (
-                  <>
-                    <NumberInput
-                      id="payment-amount"
-                      step="0.1"
-                      value={paymentPercent}
-                      onValueChange={setPaymentPercent}
-                    />
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      = {formatCurrency(paymentAmountFromPercent)} of{" "}
-                      {formatCurrency(doc.total_amount)}
-                    </p>
-                  </>
-                ) : (
-                  <NumberInput
-                    id="payment-amount"
-                    step="0.01"
-                    value={paymentAmount}
-                    onValueChange={setPaymentAmount}
-                  />
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="payment-date">Date</Label>
-                <Input
-                  id="payment-date"
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                />
-                {isFuturePaymentDate(paymentDate) && (
-                  <p className="text-xs text-warning" role="status">
-                    This date is in the future. Check the year and month.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="payment-method">Method (optional)</Label>
-                <Input
-                  id="payment-method"
-                  placeholder="e.g. E-transfer"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                />
-              </div>
-              <BankAccountSelect
-                id="payment-bank-account"
-                value={paymentBankAccountId}
-                onChange={setPaymentBankAccountId}
-              />
-              <div className="space-y-1.5">
-                <Label htmlFor="payment-note">Note (optional)</Label>
-                <Input
-                  id="payment-note"
-                  placeholder="e.g. Deposit"
-                  value={paymentNote}
-                  onChange={(e) => setPaymentNote(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleSavePayment()}
-                disabled={addingPayment}
-              >
-                {addingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
-                {editingPaymentId ? "Update Payment" : "Record Payment"}
-              </Button>
-              {editingPaymentId && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={cancelEditPayment}
-                  disabled={addingPayment}
-                >
-                  Cancel
-                </Button>
-              )}
-            </div>
+            <PaymentForm
+              document={doc}
+              editingPayment={editingPayment}
+              onCancelEdit={() => setEditingPayment(null)}
+              onSaved={(updated) => {
+                setDoc((prev) => mergeUpdatedDocument(prev, updated));
+                setEditingPayment(null);
+              }}
+            />
           </CardContent>
         </Card>
         )}
@@ -975,18 +746,6 @@ export function DocumentDetail({
         confirmLabel="Remove payment"
         loading={deletingPaymentId !== null}
         onConfirm={() => paymentToDelete && handleDeletePayment(paymentToDelete.id)}
-      />
-      <ConfirmDialog
-        open={futureDateConfirmOpen}
-        onOpenChange={setFutureDateConfirmOpen}
-        title="Record a future-dated payment?"
-        description={`This payment is dated ${formatDate(paymentDate)}, which is after today. It will count as revenue in that period, not this one.`}
-        confirmLabel="Record anyway"
-        destructive={false}
-        onConfirm={() => {
-          setFutureDateConfirmOpen(false);
-          void handleSavePayment(true);
-        }}
       />
 
       <DocumentBuilder

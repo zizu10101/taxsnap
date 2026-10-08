@@ -120,6 +120,7 @@ const SYNCED: [file: string, prop: string][] = [
   ["invoices/business-profile-card", "initialProfile"],
   ["invoices/line-item-list", "initialLineItems"],
   ["invoices/document-detail", "document"],
+  ["invoices/document-workstation", "documents"],
   ["jobs/job-detail", "initialHourEntries"],
   ["jobs/job-list", "initialJobs"],
   ["rentals/rentals-client", "initialRenters"],
@@ -161,7 +162,7 @@ test("a stable fallback constant settles however often it re-renders", () => {
 });
 
 test("no component gives its synced prop a fresh default (`= {}`, `= []`, `= new ...`)", () => {
-  const files = new Set([...SYNCED.map(([f]) => f), "invoices/document-list"]);
+  const files = new Set([...SYNCED.map(([f]) => f), "invoices/document-list", "invoices/document-workstation"]);
   for (const file of files) {
     const src = readFileSync(new URL(`../components/${file}.tsx`, import.meta.url), "utf8");
     assert.doesNotMatch(

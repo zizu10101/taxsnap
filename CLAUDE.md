@@ -282,6 +282,15 @@ unsure):
     an invoice (`amount`, `paid_date`, optional `method`/`note`). This is
     the source of truth the HST calculator and the invoice's "Paid to
     date"/"Balance due" figures are built from - see Tax logic below.
+    There is ONE payment form, `PaymentForm` (`components/invoices/payment-form.tsx`;
+    pure rules in `lib/payment-form.ts`): inline on the invoice page and inside
+    `RecordPaymentDialog`, opened by the "Record payment" button on the Invoices
+    preview panel (shown only when `canRecordPayment`: an invoice with a balance).
+    It owns the $/% amount, local-date default, "Collect remaining balance" prefill,
+    overpayment check, inline future-date "Record anyway" step (inline, never a
+    second modal, so it works inside the dialog), the save, `router.refresh()`, and
+    hands the updated document back so the preview's paid amount/balance/status
+    change at once. Don't build another payment form.
 - `line_items` - the owner's saved items (description, `unit_price`, and
   `quantity` from migration `0059_line_item_quantity.sql`: `numeric(12,2) not
   null default 1`, checked `> 0`; rollback in `supabase/rollbacks/`). Picking

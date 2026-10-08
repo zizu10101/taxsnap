@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CheckCircle2, FileStack } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, DollarSign, FileStack } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,10 @@ import { cn } from "@/lib/utils";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { DocumentStatus, DocumentType, DocumentWithRelations } from "@/lib/database.types";
 import { drawBadgeLabel } from "@/lib/document-filter";
+import { RecordPaymentDialog } from "@/components/invoices/record-payment-dialog";
+import type { UpdatedDocument } from "@/components/invoices/payment-form";
+import { canRecordPayment, mergeUpdatedDocument } from "@/lib/payment-form";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { invoiceDetailHref } from "@/lib/invoice-back";
 
 function formatCurrency(amount: number) {
@@ -52,13 +56,16 @@ const STATUS_VARIANT: Record<DocumentStatus, "outline" | "secondary" | "default"
 // through the existing New/Edit/Detail pages (DocumentBuilder,
 // DocumentDetail) via the "View full details" link below - this is a
 // browsing/preview layer on top, not a parallel document system.
+/** Stable empty lookup (a `= {}` default in the props would be a new object every render). */
+const NO_CONVERSIONS: Record<string, string> = {};
+
 export function DocumentWorkstation({
   type,
   documents,
   business,
   logoPath,
   basePath,
-  convertedMap = {},
+  convertedMap,
   onConvert,
 }: {
   type: DocumentType;
@@ -70,12 +77,20 @@ export function DocumentWorkstation({
   convertedMap?: Record<string, string>;
   onConvert?: (id: string) => void;
 }) {
+  // A local copy that follows the server list (router.refresh() hands down new data and wins),
+  // but is updated at once when a payment is recorded from the preview.
+  const convertedLookup = convertedMap ?? NO_CONVERSIONS;
+  const [localDocs, setLocalDocs] = useSyncedState(documents);
   const [selectedId, setSelectedId] = useState<string | null>(documents[0]?.id ?? null);
   // The selected row can fall out of the list (the Type filter changed); show the first one then.
-  const selected = documents.find((d) => d.id === selectedId) ?? documents[0] ?? null;
+  const selected = localDocs.find((d) => d.id === selectedId) ?? localDocs[0] ?? null;
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
-  if (documents.length === 0) {
+  function handlePaymentSaved(updated: UpdatedDocument) {
+    setLocalDocs((prev) => prev.map((d) => (d.id === updated.id ? mergeUpdatedDocument(d, updated) : d)));
+  }
+
+  if (localDocs.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
@@ -89,10 +104,10 @@ export function DocumentWorkstation({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_26rem] items-start gap-4">
       <div className="max-h-[calc(100vh-14rem)] space-y-2 overflow-y-auto pr-1">
-        {documents.map((doc) => {
+        {localDocs.map((doc) => {
           const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
           const balanceDue = doc.total_amount - paidToDate;
-          const convertedToId = type === "estimate" ? convertedMap[doc.id] : undefined;
+          const convertedToId = type === "estimate" ? convertedLookup[doc.id] : undefined;
           return (
             <Card
               key={doc.id}
@@ -155,8 +170,9 @@ export function DocumentWorkstation({
             business={business}
             logoPath={logoPath}
             basePath={basePath}
-            convertedToId={type === "estimate" ? convertedMap[selected.id] : undefined}
+            convertedToId={type === "estimate" ? convertedLookup[selected.id] : undefined}
             onConvert={onConvert}
+            onPaymentSaved={handlePaymentSaved}
           />
         )}
       </div>
@@ -172,6 +188,7 @@ function DocumentPreviewPanel({
   basePath,
   convertedToId,
   onConvert,
+  onPaymentSaved,
 }: {
   doc: DocumentWithRelations;
   label: string;
@@ -180,7 +197,9 @@ function DocumentPreviewPanel({
   basePath: string;
   convertedToId?: string;
   onConvert?: (id: string) => void;
+  onPaymentSaved: (updated: UpdatedDocument) => void;
 }) {
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const paidToDate = doc.payments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = doc.total_amount - paidToDate;
   const shortId = formatDocumentNumber(doc.type, doc.document_number);
@@ -316,9 +335,26 @@ function DocumentPreviewPanel({
                 Convert to Invoice
               </Button>
             ))}
+          {canRecordPayment(doc) && (
+            <Button
+              size="sm"
+              className="col-span-2"
+              onClick={() => setPaymentOpen(true)}
+            >
+              <DollarSign className="h-4 w-4" />
+              Record payment
+            </Button>
+          )}
           <ShareDocumentButton document={doc} business={business} logoPath={logoPath} />
         </div>
       </CardContent>
+      <RecordPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        document={doc}
+        documentLabel={shortId}
+        onSaved={onPaymentSaved}
+      />
     </Card>
   );
 }

@@ -84,8 +84,11 @@ test("deleting a document or a payment asks first; a future-dated payment is war
   assert.doesNotMatch(src, /onClick=\{\(\) => handleDeletePayment\(/);
   assert.match(src, /setConfirmDeleteDocOpen\(true\)/);
   assert.match(src, /setPaymentToDelete\(payment\)/);
-  assert.match(src, /isFuturePaymentDate\(paymentDate\)/);
-  assert.match(src, /Collect remaining balance/);
+  // The payment form (future-date warning, Collect remaining balance) is one shared component.
+  assert.match(src, /<PaymentForm/);
+  const form = read("../components/invoices/payment-form.tsx");
+  assert.match(form, /isFuturePaymentDate\(date\)/);
+  assert.match(form, /Collect remaining balance/);
 });
 
 test("an estimate's date reads 'Valid until' on the form, detail page, PDF and public page", () => {
