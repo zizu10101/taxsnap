@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DocumentDetail } from "@/components/invoices/document-detail";
 import type { DocumentWithRelations } from "@/lib/database.types";
+import { resolveInvoiceBack } from "@/lib/invoice-back";
 
 export const metadata: Metadata = {
   title: "Invoice — TaxSnap",
@@ -10,10 +11,15 @@ export const metadata: Metadata = {
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
 }) {
   const { id } = await params;
+  // Where the user came from (the Invoices list or Progress Billing), so
+  // Back returns there. Unknown/missing means Invoices.
+  const back = resolveInvoiceBack((await searchParams).from);
   const supabase = await createClient();
   const {
     data: { user },
@@ -85,6 +91,7 @@ export default async function InvoiceDetailPage({
       }}
       logoPath={profile?.logo_url ?? null}
       basePath="/dashboard/invoices"
+      backLink={back}
     />
   );
 }

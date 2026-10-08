@@ -105,6 +105,20 @@ if you copy Radix-style shadcn patterns from memory or training data:
   orange highlight doesn't reach the overflowing text. Single-word labels
   never hit this, which is why it went unnoticed until Progress Billing
   shipped.
+- **Don't use `Select` for a long, searchable list.** Base UI's Select aligns
+  the selected item over the trigger (`alignItemWithTrigger`, on in our
+  wrapper), hides its own scrollbar while doing so, and only offers its
+  scroll-up arrow on mouse hover (not touch) - a long list scrolled down and
+  could not come back up. The saved-item picker
+  (`src/components/invoices/saved-item-picker.tsx`) is an inline panel with a
+  search box and a normal `overflow-y-auto` list, no portal (it also lives
+  inside the Dialog-based builder, where a second portalled popup fights over
+  focus).
+- **`ConfirmDialog`** (`src/components/ui/confirm-dialog.tsx`) is the
+  "are you sure?" step: deleting a payment or a document, and recording a
+  future-dated payment. The caller owns `open` and keeps it open while
+  `loading`. There is a `--warning` colour token (`text-warning`) for
+  heads-ups that aren't errors; don't reach for raw amber.
 - `globals.css`'s `html` sets `scrollbar-gutter: stable` - reserves the
   scrollbar's width at all times so a dialog/sheet locking body scroll
   (removing the rendered scrollbar) never shifts page content, or a
@@ -240,16 +254,44 @@ unsure):
   - `documents.excluded_from_hst` lets a user drop one specific invoice out
     of the HST Return Helper's totals (e.g. a paid invoice that was
     actually a reimbursement) without touching its real dollar amounts.
-  - `documents.status` is `'draft' | 'sent' | 'partial' | 'paid'` and
-    `'partial'`/`'paid'` are **derived from `payments`, not meant to be
-    hand-set** - `POST/DELETE /api/documents/[id]/payments[/:paymentId]`
-    recompute it from the payment total vs. `total_amount` every time
-    (manual override via the status `Select` on the detail page still
-    works, but adding/removing a payment will recompute and overwrite it).
+  - `documents.status` is `'draft' | 'sent' | 'partial' | 'paid'`, but only
+    `'draft'`/`'sent'` can be set **by hand**. `'partial'`/`'paid'` are
+    **derived from `payments`** -
+    `POST/PATCH/DELETE /api/documents/[id]/payments[/:paymentId]` recompute
+    them (`statusFromPaid`) from the payment total vs. `total_amount` every
+    time. `POST` and `PATCH /api/documents[/:id]` answer **400** to a hand-set
+    `paid`/`partial` (`validateManualStatus`, `lib/document-status.ts`; it runs
+    before the lock check), and the detail page shows a read-only pill once an
+    invoice has payments instead of a dropdown. Nothing sends `status` on an
+    edit form save (the editor/builder bodies have no `status` key; a test pins
+    it), so editing an already-paid invoice can't hit that 400. Rows set to
+    Paid by hand *before* this rule (paid, no payment behind them) were left
+    as they are, not migrated: revenue/HST ignore them (they're built from
+    `payments`), and recording the real payment is the way to fix one.
   - `payments` - one row per deposit/partial/final payment logged against
     an invoice (`amount`, `paid_date`, optional `method`/`note`). This is
     the source of truth the HST calculator and the invoice's "Paid to
     date"/"Balance due" figures are built from - see Tax logic below.
+- `line_items` - the owner's saved items (description, `unit_price`, and
+  `quantity` from migration `0059_line_item_quantity.sql`: `numeric(12,2) not
+  null default 1`, checked `> 0`; rollback in `supabase/rollbacks/`). Picking
+  one on an estimate/invoice/change order fills description, quantity AND
+  price (`lineFromSavedItem`, `lib/saved-items.ts`); a missing/invalid stored
+  quantity reads as 1. Per the migration rule above, 0059 must be applied
+  BEFORE the code that writes `quantity` ships - there is deliberately no
+  "retry without the column" fallback (a static test forbids one). "Save for
+  next time" goes through `saveReusableItems` (`lib/save-line-items.ts`):
+  sequential, and every failure (plan cap 403, 500, network) is reported in a
+  toast, never swallowed.
+- Progress draws are ordinary `documents` rows (`type = 'invoice'`,
+  `is_progress_draw`, `draw_number`) and are listed on the Invoices page with
+  the rest, with a "Draw N" badge and an All/Standard/Progress filter that only
+  narrows what is shown (`lib/document-filter.ts`). The monthly invoice cap
+  counts `type = 'invoice'` rows by `created_at`, so each draw counts once and
+  the filter never changes it. An invoice's Back link follows `?from=`
+  (`lib/invoice-back.ts`: `invoices`, `progress-billing`,
+  `progress-billing:<job id>`; anything else = Invoices; never used as a raw
+  URL) - build links to an invoice with `invoiceDetailHref()`.
 - `jobs` - first-class job entity backing the pre-existing free-text
   `receipts.job_name` tag. A DB trigger (`sync_receipt_job` in
   `0009_jobs.sql`) keeps `receipts.job_id` in sync automatically whenever

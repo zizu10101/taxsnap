@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,13 @@ import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
+import { invoiceDetailHref } from "@/lib/invoice-back";
+import {
+  countInvoicesThisMonth,
+  drawBadgeLabel,
+  filterByInvoiceType,
+  type InvoiceTypeFilter,
+} from "@/lib/document-filter";
 import type {
   BusinessType,
   Client,
@@ -83,6 +90,19 @@ export function DocumentList({
   // directly rather than needing its own state.
   const documents = initialDocuments;
   const [converted, setConverted] = useSyncedState(convertedMap);
+  const [typeFilter, setTypeFilter] = useState<InvoiceTypeFilter>("all");
+
+  // Progress draws are invoices too and are listed with the rest; this only
+  // narrows what is SHOWN. The usage bar and billing summary below keep using
+  // the full list, so a filter can never change the invoice count.
+  const hasDraws = type === "invoice" && documents.some((d) => d.is_progress_draw);
+  const visibleDocuments = useMemo(
+    () => (type === "invoice" ? filterByInvoiceType(documents, typeFilter) : documents),
+    [documents, type, typeFilter],
+  );
+  // An invoice opens remembering it was opened from this list (its Back link).
+  const detailHref = (id: string) =>
+    type === "invoice" ? invoiceDetailHref(id, "invoices") : `${basePath}/${id}`;
 
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
@@ -93,7 +113,7 @@ export function DocumentList({
   const invoicesThisMonth = useMemo(() => {
     if (type !== "invoice") return 0;
     const { from } = rangeToUtcBounds(getPresetRange("this-month"));
-    return documents.filter((d) => !from || d.created_at >= from).length;
+    return countInvoicesThisMonth(documents, from);
   }, [documents, type]);
 
   async function handleConvert(id: string) {
@@ -181,28 +201,55 @@ export function DocumentList({
         New {label}
       </Button>
 
+      {hasDraws && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Invoice type">
+          <span className="text-xs text-muted-foreground">Type</span>
+          {(
+            [
+              ["all", "All"],
+              ["standard", "Standard"],
+              ["progress", "Progress"],
+            ] as const
+          ).map(([value, text]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={typeFilter === value ? "default" : "outline"}
+              aria-pressed={typeFilter === value}
+              onClick={() => setTypeFilter(value)}
+            >
+              {text}
+            </Button>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-4 lg:hidden">
-      {documents.length === 0 ? (
+      {visibleDocuments.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
             <FileText className="h-8 w-8" />
-            <p className="text-sm">No {label.toLowerCase()}s yet.</p>
+            <p className="text-sm">
+              {documents.length === 0
+                ? `No ${label.toLowerCase()}s yet.`
+                : `No ${typeFilter} ${label.toLowerCase()}s.`}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {documents.map((doc) => {
+          {visibleDocuments.map((doc) => {
             const convertedToId = type === "estimate" ? converted[doc.id] : undefined;
             return (
               <Card
                 key={doc.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => router.push(`${basePath}/${doc.id}`)}
+                onClick={() => router.push(detailHref(doc.id))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    router.push(`${basePath}/${doc.id}`);
+                    router.push(detailHref(doc.id));
                   }
                 }}
                 className="cursor-pointer outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
@@ -220,6 +267,7 @@ export function DocumentList({
                       ) : (
                         <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
                       )}
+                      {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(doc.issue_date)}
@@ -279,7 +327,7 @@ export function DocumentList({
       <div className="hidden lg:block">
         <DocumentWorkstation
           type={type}
-          documents={documents}
+          documents={visibleDocuments}
           business={{
             name: initialProfile.business_name,
             email: initialProfile.business_email ?? "",

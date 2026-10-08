@@ -69,3 +69,57 @@ test("the detail page offers only Draft and Sent", () => {
   assert.match(src, /<SelectItem value="draft">/);
   assert.match(src, /<SelectItem value="sent">/);
 });
+
+// ---- Editing an already-paid / partial invoice must not hit the new 400 ----
+
+// The body an edit form sends, as a static slice of the source: from
+// `const body = {` to its closing `};`.
+function bodyLiteral(path: string) {
+  const src = readFileSync(new URL(path, import.meta.url), "utf8");
+  const start = src.indexOf("const body = {");
+  assert.ok(start > 0, `${path}: finds the request body`);
+  return src.slice(start, src.indexOf("\n      };", start));
+}
+
+test("the invoice editor and the builder never put `status` in the body they save", () => {
+  for (const file of [
+    "../components/invoices/document-editor.tsx",
+    "../components/invoices/document-builder.tsx",
+  ]) {
+    assert.doesNotMatch(bodyLiteral(file), /\bstatus\b/, file);
+  }
+});
+
+test("a PATCH shaped like an edit-form save passes the status check, whatever the invoice's status is", () => {
+  const editBody: Record<string, unknown> = {
+    type: "invoice",
+    issue_date: "2026-10-01",
+    due_date: null,
+    client_id: "c1",
+    job_id: null,
+    items: [{ description: "Paint", quantity: 1, unit_price: 100 }],
+  };
+  assert.equal(validateManualStatus(editBody.status), null);
+});
+
+test("only the status dropdown sends `status`, and it can only send draft/sent", () => {
+  const files = [
+    "../components/invoices/document-detail.tsx",
+    "../components/invoices/document-list.tsx",
+    "../components/invoices/document-workstation.tsx",
+    "../components/dashboard/hst-summary-card.tsx",
+    "../components/jobs/progress-billing-summary.tsx",
+    "../components/jobs/progress-billing-list.tsx",
+  ];
+  const senders = files.filter((f) =>
+    /JSON\.stringify\(\{[^}]*\bstatus\b/.test(readFileSync(new URL(f, import.meta.url), "utf8")),
+  );
+  assert.deepEqual(senders, ["../components/invoices/document-detail.tsx"]);
+});
+
+test("convert (estimate to invoice) creates the invoice as a draft on the server and reads no client status", () => {
+  const conversion = readFileSync(new URL("./estimate-conversion.ts", import.meta.url), "utf8");
+  assert.match(conversion, /status: "draft"/);
+  const route = readFileSync(new URL("../app/api/documents/[id]/convert/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(route, /request\.json\(\)|body\.status/);
+});

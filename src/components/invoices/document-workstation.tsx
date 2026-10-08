@@ -13,6 +13,8 @@ import { formatDocumentNumber } from "@/lib/document-number";
 import { cn } from "@/lib/utils";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { DocumentStatus, DocumentType, DocumentWithRelations } from "@/lib/database.types";
+import { drawBadgeLabel } from "@/lib/document-filter";
+import { invoiceDetailHref } from "@/lib/invoice-back";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -69,7 +71,8 @@ export function DocumentWorkstation({
   onConvert?: (id: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(documents[0]?.id ?? null);
-  const selected = documents.find((d) => d.id === selectedId) ?? null;
+  // The selected row can fall out of the list (the Type filter changed); show the first one then.
+  const selected = documents.find((d) => d.id === selectedId) ?? documents[0] ?? null;
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
   if (documents.length === 0) {
@@ -120,6 +123,7 @@ export function DocumentWorkstation({
                     ) : (
                       <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
                     )}
+                    {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
                     {formatDocumentNumber(doc.type, doc.document_number)} ·{" "}
@@ -188,6 +192,7 @@ function DocumentPreviewPanel({
           <span className="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
             {label} Preview
           </span>
+          <div className="flex items-center gap-2">
           {convertedToId ? (
             <Badge className="border-transparent bg-success text-success-foreground">
               Converted
@@ -197,6 +202,8 @@ function DocumentPreviewPanel({
               {doc.status}
             </Badge>
           )}
+          {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
+          </div>
         </div>
 
         {/* Dark ticket-style totals strip, same sidebar tokens the
@@ -282,7 +289,7 @@ function DocumentPreviewPanel({
             size="sm"
             className="col-span-2"
             nativeButton={false}
-            render={<Link href={`${basePath}/${doc.id}`} />}
+            render={<Link href={doc.type === "invoice" ? invoiceDetailHref(doc.id, "invoices") : `${basePath}/${doc.id}`} />}
           >
             View full details
           </Button>

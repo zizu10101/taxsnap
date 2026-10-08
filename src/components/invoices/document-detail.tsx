@@ -96,6 +96,7 @@ export function DocumentDetail({
   business,
   logoPath,
   basePath,
+  backLink,
   convertedToInvoiceId = null,
 }: {
   document: DocumentWithRelations;
@@ -109,6 +110,8 @@ export function DocumentDetail({
   business: BusinessInfo;
   logoPath: string | null;
   basePath: string;
+  /** Where Back goes when the page knows where the user came from (invoices: ?from=). */
+  backLink?: { href: string; label: string };
   convertedToInvoiceId?: string | null;
 }) {
   const router = useRouter();
@@ -151,12 +154,11 @@ export function DocumentDetail({
     : doc.type === "invoice"
       ? "Invoice"
       : "Estimate";
-  // A progress draw was opened from the Progress Billing tab, not the
-  // regular Invoices list basePath always points at - back navigation
-  // (and the post-delete redirect) should return there instead, not to
-  // Invoices.
-  const backHref = doc.is_progress_draw ? "/dashboard/progress-billing" : basePath;
-  const backLabel = doc.is_progress_draw ? "Progress Billing" : `${label.toLowerCase()}s`;
+  // Back (and the post-delete redirect) go where the user came from: the
+  // invoice page resolves ?from= (lib/invoice-back.ts) into backLink, and
+  // defaults to the Invoices list.
+  const backHref = backLink?.href ?? basePath;
+  const backLabel = backLink?.label ?? `${label.toLowerCase()}s`;
   const shortId = doc.is_progress_draw
     ? `${formatDocumentNumber(doc.type, doc.document_number)} — Draw #${doc.draw_number}`
     : formatDocumentNumber(doc.type, doc.document_number);
