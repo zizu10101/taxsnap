@@ -5,6 +5,7 @@ import {
   balanceDue,
   canRecordPayment,
   checkPaymentAmount,
+  COLLECT_BALANCE_LABEL,
   mergeUpdatedDocument,
   paidToDate,
   percentToAmount,
@@ -134,7 +135,8 @@ test("the form keeps the future-date warning, the local-date default, the balanc
   assert.match(form, /useState\(\(\) => localIsoDate\(\)\)/);
   assert.doesNotMatch(form, /toISOString\(\)\.slice/);
   assert.match(form, /prefillBalanceAmount\(doc\)/);
-  assert.match(form, /Collect remaining balance/);
+  assert.match(form, /COLLECT_BALANCE_LABEL/);
+  assert.equal(COLLECT_BALANCE_LABEL, "Collect remaining balance");
   assert.match(form, /router\.refresh\(\)/);
   assert.match(form, /Record anyway/);
   // The future-date step is inline, not a second modal (it also runs inside the dialog).
@@ -144,7 +146,7 @@ test("the form keeps the future-date warning, the local-date default, the balanc
 test("the preview panel offers Record payment only through canRecordPayment, and opens it in place", () => {
   const ws = read("../components/invoices/document-workstation.tsx");
   assert.match(ws, /canRecordPayment\(doc\) && \(/);
-  assert.match(ws, /Record payment/);
+  assert.match(ws, /COLLECT_BALANCE_LABEL/);
   assert.match(ws, /<RecordPaymentDialog/);
   // Updates the paid amount / balance / status on screen, from the saved document.
   assert.match(ws, /mergeUpdatedDocument\(d, updated\)/);

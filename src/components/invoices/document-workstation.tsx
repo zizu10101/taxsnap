@@ -16,7 +16,7 @@ import type { DocumentStatus, DocumentType, DocumentWithRelations } from "@/lib/
 import { drawBadgeLabel } from "@/lib/document-filter";
 import { RecordPaymentDialog } from "@/components/invoices/record-payment-dialog";
 import type { UpdatedDocument } from "@/components/invoices/payment-form";
-import { canRecordPayment, mergeUpdatedDocument } from "@/lib/payment-form";
+import { canRecordPayment, COLLECT_BALANCE_LABEL, mergeUpdatedDocument } from "@/lib/payment-form";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { invoiceDetailHref } from "@/lib/invoice-back";
 
@@ -342,7 +342,7 @@ function DocumentPreviewPanel({
               onClick={() => setPaymentOpen(true)}
             >
               <DollarSign className="h-4 w-4" />
-              Record payment
+              {COLLECT_BALANCE_LABEL}
             </Button>
           )}
           <ShareDocumentButton document={doc} business={business} logoPath={logoPath} />

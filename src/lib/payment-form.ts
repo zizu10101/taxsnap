@@ -11,6 +11,9 @@ export interface PayableDocument {
   payments: PaymentLike[];
 }
 
+/** The one name of the "pay the rest" action, on the invoice page and on the preview panel. */
+export const COLLECT_BALANCE_LABEL = "Collect remaining balance";
+
 const EPSILON = 0.005;
 
 export function round2(n: number): number {

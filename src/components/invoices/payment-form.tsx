@@ -17,6 +17,7 @@ import {
   percentToAmount,
   prefillBalanceAmount,
   canRecordPayment,
+  COLLECT_BALANCE_LABEL,
 } from "@/lib/payment-form";
 import type { DocumentWithRelations, Payment } from "@/lib/database.types";
 
@@ -199,7 +200,7 @@ export function PaymentForm({
           </span>
           <Button type="button" size="sm" onClick={collectRemainingBalance}>
             <DollarSign className="h-4 w-4" />
-            Collect remaining balance
+            {COLLECT_BALANCE_LABEL}
           </Button>
         </div>
       )}
