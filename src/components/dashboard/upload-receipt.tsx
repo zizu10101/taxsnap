@@ -415,6 +415,7 @@ export function UploadReceipt({
         if (!attachRes.ok) throw new Error(attached.error || "Failed to attach receipt");
         (onAttached ?? onSaved)(attached.receipt as Receipt);
         toast.success("Receipt attached to your statement expense");
+        router.refresh();
         closeModal();
         return;
       }
@@ -439,6 +440,7 @@ export function UploadReceipt({
 
       onSaved(data.receipt as Receipt);
       toast.success("Receipt saved");
+      router.refresh();
       closeModal();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

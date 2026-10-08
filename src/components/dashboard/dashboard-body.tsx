@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
 import { ClipboardList, FileText, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,7 @@ export function DashboardBody({
   business: BusinessInfo;
   logoPath: string | null;
 }) {
-  const [receipts, setReceipts] = useState(initialReceipts);
+  const [receipts, setReceipts] = useSyncedState(initialReceipts);
   const [preset, setPreset] = useState<RangePreset>("this-month");
   const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
   const [jobFilter, setJobFilter] = useState<string | null>(null);

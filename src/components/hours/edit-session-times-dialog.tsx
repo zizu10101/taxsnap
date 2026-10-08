@@ -17,6 +17,7 @@ import {
 import { fromLocalInput, toLocalInput } from "@/lib/datetime-local";
 import { sessionHours } from "@/lib/format-duration";
 import type { HourEntrySession } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 // Corrects the start and/or end time of a completed clocked session from the
 // Hours page. Hours, work date and labor cost are not typed here - the
@@ -55,6 +56,7 @@ export function EditSessionTimesDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: (sessionId: string) => void;
 }) {
+  const router = useRouter();
   const [startValue, setStartValue] = useState(() => toLocalInput(session.clock_in_at));
   const [endValue, setEndValue] = useState(() =>
     session.clock_out_at ? toLocalInput(session.clock_out_at) : "",
@@ -91,6 +93,7 @@ export function EditSessionTimesDialog({
       if (!res.ok) throw new Error(data.error || "Couldn't save the new times.");
       toast.success("Times updated");
       onSaved(session.id);
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";

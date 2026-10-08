@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ExpenseTemplateEditDialog } from "@/components/dashboard/expense-template-edit-dialog";
 import type { ExpenseTemplateWithJob } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -51,6 +52,7 @@ export function ExpenseTemplatesDialog({
   onUpdated: (template: ExpenseTemplateWithJob) => void;
   onDeleted: (id: string) => void;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState<ExpenseTemplateWithJob | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -64,6 +66,7 @@ export function ExpenseTemplatesDialog({
       }
       onDeleted(id);
       toast.success("Template deleted");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {

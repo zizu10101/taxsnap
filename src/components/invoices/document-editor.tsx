@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
 import { ArrowLeft, BookmarkPlus, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -245,14 +246,9 @@ export function DocumentEditor({
 
       const saved = data.document as DocumentWithRelations;
 
-      const toSave = cleanItems.filter((i) => i.saveForReuse);
-      for (const item of toSave) {
-        fetch("/api/line-items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: item.description, unit_price: item.unit_price }),
-        }).catch(() => {});
-      }
+      const savedItems = await saveReusableItems(cleanItems.filter((i) => i.saveForReuse));
+      const savedItemsFailure = savedItemsFailureMessage(savedItems);
+      if (savedItemsFailure) toast.warning(savedItemsFailure);
 
       toast.success(
         isEditing
@@ -264,6 +260,10 @@ export function DocumentEditor({
       // basePath, not the one this page happened to be opened under.
       const savedBasePath = saved.type === "invoice" ? "/dashboard/invoices" : "/dashboard/estimates";
       router.push(`${savedBasePath}/${saved.id}`);
+      // The lists, the saved-items picker and the next New form all read
+      // server data; drop everything the router cached so none show a copy
+      // from before this save.
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {

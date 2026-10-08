@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import type { BulkTaxPlan, TaxChange } from "@/lib/bulk-tax-code";
 import { TAX_CODE_KEYS, TAX_CODE_LABELS, type TaxCodeKey, type TaxPatch } from "@/lib/tax-codes";
+import { useRouter } from "next/navigation";
 
 function money(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -59,6 +60,7 @@ export function BulkTaxCodeDialog({
   onClose: () => void;
   onApplied: (move: BulkTaxMove) => void;
 }) {
+  const router = useRouter();
   const [code, setCode] = useState<TaxCodeKey | "">("");
   const [plan, setPlan] = useState<BulkTaxPlan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,6 +98,7 @@ export function BulkTaxCodeDialog({
         return;
       }
       toast.success(`Set the tax code on ${plural(data.changed, "expense")}`);
+      router.refresh();
       onApplied({ code, previous: data.previous, retaxed: data.retaxed ?? [] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

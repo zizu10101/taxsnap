@@ -24,6 +24,7 @@ import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { BULK_CATEGORY_MAX, type BulkChange, type BulkPlan } from "@/lib/bulk-category";
 import type { TaxPatch } from "@/lib/tax-codes";
 import { BulkTaxCodeDialog, callTaxCode, type BulkTaxMove } from "@/components/dashboard/bulk-tax-code-dialog";
+import { useRouter } from "next/navigation";
 
 function money(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -74,6 +75,7 @@ export function BulkCategoryControls({
   /** Its undo: the previous code and tax of each restored expense. */
   onTaxCodeRestored: (rows: { id: string; tax: TaxPatch }[]) => void;
 }) {
+  const router = useRouter();
   const [dialog, setDialog] = useState<{ key: number; ids: string[] } | null>(null);
   const [lastMove, setLastMove] = useState<(BulkMove & { count: number }) | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -90,6 +92,7 @@ export function BulkCategoryControls({
       const { ok, data } = await callTaxCode({ mode: "undo", code: lastTaxMove.code, changes: lastTaxMove.previous });
       if (!ok) throw new Error(data.error || "Couldn't undo");
       onTaxCodeRestored(data.restored_rows ?? []);
+      router.refresh();
       toast.success(
         data.left_alone > 0
           ? `Put back ${plural(data.restored, "expense")}. ${plural(data.left_alone, "expense")} had been edited or given a receipt since, so they were left alone.`
@@ -110,6 +113,7 @@ export function BulkCategoryControls({
       const { ok, data } = await call({ mode: "undo", category: lastMove.category, changes: lastMove.previous });
       if (!ok) throw new Error(data.error || "Couldn't undo");
       onRestored(data.restored_rows ?? []);
+      router.refresh();
       toast.success(
         data.left_alone > 0
           ? `Put back ${plural(data.restored, "expense")}. ${plural(data.left_alone, "expense")} had been edited since, so they were left alone.`
@@ -238,6 +242,7 @@ function BulkCategoryDialog({
   onClose: () => void;
   onApplied: (move: BulkMove) => void;
 }) {
+  const router = useRouter();
   const categories = useExpenseCategoryOptions();
   const [target, setTarget] = useState("");
   const [plan, setPlan] = useState<BulkPlan | null>(null);
@@ -284,6 +289,7 @@ function BulkCategoryDialog({
       }
       toast.success(`Moved ${plural(data.changed, "expense")} to ${data.category}`);
       onApplied({ category: data.category, previous: data.previous, retaxed: data.retaxed ?? [] });
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

@@ -47,6 +47,7 @@ import {
 } from "@/lib/tax-codes";
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
 
@@ -128,6 +129,7 @@ function ReceiptSummaryContent({
   onUpdated: (receipt: Receipt) => void;
   statementImportEnabled: boolean;
 }) {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => toForm(receipt));
   const categoryOptions = useExpenseCategoryOptions(form.tax_category);
@@ -210,6 +212,7 @@ function ReceiptSummaryContent({
 
       onUpdated(data.receipt as Receipt);
       toast.success("Receipt updated");
+      router.refresh();
       setIsEditing(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -230,6 +233,7 @@ function ReceiptSummaryContent({
       }
       onDeleted(receipt.id);
       toast.success("Receipt deleted");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

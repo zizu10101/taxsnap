@@ -71,6 +71,7 @@ export function EmployeeDialog({
 
       onSaved(data.employee as Employee);
       toast.success(isEditing ? "Employee updated" : "Employee added");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

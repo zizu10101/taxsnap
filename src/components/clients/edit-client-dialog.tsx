@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Client } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 // Edit-only counterpart to NewClientDialog (clients/new-client-dialog.tsx) -
 // kept as its own component rather than folding an isEditing flag into that
@@ -31,6 +32,7 @@ export function EditClientDialog({
   client: Client;
   onSaved: (client: Client) => void;
 }) {
+  const router = useRouter();
   const [name, setName] = useState(client.name);
   const [email, setEmail] = useState(client.email ?? "");
   const [address, setAddress] = useState(client.address ?? "");
@@ -54,6 +56,7 @@ export function EditClientDialog({
 
       onSaved(data.client as Client);
       toast.success("Client updated");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

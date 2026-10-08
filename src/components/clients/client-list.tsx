@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,7 +41,7 @@ export function ClientList({
   portalClientIds: string[];
 }) {
   const router = useRouter();
-  const [clients, setClients] = useState(initialClients);
+  const [clients, setClients] = useSyncedState(initialClients);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 

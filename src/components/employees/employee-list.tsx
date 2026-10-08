@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -45,7 +46,7 @@ export function EmployeeList({
   // but isn't part of the Jobs section's own tab row.
   showNav?: boolean;
 }) {
-  const [employees, setEmployees] = useState(initialEmployees);
+  const [employees, setEmployees] = useSyncedState(initialEmployees);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const router = useRouter();
@@ -73,6 +74,7 @@ export function EmployeeList({
         return next;
       });
       toast.success(`${employee.name} can no longer sign in`);
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -129,6 +131,7 @@ export function EmployeeList({
       }
       upsert(data.employee as Employee);
       toast.success(employee.is_active ? "Employee deactivated" : "Employee reactivated");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     }

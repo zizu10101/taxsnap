@@ -24,6 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContractChange, Job, LineItem } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
+import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
 
 interface ChangeItemDraft {
   description: string;
@@ -84,6 +86,7 @@ export function LogContractChangeDialog({
   editingChange?: EditingChange | null;
   onSaved: (job: Job, change: ContractChange) => void;
 }) {
+  const router = useRouter();
   const isEditing = !!editingChange;
 
   function initialItems(): ChangeItemDraft[] {
@@ -175,17 +178,13 @@ export function LogContractChangeDialog({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save change order");
 
-      const toSave = cleanItems.filter((i) => i.saveForReuse);
-      for (const item of toSave) {
-        fetch("/api/line-items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: item.description, unit_price: item.unit_price }),
-        }).catch(() => {});
-      }
+      const savedItems = await saveReusableItems(cleanItems.filter((i) => i.saveForReuse));
+      const savedItemsFailure = savedItemsFailureMessage(savedItems);
+      if (savedItemsFailure) toast.warning(savedItemsFailure);
 
       onSaved(data.job as Job, data.change as ContractChange);
       toast.success(isEditing ? "Change order updated" : "Change order logged");
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

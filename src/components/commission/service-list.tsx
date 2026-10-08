@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Scissors } from "lucide-react";
 import { toast } from "sonner";
@@ -38,7 +39,7 @@ export function ServiceList({
   // defaults to false since it's irrelevant whenever showNav is false.
   isPro?: boolean;
 }) {
-  const [services, setServices] = useState(initialServices);
+  const [services, setServices] = useSyncedState(initialServices);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
   const router = useRouter();

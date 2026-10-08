@@ -24,6 +24,7 @@ import {
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 const NO_JOB = "__no_job__";
 const NEW_JOB = "__new_job__";
@@ -65,6 +66,7 @@ export function ExpenseTemplateEditDialog({
   existingJobs: string[];
   onSaved: (template: ExpenseTemplateWithJob) => void;
 }) {
+  const router = useRouter();
   const [form, setForm] = useState(() => formFrom(template));
   const categoryOptions = useExpenseCategoryOptions(form.default_tax_category);
   const [jobMode, setJobMode] = useState<string>(template?.job?.name ?? NO_JOB);
@@ -114,6 +116,7 @@ export function ExpenseTemplateEditDialog({
 
       onSaved(data.template as ExpenseTemplateWithJob);
       toast.success("Template updated");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {

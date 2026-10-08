@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { ListPlus, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +31,7 @@ export function LineItemList({
   initialLineItems: LineItem[];
   subscriptionStatus: SubscriptionStatus;
 }) {
-  const [items, setItems] = useState(initialLineItems);
+  const [items, setItems] = useSyncedState(initialLineItems);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<LineItem | null>(null);
   const router = useRouter();
@@ -62,6 +63,7 @@ export function LineItemList({
       }
       upsert(data.lineItem as LineItem);
       toast.success(item.is_active ? "Item deactivated" : "Item reactivated");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     }

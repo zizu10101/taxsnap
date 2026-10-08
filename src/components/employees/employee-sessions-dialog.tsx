@@ -17,6 +17,7 @@ import { DeleteSessionDialog } from "@/components/hours/delete-session-dialog";
 import { fromLocalInput, toLocalInput } from "@/lib/datetime-local";
 import { formatSessionHours } from "@/lib/format-duration";
 import type { TimeSession } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 type SessionRow = TimeSession & { job: { id: string; name: string } | null };
 
@@ -63,6 +64,7 @@ function SessionRowView({
   onSaved: (updated: TimeSession) => void;
   onDeleted: (deleted: SessionRow) => void;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [inValue, setInValue] = useState(() => toLocalInput(session.clock_in_at));
@@ -91,6 +93,7 @@ function SessionRowView({
       onSaved(data.session as TimeSession);
       setEditing(false);
       toast.success("Session updated");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {

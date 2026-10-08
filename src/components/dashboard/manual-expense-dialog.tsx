@@ -26,6 +26,7 @@ import {
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
+import { useRouter } from "next/navigation";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -86,6 +87,7 @@ export function ManualExpenseDialog({
   onSaved: (receipt: Receipt) => void;
   onTemplateSaved?: (template: ExpenseTemplateWithJob) => void;
 }) {
+  const router = useRouter();
   const [form, setForm] = useState(() => emptyForm(template));
   const categoryOptions = useExpenseCategoryOptions(form.tax_category);
   const [jobMode, setJobMode] = useState<string>(template?.job?.name ?? NO_JOB);
@@ -149,6 +151,7 @@ export function ManualExpenseDialog({
 
       onSaved(data.receipt as Receipt);
       toast.success("Expense added");
+      router.refresh();
 
       if (saveAsTemplate) {
         const templateRes = await fetch("/api/expense-templates", {

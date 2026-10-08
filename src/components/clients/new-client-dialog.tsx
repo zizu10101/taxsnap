@@ -70,6 +70,7 @@ export function NewClientDialog({
 
       onCreated(data.client as Client);
       toast.success("Client added");
+      router.refresh();
       setName("");
       setEmail("");
       setAddress("");

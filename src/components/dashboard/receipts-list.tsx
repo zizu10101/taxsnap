@@ -27,6 +27,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { DateRange } from "@/lib/date-range";
 import type { Receipt } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
+import { useRouter } from "next/navigation";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -125,6 +126,7 @@ export function ReceiptsList({
   invoicePayments?: QuickBooksInvoicePayment[];
   selection?: ReceiptSelection;
 }) {
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const bankAccounts = useBankAccounts();
   // id -> name for the CSV's "Paid With" column; every account, active or not,
@@ -149,6 +151,7 @@ export function ReceiptsList({
       }
       onDeleted(id);
       toast.success("Receipt deleted");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {

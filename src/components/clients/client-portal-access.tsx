@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PinSetupFlow } from "@/components/ui/pin-setup-flow";
+import { useRouter } from "next/navigation";
 
 // The browser origin, so the shown link is the full URL. "" on the server so
 // SSR and the first client paint agree (same useSyncExternalStore pattern as
@@ -36,6 +37,7 @@ export function ClientPortalAccess({
   initialLinkToken: string | null;
   isPro: boolean;
 }) {
+  const router = useRouter();
   const origin = useSyncExternalStore(noSubscription, getOrigin, getServerOrigin);
   const [linkToken, setLinkToken] = useState(initialLinkToken);
   const [pinMode, setPinMode] = useState<"create" | "reset" | null>(null);
@@ -68,9 +70,11 @@ export function ClientPortalAccess({
         const data = await request("POST", { pin });
         setLinkToken(data.link_token);
         toast.success("Portal login created. Copy the link and send it to your client.");
+        router.refresh();
       } else {
         await request("PATCH", { action: "reset_pin", pin });
         toast.success("PIN reset. Your client was signed out everywhere.");
+        router.refresh();
       }
       setPinMode(null);
     } catch (err) {
@@ -99,6 +103,7 @@ export function ClientPortalAccess({
       setLinkToken(data.link_token);
       setConfirming(null);
       toast.success("New link created. The old link no longer works.");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't create a new link.");
     } finally {
@@ -113,6 +118,7 @@ export function ClientPortalAccess({
       setLinkToken(null);
       setConfirming(null);
       toast.success("Portal login removed.");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't remove the login.");
     } finally {

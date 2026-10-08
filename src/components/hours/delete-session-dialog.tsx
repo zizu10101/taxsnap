@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 // Confirmation for deleting a clocked session. Deleting is permanent, so it
 // never happens on a single click. A completed session also takes the hours
@@ -34,6 +35,7 @@ export function DeleteSessionDialog({
   onOpenChange: (open: boolean) => void;
   onDeleted: (sessionId: string) => void;
 }) {
+  const router = useRouter();
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
@@ -44,6 +46,7 @@ export function DeleteSessionDialog({
       if (!res.ok) throw new Error(data.error || "Couldn't delete the session.");
       toast.success(completed ? "Session and its hours entry deleted" : "Session deleted");
       onDeleted(sessionId);
+      router.refresh();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

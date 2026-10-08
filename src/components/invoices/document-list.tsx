@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, CheckCircle2, FileText, Plus } from "lucide-react";
@@ -81,7 +82,7 @@ export function DocumentList({
   // this list in place, so this can just read the server-fetched value
   // directly rather than needing its own state.
   const documents = initialDocuments;
-  const [converted, setConverted] = useState(convertedMap);
+  const [converted, setConverted] = useSyncedState(convertedMap);
 
   const label = type === "invoice" ? "Invoice" : "Estimate";
 
@@ -116,6 +117,7 @@ export function DocumentList({
       }
       setConverted((prev) => ({ ...prev, [id]: data.document.id }));
       toast.success("Converted to a draft invoice");
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     }
