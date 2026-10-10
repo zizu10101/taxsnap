@@ -5,6 +5,7 @@ import {
   insertLine,
   lineFromSavedItem,
   savedItemQuantity,
+  sortSavedItems,
   type SavedItemLike,
 } from "./saved-items.ts";
 
@@ -95,4 +96,14 @@ test("insertLine reuses the first blank line, otherwise appends", () => {
   assert.deepEqual(insertLine(withBlank, filled), [withBlank[0], filled]);
   const noBlank = [withBlank[0]];
   assert.deepEqual(insertLine(noBlank, filled), [withBlank[0], filled]);
+});
+
+test("saved items sort by name, an old item by its description, whatever the description column holds", () => {
+  const items: SavedItemLike[] = [
+    { id: "n1", name: "Trim", description: "", unit_price: 1 },
+    { id: "old", description: "Drywall patch", unit_price: 1 },
+    { id: "n2", name: "Paint", description: "", unit_price: 1 },
+  ];
+  assert.deepEqual(ids(sortSavedItems(items)), ["old", "n2", "n1"]);
+  assert.deepEqual(ids(items), ["n1", "old", "n2"]); // the input is untouched
 });

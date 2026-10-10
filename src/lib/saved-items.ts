@@ -41,6 +41,14 @@ export function filterSavedItems<T extends Pick<SavedItemLike, "description" | "
   return searchList(items, query, (item) => [lineName(item), lineDescription(item)]);
 }
 
+/**
+ * Saved items by name (an old item's name is its description). The queries still order by the
+ * `description` column, which is '' for every item saved since 0061, so the order is made here.
+ */
+export function sortSavedItems<T extends Pick<SavedItemLike, "description" | "name">>(items: T[]): T[] {
+  return [...items].sort((a, b) => lineName(a).localeCompare(lineName(b)));
+}
+
 /** What picking a saved item fills into a line: name, description, unit, quantity and price. */
 export function lineFromSavedItem(item: SavedItemLike): LineDraft {
   return {

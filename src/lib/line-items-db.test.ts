@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { randomUUID } from "node:crypto";
+import { lineDescription, lineName } from "./line-format.ts";
+import { sortSavedItems } from "./saved-items.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createLineItem } from "./line-items-server.ts";
 import { saveReusableItems } from "./save-line-items.ts";
@@ -50,8 +52,14 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
 
   // The picker's data source (see e.g. estimates/new/page.tsx).
   const pickerItems = async (p: Person) =>
-    (await p.client.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }))
-      .data as { description: string; unit_price: number }[];
+    sortSavedItems(
+      (await p.client.from("line_items").select("*").eq("is_active", true)).data as {
+        name: string | null;
+        description: string;
+        unit: string | null;
+        unit_price: number;
+      }[],
+    );
 
   before(() => {
     admin = createClient(URL_!, SERVICE!, { auth: { persistSession: false } });
@@ -71,8 +79,9 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
 
     const r = await saveReusableItems(
       [
-        { description: "Interior paint, per room", unit_price: 450 },
-        { description: "Drywall patch", unit_price: 85.5 },
+        { name: "Interior paint", description: "per room", unit: "each", unit_price: 450 },
+        { name: "Drywall patch", description: "", unit_price: 85.5 },
+        // the older caller shape (description only) is read as name = description
         { description: "Trim, per metre", unit_price: 6 },
       ],
       asFetch(pro),
@@ -82,11 +91,11 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     // "Next estimate": a fresh read of the same data the picker is built from.
     const items = await pickerItems(pro);
     assert.deepEqual(
-      items.map((i) => [i.description, Number(i.unit_price)]),
+      items.map((i) => [lineName(i), lineDescription(i), i.unit, Number(i.unit_price)]),
       [
-        ["Drywall patch", 85.5],
-        ["Interior paint, per room", 450],
-        ["Trim, per metre", 6],
+        ["Drywall patch", "", null, 85.5], // blank unit is null, never ""
+        ["Interior paint", "per room", "each", 450],
+        ["Trim, per metre", "", null, 6],
       ],
     );
   });
@@ -112,11 +121,16 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     if (probe.error) return t.skip("migration 0059 (line_items.quantity) is not applied yet");
 
     const pro = await makePerson("qty", "pro");
-    const r = await saveReusableItems([{ description: "Potlight, installed", unit_price: 120, quantity: 6 }], asFetch(pro));
+    const r = await saveReusableItems(
+      [{ name: "Potlight", description: "installed", unit: "each", unit_price: 120, quantity: 6 }],
+      asFetch(pro),
+    );
     assert.deepEqual(r, { saved: 1, failures: [] });
 
-    const [item] = (await pickerItems(pro)) as { description: string; unit_price: number; quantity: number }[];
-    assert.equal(item.description, "Potlight, installed");
+    const [item] = (await pickerItems(pro)) as unknown as { name: string; description: string; unit: string; unit_price: number; quantity: number }[];
+    assert.equal(item.name, "Potlight");
+    assert.equal(item.description, "installed");
+    assert.equal(item.unit, "each");
     assert.equal(Number(item.unit_price), 120);
     assert.equal(Number(item.quantity), 6);
 
@@ -135,9 +149,9 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     assert.equal((await pickerItems(a)).length, 1);
   });
 
-  it("a blank description is rejected (400) and nothing is written", async () => {
+  it("a blank name is rejected (400) and nothing is written", async () => {
     const pro = await makePerson("blank", "pro");
-    const res = await createLineItem(pro.client as never, pro.id, { description: "  ", unit_price: 5 });
+    const res = await createLineItem(pro.client as never, pro.id, { name: "  ", description: "kept?", unit_price: 5 });
     assert.equal(res.status, 400);
     assert.deepEqual(await pickerItems(pro), []);
   });

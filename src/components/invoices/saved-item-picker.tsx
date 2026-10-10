@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BookmarkPlus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { filterSavedItems, savedItemQuantity, type SavedItemLike } from "@/lib/saved-items";
+import { filterSavedItems, savedItemQuantity, sortSavedItems, type SavedItemLike } from "@/lib/saved-items";
 import { formatQuantity, lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
@@ -35,7 +35,8 @@ export function SavedItemPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const matches = useMemo(() => filterSavedItems(items, query), [items, query]);
+  const sorted = useMemo(() => sortSavedItems(items), [items]);
+  const matches = useMemo(() => filterSavedItems(sorted, query), [sorted, query]);
 
   function close() {
     setOpen(false);
