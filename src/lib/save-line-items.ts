@@ -5,8 +5,6 @@ export interface ReusableItemInput {
   /** "" = no unit. */
   unit?: string;
   unit_price: number;
-  /** Saved with the item so picking it later fills the quantity too. */
-  quantity?: number;
 }
 
 export interface SaveReusableItemsResult {
@@ -42,8 +40,6 @@ export async function saveReusableItems(
           description: item.description,
           ...(item.unit?.trim() ? { unit: item.unit } : {}),
           unit_price: item.unit_price,
-          // Omitted when it isn't a usable number; the server then keeps the default of 1.
-          ...(Number(item.quantity) > 0 ? { quantity: Number(item.quantity) } : {}),
         }),
       });
       if (res.ok) {

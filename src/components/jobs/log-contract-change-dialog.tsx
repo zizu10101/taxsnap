@@ -20,7 +20,8 @@ import type { ContractChange, Job, LineItem } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
 import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
-import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { focusLineQuantity } from "@/lib/focus-line-quantity";
 import { lineText } from "@/lib/line-format";
 
 interface ChangeItemDraft {
@@ -112,6 +113,7 @@ export function LogContractChangeDialog({
     // Change-order lines have one description field (their own table has no name/unit), so a picked
     // item's name and description are joined into it.
     const picked = lineFromSavedItem(saved);
+    focusLineQuantity(insertedLineIndex(items));
     setItems((prev) =>
       insertLine(prev, {
         description: lineText(saved),
@@ -244,6 +246,7 @@ export function LogContractChangeDialog({
                     <NumberInput
                       placeholder="Qty"
                       className="w-16"
+                      data-line-qty={i}
                       value={item.quantity}
                       onValueChange={(quantity) => updateItem(i, { quantity })}
                     />

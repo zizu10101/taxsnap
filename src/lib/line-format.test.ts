@@ -227,8 +227,6 @@ test("every place a line is shown uses the shared name/description/unit helpers"
     "src/components/invoices/document-detail.tsx",
     "src/components/public/document-paper.tsx",
     "src/lib/invoice-pdf.ts",
-    "src/components/invoices/saved-item-picker.tsx",
-    "src/components/invoices/line-item-list.tsx",
   ]) {
     assert.ok(readLf(file).includes("formatQuantity"), `${file} should show the unit via formatQuantity`);
   }

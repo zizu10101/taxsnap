@@ -8,20 +8,6 @@ export interface LineItemResult {
   body: Record<string, unknown>;
 }
 
-export const QUANTITY_MESSAGE = "Quantity must be greater than 0.";
-
-/**
- * Reads the optional `quantity` of a request body. `undefined` means "not
- * sent" (the column's default of 1 applies); anything else must be a number
- * above zero.
- */
-export function parseQuantity(value: unknown): { quantity?: number } | { error: string } {
-  if (value === undefined || value === null || value === "") return {};
-  const q = Number(value);
-  if (!Number.isFinite(q) || q <= 0) return { error: QUANTITY_MESSAGE };
-  return { quantity: Math.round(q * 100) / 100 };
-}
-
 // The body of POST /api/line-items, taking the caller's own (RLS-scoped)
 // client so it runs the same in the route and in the real-database test
 // (same shape as handleBulkCategory).
@@ -35,9 +21,9 @@ export async function createLineItem(
     description?: unknown;
     unit?: unknown;
     unit_price?: unknown;
-    quantity?: unknown;
   };
-  const { unit_price, quantity: rawQuantity } = input;
+  // A `quantity` in the body (an old tab) is ignored: a saved item never stores one.
+  const { unit_price } = input;
 
   // An older caller that sends only `description` is read as name = description (same as an old row).
   const labels = readLineLabels(input);
@@ -46,9 +32,6 @@ export async function createLineItem(
   }
   const unitProblem = unitError(input.unit);
   if (unitProblem) return { status: 400, body: { error: unitProblem } };
-
-  const parsed = parseQuantity(rawQuantity);
-  if ("error" in parsed) return { status: 400, body: { error: parsed.error } };
 
   // Every tier gets a capped number of active saved items (see
   // src/lib/plan-limits.ts) - a new item always inserts as active, so
@@ -72,10 +55,11 @@ export async function createLineItem(
     unit_price: Number(unit_price) || 0,
   };
 
-  // Needs migrations 0059 (line_items.quantity) and 0061 (name, unit), applied BEFORE this ships.
+  // Needs migration 0061 (name, unit), applied BEFORE this ships. quantity is never written (the
+  // 0059 column keeps its default of 1 / old values, which nothing reads).
   const { data, error } = await supabase
     .from("line_items")
-    .insert({ ...row, ...(parsed.quantity !== undefined ? { quantity: parsed.quantity } : {}) })
+    .insert(row)
     .select()
     .single();
 

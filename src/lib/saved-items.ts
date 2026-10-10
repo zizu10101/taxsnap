@@ -10,8 +10,6 @@ export interface SavedItemLike {
   /** Absent/null = no unit. */
   unit?: string | null;
   unit_price: number;
-  /** Absent on a database that hasn't had migration 0059 applied yet. */
-  quantity?: number | null;
 }
 
 export interface LineDraft {
@@ -21,12 +19,6 @@ export interface LineDraft {
   unit: string;
   quantity: number;
   unit_price: number;
-}
-
-/** A stored quantity that is missing or not a positive number reads as 1. */
-export function savedItemQuantity(item: Pick<SavedItemLike, "quantity">): number {
-  const q = Number(item.quantity);
-  return Number.isFinite(q) && q > 0 ? q : 1;
 }
 
 /**
@@ -49,13 +41,18 @@ export function sortSavedItems<T extends Pick<SavedItemLike, "description" | "na
   return [...items].sort((a, b) => lineName(a).localeCompare(lineName(b)));
 }
 
-/** What picking a saved item fills into a line: name, description, unit, quantity and price. */
+/**
+ * What picking a saved item fills into a line: name, description, unit and price per unit. The quantity
+ * is always 1 - it differs on every job, so a saved item never recalls one (line_items.quantity from
+ * migration 0059 still exists in old rows, but nothing reads it). The form then focuses and selects the
+ * quantity field so typing replaces the 1.
+ */
 export function lineFromSavedItem(item: SavedItemLike): LineDraft {
   return {
     name: lineName(item),
     description: lineDescription(item),
     unit: normalizeUnit(item.unit) ?? "",
-    quantity: savedItemQuantity(item),
+    quantity: 1,
     unit_price: item.unit_price,
   };
 }
@@ -66,7 +63,13 @@ export function lineFromSavedItem(item: SavedItemLike): LineDraft {
  * leave that blank row behind.
  */
 export function insertLine<T extends LineLabelFields>(lines: T[], filled: T): T[] {
+  const index = insertedLineIndex(lines);
+  if (index === lines.length) return [...lines, filled];
+  return lines.map((l, i) => (i === index ? filled : l));
+}
+
+/** Where insertLine puts a picked item: the first still-blank line, otherwise the end. */
+export function insertedLineIndex<T extends LineLabelFields>(lines: T[]): number {
   const emptyIndex = lines.findIndex((l) => !lineName(l));
-  if (emptyIndex === -1) return [...lines, filled];
-  return lines.map((l, i) => (i === emptyIndex ? filled : l));
+  return emptyIndex === -1 ? lines.length : emptyIndex;
 }

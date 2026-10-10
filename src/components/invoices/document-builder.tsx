@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
-import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { focusLineQuantity } from "@/lib/focus-line-quantity";
 import { lineDescription, lineName } from "@/lib/line-format";
 import { LineItemFields } from "@/components/invoices/line-item-fields";
 import { dueDateLabel } from "@/lib/document-labels";
@@ -225,7 +226,10 @@ export function DocumentBuilder({
   }, [jobOptions]);
 
   function insertSavedItem(saved: SavedItemLike) {
+    const index = insertedLineIndex(items);
     setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
+    // Quantity is always 1 on a pick: put the cursor there with it selected so typing replaces it.
+    focusLineQuantity(index);
   }
 
   function handleJobModeChange(value: string) {
@@ -548,6 +552,7 @@ export function DocumentBuilder({
               return (
                 <div key={i} className="space-y-1.5 rounded-lg border p-2.5">
                   <LineItemFields
+                    index={i}
                     value={item}
                     onChange={(patch) => updateItem(i, patch)}
                     onRemove={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}

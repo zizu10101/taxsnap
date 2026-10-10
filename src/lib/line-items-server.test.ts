@@ -1,44 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { QUANTITY_MESSAGE, parseQuantity } from "./line-items-server.ts";
 import { saveReusableItems } from "./save-line-items.ts";
 
-test("quantity: absent means 'use the default of 1' (nothing sent)", () => {
-  assert.deepEqual(parseQuantity(undefined), {});
-  assert.deepEqual(parseQuantity(null), {});
-  assert.deepEqual(parseQuantity(""), {});
-});
-
-test("quantity: positive numbers pass, rounded to cents like the column", () => {
-  assert.deepEqual(parseQuantity(3), { quantity: 3 });
-  assert.deepEqual(parseQuantity("2.5"), { quantity: 2.5 });
-  assert.deepEqual(parseQuantity(2.456), { quantity: 2.46 });
-});
-
-test("quantity: zero, negative and junk are a 400 message", () => {
-  for (const bad of [0, -1, "abc", Number.NaN, Infinity]) {
-    assert.deepEqual(parseQuantity(bad), { error: QUANTITY_MESSAGE }, String(bad));
-  }
-});
-
-test("saving a ticked item sends its quantity (when usable) and price", async () => {
+test("saving a ticked item sends name, description, unit and price - never a quantity", async () => {
   const bodies: Record<string, unknown>[] = [];
   const impl = (async (_u: unknown, init?: RequestInit) => {
     bodies.push(JSON.parse(String(init?.body)));
     return new Response("{}", { status: 201 });
   }) as typeof fetch;
-  await saveReusableItems(
-    [
-      { description: "A", unit_price: 5, quantity: 4 },
-      { description: "B", unit_price: 6 },
-      { description: "C", unit_price: 7, quantity: 0 },
-    ],
-    impl,
-  );
-  assert.deepEqual(bodies[0], { description: "A", unit_price: 5, quantity: 4 });
+  // A caller that still carries a quantity on the line (the forms' drafts do) must not send it.
+  const withQuantity = { name: "Flooring", description: "oak", unit: "sq ft", unit_price: 5, quantity: 800 };
+  await saveReusableItems([withQuantity, { description: "B", unit_price: 6 }], impl);
+  assert.deepEqual(bodies[0], { name: "Flooring", description: "oak", unit: "sq ft", unit_price: 5 });
   assert.deepEqual(bodies[1], { description: "B", unit_price: 6 });
-  assert.deepEqual(bodies[2], { description: "C", unit_price: 7 });
+  for (const body of bodies) assert.ok(!("quantity" in body));
+});
+
+test("the saved-items dialog has no Quantity field and sends none; the routes never write one", () => {
+  const dialog = read("../components/invoices/line-item-dialog.tsx");
+  assert.doesNotMatch(dialog, /setQuantity|line-item-quantity|<Label[^>]*>Quantity|quantity[,:]/);
+  assert.match(dialog, /Price per unit/);
+  const writers = read("./line-items-server.ts") + read("../app/api/line-items/[id]/route.ts");
+  assert.doesNotMatch(writers, /parseQuantity|rawQuantity|update\.quantity|quantity: /);
 });
 
 // UI wiring that can't be rendered here (no DOM library in the project).

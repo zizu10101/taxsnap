@@ -15,15 +15,12 @@ import { LineItemDialog } from "@/components/invoices/line-item-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { LineItem, SubscriptionStatus } from "@/lib/database.types";
-import { savedItemQuantity } from "@/lib/saved-items";
-import { formatQuantity, lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
+import { lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
 
-// "2 hr × " in front of the price, or nothing for a quantity of 1 with no unit (as it always was).
-function savedQuantityText(item: LineItem): string {
-  const quantity = savedItemQuantity(item);
+// "$5.00 / sq ft", or just the price when the item has no unit.
+function priceText(item: LineItem): string {
   const unit = normalizeUnit(item.unit);
-  if (quantity === 1 && !unit) return "";
-  return `${formatQuantity(quantity, unit)} × `;
+  return unit ? `${formatCurrency(item.unit_price)} / ${unit}` : formatCurrency(item.unit_price);
 }
 
 function formatCurrency(amount: number) {
@@ -151,7 +148,7 @@ export function LineItemList({
                         <p className="truncate text-xs text-muted-foreground">{lineDescription(item)}</p>
                       )}
                       <p className="text-xs text-muted-foreground tabular-nums">
-                        {savedQuantityText(item)}{formatCurrency(item.unit_price)}
+                        {priceText(item)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -180,7 +177,7 @@ export function LineItemList({
                     )}
                   </div>
                   <span className="hidden text-sm tabular-nums sm:block">
-                    {savedQuantityText(item)}{formatCurrency(item.unit_price)}
+                    {priceText(item)}
                   </span>
                   <span className="hidden sm:block">
                     {item.is_active ? (

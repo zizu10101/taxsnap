@@ -16,7 +16,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { LineItem } from "@/lib/database.types";
-import { savedItemQuantity } from "@/lib/saved-items";
 import { lineDescription, lineName } from "@/lib/line-format";
 import { UnitSelect } from "@/components/invoices/line-item-fields";
 
@@ -37,18 +36,12 @@ export function LineItemDialog({
   const [description, setDescription] = useState(lineItem ? lineDescription(lineItem) : "");
   const [unit, setUnit] = useState(lineItem?.unit ?? "");
   const [unitPrice, setUnitPrice] = useState(lineItem?.unit_price ?? 0);
-  const [quantity, setQuantity] = useState(lineItem ? savedItemQuantity(lineItem) : 1);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function handleSave() {
     if (!name.trim()) {
       toast.error("Enter a name for this item.");
-      return;
-    }
-
-    if (!(quantity > 0)) {
-      toast.error("Quantity must be greater than 0.");
       return;
     }
 
@@ -59,7 +52,7 @@ export function LineItemDialog({
         {
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, description, unit, unit_price: unitPrice, quantity }),
+          body: JSON.stringify({ name, description, unit, unit_price: unitPrice }),
         },
       );
       const data = await res.json();
@@ -116,25 +109,19 @@ export function LineItemDialog({
           </div>
           <div className="grid grid-cols-[1fr_auto] items-end gap-2">
             <div className="space-y-2">
-              <Label htmlFor="line-item-quantity">Quantity</Label>
+              <Label htmlFor="line-item-price">Price per unit</Label>
               <NumberInput
-                id="line-item-quantity"
+                id="line-item-price"
                 step="0.01"
-                value={quantity}
-                onValueChange={setQuantity}
+                value={unitPrice}
+                onValueChange={setUnitPrice}
               />
             </div>
             <UnitSelect unit={unit} onChange={setUnit} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="line-item-price">Price (each)</Label>
-            <NumberInput
-              id="line-item-price"
-              step="0.01"
-              value={unitPrice}
-              onValueChange={setUnitPrice}
-            />
-          </div>
+          <p className="text-xs text-muted-foreground">
+            The quantity is entered on each estimate or invoice, since it changes on every job.
+          </p>
         </div>
 
         <DialogFooter>

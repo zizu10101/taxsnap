@@ -97,11 +97,14 @@ export function UnitSelect({
  * with the caller (it needs the caller's own draft shape).
  */
 export function LineItemFields({
+  index,
   value,
   onChange,
   onRemove,
   totalClassName,
 }: {
+  /** Position in the form; the quantity field carries it so a picked saved item can focus it. */
+  index: number;
   value: LineFieldsValue;
   onChange: (patch: Partial<LineFieldsValue>) => void;
   onRemove: () => void;
@@ -140,6 +143,7 @@ export function LineItemFields({
         <NumberInput
           placeholder="Qty"
           className="w-16"
+          data-line-qty={index}
           value={value.quantity}
           onValueChange={(quantity) => onChange({ quantity })}
         />

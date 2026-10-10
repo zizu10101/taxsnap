@@ -30,7 +30,8 @@ import type {
 } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
-import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { focusLineQuantity } from "@/lib/focus-line-quantity";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 import { LineItemFields } from "@/components/invoices/line-item-fields";
 import { LineLabel } from "@/components/invoices/line-label";
@@ -197,7 +198,10 @@ export function DocumentEditor({
       : (clients.find((c) => c.id === clientId) ?? null);
 
   function insertSavedItem(saved: SavedItemLike) {
+    const index = insertedLineIndex(items);
     setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
+    // Quantity is always 1 on a pick: put the cursor there with it selected so typing replaces it.
+    focusLineQuantity(index);
   }
 
   function handleJobModeChange(value: string) {
@@ -521,6 +525,7 @@ export function DocumentEditor({
                 return (
                   <div key={i} className={`space-y-1.5 p-2.5 ${i > 0 ? "border-t border-border" : ""}`}>
                     <LineItemFields
+                      index={i}
                       value={item}
                       onChange={(patch) => updateItem(i, patch)}
                       onRemove={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}

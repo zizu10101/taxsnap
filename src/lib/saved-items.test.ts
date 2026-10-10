@@ -5,14 +5,14 @@ import {
   filterSavedItems,
   insertLine,
   lineFromSavedItem,
-  savedItemQuantity,
+  insertedLineIndex,
   sortSavedItems,
   type SavedItemLike,
 } from "./saved-items.ts";
 
 const ITEMS: SavedItemLike[] = [
-  { id: "1", description: "Interior paint, per room", unit_price: 450, quantity: 2 },
-  { id: "2", description: "Drywall patch", unit_price: 85.5, quantity: 1 },
+  { id: "1", description: "Interior paint, per room", unit_price: 450 },
+  { id: "2", description: "Drywall patch", unit_price: 85.5 },
   { id: "3", description: "Trim - per metre", unit_price: 6 },
   { id: "4", description: "Exterior PAINT, 2 coats", unit_price: 900 },
 ];
@@ -51,20 +51,28 @@ test("filtering doesn't change the list it was given", () => {
   assert.deepEqual(ITEMS, copy);
 });
 
-test("picking an item fills name, description, unit, quantity AND price", () => {
+test("picking an item fills name, description, unit and price per unit, with quantity 1", () => {
   // an old item (no name): its description becomes the name, with an empty description
   assert.deepEqual(lineFromSavedItem(ITEMS[0]), {
     name: "Interior paint, per room",
     description: "",
     unit: "",
-    quantity: 2,
+    quantity: 1,
     unit_price: 450,
   });
-  // a new item keeps all of it, unit included
+  // a new item keeps name, description, unit and price
   assert.deepEqual(
-    lineFromSavedItem({ id: "9", name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", unit_price: 4.5, quantity: 40 }),
-    { name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", quantity: 40, unit_price: 4.5 },
+    lineFromSavedItem({ id: "9", name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", unit_price: 4.5 }),
+    { name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", quantity: 1, unit_price: 4.5 },
   );
+});
+
+test("a stored quantity on an existing row is never recalled: the pick comes back with quantity 1", () => {
+  // rows from before this change still hold line_items.quantity (migration 0059)
+  for (const stored of [800, 6, 0.5, 0, -3, Number.NaN, null]) {
+    const row = { id: "r", description: "Flooring", unit: "sq ft", unit_price: 5, quantity: stored };
+    assert.equal(lineFromSavedItem(row).quantity, 1, String(stored));
+  }
 });
 
 test("search looks at the name and the description", () => {
@@ -77,14 +85,11 @@ test("search looks at the name and the description", () => {
   assert.deepEqual(ids(filterSavedItems(items, "baseboard")), ["b"]);
 });
 
-test("a missing, zero, negative or junk stored quantity reads as 1", () => {
-  assert.equal(savedItemQuantity({ quantity: undefined }), 1);
-  assert.equal(savedItemQuantity({ quantity: null }), 1);
-  assert.equal(savedItemQuantity({ quantity: 0 }), 1);
-  assert.equal(savedItemQuantity({ quantity: -3 }), 1);
-  assert.equal(savedItemQuantity({ quantity: Number.NaN }), 1);
-  assert.equal(savedItemQuantity({ quantity: 2.5 }), 2.5);
-  assert.equal(lineFromSavedItem(ITEMS[2]).quantity, 1);
+test("insertedLineIndex is the first blank line, otherwise the end (where focus goes)", () => {
+  const lines = [{ name: "Paint" }, { name: "  " }, { name: "Trim" }];
+  assert.equal(insertedLineIndex(lines), 1);
+  assert.equal(insertedLineIndex([{ name: "A" }, { name: "B" }]), 2);
+  assert.equal(insertedLineIndex([]), 0);
 });
 
 test("insertLine reuses the first blank line, otherwise appends", () => {
@@ -129,4 +134,21 @@ test("no query orders saved items by the description column; the list sources so
   assert.ok(lf("src/app/api/line-items/route.ts").includes("sortSavedItems(data"));
   assert.ok(lf("src/app/(app)/dashboard/line-items/page.tsx").includes("sortSavedItems(lineItems"));
   assert.ok(lf("src/components/invoices/saved-item-picker.tsx").includes("sortSavedItems(items)"));
+});
+
+test("nothing that fills a line reads a saved item's stored quantity; forms focus the quantity after a pick", () => {
+  const lf = (p: string) => readFileSync(p, "utf8").split("\r\n").join("\n");
+  assert.ok(!/savedItemQuantity|item\.quantity|saved\.quantity/.test(lf("src/lib/saved-items.ts")));
+  assert.ok(!/savedItemQuantity/.test(lf("src/components/invoices/saved-item-picker.tsx")));
+  assert.ok(!/savedItemQuantity|quantity/.test(lf("src/components/invoices/line-item-list.tsx")));
+  for (const file of [
+    "src/components/invoices/document-builder.tsx",
+    "src/components/invoices/document-editor.tsx",
+    "src/components/jobs/log-contract-change-dialog.tsx",
+  ]) {
+    assert.ok(lf(file).includes("focusLineQuantity("), file);
+  }
+  const focus = lf("src/lib/focus-line-quantity.ts");
+  assert.ok(focus.includes("el.focus()") && focus.includes("el.select()"));
+  assert.ok(lf("src/components/invoices/line-item-fields.tsx").includes("data-line-qty={index}"));
 });

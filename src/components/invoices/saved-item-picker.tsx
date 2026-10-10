@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { BookmarkPlus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { filterSavedItems, savedItemQuantity, sortSavedItems, type SavedItemLike } from "@/lib/saved-items";
-import { formatQuantity, lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
+import { filterSavedItems, sortSavedItems, type SavedItemLike } from "@/lib/saved-items";
+import { lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
@@ -93,7 +93,6 @@ export function SavedItemPicker({
               </li>
             ) : (
               matches.map((item) => {
-                const qty = savedItemQuantity(item);
                 const unit = normalizeUnit(item.unit);
                 const description = lineDescription(item);
                 return (
@@ -113,8 +112,8 @@ export function SavedItemPicker({
                         )}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {(qty !== 1 || unit) && `${formatQuantity(qty, unit)} × `}
                         {formatCurrency(item.unit_price)}
+                        {unit && ` / ${unit}`}
                       </span>
                     </button>
                   </li>

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 import type { LineItemUpdate } from "@/lib/database.types";
-import { parseQuantity } from "@/lib/line-items-server";
 import { normalizeUnit, readLineLabels, unitError } from "@/lib/line-format";
 
 // Owner can edit or deactivate a saved item (is_active = false) - never
@@ -21,7 +20,7 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { name, description, unit, unit_price, quantity: rawQuantity, is_active } = body ?? {};
+  const { name, description, unit, unit_price, is_active } = body ?? {};
 
   // Only checked when this PATCH would *increase* the active count
   // (reactivating a previously-deactivated item) - editing description/
@@ -60,13 +59,6 @@ export async function PATCH(
   }
   if (unit_price !== undefined) update.unit_price = Number(unit_price) || 0;
   if (is_active !== undefined) update.is_active = !!is_active;
-
-  const parsedQuantity = parseQuantity(rawQuantity);
-  if ("error" in parsedQuantity) {
-    return NextResponse.json({ error: parsedQuantity.error }, { status: 400 });
-  }
-  // Needs migration 0059 (line_items.quantity), applied BEFORE this ships.
-  if (parsedQuantity.quantity !== undefined) update.quantity = parsedQuantity.quantity;
 
   const { data, error } = await supabase
     .from("line_items")
