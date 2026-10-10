@@ -20,6 +20,9 @@ import type { UpdatedDocument } from "@/components/invoices/payment-form";
 import { canRecordPayment, COLLECT_BALANCE_LABEL, mergeUpdatedDocument } from "@/lib/payment-form";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { invoiceDetailHref } from "@/lib/invoice-back";
+import { LineLabel } from "@/components/invoices/line-label";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
+import { ClientNotes } from "@/components/invoices/client-notes";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -293,7 +296,9 @@ function DocumentPreviewPanel({
             <tbody>
               {doc.items.map((item) => (
                 <tr key={item.id} className="border-t">
-                  <td className="truncate py-1 pr-2">{item.description}</td>
+                  <td className="py-1 pr-2">
+                    <LineLabel name={lineName(item)} description={lineDescription(item)} />
+                  </td>
                   <td className="py-1 text-right tabular-nums">
                     {formatCurrency(item.quantity * item.unit_price)}
                   </td>
@@ -301,6 +306,16 @@ function DocumentPreviewPanel({
               ))}
             </tbody>
           </table>
+          <ClientNotes notes={doc.notes} compact />
+          {/* Owner-only: this list is the owner's own, never a client-facing view. */}
+          {doc.internal_notes?.trim() && (
+            <div className="mt-3 text-[11px] print:hidden">
+              <p className="text-muted-foreground uppercase">
+                Internal <span className="normal-case">(only you see this)</span>
+              </p>
+              <p className="whitespace-pre-line">{doc.internal_notes.trim()}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">

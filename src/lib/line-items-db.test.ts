@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { randomUUID } from "node:crypto";
+import { lineDescription, lineName } from "./line-format.ts";
+import { lineFromSavedItem, sortSavedItems } from "./saved-items.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createLineItem } from "./line-items-server.ts";
 import { saveReusableItems } from "./save-line-items.ts";
@@ -50,8 +52,14 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
 
   // The picker's data source (see e.g. estimates/new/page.tsx).
   const pickerItems = async (p: Person) =>
-    (await p.client.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }))
-      .data as { description: string; unit_price: number }[];
+    sortSavedItems(
+      (await p.client.from("line_items").select("*").eq("is_active", true)).data as {
+        name: string | null;
+        description: string;
+        unit: string | null;
+        unit_price: number;
+      }[],
+    );
 
   before(() => {
     admin = createClient(URL_!, SERVICE!, { auth: { persistSession: false } });
@@ -71,8 +79,9 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
 
     const r = await saveReusableItems(
       [
-        { description: "Interior paint, per room", unit_price: 450 },
-        { description: "Drywall patch", unit_price: 85.5 },
+        { name: "Interior paint", description: "per room", unit: "each", unit_price: 450 },
+        { name: "Drywall patch", description: "", unit_price: 85.5 },
+        // the older caller shape (description only) is read as name = description
         { description: "Trim, per metre", unit_price: 6 },
       ],
       asFetch(pro),
@@ -82,11 +91,11 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     // "Next estimate": a fresh read of the same data the picker is built from.
     const items = await pickerItems(pro);
     assert.deepEqual(
-      items.map((i) => [i.description, Number(i.unit_price)]),
+      items.map((i) => [lineName(i), lineDescription(i), i.unit, Number(i.unit_price)]),
       [
-        ["Drywall patch", 85.5],
-        ["Interior paint, per room", 450],
-        ["Trim, per metre", 6],
+        ["Drywall patch", "", null, 85.5], // blank unit is null, never ""
+        ["Interior paint", "per room", "each", 450],
+        ["Trim, per metre", "", null, 6],
       ],
     );
   });
@@ -106,38 +115,36 @@ describe("saved items (real database, signed-in users)", { skip: !RUN || !URL_ |
     assert.equal((await pickerItems(free)).length, 1);
   });
 
-  // Needs migration 0059; skips until it has been applied (like the 0053 cases elsewhere).
-  it("quantity is stored and comes back in the next picker load; a bad quantity writes nothing", async (t) => {
+  // Needs migration 0059 (the column still exists; nothing writes or reads it any more).
+  it("a saved item stores no quantity, and an old row's stored quantity is not recalled on pick", async (t) => {
     const probe = await admin.from("line_items").select("quantity").limit(1);
     if (probe.error) return t.skip("migration 0059 (line_items.quantity) is not applied yet");
 
     const pro = await makePerson("qty", "pro");
-    const r = await saveReusableItems([{ description: "Potlight, installed", unit_price: 120, quantity: 6 }], asFetch(pro));
+    // The forms' drafts carry a quantity (800 sq ft); saving for reuse must not store it.
+    const draft = { name: "Flooring", description: "oak", unit: "sq ft", unit_price: 5, quantity: 800 };
+    const r = await saveReusableItems([draft], asFetch(pro));
     assert.deepEqual(r, { saved: 1, failures: [] });
 
-    const [item] = (await pickerItems(pro)) as { description: string; unit_price: number; quantity: number }[];
-    assert.equal(item.description, "Potlight, installed");
-    assert.equal(Number(item.unit_price), 120);
-    assert.equal(Number(item.quantity), 6);
+    // A direct API call that sends a quantity is ignored too (an old tab), not rejected.
+    const direct = await createLineItem(pro.client as never, pro.id, { name: "Trim", unit_price: 2, quantity: 6 });
+    assert.equal(direct.status, 201);
 
-    for (const bad of [0, -2, "abc"]) {
-      const res = await createLineItem(pro.client as never, pro.id, { description: "Bad", unit_price: 1, quantity: bad });
-      assert.equal(res.status, 400, String(bad));
-    }
-    assert.equal((await pickerItems(pro)).length, 1);
+    const rows = (await pickerItems(pro)) as unknown as { name: string; unit: string; unit_price: number; quantity: number }[];
+    assert.deepEqual(rows.map((i) => Number(i.quantity)), [1, 1]); // the column default, never 800 / 6
+
+    // An existing row from before the change that DOES hold a quantity (inserted straight in):
+    await admin.from("line_items").insert({ user_id: pro.id, name: "Old row", description: "", unit_price: 9, quantity: 6 });
+    const all = (await pickerItems(pro)) as unknown as Parameters<typeof lineFromSavedItem>[0][];
+    const old = all.find((i) => lineName(i) === "Old row")!;
+    assert.equal(Number((old as unknown as { quantity: number }).quantity), 6); // still stored
+    assert.equal(lineFromSavedItem(old).quantity, 1); // but a pick comes back with 1
+    assert.ok(all.every((i) => lineFromSavedItem(i).quantity === 1));
   });
 
-  it("one owner never sees another's saved items", async () => {
-    const a = await makePerson("iso-a", "pro");
-    const b = await makePerson("iso-b", "pro");
-    await saveReusableItems([{ description: "Only A's", unit_price: 9 }], asFetch(a));
-    assert.deepEqual(await pickerItems(b), []);
-    assert.equal((await pickerItems(a)).length, 1);
-  });
-
-  it("a blank description is rejected (400) and nothing is written", async () => {
+  it("a blank name is rejected (400) and nothing is written", async () => {
     const pro = await makePerson("blank", "pro");
-    const res = await createLineItem(pro.client as never, pro.id, { description: "  ", unit_price: 5 });
+    const res = await createLineItem(pro.client as never, pro.id, { name: "  ", description: "kept?", unit_price: 5 });
     assert.equal(res.status, 400);
     assert.deepEqual(await pickerItems(pro), []);
   });

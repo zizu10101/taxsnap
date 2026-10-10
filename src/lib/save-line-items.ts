@@ -1,8 +1,10 @@
 export interface ReusableItemInput {
+  /** Absent from an older caller: the server then reads `description` as the name. */
+  name?: string;
   description: string;
+  /** "" = no unit. */
+  unit?: string;
   unit_price: number;
-  /** Saved with the item so picking it later fills the quantity too. */
-  quantity?: number;
 }
 
 export interface SaveReusableItemsResult {
@@ -34,10 +36,10 @@ export async function saveReusableItems(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(item.name !== undefined ? { name: item.name } : {}),
           description: item.description,
+          ...(item.unit?.trim() ? { unit: item.unit } : {}),
           unit_price: item.unit_price,
-          // Omitted when it isn't a usable number; the server then keeps the default of 1.
-          ...(Number(item.quantity) > 0 ? { quantity: Number(item.quantity) } : {}),
         }),
       });
       if (res.ok) {
@@ -45,9 +47,9 @@ export async function saveReusableItems(
         continue;
       }
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      result.failures.push(`"${item.description}": ${body.error ?? `HTTP ${res.status}`}`);
+      result.failures.push(`"${item.name ?? item.description}": ${body.error ?? `HTTP ${res.status}`}`);
     } catch {
-      result.failures.push(`"${item.description}": network error`);
+      result.failures.push(`"${item.name ?? item.description}": network error`);
     }
   }
   return result;

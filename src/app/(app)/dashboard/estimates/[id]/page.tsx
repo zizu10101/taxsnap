@@ -52,7 +52,7 @@ export default async function EstimateDetailPage({
       .from("jobs")
       .select("id, name, location, client_id, contract_value")
       .order("name", { ascending: true }),
-    supabase.from("line_items").select("*").eq("is_active", true).order("description", { ascending: true }),
+    supabase.from("line_items").select("*").eq("is_active", true),
   ]);
 
   if (!document) notFound();

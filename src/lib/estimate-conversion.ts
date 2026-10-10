@@ -90,6 +90,9 @@ export async function convertEstimateToInvoice(
       client_id: estimate.client_id,
       job_id: estimate.job_id,
       place_of_work: estimate.place_of_work,
+      // Both notes carry over to the invoice (null stays null).
+      notes: estimate.notes ?? null,
+      internal_notes: estimate.internal_notes ?? null,
       type: "invoice",
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),
@@ -114,9 +117,19 @@ export async function convertEstimateToInvoice(
     .from("document_items")
     .insert(
       items.map(
-        (item: { description: string; quantity: number; unit_price: number; sort_order: number }) => ({
+        (item: {
+          name?: string | null;
+          description: string;
+          unit?: string | null;
+          quantity: number;
+          unit_price: number;
+          sort_order: number;
+        }) => ({
           document_id: invoice.id,
+          // Copied as stored: an old estimate line (null name) stays an old-style line on the invoice.
+          name: item.name ?? null,
           description: item.description,
+          unit: item.unit ?? null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           sort_order: item.sort_order,

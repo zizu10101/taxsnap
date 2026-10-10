@@ -171,3 +171,65 @@
     font-weight: 500;
   }
 }
+
+/* Owner-only "Internal notes" box (InternalNotesPanel). Plain bordered textarea on phones; from lg up
+   it is a simple ruled notepad: a faint rule behind each line, a slightly warmer paper tint than the
+   document card, and a thin margin line on the left. No images, fonts or shadows. The rule spacing is
+   the textarea's line-height (1.5rem) exactly, so text sits ON the lines; the rules are a one-line
+   tile (repeat-y) attached to the scrolling content (background-attachment: local), so they keep
+   lining up however long the note gets. The box grows with its text (field-sizing: content) up to
+   max-height, then scrolls. */
+:root {
+  --pad-paper: #fcf3dc;
+  --pad-rule: #eadfc4;
+  --pad-margin: #e3b3a8;
+}
+.dark {
+  --pad-paper: #2b241a;
+  --pad-rule: #3d3424;
+  --pad-margin: #6b3f37;
+}
+.notepad {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background-color: transparent;
+  color: var(--foreground);
+  field-sizing: content;
+  min-height: calc(4 * 1.5rem + 1rem + 2px);
+  max-height: calc(12 * 1.5rem + 1rem + 2px);
+  overflow-y: auto;
+  resize: none;
+}
+.notepad:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+}
+@media (min-width: 1024px) {
+  .notepad {
+    background-color: var(--pad-paper);
+    background-image:
+      linear-gradient(
+        to right,
+        transparent 2.25rem,
+        var(--pad-margin) 2.25rem,
+        var(--pad-margin) calc(2.25rem + 1px),
+        transparent calc(2.25rem + 1px)
+      ),
+      linear-gradient(
+        to bottom,
+        transparent calc(1.5rem - 1px),
+        var(--pad-rule) calc(1.5rem - 1px)
+      );
+    background-size: 100% 100%, 100% 1.5rem;
+    background-repeat: no-repeat, repeat-y;
+    background-origin: padding-box, content-box;
+    background-attachment: scroll, local;
+    padding: 0.5rem 0.75rem 0.5rem 3rem;
+  }
+}

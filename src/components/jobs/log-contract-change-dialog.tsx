@@ -20,7 +20,9 @@ import type { ContractChange, Job, LineItem } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
 import { saveReusableItems, savedItemsFailureMessage } from "@/lib/save-line-items";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
-import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { focusLineQuantity } from "@/lib/focus-line-quantity";
+import { lineText } from "@/lib/line-format";
 
 interface ChangeItemDraft {
   description: string;
@@ -108,7 +110,17 @@ export function LogContractChangeDialog({
   }
 
   function insertSavedItem(saved: SavedItemLike) {
-    setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
+    // Change-order lines have one description field (their own table has no name/unit), so a picked
+    // item's name and description are joined into it.
+    const picked = lineFromSavedItem(saved);
+    focusLineQuantity(insertedLineIndex(items));
+    setItems((prev) =>
+      insertLine(prev, {
+        description: lineText(saved),
+        quantity: picked.quantity,
+        unit_price: picked.unit_price,
+      }),
+    );
   }
 
   const total = round2(
@@ -154,7 +166,9 @@ export function LogContractChangeDialog({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save change order");
 
-      const savedItems = await saveReusableItems(cleanItems.filter((i) => i.saveForReuse));
+      const savedItems = await saveReusableItems(
+        cleanItems.filter((i) => i.saveForReuse).map((i) => ({ ...i, name: i.description, description: "" })),
+      );
       const savedItemsFailure = savedItemsFailureMessage(savedItems);
       if (savedItemsFailure) toast.warning(savedItemsFailure);
 
@@ -232,6 +246,7 @@ export function LogContractChangeDialog({
                     <NumberInput
                       placeholder="Qty"
                       className="w-16"
+                      data-line-qty={i}
                       value={item.quantity}
                       onValueChange={(quantity) => updateItem(i, { quantity })}
                     />

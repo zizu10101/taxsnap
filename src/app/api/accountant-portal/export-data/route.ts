@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   let invoiceQuery = db
     .from("documents")
     .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, draw_percent_complete, draw_description, client:clients(name, email, address), payments(*), items:document_items(*)",
+      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, draw_percent_complete, draw_description, notes, client:clients(name, email, address), payments(*), items:document_items(*)",
     )
     .eq("type", "invoice")
     .order("issue_date", { ascending: true });

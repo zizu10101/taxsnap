@@ -55,8 +55,7 @@ export default async function JobDetailPage({
     supabase
       .from("line_items")
       .select("*")
-      .eq("is_active", true)
-      .order("description", { ascending: true }),
+      .eq("is_active", true),
   ]);
 
   if (!job) notFound();

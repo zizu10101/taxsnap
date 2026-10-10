@@ -98,57 +98,71 @@ export async function sendInvoiceReadyEmail({
   }
 }
 
-// The owner's "Email Signature Link to Client" action (alongside "Copy
-// Link") - same infrastructure as sendInvoiceReadyEmail above, just sent
-// on demand by the owner instead of automatically after signing, and
-// linking to /sign/[token] instead of a read-only invoice. Same
-// never-throws/returns-false contract - the caller surfaces a failure as
-// an error toast to the owner, who can retry or fall back to Copy Link.
-export async function sendSignatureRequestEmail({
+// The owner's "Email to client" action in the Send menu. The PDF is built in the browser (invoice-pdf.ts
+// is a browser-only jsPDF build) and posted to the route, which hands the bytes here to attach. For an
+// estimate that still needs a signature, `signUrl` adds the signing link to the body. Sending an email
+// never changes the document's status - the caller must not either. Same never-throws/returns-false
+// contract as above: the caller surfaces a failure as an error toast.
+export async function sendDocumentEmail({
   to,
   businessName,
+  replyTo,
   clientName,
+  type,
   documentNumber,
   totalAmount,
   signUrl,
+  pdf,
+  filename,
 }: {
   to: string;
   businessName: string | null;
+  replyTo: string | null;
   clientName: string;
+  type: "invoice" | "estimate";
   documentNumber: number;
   totalAmount: number;
-  signUrl: string;
+  signUrl: string | null;
+  pdf: Buffer;
+  filename: string;
 }): Promise<boolean> {
   const resend = getResendClient();
   if (!resend) {
-    console.error("sendSignatureRequestEmail: RESEND_API_KEY is not set, skipping send.");
+    console.error("sendDocumentEmail: RESEND_API_KEY is not set, skipping send.");
     return false;
   }
 
-  const estimateLabel = formatDocumentNumber("estimate", documentNumber);
+  const label = formatDocumentNumber(type, documentNumber);
+  const noun = type === "invoice" ? "invoice" : "estimate";
   const fromWho = businessName ?? "your contractor";
 
   try {
     const { error } = await resend.emails.send({
       from: buildFromHeader(businessName),
       to,
-      subject: `Please review and sign estimate ${estimateLabel} from ${fromWho}`,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `${noun[0].toUpperCase()}${noun.slice(1)} ${label} from ${fromWho}`,
       html: `
         <p>Hi ${escapeHtml(clientName)},</p>
-        <p>${escapeHtml(fromWho)} sent you estimate ${escapeHtml(estimateLabel)} for
-        <strong>${formatCurrency(totalAmount)}</strong>. Review and sign it here:</p>
-        <p><a href="${signUrl}">${signUrl}</a></p>
+        <p>${escapeHtml(fromWho)} sent you ${noun} ${escapeHtml(label)} for
+        <strong>${formatCurrency(totalAmount)}</strong>. It is attached as a PDF.</p>
+        ${
+          signUrl
+            ? `<p>You can review and sign it online here:</p><p><a href="${signUrl}">${signUrl}</a></p>`
+            : ""
+        }
         <p>Sent via TaxSnap on behalf of ${escapeHtml(fromWho)}.</p>
       `,
+      attachments: [{ filename, content: pdf }],
     });
 
     if (error) {
-      console.error("sendSignatureRequestEmail: Resend returned an error.", error);
+      console.error("sendDocumentEmail: Resend returned an error.", error);
       return false;
     }
     return true;
   } catch (err) {
-    console.error("sendSignatureRequestEmail: send threw.", err);
+    console.error("sendDocumentEmail: send threw.", err);
     return false;
   }
 }

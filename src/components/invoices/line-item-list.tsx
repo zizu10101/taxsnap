@@ -15,7 +15,13 @@ import { LineItemDialog } from "@/components/invoices/line-item-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { LineItem, SubscriptionStatus } from "@/lib/database.types";
-import { savedItemQuantity } from "@/lib/saved-items";
+import { lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
+
+// "$5.00 / sq ft", or just the price when the item has no unit.
+function priceText(item: LineItem): string {
+  const unit = normalizeUnit(item.unit);
+  return unit ? `${formatCurrency(item.unit_price)} / ${unit}` : formatCurrency(item.unit_price);
+}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -46,7 +52,7 @@ export function LineItemList({
     setItems((prev) => {
       const exists = prev.some((i) => i.id === item.id);
       const next = exists ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item];
-      return next.sort((a, b) => a.description.localeCompare(b.description));
+      return next.sort((a, b) => lineName(a).localeCompare(lineName(b)));
     });
   }
 
@@ -118,7 +124,7 @@ export function LineItemList({
             {/* Desktop: a real DESCRIPTION/PRICE/STATUS table, same
                 sm:grid/mobile-card split ReceiptsList uses. */}
             <div className="hidden grid-cols-[minmax(0,2fr)_1fr_100px_auto] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase sm:grid">
-              <span>Description</span>
+              <span>Item</span>
               <span>Price</span>
               <span>Status</span>
               <span />
@@ -135,11 +141,14 @@ export function LineItemList({
                   <div className="flex items-center justify-between gap-3 sm:hidden">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="truncate font-medium">{item.description}</p>
+                        <p className="truncate font-semibold">{lineName(item)}</p>
                         {!item.is_active && <Badge variant="outline">Inactive</Badge>}
                       </div>
+                      {lineDescription(item) && (
+                        <p className="truncate text-xs text-muted-foreground">{lineDescription(item)}</p>
+                      )}
                       <p className="text-xs text-muted-foreground tabular-nums">
-                        {savedItemQuantity(item) !== 1 && `${savedItemQuantity(item)} × `}{formatCurrency(item.unit_price)}
+                        {priceText(item)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -161,11 +170,14 @@ export function LineItemList({
                   </div>
 
                   {/* Desktop row (sm+) - one grid cell per column, same data. */}
-                  <p className="hidden truncate text-sm font-medium sm:block">
-                    {item.description}
-                  </p>
+                  <div className="hidden min-w-0 sm:block">
+                    <p className="truncate text-sm font-semibold">{lineName(item)}</p>
+                    {lineDescription(item) && (
+                      <p className="truncate text-xs text-muted-foreground">{lineDescription(item)}</p>
+                    )}
+                  </div>
                   <span className="hidden text-sm tabular-nums sm:block">
-                    {savedItemQuantity(item) !== 1 && `${savedItemQuantity(item)} × `}{formatCurrency(item.unit_price)}
+                    {priceText(item)}
                   </span>
                   <span className="hidden sm:block">
                     {item.is_active ? (

@@ -27,7 +27,10 @@ import {
 } from "@/components/ui/select";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
-import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { focusLineQuantity } from "@/lib/focus-line-quantity";
+import { lineDescription, lineName } from "@/lib/line-format";
+import { LineItemFields } from "@/components/invoices/line-item-fields";
 import { dueDateLabel } from "@/lib/document-labels";
 import {
   MAX_PLACE_LENGTH,
@@ -52,14 +55,17 @@ const NO_JOB = "__no_job__";
 const NEW_JOB = "__new_job__";
 
 interface LineItemDraft {
+  name: string;
   description: string;
+  /** "" = no unit. */
+  unit: string;
   quantity: number;
   unit_price: number;
   /** Save this item to the reusable saved-items list on submit. */
   saveForReuse?: boolean;
 }
 
-const EMPTY_ITEM: LineItemDraft = { description: "", quantity: 1, unit_price: 0 };
+const EMPTY_ITEM: LineItemDraft = { name: "", description: "", unit: "", quantity: 1, unit_price: 0 };
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -152,12 +158,15 @@ export function DocumentBuilder({
   const [items, setItems] = useState<LineItemDraft[]>(
     document?.items?.length
       ? document.items.map((i) => ({
-          description: i.description,
+          // An old line (null name) opens with its description as the name and no description.
+          name: lineName(i),
+          description: lineDescription(i),
+          unit: i.unit ?? "",
           quantity: i.quantity,
           unit_price: i.unit_price,
         }))
       : presetItems?.length
-        ? presetItems.map((i) => ({ ...i }))
+        ? presetItems.map((i) => ({ name: i.description, description: "", unit: "", quantity: i.quantity, unit_price: i.unit_price }))
         : [{ ...EMPTY_ITEM }],
   );
   const [saving, setSaving] = useState(false);
@@ -189,8 +198,8 @@ export function DocumentBuilder({
   // pre-labeled instead of blank.
   function handleAddLabor() {
     setItems((prev) => {
-      const emptyIndex = prev.findIndex((i) => !i.description.trim());
-      const filled = { description: "Labor", quantity: 1, unit_price: 0 };
+      const emptyIndex = prev.findIndex((i) => !i.name.trim());
+      const filled = { name: "Labor", description: "", unit: "hr", quantity: 1, unit_price: 0 };
       if (emptyIndex === -1) return [...prev, filled];
       return prev.map((it, idx) => (idx === emptyIndex ? filled : it));
     });
@@ -217,7 +226,10 @@ export function DocumentBuilder({
   }, [jobOptions]);
 
   function insertSavedItem(saved: SavedItemLike) {
+    const index = insertedLineIndex(items);
     setItems((prev) => insertLine(prev, lineFromSavedItem(saved)));
+    // Quantity is always 1 on a pick: put the cursor there with it selected so typing replaces it.
+    focusLineQuantity(index);
   }
 
   function handleJobModeChange(value: string) {
@@ -258,7 +270,7 @@ export function DocumentBuilder({
       toast.error("Select an existing client or enter a name for a new one.");
       return;
     }
-    const cleanItems = items.filter((i) => i.description.trim());
+    const cleanItems = items.filter((i) => i.name.trim());
     if (cleanItems.length === 0) {
       toast.error("Add at least one line item.");
       return;
@@ -537,53 +549,15 @@ export function DocumentBuilder({
               </div>
             </div>
             {items.map((item, i) => {
-              const lineTotal =
-                (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
               return (
                 <div key={i} className="space-y-1.5 rounded-lg border p-2.5">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="Description (e.g. Potlights)"
-                      className="flex-1"
-                      value={item.description}
-                      onChange={(e) =>
-                        updateItem(i, { description: e.target.value })
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() =>
-                        setItems((prev) => prev.filter((_, idx) => idx !== i))
-                      }
-                      title="Remove line item"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <NumberInput
-                      placeholder="Qty"
-                      className="w-16"
-                      value={item.quantity}
-                      onValueChange={(quantity) => updateItem(i, { quantity })}
-                    />
-                    <span className="text-muted-foreground">×</span>
-                    <NumberInput
-                      placeholder="Price"
-                      className="w-24"
-                      value={item.unit_price}
-                      onValueChange={(unit_price) =>
-                        updateItem(i, { unit_price })
-                      }
-                    />
-                    <span className="text-muted-foreground">=</span>
-                    <span className="ml-auto shrink-0 font-semibold tabular-nums">
-                      {formatCurrency(lineTotal)}
-                    </span>
-                  </div>
-                  {item.description.trim() && (
+                  <LineItemFields
+                    index={i}
+                    value={item}
+                    onChange={(patch) => updateItem(i, patch)}
+                    onRemove={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
+                  />
+                  {item.name.trim() && (
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Checkbox
                         checked={!!item.saveForReuse}

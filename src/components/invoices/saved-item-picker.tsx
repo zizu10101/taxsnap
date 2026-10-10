@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { BookmarkPlus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { filterSavedItems, savedItemQuantity, type SavedItemLike } from "@/lib/saved-items";
+import { filterSavedItems, sortSavedItems, type SavedItemLike } from "@/lib/saved-items";
+import { lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
@@ -34,7 +35,8 @@ export function SavedItemPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const matches = useMemo(() => filterSavedItems(items, query), [items, query]);
+  const sorted = useMemo(() => sortSavedItems(items), [items]);
+  const matches = useMemo(() => filterSavedItems(sorted, query), [sorted, query]);
 
   function close() {
     setOpen(false);
@@ -91,7 +93,8 @@ export function SavedItemPicker({
               </li>
             ) : (
               matches.map((item) => {
-                const qty = savedItemQuantity(item);
+                const unit = normalizeUnit(item.unit);
+                const description = lineDescription(item);
                 return (
                   <li key={item.id} role="option" aria-selected={false}>
                     <button
@@ -102,10 +105,15 @@ export function SavedItemPicker({
                         close();
                       }}
                     >
-                      <span className="min-w-0 flex-1 truncate">{item.description}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{lineName(item)}</span>
+                        {description && (
+                          <span className="block truncate text-xs text-muted-foreground">{description}</span>
+                        )}
+                      </span>
                       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {qty !== 1 && `${qty} × `}
                         {formatCurrency(item.unit_price)}
+                        {unit && ` / ${unit}`}
                       </span>
                     </button>
                   </li>

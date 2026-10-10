@@ -35,7 +35,7 @@ export default async function ClientsPage() {
     supabase
       .from("documents")
       .select(
-        "id, client_id, type, status, document_number, issue_date, subtotal, hst_amount, total_amount, payments(amount), items:document_items(id, description, quantity, unit_price)",
+        "id, client_id, type, status, document_number, issue_date, subtotal, hst_amount, total_amount, payments(amount), items:document_items(id, name, description, unit, quantity, unit_price)",
       )
       .not("client_id", "is", null)
       .order("issue_date", { ascending: false }),

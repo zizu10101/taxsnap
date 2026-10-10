@@ -122,7 +122,7 @@ export async function getAccountantDocument(
     db
       .from("documents")
       .select(
-        "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, place_of_work, job:jobs(name), client:clients(name, email, address), items:document_items(id, description, quantity, unit_price, sort_order), payments(id, amount, paid_date, method, note, bank_account_id)",
+        "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, place_of_work, notes, job:jobs(name), client:clients(name, email, address), items:document_items(id, name, description, unit, quantity, unit_price, sort_order), payments(id, amount, paid_date, method, note, bank_account_id)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -144,9 +144,18 @@ export async function getAccountantDocument(
     is_progress_draw: boolean;
     draw_number: number | null;
     place_of_work: string | null;
+    notes: string | null;
     job: { name: string } | null;
     client: { name: string; email: string | null; address: string | null } | null;
-    items: { id: string; description: string; quantity: number; unit_price: number; sort_order: number }[];
+    items: {
+      id: string;
+      name: string | null;
+      description: string;
+      unit: string | null;
+      quantity: number;
+      unit_price: number;
+      sort_order: number;
+    }[];
     payments: {
       id: string;
       amount: number;
@@ -186,14 +195,17 @@ export async function getAccountantDocument(
       draw_percent_complete: null,
       draw_description: null,
       place_of_work: raw.place_of_work,
+      notes: raw.notes,
       // The name only - never the job's contract value or costs.
       job: raw.job ? { name: raw.job.name } : null,
       client: raw.client,
       items: [...raw.items]
         .sort((a, b) => a.sort_order - b.sort_order)
-        .map(({ id: itemId, description, quantity, unit_price }) => ({
+        .map(({ id: itemId, name, description, unit, quantity, unit_price }) => ({
           id: itemId,
+          name,
           description,
+          unit,
           quantity,
           unit_price,
         })),

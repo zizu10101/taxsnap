@@ -1,3 +1,4 @@
+import { sortSavedItems } from "@/lib/saved-items";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -30,7 +31,7 @@ export default async function LineItemsPage() {
   const { data: lineItems } = await supabase
     .from("line_items")
     .select("*")
-    .order("description", { ascending: true });
+    ;
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
@@ -41,7 +42,7 @@ export default async function LineItemsPage() {
       />
 
       <LineItemList
-        initialLineItems={lineItems ?? []}
+        initialLineItems={sortSavedItems(lineItems ?? [])}
         subscriptionStatus={profile?.subscription_status ?? "free"}
       />
     </div>

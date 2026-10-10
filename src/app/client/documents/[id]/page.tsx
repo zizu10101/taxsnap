@@ -85,6 +85,7 @@ export default async function ClientDocumentPage({
         business={business}
         client={doc.client}
         placeOfWork={doc.place_of_work}
+        notes={doc.notes}
         logoUrl={logoUrl}
       />
 

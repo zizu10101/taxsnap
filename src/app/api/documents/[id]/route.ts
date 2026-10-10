@@ -13,18 +13,15 @@ import {
   limitReachedMessage,
 } from "@/lib/plan-limits";
 import { parsePlaceText } from "@/lib/job-fields";
+import { parseNote } from "@/lib/document-notes";
+import { parseLineInputs, type ParsedLine } from "@/lib/line-format";
+
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-interface ItemInput {
-  description: string;
-  quantity: number;
-  unit_price: number;
 }
 
 export async function GET(
@@ -91,6 +88,7 @@ export async function PATCH(
   // notes are lifecycle/descriptive metadata, not content, so they stay
   // editable regardless.
   const isLocked = existing.status !== "draft" || existing.payments.length > 0;
+  // Client-facing `notes` locks with the rest of the content; the owner-only note never does.
   const CONTENT_KEYS = [
     "type",
     "issue_date",
@@ -100,6 +98,7 @@ export async function PATCH(
     "job_id",
     "job_name",
     "place_of_work",
+    "notes",
     "items",
   ];
   if (isLocked && CONTENT_KEYS.some((key) => key in body)) {
@@ -146,6 +145,14 @@ export async function PATCH(
   const place = parsePlaceText(body.place_of_work, "Place of work");
   if (!place.ok) return NextResponse.json({ error: place.error }, { status: 400 });
   if (place.value !== undefined) updates.place_of_work = place.value;
+  // Notes: undefined = leave as is, blank clears to null. internal_notes stays editable on a locked
+  // document - it is the owner's private scratchpad and appears on nothing the client sees.
+  const notes = parseNote(body.notes, "Notes to client");
+  if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
+  if (notes.value !== undefined) updates.notes = notes.value;
+  const internalNotes = parseNote(body.internal_notes, "Internal notes");
+  if (!internalNotes.ok) return NextResponse.json({ error: internalNotes.error }, { status: 400 });
+  if (internalNotes.value !== undefined) updates.internal_notes = internalNotes.value;
   if (typeof body.excluded_from_hst === "boolean") {
     updates.excluded_from_hst = body.excluded_from_hst;
   }
@@ -262,9 +269,14 @@ export async function PATCH(
   }
   if (jobId !== undefined) updates.job_id = jobId;
 
-  const cleanItems: ItemInput[] | null = Array.isArray(body.items)
-    ? body.items.filter((i: ItemInput) => i?.description?.trim())
-    : null;
+  let cleanItems: ParsedLine[] | null = null;
+  if (Array.isArray(body.items)) {
+    const parsedLines = parseLineInputs(body.items);
+    if ("error" in parsedLines) {
+      return NextResponse.json({ error: parsedLines.error }, { status: 400 });
+    }
+    cleanItems = parsedLines.lines;
+  }
 
   if (cleanItems) {
     if (cleanItems.length === 0) {
@@ -305,9 +317,11 @@ export async function PATCH(
       .insert(
         cleanItems.map((item, index) => ({
           document_id: id,
-          description: item.description.trim(),
-          quantity: Number(item.quantity) || 0,
-          unit_price: Number(item.unit_price) || 0,
+          name: item.name,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
           sort_order: index,
         })),
       )

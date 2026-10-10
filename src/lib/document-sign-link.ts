@@ -46,3 +46,41 @@ export async function ensureSignToken(
 
   return token;
 }
+
+export class InvoiceNotFoundError extends Error {
+  constructor() {
+    super("Invoice not found.");
+  }
+}
+
+// The invoice counterpart of ensureSignToken, for the Send menu's "Copy link": the public read-only
+// /invoice/[view_token] page. An invoice converted from a signed estimate already has one; any other
+// invoice gets it created here, the first time the owner asks. Idempotent, and it touches nothing but
+// the token - never the status.
+export async function ensureViewToken(
+  supabase: SupabaseClient<Database>,
+  documentId: string,
+  userId: string,
+): Promise<string> {
+  const { data: invoice, error: fetchError } = await supabase
+    .from("documents")
+    .select("id, view_token")
+    .eq("id", documentId)
+    .eq("user_id", userId)
+    .eq("type", "invoice")
+    .single();
+
+  if (fetchError || !invoice) {
+    throw new InvoiceNotFoundError();
+  }
+  if (invoice.view_token) return invoice.view_token;
+
+  const token = generateOpaqueToken();
+  const { error: updateError } = await supabase
+    .from("documents")
+    .update({ view_token: token })
+    .eq("id", documentId)
+    .eq("user_id", userId);
+  if (updateError) throw new Error(updateError.message);
+  return token;
+}

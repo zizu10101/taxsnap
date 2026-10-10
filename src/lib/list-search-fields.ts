@@ -4,6 +4,7 @@
 import { amountSearchText, type SearchField } from "./list-search.ts";
 import { formatContractNumber } from "./contract-number.ts";
 import { formatDocumentNumber } from "./document-number.ts";
+import { lineDescription, lineName } from "./line-format.ts";
 
 export function clientSearchFields(c: {
   name: string;
@@ -78,6 +79,9 @@ export function hourSearchFields(h: {
   return [h.employee?.name, h.job?.name];
 }
 
-export function savedItemSearchFields(i: { description: string }): SearchField[] {
-  return [i.description];
+export function savedItemSearchFields(i: {
+  name?: string | null;
+  description: string;
+}): SearchField[] {
+  return [lineName(i), lineDescription(i)];
 }

@@ -8,6 +8,7 @@ import type {
 } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { dueDateLabel } from "@/lib/document-labels";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -320,6 +321,56 @@ export function drawTableRow(
   return y + 20;
 }
 
+// One estimate/invoice line: the NAME in bold, the optional description under it in grey (both wrapped
+// to the item column), and the quantity (with its unit, wrapped in its narrow column) / price / amount
+// on the first line. A line with no unit and no description looks exactly as it did before.
+function drawItemRow(
+  pdf: jsPDF,
+  y: number,
+  columns: PdfColumn[],
+  item: PdfDocument["items"][number],
+  marginX: number,
+  rightX: number,
+): number {
+  const [itemCol, qtyCol, priceCol, amountCol] = columns;
+  const itemWidth = itemCol.maxWidth ?? rightX - marginX;
+  const name = lineName(item);
+  const description = lineDescription(item);
+
+  pdf.setFontSize(10);
+  pdf.setFont("helvetica", "bold");
+  const nameLines: string[] = pdf.splitTextToSize(name, itemWidth);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  const descriptionLines: string[] = description ? pdf.splitTextToSize(description, itemWidth) : [];
+  pdf.setFontSize(10);
+  const qtyLines: string[] = pdf.splitTextToSize(formatQuantity(item.quantity, item.unit), 70);
+
+  const itemHeight = nameLines.length * 13 + descriptionLines.length * 12;
+  const height = Math.max(itemHeight, qtyLines.length * 13);
+  // Start a new page rather than run a long line off the bottom.
+  if (y + height > pdf.internal.pageSize.getHeight() - 60) {
+    pdf.addPage();
+    y = 56;
+  }
+
+  pdf.setFont("helvetica", "bold");
+  nameLines.forEach((line, i) => pdf.text(line, itemCol.x, y + i * 13));
+  pdf.setFont("helvetica", "normal");
+  if (descriptionLines.length) {
+    pdf.setFontSize(9);
+    pdf.setTextColor(110);
+    descriptionLines.forEach((line, i) => pdf.text(line, itemCol.x, y + nameLines.length * 13 + i * 12));
+    pdf.setTextColor(0);
+    pdf.setFontSize(10);
+  }
+  qtyLines.forEach((line, i) => pdf.text(line, qtyCol.x, y + i * 13, { align: "right" }));
+  pdf.text(formatCurrency(item.unit_price), priceCol.x, y, { align: "right" });
+  pdf.text(formatCurrency(item.quantity * item.unit_price), amountCol.x, y, { align: "right" });
+
+  return y + Math.max(height, 13) + 7;
+}
+
 // Shared totals block: right-aligned label/value rows ending in one bold
 // "grand total" row - used for an invoice's Subtotal/HST/Total and a
 // commission report's Transactions/Revenue/Commission Owed alike.
@@ -370,12 +421,15 @@ export type PdfDocument = Pick<
   | "draw_percent_complete"
   | "draw_description"
 > & {
-  items: Pick<DocumentItem, "description" | "quantity" | "unit_price">[];
+  items: (Pick<DocumentItem, "description" | "quantity" | "unit_price"> &
+    Partial<Pick<DocumentItem, "name" | "unit">>)[];
   client: Pick<NonNullable<DocumentWithRelations["client"]>, "name" | "email" | "address"> | null;
   // name prints as "Job:" under Bill To; contract_value only feeds the owner's progress summary.
   job?: { contract_value?: number | null; name?: string | null } | null;
   // Where the work is done (documents.place_of_work); absent/null prints nothing.
   place_of_work?: string | null;
+  // Client-facing notes (documents.notes). The owner-only internal notes are never part of this type.
+  notes?: string | null;
 };
 
 export interface DocumentPdfOptions {
@@ -480,7 +534,7 @@ export async function generateDocumentPdf(
   y += 20;
 
   const columns: PdfColumn[] = [
-    { label: "DESCRIPTION", x: marginX, align: "left", maxWidth: rightX - 220 - marginX - 12 },
+    { label: "ITEM", x: marginX, align: "left", maxWidth: rightX - 220 - marginX - 12 },
     { label: "QTY", x: rightX - 220, align: "right" },
     { label: "UNIT PRICE", x: rightX - 140, align: "right" },
     { label: "AMOUNT", x: rightX, align: "right" },
@@ -488,12 +542,7 @@ export async function generateDocumentPdf(
   y = drawTableHeader(pdf, marginX, rightX, y, columns);
 
   for (const item of doc.items) {
-    y = drawTableRow(pdf, y, columns, [
-      item.description,
-      String(item.quantity),
-      formatCurrency(item.unit_price),
-      formatCurrency(item.quantity * item.unit_price),
-    ]);
+    y = drawItemRow(pdf, y, columns, item, marginX, rightX);
   }
 
   y += 6;
@@ -505,6 +554,25 @@ export async function generateDocumentPdf(
     { label: "HST (13%)", value: formatCurrency(doc.hst_amount) },
     { label: "Total", value: formatCurrency(doc.total_amount), bold: true },
   ]);
+
+  const notes = doc.notes?.trim();
+  if (notes) {
+    y += 14;
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text("NOTES", marginX, y);
+    pdf.setTextColor(0);
+    pdf.setFontSize(10);
+    y += 14;
+    for (const line of pdf.splitTextToSize(notes, rightX - marginX) as string[]) {
+      if (y > pdf.internal.pageSize.getHeight() - 60) {
+        pdf.addPage();
+        y = 56;
+      }
+      pdf.text(line, marginX, y);
+      y += 13;
+    }
+  }
 
   if (doc.is_progress_draw && includeProgressSummary) {
     y += 16;
