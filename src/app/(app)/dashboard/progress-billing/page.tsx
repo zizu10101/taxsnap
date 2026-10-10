@@ -59,7 +59,7 @@ export default async function ProgressBillingPage() {
         .from("line_items")
         .select("*")
         .eq("is_active", true)
-        .order("description", { ascending: true }),
+        ,
     ]);
 
     allJobs = jobs ?? [];

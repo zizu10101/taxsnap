@@ -74,8 +74,7 @@ export default async function ProgressBillingSummaryPage({
     supabase
       .from("line_items")
       .select("*")
-      .eq("is_active", true)
-      .order("description", { ascending: true }),
+      .eq("is_active", true),
     supabase
       .from("contract_changes")
       .select(

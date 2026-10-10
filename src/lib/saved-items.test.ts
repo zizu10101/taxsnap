@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -106,4 +107,26 @@ test("saved items sort by name, an old item by its description, whatever the des
   ];
   assert.deepEqual(ids(sortSavedItems(items)), ["old", "n2", "n1"]);
   assert.deepEqual(ids(items), ["n1", "old", "n2"]); // the input is untouched
+});
+
+test("no query orders saved items by the description column; the list sources sort by name", () => {
+  const lf = (p: string) => readFileSync(p, "utf8").split("\r\n").join("\n");
+  const files = [
+    "src/app/api/line-items/route.ts",
+    "src/app/(app)/dashboard/line-items/page.tsx",
+    "src/app/(app)/dashboard/estimates/new/page.tsx",
+    "src/app/(app)/dashboard/estimates/[id]/edit/page.tsx",
+    "src/app/(app)/dashboard/estimates/[id]/page.tsx",
+    "src/app/(app)/dashboard/invoices/new/page.tsx",
+    "src/app/(app)/dashboard/invoices/[id]/edit/page.tsx",
+    "src/app/(app)/dashboard/invoices/[id]/page.tsx",
+    "src/app/(app)/dashboard/jobs/[id]/page.tsx",
+    "src/app/(app)/dashboard/progress-billing/page.tsx",
+    "src/app/(app)/dashboard/progress-billing/[jobId]/page.tsx",
+  ];
+  for (const f of files) assert.ok(!lf(f).includes('.order("description"'), f);
+  // the API and the management page return/seed name order; the pickers sort themselves
+  assert.ok(lf("src/app/api/line-items/route.ts").includes("sortSavedItems(data"));
+  assert.ok(lf("src/app/(app)/dashboard/line-items/page.tsx").includes("sortSavedItems(lineItems"));
+  assert.ok(lf("src/components/invoices/saved-item-picker.tsx").includes("sortSavedItems(items)"));
 });

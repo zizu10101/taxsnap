@@ -1,3 +1,4 @@
+import { sortSavedItems } from "@/lib/saved-items";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { createLineItem } from "@/lib/line-items-server";
@@ -10,11 +11,10 @@ export async function GET() {
 
   const { data, error } = await result.supabase
     .from("line_items")
-    .select("*")
-    .order("description", { ascending: true });
+    .select("*");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ lineItems: data });
+  return NextResponse.json({ lineItems: sortSavedItems(data ?? []) });
 }
 
 export async function POST(request: Request) {
