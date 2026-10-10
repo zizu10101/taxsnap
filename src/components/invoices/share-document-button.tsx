@@ -27,7 +27,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function downloadBlob(filename: string, blob: Blob) {
+export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const link = window.document.createElement("a");
   link.href = url;
@@ -38,7 +38,7 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-async function buildPdf(
+export async function buildDocumentPdf(
   document: DocumentWithRelations,
   business: BusinessInfo,
   logoPath: string | null,
@@ -85,7 +85,7 @@ export function ShareDocumentButton({
   async function handleShare() {
     setSharing(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath, priorDraws);
+      const pdfBlob = await buildDocumentPdf(document, business, logoPath, priorDraws);
       const filename = `${shortId}.pdf`;
       const file = new File([pdfBlob], filename, { type: "application/pdf" });
 
@@ -105,7 +105,7 @@ export function ShareDocumentButton({
   async function handleDownload() {
     setDownloading(true);
     try {
-      const pdfBlob = await buildPdf(document, business, logoPath, priorDraws);
+      const pdfBlob = await buildDocumentPdf(document, business, logoPath, priorDraws);
       downloadBlob(`${shortId}.pdf`, pdfBlob);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");

@@ -29,6 +29,15 @@ test("several blockers are reported together, not one at a time", () => {
   assert.ok(msg?.includes("progress billing draw") && msg.includes("change orders") && msg.includes("payments"));
 });
 
+test("the hint names only the blockers that are actually there", () => {
+  const msg = jobDeleteBlocker({ ...clear, hourEntries: 2 })!;
+  assert.ok(msg.includes("remove the hours"));
+  assert.ok(!/change order/.test(msg));
+  assert.ok(!/payments/.test(msg));
+  const co = jobDeleteBlocker({ ...clear, changeOrders: 1 })!;
+  assert.ok(co.includes("delete the change orders") && !/hours/.test(co));
+});
+
 test("the unlink summary counts what is kept, with correct plurals", () => {
   assert.equal(unlinkSummary({ documents: 0, expenses: 0, templates: 0 }), "");
   assert.equal(unlinkSummary({ documents: 1, expenses: 0, templates: 0 }), "1 invoice/estimate");

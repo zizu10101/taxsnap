@@ -81,7 +81,7 @@ export async function loadPortalDocument(
   const { data } = await supabase
     .from("documents")
     .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, is_progress_draw, draw_number, place_of_work, payments(amount), items:document_items(id, description, quantity, unit_price, sort_order), client:clients(name, email, address)",
+      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, is_progress_draw, draw_number, place_of_work, payments(amount), items:document_items(id, name, description, unit, quantity, unit_price, sort_order), client:clients(name, email, address)",
     )
     .eq("id", id)
     .eq("user_id", session.userId)
@@ -113,9 +113,11 @@ export async function loadPortalDocument(
       // that the shared invoice view doesn't show either.
       draw_percent_complete: null,
       draw_description: null,
-      items: items.map(({ description, quantity, unit_price }, index) => ({
+      items: items.map(({ name, description, unit, quantity, unit_price }, index) => ({
         id: `${data.id}-${index}`,
+        name,
         description,
+        unit,
         quantity,
         unit_price,
       })),
@@ -131,7 +133,14 @@ export async function loadPortalDocument(
 export type PortalDetailResult = {
   document: PdfDocument & {
     id: string;
-    items: { id: string; description: string; quantity: number; unit_price: number }[];
+    items: {
+      id: string;
+      name: string | null;
+      description: string;
+      unit: string | null;
+      quantity: number;
+      unit_price: number;
+    }[];
   };
   paid: number;
   balance: number;

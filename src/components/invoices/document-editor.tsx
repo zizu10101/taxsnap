@@ -31,6 +31,9 @@ import type {
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
 import { insertLine, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
+import { LineItemFields } from "@/components/invoices/line-item-fields";
+import { LineLabel } from "@/components/invoices/line-label";
 import { dueDateLabel } from "@/lib/document-labels";
 import {
   MAX_PLACE_LENGTH,
@@ -55,13 +58,16 @@ const NEW_CLIENT = "__new__";
 const NO_JOB = "__no_job__";
 const NEW_JOB = "__new_job__";
 interface LineItemDraft {
+  name: string;
   description: string;
+  /** "" = no unit. */
+  unit: string;
   quantity: number;
   unit_price: number;
   saveForReuse?: boolean;
 }
 
-const EMPTY_ITEM: LineItemDraft = { description: "", quantity: 1, unit_price: 0 };
+const EMPTY_ITEM: LineItemDraft = { name: "", description: "", unit: "", quantity: 1, unit_price: 0 };
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -145,7 +151,10 @@ export function DocumentEditor({
   const [items, setItems] = useState<LineItemDraft[]>(
     document?.items?.length
       ? document.items.map((i) => ({
-          description: i.description,
+          // An old line (null name) opens with its description as the name and no description.
+          name: lineName(i),
+          description: lineDescription(i),
+          unit: i.unit ?? "",
           quantity: i.quantity,
           unit_price: i.unit_price,
         }))
@@ -227,7 +236,7 @@ export function DocumentEditor({
       toast.error("Select an existing client or enter a name for a new one.");
       return;
     }
-    const cleanItems = items.filter((i) => i.description.trim());
+    const cleanItems = items.filter((i) => i.name.trim());
     if (cleanItems.length === 0) {
       toast.error("Add at least one line item.");
       return;
@@ -504,46 +513,15 @@ export function DocumentEditor({
             </div>
             <div className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground">
               {items.map((item, i) => {
-                const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
                 return (
                   <div key={i} className={`space-y-1.5 p-2.5 ${i > 0 ? "border-t border-border" : ""}`}>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Description (e.g. Potlights)"
-                        className="flex-1"
-                        value={item.description}
-                        onChange={(e) => updateItem(i, { description: e.target.value })}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
-                        title="Remove line item"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <NumberInput
-                        placeholder="Qty"
-                        className="w-16"
-                        value={item.quantity}
-                        onValueChange={(quantity) => updateItem(i, { quantity })}
-                      />
-                      <span className="text-muted-foreground">×</span>
-                      <NumberInput
-                        placeholder="Price"
-                        className="w-24"
-                        value={item.unit_price}
-                        onValueChange={(unit_price) => updateItem(i, { unit_price })}
-                      />
-                      <span className="text-muted-foreground">=</span>
-                      <span className="ml-auto shrink-0 font-mono font-semibold tabular-nums">
-                        {formatCurrency(lineTotal)}
-                      </span>
-                    </div>
-                    {item.description.trim() && (
+                    <LineItemFields
+                      value={item}
+                      onChange={(patch) => updateItem(i, patch)}
+                      onRemove={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
+                      totalClassName="font-mono"
+                    />
+                    {item.name.trim() && (
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Checkbox
                           checked={!!item.saveForReuse}
@@ -669,11 +647,15 @@ export function DocumentEditor({
                 </thead>
                 <tbody>
                   {items
-                    .filter((i) => i.description.trim())
+                    .filter((i) => i.name.trim())
                     .map((item, i) => (
                       <tr key={i} className="border-b border-dashed">
-                        <td className="py-2">{item.description}</td>
-                        <td className="py-2 text-right tabular-nums">{item.quantity}</td>
+                        <td className="py-2">
+                          <LineLabel name={item.name.trim()} description={item.description} />
+                        </td>
+                        <td className="py-2 text-right tabular-nums">
+                          {formatQuantity(item.quantity, item.unit)}
+                        </td>
                         <td className="hidden py-2 text-right tabular-nums sm:table-cell">
                           {formatCurrency(item.unit_price)}
                         </td>

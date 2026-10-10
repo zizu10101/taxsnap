@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/require-pro";
 import { wouldExceedActiveLimit, limitReachedMessage } from "@/lib/plan-limits";
 import type { LineItemUpdate } from "@/lib/database.types";
 import { parseQuantity } from "@/lib/line-items-server";
+import { normalizeUnit, readLineLabels, unitError } from "@/lib/line-format";
 
 // Owner can edit or deactivate a saved item (is_active = false) - never
 // hard-deleted, same reasoning/shape as PATCH /api/services/[id]: a
@@ -20,7 +21,7 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { description, unit_price, quantity: rawQuantity, is_active } = body ?? {};
+  const { name, description, unit, unit_price, quantity: rawQuantity, is_active } = body ?? {};
 
   // Only checked when this PATCH would *increase* the active count
   // (reactivating a previously-deactivated item) - editing description/
@@ -42,11 +43,20 @@ export async function PATCH(
   }
 
   const update: LineItemUpdate = {};
-  if (description !== undefined) {
-    if (!description?.trim()) {
-      return NextResponse.json({ error: "Item description is required." }, { status: 400 });
+  // The editor always sends name + description together (a saved item is edited as a whole); an older
+  // caller that sends only `description` is read as name = description.
+  if (name !== undefined || description !== undefined) {
+    const labels = readLineLabels({ name, description });
+    if (!labels) {
+      return NextResponse.json({ error: "Item name is required." }, { status: 400 });
     }
-    update.description = description.trim();
+    update.name = labels.name;
+    update.description = labels.description;
+  }
+  if (unit !== undefined) {
+    const problem = unitError(unit);
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+    update.unit = normalizeUnit(unit);
   }
   if (unit_price !== undefined) update.unit_price = Number(unit_price) || 0;
   if (is_active !== undefined) update.is_active = !!is_active;

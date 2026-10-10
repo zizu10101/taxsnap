@@ -29,9 +29,7 @@ import { DocumentBuilder } from "@/components/invoices/document-builder";
 import { LogoImage } from "@/components/invoices/business-logo";
 import { PaidStamp } from "@/components/invoices/paid-stamp";
 import { useBankAccounts } from "@/components/owner-lists-provider";
-import { ShareDocumentButton } from "@/components/invoices/share-document-button";
-import { GetSignatureLinkButton } from "@/components/invoices/get-signature-link-button";
-import { EmailSignatureLinkButton } from "@/components/invoices/email-signature-link-button";
+import { SendDocumentMenu } from "@/components/invoices/send-document-menu";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import { documentLabel } from "@/lib/document-label";
@@ -48,6 +46,8 @@ import type {
   LineItem,
   Payment,
 } from "@/lib/database.types";
+import { LineLabel } from "@/components/invoices/line-label";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 
 // Pill colors for the status Select trigger next to the title - same
 // four statuses DocumentList's STATUS_VARIANT badges use, just mapped to
@@ -372,17 +372,11 @@ export function DocumentDetail({
                   Convert to Invoice
                 </Button>
               ))}
-            {doc.type === "estimate" && !doc.signed_at && !convertedToInvoiceId && (
-              <>
-                <GetSignatureLinkButton documentId={doc.id} />
-                {doc.client?.email && <EmailSignatureLinkButton documentId={doc.id} />}
-              </>
-            )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            <ShareDocumentButton
+            <SendDocumentMenu
               document={doc}
               business={business}
               logoPath={logoPath}
@@ -524,7 +518,7 @@ export function DocumentDetail({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase">
-                <th className="pb-2">Description</th>
+                <th className="pb-2">Item</th>
                 <th className="pb-2 text-right">Qty</th>
                 <th className="hidden pb-2 text-right sm:table-cell">Unit Price</th>
                 <th className="pb-2 text-right">Amount</th>
@@ -534,12 +528,14 @@ export function DocumentDetail({
               {doc.items.map((item) => (
                 <tr key={item.id} className="border-t align-top">
                   <td className="py-2">
-                    {item.description}
+                    <LineLabel name={lineName(item)} description={lineDescription(item)} />
                     <span className="block font-mono text-[10px] text-muted-foreground sm:hidden">
-                      {formatCurrency(item.unit_price)}/unit
+                      {formatCurrency(item.unit_price)}/{item.unit?.trim() || "unit"}
                     </span>
                   </td>
-                  <td className="py-2 text-right tabular-nums">{item.quantity}</td>
+                  <td className="py-2 text-right tabular-nums">
+                    {formatQuantity(item.quantity, item.unit)}
+                  </td>
                   <td className="hidden py-2 text-right tabular-nums sm:table-cell">
                     {formatCurrency(item.unit_price)}
                   </td>

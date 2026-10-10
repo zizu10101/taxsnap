@@ -351,7 +351,10 @@ export interface Database {
         Row: {
           id: string;
           document_id: string;
+          // Migration 0061. A null name is a pre-0061 line: its description IS the name (lineName).
+          name: string | null;
           description: string;
+          unit: string | null;
           quantity: number;
           unit_price: number;
           sort_order: number;
@@ -360,7 +363,9 @@ export interface Database {
         Insert: {
           id?: string;
           document_id: string;
+          name?: string | null;
           description: string;
+          unit?: string | null;
           quantity?: number;
           unit_price?: number;
           sort_order?: number;
@@ -369,7 +374,9 @@ export interface Database {
         Update: {
           id?: string;
           document_id?: string;
+          name?: string | null;
           description?: string;
+          unit?: string | null;
           quantity?: number;
           unit_price?: number;
           sort_order?: number;
@@ -606,7 +613,10 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
+          // Migration 0061 (name, unit). A null name is an old item: its description IS the name.
+          name: string | null;
           description: string;
+          unit: string | null;
           unit_price: number;
           // Migration 0059. Reads must treat a missing/invalid value as 1 (savedItemQuantity).
           quantity: number;
@@ -616,7 +626,9 @@ export interface Database {
         Insert: {
           id?: string;
           user_id: string;
+          name?: string | null;
           description: string;
+          unit?: string | null;
           unit_price?: number;
           quantity?: number;
           is_active?: boolean;
@@ -625,7 +637,9 @@ export interface Database {
         Update: {
           id?: string;
           user_id?: string;
+          name?: string | null;
           description?: string;
+          unit?: string | null;
           unit_price?: number;
           quantity?: number;
           is_active?: boolean;

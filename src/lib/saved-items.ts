@@ -1,16 +1,24 @@
 // Pure logic for the saved-item picker on estimates, invoices and change orders.
 import { searchList } from "./list-search.ts";
+import { lineDescription, lineName, normalizeUnit, type LineLabelFields } from "./line-format.ts";
 
 export interface SavedItemLike {
   id: string;
+  /** Absent/null on an item saved before migration 0061: its description is then its name. */
+  name?: string | null;
   description: string;
+  /** Absent/null = no unit. */
+  unit?: string | null;
   unit_price: number;
   /** Absent on a database that hasn't had migration 0059 applied yet. */
   quantity?: number | null;
 }
 
 export interface LineDraft {
+  name: string;
   description: string;
+  /** "" = no unit. */
+  unit: string;
   quantity: number;
   unit_price: number;
 }
@@ -26,17 +34,19 @@ export function savedItemQuantity(item: Pick<SavedItemLike, "quantity">): number
  * every word typed must appear in the description, in any order (so "paint room" finds "Interior
  * paint, per room"). An empty query returns everything, in the original order.
  */
-export function filterSavedItems<T extends Pick<SavedItemLike, "description">>(
+export function filterSavedItems<T extends Pick<SavedItemLike, "description" | "name">>(
   items: T[],
   query: string,
 ): T[] {
-  return searchList(items, query, (item) => [item.description]);
+  return searchList(items, query, (item) => [lineName(item), lineDescription(item)]);
 }
 
-/** What picking a saved item fills into a line: description, quantity and price. */
+/** What picking a saved item fills into a line: name, description, unit, quantity and price. */
 export function lineFromSavedItem(item: SavedItemLike): LineDraft {
   return {
-    description: item.description,
+    name: lineName(item),
+    description: lineDescription(item),
+    unit: normalizeUnit(item.unit) ?? "",
     quantity: savedItemQuantity(item),
     unit_price: item.unit_price,
   };
@@ -47,8 +57,8 @@ export function lineFromSavedItem(item: SavedItemLike): LineDraft {
  * appending, so picking right after opening the form (one blank row) doesn't
  * leave that blank row behind.
  */
-export function insertLine<T extends LineDraft>(lines: T[], filled: T): T[] {
-  const emptyIndex = lines.findIndex((l) => !l.description.trim());
+export function insertLine<T extends LineLabelFields>(lines: T[], filled: T): T[] {
+  const emptyIndex = lines.findIndex((l) => !lineName(l));
   if (emptyIndex === -1) return [...lines, filled];
   return lines.map((l, i) => (i === emptyIndex ? filled : l));
 }

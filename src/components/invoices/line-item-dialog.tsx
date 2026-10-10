@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import type { LineItem } from "@/lib/database.types";
 import { savedItemQuantity } from "@/lib/saved-items";
+import { lineDescription, lineName } from "@/lib/line-format";
+import { UnitSelect } from "@/components/invoices/line-item-fields";
 
 export function LineItemDialog({
   open,
@@ -30,15 +32,18 @@ export function LineItemDialog({
   onSaved: (lineItem: LineItem) => void;
 }) {
   const isEditing = !!lineItem;
-  const [description, setDescription] = useState(lineItem?.description ?? "");
+  // An old saved item (null name) opens with its description as the name and no description.
+  const [name, setName] = useState(lineItem ? lineName(lineItem) : "");
+  const [description, setDescription] = useState(lineItem ? lineDescription(lineItem) : "");
+  const [unit, setUnit] = useState(lineItem?.unit ?? "");
   const [unitPrice, setUnitPrice] = useState(lineItem?.unit_price ?? 0);
   const [quantity, setQuantity] = useState(lineItem ? savedItemQuantity(lineItem) : 1);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function handleSave() {
-    if (!description.trim()) {
-      toast.error("Enter a description for this item.");
+    if (!name.trim()) {
+      toast.error("Enter a name for this item.");
       return;
     }
 
@@ -54,7 +59,7 @@ export function LineItemDialog({
         {
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description, unit_price: unitPrice, quantity }),
+          body: JSON.stringify({ name, description, unit, unit_price: unitPrice, quantity }),
         },
       );
       const data = await res.json();
@@ -90,22 +95,36 @@ export function LineItemDialog({
 
         <div className="grid gap-4">
           <div className="space-y-2">
-            <Label htmlFor="line-item-description">Description</Label>
+            <Label htmlFor="line-item-name">Name</Label>
             <Input
+              id="line-item-name"
+              placeholder="e.g. Interior latex paint"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="line-item-description">Description (optional)</Label>
+            <textarea
               id="line-item-description"
-              placeholder="e.g. Interior latex paint, 1 gal"
+              rows={2}
+              placeholder="e.g. 1 gal, two coats, colour matched"
+              className="field-sizing-content min-h-16 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="line-item-quantity">Quantity</Label>
-            <NumberInput
-              id="line-item-quantity"
-              step="0.01"
-              value={quantity}
-              onValueChange={setQuantity}
-            />
+          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="line-item-quantity">Quantity</Label>
+              <NumberInput
+                id="line-item-quantity"
+                step="0.01"
+                value={quantity}
+                onValueChange={setQuantity}
+              />
+            </div>
+            <UnitSelect unit={unit} onChange={setUnit} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="line-item-price">Price (each)</Label>

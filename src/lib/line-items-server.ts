@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types.ts";
 import { wouldExceedActiveLimit, limitReachedMessage } from "./plan-limits.ts";
+import { normalizeUnit, readLineLabels, unitError } from "./line-format.ts";
 
 export interface LineItemResult {
   status: number;
@@ -29,15 +30,22 @@ export async function createLineItem(
   userId: string,
   body: unknown,
 ): Promise<LineItemResult> {
-  const { description, unit_price, quantity: rawQuantity } = (body ?? {}) as {
-    description?: string;
+  const input = (body ?? {}) as {
+    name?: unknown;
+    description?: unknown;
+    unit?: unknown;
     unit_price?: unknown;
     quantity?: unknown;
   };
+  const { unit_price, quantity: rawQuantity } = input;
 
-  if (!description?.trim()) {
-    return { status: 400, body: { error: "Item description is required." } };
+  // An older caller that sends only `description` is read as name = description (same as an old row).
+  const labels = readLineLabels(input);
+  if (!labels) {
+    return { status: 400, body: { error: "Item name is required." } };
   }
+  const unitProblem = unitError(input.unit);
+  if (unitProblem) return { status: 400, body: { error: unitProblem } };
 
   const parsed = parseQuantity(rawQuantity);
   if ("error" in parsed) return { status: 400, body: { error: parsed.error } };
@@ -58,11 +66,13 @@ export async function createLineItem(
 
   const row = {
     user_id: userId,
-    description: description.trim(),
+    name: labels.name,
+    description: labels.description,
+    unit: normalizeUnit(input.unit),
     unit_price: Number(unit_price) || 0,
   };
 
-  // Needs migration 0059 (line_items.quantity), applied BEFORE this ships.
+  // Needs migrations 0059 (line_items.quantity) and 0061 (name, unit), applied BEFORE this ships.
   const { data, error } = await supabase
     .from("line_items")
     .insert({ ...row, ...(parsed.quantity !== undefined ? { quantity: parsed.quantity } : {}) })

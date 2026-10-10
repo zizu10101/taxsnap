@@ -3,6 +3,8 @@ import { Separator } from "@/components/ui/separator";
 import { formatDocumentNumber } from "@/lib/document-number";
 import type { DocumentType } from "@/lib/database.types";
 import { dueDateLabel } from "@/lib/document-labels";
+import { LineLabel } from "@/components/invoices/line-label";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -44,7 +46,14 @@ export function PublicDocumentPaper({
   documentNumber: number;
   issueDate: string;
   dueDate: string | null;
-  items: { id: string; description: string; quantity: number; unit_price: number }[];
+  items: {
+    id: string;
+    name?: string | null;
+    description: string;
+    unit?: string | null;
+    quantity: number;
+    unit_price: number;
+  }[];
   subtotal: number;
   hstAmount: number;
   totalAmount: number;
@@ -126,12 +135,14 @@ export function PublicDocumentPaper({
             {items.map((item) => (
               <tr key={item.id} className="border-t align-top">
                 <td className="py-2">
-                  {item.description}
+                  <LineLabel name={lineName(item)} description={lineDescription(item)} />
                   <span className="block font-mono text-[10px] text-muted-foreground sm:hidden">
-                    {formatCurrency(item.unit_price)}/unit
+                    {formatCurrency(item.unit_price)}/{item.unit?.trim() || "unit"}
                   </span>
                 </td>
-                <td className="py-2 text-right tabular-nums">{item.quantity}</td>
+                <td className="py-2 text-right tabular-nums">
+                  {formatQuantity(item.quantity, item.unit)}
+                </td>
                 <td className="hidden py-2 text-right tabular-nums sm:table-cell">
                   {formatCurrency(item.unit_price)}
                 </td>

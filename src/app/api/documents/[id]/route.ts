@@ -13,18 +13,14 @@ import {
   limitReachedMessage,
 } from "@/lib/plan-limits";
 import { parsePlaceText } from "@/lib/job-fields";
+import { parseLineInputs, type ParsedLine } from "@/lib/line-format";
+
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-interface ItemInput {
-  description: string;
-  quantity: number;
-  unit_price: number;
 }
 
 export async function GET(
@@ -262,9 +258,14 @@ export async function PATCH(
   }
   if (jobId !== undefined) updates.job_id = jobId;
 
-  const cleanItems: ItemInput[] | null = Array.isArray(body.items)
-    ? body.items.filter((i: ItemInput) => i?.description?.trim())
-    : null;
+  let cleanItems: ParsedLine[] | null = null;
+  if (Array.isArray(body.items)) {
+    const parsedLines = parseLineInputs(body.items);
+    if ("error" in parsedLines) {
+      return NextResponse.json({ error: parsedLines.error }, { status: 400 });
+    }
+    cleanItems = parsedLines.lines;
+  }
 
   if (cleanItems) {
     if (cleanItems.length === 0) {
@@ -305,9 +306,11 @@ export async function PATCH(
       .insert(
         cleanItems.map((item, index) => ({
           document_id: id,
-          description: item.description.trim(),
-          quantity: Number(item.quantity) || 0,
-          unit_price: Number(item.unit_price) || 0,
+          name: item.name,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
           sort_order: index,
         })),
       )

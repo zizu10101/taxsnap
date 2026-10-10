@@ -23,15 +23,27 @@ function plural(n: number, one: string, many = `${one}s`): string {
 // null = free to delete, otherwise one message naming everything in the way.
 export function jobDeleteBlocker(f: JobDeleteFacts): string | null {
   const reasons: string[] = [];
-  if (f.draws > 0) reasons.push(plural(f.draws, "progress billing draw"));
-  if (f.changeOrders > 0) reasons.push(plural(f.changeOrders, "change order"));
+  const fixes: string[] = [];
+  if (f.draws > 0) {
+    reasons.push(plural(f.draws, "progress billing draw"));
+    fixes.push("delete the progress billing draws");
+  }
+  if (f.changeOrders > 0) {
+    reasons.push(plural(f.changeOrders, "change order"));
+    fixes.push("delete the change orders");
+  }
   if (f.documentsWithPayments > 0) {
     reasons.push(`${plural(f.documentsWithPayments, "invoice or estimate", "invoices or estimates")} with payments recorded`);
+    fixes.push("remove those payments");
   }
   const hours = f.hourEntries + f.timeSessions;
-  if (hours > 0) reasons.push(plural(hours, "hours or clock-in record"));
+  if (hours > 0) {
+    reasons.push(plural(hours, "hours or clock-in record"));
+    fixes.push("remove the hours");
+  }
   if (reasons.length === 0) return null;
-  return `This job can't be deleted yet: it has ${reasons.join(", ")}. Deal with those first (delete the change orders, remove the hours, and so on), then delete the job.`;
+  // The hint names only what is actually in the way, never a blocker the job doesn't have.
+  return `This job can't be deleted yet: it has ${reasons.join(", ")}. Deal with those first (${fixes.join(", ")}), then delete the job.`;
 }
 
 export interface UnlinkCounts {

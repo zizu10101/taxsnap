@@ -49,12 +49,30 @@ test("filtering doesn't change the list it was given", () => {
   assert.deepEqual(ITEMS, copy);
 });
 
-test("picking an item fills description, quantity AND price", () => {
+test("picking an item fills name, description, unit, quantity AND price", () => {
+  // an old item (no name): its description becomes the name, with an empty description
   assert.deepEqual(lineFromSavedItem(ITEMS[0]), {
-    description: "Interior paint, per room",
+    name: "Interior paint, per room",
+    description: "",
+    unit: "",
     quantity: 2,
     unit_price: 450,
   });
+  // a new item keeps all of it, unit included
+  assert.deepEqual(
+    lineFromSavedItem({ id: "9", name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", unit_price: 4.5, quantity: 40 }),
+    { name: "Crown moulding", description: "Primed MDF, 2 coats", unit: "linear ft", quantity: 40, unit_price: 4.5 },
+  );
+});
+
+test("search looks at the name and the description", () => {
+  const items: SavedItemLike[] = [
+    { id: "a", name: "Crown moulding", description: "Primed MDF", unit_price: 1 },
+    { id: "b", description: "Baseboard", unit_price: 1 },
+  ];
+  assert.deepEqual(ids(filterSavedItems(items, "crown")), ["a"]);
+  assert.deepEqual(ids(filterSavedItems(items, "primed")), ["a"]);
+  assert.deepEqual(ids(filterSavedItems(items, "baseboard")), ["b"]);
 });
 
 test("a missing, zero, negative or junk stored quantity reads as 1", () => {
@@ -68,10 +86,11 @@ test("a missing, zero, negative or junk stored quantity reads as 1", () => {
 });
 
 test("insertLine reuses the first blank line, otherwise appends", () => {
-  const filled = { description: "Drywall patch", quantity: 3, unit_price: 85.5 };
+  const filled = { name: "Drywall patch", description: "", unit: "", quantity: 3, unit_price: 85.5 };
   const withBlank = [
-    { description: "Paint", quantity: 1, unit_price: 10 },
-    { description: "  ", quantity: 1, unit_price: 0 },
+    { name: "Paint", description: "", unit: "", quantity: 1, unit_price: 10 },
+    // a line with only a description typed (no name) is still blank: the name is what makes a line
+    { name: "  ", description: "notes", unit: "", quantity: 1, unit_price: 0 },
   ];
   assert.deepEqual(insertLine(withBlank, filled), [withBlank[0], filled]);
   const noBlank = [withBlank[0]];

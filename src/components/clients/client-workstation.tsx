@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { getEmptyClientSummary } from "@/lib/client-summary";
 import type { Client, DocumentStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
+import { LineLabel } from "@/components/invoices/line-label";
+import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -353,7 +355,9 @@ function DocPreviewPanel({
               <tbody>
                 {doc.items.map((item) => (
                   <tr key={item.id} className="border-t">
-                    <td className="truncate py-1 pr-2">{item.description}</td>
+                    <td className="py-1 pr-2">
+                    <LineLabel name={lineName(item)} description={lineDescription(item)} />
+                  </td>
                     <td className="py-1 text-right tabular-nums">
                       {formatCurrency(item.quantity * item.unit_price)}
                     </td>
