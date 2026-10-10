@@ -49,6 +49,8 @@ import type {
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 import { ClientNotes } from "@/components/invoices/client-notes";
+import { InternalNotesPanel } from "@/components/invoices/internal-notes-panel";
+import { DocumentDetailsPanel } from "@/components/invoices/document-details-panel";
 
 // Pill colors for the status Select trigger next to the title - same
 // four statuses DocumentList's STATUS_VARIANT badges use, just mapped to
@@ -586,20 +588,19 @@ export function DocumentDetail({
           </div>
 
           <ClientNotes notes={doc.notes} />
-
-          {/* Owner-only: never printed (print:hidden) and never sent to the client or the PDF. */}
-          {doc.internal_notes?.trim() && (
-            <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm print:hidden">
-              <p className="text-xs font-semibold text-muted-foreground uppercase">
-                Internal <span className="font-normal normal-case">(only you see this)</span>
-              </p>
-              <p className="whitespace-pre-line">{doc.internal_notes.trim()}</p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       <div className="space-y-4 lg:sticky lg:top-4">
+        {/* Owner-only panel (never printed): internal notes, editable in place, then the details. On
+            phones this column simply stacks below the document. Payment History follows it below. */}
+        <InternalNotesPanel
+          documentId={doc.id}
+          initial={doc.internal_notes}
+          onSaved={(internal_notes) => setDoc((prev) => ({ ...prev, internal_notes }))}
+        />
+        <DocumentDetailsPanel doc={doc} />
+
         {/* Dark rail panel, restyled out of the paper card it used to live
             inside - same figures (contractValue/previousBilled/
             totalBilledToDate/remainingBalance computed above), still

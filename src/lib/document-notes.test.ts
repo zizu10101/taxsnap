@@ -105,11 +105,11 @@ test("client-facing notes are shown after the totals on every client-facing rend
   }
 });
 
-test("the owner's detail page shows internal notes labelled Internal, and never when printed", () => {
-  const src = readLf("src/components/invoices/document-detail.tsx");
-  assert.ok(src.includes("doc.internal_notes"));
-  assert.match(src, /Internal <span[^>]*>\(only you see this\)/);
-  assert.ok(src.includes("print:hidden"));
+test("the owner's detail page shows internal notes in the panel, labelled Internal, and never when printed", () => {
+  const panel = readLf("src/components/invoices/internal-notes-panel.tsx");
+  assert.ok(panel.includes("Internal (only you see this)"));
+  assert.ok(panel.includes("print:hidden"));
+  assert.ok(readLf("src/components/invoices/document-detail.tsx").includes("<InternalNotesPanel"));
 });
 
 // ---- internal notes isolation ----
@@ -125,6 +125,9 @@ const INTERNAL_NOTES_ALLOWED = new Set([
   "src/app/api/documents/[id]/route.ts",
   "src/components/invoices/document-editor.tsx",
   "src/components/invoices/document-detail.tsx",
+  // the owner-only panel, its preview-list counterpart
+  "src/components/invoices/internal-notes-panel.tsx",
+  "src/components/invoices/document-workstation.tsx",
 ]);
 
 test("internal_notes appears only in the owner's own files - no PDF, public page, portal, email or export", () => {
@@ -152,7 +155,7 @@ test("the render paths and routes named in the spec are each checked explicitly"
     "src/lib/accountant-export.ts",
     "src/lib/csv.ts",
     "src/components/invoices/client-notes.tsx",
-    "src/components/invoices/document-workstation.tsx", // the owner's preview panel is client-facing too
+    "src/components/invoices/document-details-panel.tsx", // the Details card shows no notes at all
   ];
   for (const p of paths) assert.ok(!/internal_notes|internalNotes/.test(readLf(p)), p);
 });
@@ -170,4 +173,49 @@ test("public pages and portals read documents by an explicit column list, never 
       assert.ok(!m[1].startsWith("*"), `${p} documents select`);
     }
   }
+});
+
+test("the owner-only panel: internal notes save only internal_notes, never print, and live outside the document card", () => {
+  const panel = readLf("src/components/invoices/internal-notes-panel.tsx");
+  assert.ok(panel.includes("JSON.stringify({ internal_notes: text.trim() || null })"));
+  assert.ok(panel.includes("router.refresh()"));
+  assert.ok(panel.includes("toast.success") && panel.includes("toast.error"));
+  assert.ok(panel.includes('<Card className="print:hidden">'));
+
+  const detail = readLf("src/components/invoices/document-detail.tsx");
+  // shown once: the panel in the right column; the old dashed box inside the document card is gone
+  assert.ok(detail.includes("<InternalNotesPanel"));
+  assert.ok(detail.includes("<DocumentDetailsPanel"));
+  assert.ok(!detail.includes("border-dashed bg-muted/40"));
+  assert.equal((detail.match(/doc\.internal_notes/g) ?? []).length, 1);
+  // the panel comes after the document card in the DOM, so a phone stacks it below the document
+  assert.ok(detail.indexOf("<InternalNotesPanel") > detail.indexOf("<ClientNotes"));
+  // internal notes are not in the document card's printed content
+  const card = detail.slice(detail.indexOf('<Card className="print:border-none'), detail.indexOf("<InternalNotesPanel"));
+  assert.ok(!card.includes("internal_notes"));
+
+  const details = readLf("src/components/invoices/document-details-panel.tsx");
+  assert.ok(details.includes('<Card className="print:hidden">'));
+});
+
+test("the list preview shows internal notes under the client notes with the same label, not printed", () => {
+  const src = readLf("src/components/invoices/document-workstation.tsx");
+  assert.ok(src.indexOf("<ClientNotes") < src.indexOf("doc.internal_notes"));
+  assert.match(src, /Internal <span[^>]*>\(only you see this\)/);
+  assert.ok(src.slice(src.indexOf("doc.internal_notes")).includes("print:hidden"));
+});
+
+test("the notepad box: line-height equals the rule spacing, tints and rules are tokens, grows then scrolls", () => {
+  const css = readLf("src/app/globals.css");
+  const pad = css.slice(css.indexOf(".notepad {"));
+  assert.ok(pad.includes("line-height: 1.5rem"));
+  assert.ok(pad.includes("background-size: 100% 100%, 100% 1.5rem"));
+  assert.ok(pad.includes("background-attachment: scroll, local"));
+  assert.ok(pad.includes("field-sizing: content") && pad.includes("max-height") && pad.includes("overflow-y: auto"));
+  // ruled only from lg up; light and dark tokens both defined; no images or shadows
+  assert.ok(pad.includes("@media (min-width: 1024px)"));
+  const tokens = css.slice(css.indexOf("--pad-paper"));
+  assert.ok((tokens.match(/--pad-paper:/g) ?? []).length >= 2);
+  const block = css.slice(css.indexOf("/* Owner-only \"Internal notes\" box"));
+  assert.ok(!/url\(|box-shadow|font-family/.test(block));
 });

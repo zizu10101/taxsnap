@@ -307,6 +307,15 @@ function DocumentPreviewPanel({
             </tbody>
           </table>
           <ClientNotes notes={doc.notes} compact />
+          {/* Owner-only: this list is the owner's own, never a client-facing view. */}
+          {doc.internal_notes?.trim() && (
+            <div className="mt-3 text-[11px] print:hidden">
+              <p className="text-muted-foreground uppercase">
+                Internal <span className="normal-case">(only you see this)</span>
+              </p>
+              <p className="whitespace-pre-line">{doc.internal_notes.trim()}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
