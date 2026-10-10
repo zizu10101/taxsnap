@@ -43,6 +43,7 @@ import {
   jobPickerOptions,
   type ClientPick,
 } from "@/lib/job-fields";
+import { ClientNotes } from "@/components/invoices/client-notes";
 
 // Full-page counterpart to DocumentBuilder (screens 4a/5a of the Invoice
 // Editor design handoff) - deliberately NOT a replacement for it.
@@ -160,7 +161,8 @@ export function DocumentEditor({
         }))
       : [{ ...EMPTY_ITEM }],
   );
-  const [internalNotes, setInternalNotes] = useState("");
+  const [notes, setNotes] = useState(document?.notes ?? "");
+  const [internalNotes, setInternalNotes] = useState(document?.internal_notes ?? "");
   const [saving, setSaving] = useState(false);
   const [jobMode, setJobMode] = useState<string>(document?.job?.name ?? NO_JOB);
   const [newJobName, setNewJobName] = useState("");
@@ -254,6 +256,9 @@ export function DocumentEditor({
         new_client: clientId === NEW_CLIENT ? newClient : undefined,
         ...(jobName ? { job_name: jobName } : { job_id: null }),
         place_of_work: placeOfWork.trim() || null,
+        // Blank is sent as null; the server stores null, never "".
+        notes: notes.trim() || null,
+        internal_notes: internalNotes.trim() || null,
         items: cleanItems,
       };
 
@@ -562,18 +567,35 @@ export function DocumentEditor({
                   </span>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="internal-notes" className={darkLabelClass}>
-                  Internal Notes
-                </Label>
-                <textarea
-                  id="internal-notes"
-                  rows={4}
-                  placeholder="Not shown to the client…"
-                  className={`w-full resize-none rounded-lg border px-3 py-2 text-sm ${darkFieldClass}`}
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                />
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="client-notes" className={darkLabelClass}>
+                    Notes to client (shown on the PDF and public page)
+                  </Label>
+                  <textarea
+                    id="client-notes"
+                    rows={3}
+                    maxLength={4000}
+                    placeholder="e.g. Payment terms, what is included, thank you"
+                    className={`w-full resize-none rounded-lg border px-3 py-2 text-sm ${darkFieldClass}`}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="internal-notes" className={darkLabelClass}>
+                    Internal notes (only you see these)
+                  </Label>
+                  <textarea
+                    id="internal-notes"
+                    rows={3}
+                    maxLength={4000}
+                    placeholder="Never shown to the client, never on the PDF"
+                    className={`w-full resize-none rounded-lg border px-3 py-2 text-sm ${darkFieldClass}`}
+                    value={internalNotes}
+                    onChange={(e) => setInternalNotes(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </FormPanel>
@@ -683,6 +705,8 @@ export function DocumentEditor({
                   </span>
                 </div>
               </div>
+
+              <ClientNotes notes={notes} />
 
               <div className="border-t pt-4 text-right text-xs text-muted-foreground">
                 Signature

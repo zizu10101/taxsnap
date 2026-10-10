@@ -90,6 +90,9 @@ export async function convertEstimateToInvoice(
       client_id: estimate.client_id,
       job_id: estimate.job_id,
       place_of_work: estimate.place_of_work,
+      // Both notes carry over to the invoice (null stays null).
+      notes: estimate.notes ?? null,
+      internal_notes: estimate.internal_notes ?? null,
       type: "invoice",
       status: "draft",
       issue_date: new Date().toISOString().slice(0, 10),

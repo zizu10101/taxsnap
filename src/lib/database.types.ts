@@ -246,6 +246,9 @@ export interface Database {
           client_id: string | null;
           job_id: string | null;
           place_of_work: string | null;
+          // Migration 0062. notes = client-facing; internal_notes = OWNER-ONLY, never in client output.
+          notes: string | null;
+          internal_notes: string | null;
           type: DocumentType;
           status: DocumentStatus;
           issue_date: string;
@@ -276,6 +279,8 @@ export interface Database {
           client_id?: string | null;
           job_id?: string | null;
           place_of_work?: string | null;
+          notes?: string | null;
+          internal_notes?: string | null;
           type: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;
@@ -306,6 +311,8 @@ export interface Database {
           client_id?: string | null;
           job_id?: string | null;
           place_of_work?: string | null;
+          notes?: string | null;
+          internal_notes?: string | null;
           type?: DocumentType;
           status?: DocumentStatus;
           issue_date?: string;

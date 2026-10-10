@@ -22,6 +22,7 @@ import { useSyncedState } from "@/lib/use-synced-state";
 import { invoiceDetailHref } from "@/lib/invoice-back";
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
+import { ClientNotes } from "@/components/invoices/client-notes";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -305,6 +306,7 @@ function DocumentPreviewPanel({
               ))}
             </tbody>
           </table>
+          <ClientNotes notes={doc.notes} compact />
         </div>
 
         <div className="grid grid-cols-2 gap-2">

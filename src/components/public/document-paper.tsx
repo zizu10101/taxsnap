@@ -5,6 +5,7 @@ import type { DocumentType } from "@/lib/database.types";
 import { dueDateLabel } from "@/lib/document-labels";
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
+import { ClientNotes } from "@/components/invoices/client-notes";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -39,6 +40,7 @@ export function PublicDocumentPaper({
   business,
   client,
   placeOfWork = null,
+  notes = null,
   jobName = null,
   logoUrl,
 }: {
@@ -60,6 +62,8 @@ export function PublicDocumentPaper({
   business: { name: string | null; email: string; phone: string | null; address: string | null };
   client: { name: string; email: string | null; address: string | null } | null;
   placeOfWork?: string | null;
+  /** Client-facing notes (documents.notes). Never the owner-only internal notes. */
+  notes?: string | null;
   jobName?: string | null;
   logoUrl: string | null;
 }) {
@@ -172,6 +176,8 @@ export function PublicDocumentPaper({
             </span>
           </div>
         </div>
+
+        <ClientNotes notes={notes} />
       </CardContent>
     </Card>
   );

@@ -428,6 +428,8 @@ export type PdfDocument = Pick<
   job?: { contract_value?: number | null; name?: string | null } | null;
   // Where the work is done (documents.place_of_work); absent/null prints nothing.
   place_of_work?: string | null;
+  // Client-facing notes (documents.notes). The owner-only internal notes are never part of this type.
+  notes?: string | null;
 };
 
 export interface DocumentPdfOptions {
@@ -552,6 +554,25 @@ export async function generateDocumentPdf(
     { label: "HST (13%)", value: formatCurrency(doc.hst_amount) },
     { label: "Total", value: formatCurrency(doc.total_amount), bold: true },
   ]);
+
+  const notes = doc.notes?.trim();
+  if (notes) {
+    y += 14;
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text("NOTES", marginX, y);
+    pdf.setTextColor(0);
+    pdf.setFontSize(10);
+    y += 14;
+    for (const line of pdf.splitTextToSize(notes, rightX - marginX) as string[]) {
+      if (y > pdf.internal.pageSize.getHeight() - 60) {
+        pdf.addPage();
+        y = 56;
+      }
+      pdf.text(line, marginX, y);
+      y += 13;
+    }
+  }
 
   if (doc.is_progress_draw && includeProgressSummary) {
     y += 16;

@@ -14,6 +14,7 @@ import {
 } from "@/lib/plan-limits";
 import { getNextDocumentNumber, getNextDrawNumber } from "@/lib/document-number";
 import { parsePlaceText, placeOfWorkForNew } from "@/lib/job-fields";
+import { parseNote } from "@/lib/document-notes";
 import type { DocumentType } from "@/lib/database.types";
 import { parseLineInputs } from "@/lib/line-format";
 
@@ -71,10 +72,17 @@ export async function POST(request: Request) {
     draw_description,
     draw_percent_complete,
     place_of_work: placeInput,
+    notes: notesInput,
+    internal_notes: internalNotesInput,
   } = body ?? {};
 
   const place = parsePlaceText(placeInput, "Place of work");
   if (!place.ok) return NextResponse.json({ error: place.error }, { status: 400 });
+  // Blank is stored as null. `notes` is shown to the client; `internal_notes` is owner-only.
+  const notes = parseNote(notesInput, "Notes to client");
+  if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
+  const internalNotes = parseNote(internalNotesInput, "Internal notes");
+  if (!internalNotes.ok) return NextResponse.json({ error: internalNotes.error }, { status: 400 });
 
   // 'partial' / 'paid' follow the recorded payments; they can't be created by hand.
   const statusError = validateManualStatus(status);
@@ -259,6 +267,8 @@ export async function POST(request: Request) {
       client_id: clientId,
       job_id: jobId,
       place_of_work: placeOfWorkForNew(place.value, jobLocation),
+      notes: notes.value ?? null,
+      internal_notes: internalNotes.value ?? null,
       type,
       status: status === "sent" ? "sent" : "draft",
       issue_date,

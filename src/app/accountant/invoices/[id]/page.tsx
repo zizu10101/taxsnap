@@ -76,6 +76,7 @@ export default async function AccountantDocumentPage({
         business={business}
         client={doc.client}
         placeOfWork={doc.place_of_work}
+        notes={doc.notes}
         jobName={doc.job?.name ?? null}
         logoUrl={logoUrl}
       />

@@ -48,6 +48,7 @@ import type {
 } from "@/lib/database.types";
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
+import { ClientNotes } from "@/components/invoices/client-notes";
 
 // Pill colors for the status Select trigger next to the title - same
 // four statuses DocumentList's STATUS_VARIANT badges use, just mapped to
@@ -583,6 +584,18 @@ export function DocumentDetail({
               </>
             )}
           </div>
+
+          <ClientNotes notes={doc.notes} />
+
+          {/* Owner-only: never printed (print:hidden) and never sent to the client or the PDF. */}
+          {doc.internal_notes?.trim() && (
+            <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm print:hidden">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">
+                Internal <span className="font-normal normal-case">(only you see this)</span>
+              </p>
+              <p className="whitespace-pre-line">{doc.internal_notes.trim()}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

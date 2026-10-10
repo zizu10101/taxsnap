@@ -81,7 +81,7 @@ export async function loadPortalDocument(
   const { data } = await supabase
     .from("documents")
     .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, is_progress_draw, draw_number, place_of_work, payments(amount), items:document_items(id, name, description, unit, quantity, unit_price, sort_order), client:clients(name, email, address)",
+      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, is_progress_draw, draw_number, place_of_work, notes, payments(amount), items:document_items(id, name, description, unit, quantity, unit_price, sort_order), client:clients(name, email, address)",
     )
     .eq("id", id)
     .eq("user_id", session.userId)
@@ -123,6 +123,7 @@ export async function loadPortalDocument(
       })),
       // The address of the work is printed on the client's own document, not job data.
       place_of_work: data.place_of_work,
+      notes: data.notes,
       client: data.client as PdfDocument["client"],
     },
     paid,
