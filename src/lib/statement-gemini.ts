@@ -1,5 +1,6 @@
 import { ThinkingLevel } from "@google/genai";
 import { getClient, GEMINI_MODEL } from "@/lib/gemini";
+import { geminiUsage, type GeminiUsage } from "@/lib/gemini-usage";
 import { describeProviderFailure, type ProviderFailureCode } from "@/lib/statement-provider-errors";
 import {
   buildStatementPrompt,
@@ -24,6 +25,8 @@ export class StatementExtractError extends Error {
     // Tokens Gemini billed for the attempt, when it got far enough to bill any.
     readonly inputTokens = 0,
     readonly outputTokens = 0,
+    // The same call's raw counts, for the [statement-timing] log only.
+    readonly usage?: GeminiUsage,
   ) {
     super(message);
     this.name = "StatementExtractError";
@@ -39,6 +42,8 @@ export interface StatementExtractResult {
   raw: unknown;
   inputTokens: number;
   outputTokens: number;
+  // Raw Gemini counts, logged by the chunk route (not stored, not returned to the browser).
+  usage: GeminiUsage;
 }
 
 // Keeps the upstream status separate from user-facing text, the same way the
@@ -92,19 +97,20 @@ export async function extractStatementChunk(
   const inputTokens = usage?.promptTokenCount ?? 0;
   // Thinking tokens are billed as output.
   const outputTokens = (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0);
+  const rawUsage = geminiUsage(usage);
 
   if (String(response.candidates?.[0]?.finishReason) === "MAX_TOKENS") {
-    throw new StatementExtractError("TRUNCATED", 502, "These pages were too long to read in one go.", inputTokens, outputTokens);
+    throw new StatementExtractError("TRUNCATED", 502, "These pages were too long to read in one go.", inputTokens, outputTokens, rawUsage);
   }
 
   const text = response.text;
   if (!text) {
-    throw new StatementExtractError("EMPTY", 502, "We couldn't read these pages.", inputTokens, outputTokens);
+    throw new StatementExtractError("EMPTY", 502, "We couldn't read these pages.", inputTokens, outputTokens, rawUsage);
   }
 
   try {
-    return { raw: JSON.parse(text), inputTokens, outputTokens };
+    return { raw: JSON.parse(text), inputTokens, outputTokens, usage: rawUsage };
   } catch {
-    throw new StatementExtractError("BAD_JSON", 502, "We couldn't read these pages.", inputTokens, outputTokens);
+    throw new StatementExtractError("BAD_JSON", 502, "We couldn't read these pages.", inputTokens, outputTokens, rawUsage);
   }
 }

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { geminiUsage } from "@/lib/gemini-usage";
 import type { ReceiptItem } from "@/lib/database.types";
 
 export interface ParsedReceipt {
@@ -175,6 +176,9 @@ export async function parseReceiptImage(
       temperature: 0.1,
     },
   });
+
+  // Logging only: token counts for the one image sent (pages: 1), no receipt content, no user id.
+  console.log("[parse-receipt] usage", JSON.stringify({ pages: 1, ...geminiUsage(response.usageMetadata) }));
 
   const text = response.text;
   if (!text) throw new Error("Gemini returned an empty response");

@@ -9,6 +9,7 @@ import {
 } from "@/lib/statement-config";
 import type { Json } from "@/lib/database.types";
 import { logTiming, shortId, stopwatch } from "@/lib/statement-timing";
+import type { GeminiUsage } from "@/lib/gemini-usage";
 
 export const runtime = "nodejs";
 // One chunk is a few pages; this is the same ceiling the receipt route uses.
@@ -110,6 +111,8 @@ export async function POST(
 
   let inputTokens = 0;
   let outputTokens = 0;
+  // Raw Gemini counts, for the [statement-timing] line only (never stored or returned).
+  let usage: GeminiUsage | undefined;
   try {
     const result = await extractStatementChunk(base64, file.type, {
       today: new Date().toISOString().slice(0, 10),
@@ -122,6 +125,7 @@ export async function POST(
     timer.lap("model");
     inputTokens = result.inputTokens;
     outputTokens = result.outputTokens;
+    usage = result.usage;
 
     const { lines, header } = sanitizeChunk(result.raw, {
       pageFrom: chunk.page_from,
@@ -163,6 +167,7 @@ export async function POST(
       started_at: timer.startedAt(),
       finished_at: new Date().toISOString(),
       ...timings,
+      ...usage,
     });
     return NextResponse.json({ chunk_no: chunkNo, lines: lines.length, timings });
   } catch (err) {
@@ -176,6 +181,7 @@ export async function POST(
       message = err.message;
       inputTokens = err.inputTokens;
       outputTokens = err.outputTokens;
+      usage = err.usage;
     } else if (err instanceof ChunkValidationError) {
       code = err.code;
       status = 502;
@@ -197,6 +203,7 @@ export async function POST(
       started_at: timer.startedAt(),
       finished_at: new Date().toISOString(),
       ...timings,
+      ...usage,
     });
 
     await ctx.admin.rpc("fail_chunk", {
