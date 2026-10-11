@@ -48,6 +48,9 @@ import { getPresetRange, rangeToUtcBounds } from "./date-range.ts";
 //   unrestricted at every tier regardless of this value (see
 //   api/sales/route.ts's own business_type check, predating this cap and
 //   deliberately untouched by it).
+// - photos: site photos (job_photos rows, Unsorted ones included), a lifetime row count, so deleting a
+//   photo (or its job) frees a slot. PLACEHOLDER numbers (Free 10, Basic 200, Pro 2000) until real
+//   storage cost is known - not final pricing. Enforced on the server in api/job-photos.
 export const PLAN_LIMITS: Record<
   SubscriptionStatus,
   {
@@ -64,6 +67,7 @@ export const PLAN_LIMITS: Record<
     activeRenters: number | null;
     manualSalesEntriesPerMonth: number | null;
     statementImportsPerMonth: number | null;
+    photos: number | null;
   }
 > = {
   free: {
@@ -80,6 +84,7 @@ export const PLAN_LIMITS: Record<
     activeRenters: 1,
     manualSalesEntriesPerMonth: 3,
     statementImportsPerMonth: 1, // provisional
+    photos: 10, // PLACEHOLDER
   },
   basic: {
     scansPerMonth: null,
@@ -95,6 +100,7 @@ export const PLAN_LIMITS: Record<
     activeRenters: 3,
     manualSalesEntriesPerMonth: 15,
     statementImportsPerMonth: 3, // provisional
+    photos: 200, // PLACEHOLDER
   },
   pro: {
     scansPerMonth: null,
@@ -110,6 +116,7 @@ export const PLAN_LIMITS: Record<
     activeRenters: null,
     manualSalesEntriesPerMonth: null,
     statementImportsPerMonth: 10, // provisional
+    photos: 2000, // PLACEHOLDER
   },
 };
 
@@ -226,12 +233,13 @@ const TOTAL_LIMIT_TABLE = {
   clients: "clients",
   jobs: "jobs",
   expenseTemplates: "expense_templates",
+  photos: "job_photos",
 } as const;
 
 export async function wouldExceedTotalLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  resource: "clients" | "jobs" | "expenseTemplates",
+  resource: "clients" | "jobs" | "expenseTemplates" | "photos",
 ): Promise<LimitCheck> {
   const tier = await getSubscriptionStatus(supabase, userId);
   const limit = PLAN_LIMITS[tier][resource];

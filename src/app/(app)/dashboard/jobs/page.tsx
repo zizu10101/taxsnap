@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -63,6 +64,14 @@ export default async function JobsPage() {
         backHref="/dashboard"
         title="Jobs"
         subtitle="True cost per job: tagged expenses plus logged labor."
+        actions={
+          <Link
+            href="/dashboard/photos"
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Unsorted photos
+          </Link>
+        }
       />
 
       <JobList

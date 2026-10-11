@@ -5,6 +5,7 @@ import type { JobUpdate } from "@/lib/database.types";
 import { findJobByName, duplicateJobMessage, isUniqueViolation } from "@/lib/find-by-name";
 import { validateJobPatch } from "@/lib/job-fields";
 import { jobDeleteBlocker } from "@/lib/job-delete";
+import { listJobPhotoPaths, removePhotoFiles } from "@/lib/job-photos-server";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -225,11 +226,19 @@ export async function DELETE(
   });
   if (blocker) return NextResponse.json({ error: blocker }, { status: 409 });
 
+  // The photo ROWS go with the job (on delete cascade), but their FILES do not - SQL cannot remove a
+  // storage object. So read the paths first, delete the job, then remove both files of every photo.
+  const photoRows = await listJobPhotoPaths(supabase, user.id, id);
+
   const { error } = await supabase.from("jobs").delete().eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const photoFilesRemoved = await removePhotoFiles(supabase.storage, photoRows);
+
   return NextResponse.json({
     success: true,
+    photos_deleted: photoRows.length,
+    photo_files_removed: photoFilesRemoved,
     unlinked: {
       documents: docs.length,
       expenses: expenses.count ?? 0,

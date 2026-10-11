@@ -166,7 +166,7 @@ export function JobDetail({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete this job?"
-        description={deleteConfirmText(unlinkCounts)}
+        description={`${deleteConfirmText(unlinkCounts)} Its site photos, if any, are permanently deleted.`}
         loading={deleting}
         onConfirm={handleDelete}
       />

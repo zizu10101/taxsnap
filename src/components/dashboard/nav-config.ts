@@ -43,7 +43,7 @@ export interface NavItem {
 const NAV_ROUTES: { key: NavKey; prefixes: string[] }[] = [
   { key: "estimates", prefixes: ["/dashboard/estimates"] },
   { key: "invoices", prefixes: ["/dashboard/invoices", "/dashboard/line-items"] },
-  { key: "jobs", prefixes: ["/dashboard/jobs"] },
+  { key: "jobs", prefixes: ["/dashboard/jobs", "/dashboard/photos"] },
   // Employees owns the Hours page too: logging, reviewing and correcting hours
   // (including clocked sessions) is day-to-day employee management, not
   // job setup. Routes are unchanged - only which tab lights up.

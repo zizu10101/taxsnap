@@ -540,6 +540,39 @@ export interface Database {
         };
         Relationships: [];
       };
+      job_photos: {
+        Row: {
+          id: string;
+          user_id: string;
+          job_id: string | null;
+          storage_path: string;
+          thumb_path: string;
+          caption: string | null;
+          taken_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          job_id?: string | null;
+          storage_path: string;
+          thumb_path: string;
+          caption?: string | null;
+          taken_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          job_id?: string | null;
+          storage_path?: string;
+          thumb_path?: string;
+          caption?: string | null;
+          taken_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       contract_changes: {
         Row: {
           id: string;
@@ -1902,6 +1935,8 @@ export type StatementImport = Database["public"]["Tables"]["statement_imports"][
 export type StatementChunk = Database["public"]["Tables"]["statement_chunks"]["Row"];
 export type StatementLine = Database["public"]["Tables"]["statement_lines"]["Row"];
 export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
+export type JobPhoto = Database["public"]["Tables"]["job_photos"]["Row"];
+export type JobPhotoUpdate = Database["public"]["Tables"]["job_photos"]["Update"];
 export type ContractChange = Database["public"]["Tables"]["contract_changes"]["Row"];
 export type LineItem = Database["public"]["Tables"]["line_items"]["Row"];
 export type LineItemUpdate = Database["public"]["Tables"]["line_items"]["Update"];
