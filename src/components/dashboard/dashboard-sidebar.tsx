@@ -16,11 +16,13 @@ export function DashboardSidebar({
   subscriptionStatus,
   logoPath,
   hiddenNavKeys,
+  unsortedPhotoCount,
 }: {
   businessType: BusinessType;
   subscriptionStatus: SubscriptionStatus;
   logoPath: string | null;
   hiddenNavKeys: readonly string[];
+  unsortedPhotoCount: number;
 }) {
   const pathname = usePathname();
   const activeKey = getActiveNavKey(pathname);
@@ -45,7 +47,13 @@ export function DashboardSidebar({
         )}
       </Link>
       {items.map((item) => (
-        <NavItemButton key={item.key} item={item} active={item.key === activeKey} size="sidebar" />
+        <NavItemButton
+          key={item.key}
+          item={item}
+          active={item.key === activeKey}
+          size="sidebar"
+          badge={item.key === "photos" ? unsortedPhotoCount : 0}
+        />
       ))}
     </aside>
   );

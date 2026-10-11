@@ -14,6 +14,7 @@ import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialo
 import { HstSummaryCard } from "@/components/dashboard/hst-summary-card";
 import { JobFilter } from "@/components/dashboard/job-filter";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
+import { AddPhotosButton } from "@/components/photos/add-photos-dialog";
 import {
   describeRange,
   filterByRange,
@@ -238,6 +239,11 @@ export function DashboardBody({
           New Client
         </Button>
       </div>
+
+      {/* Capture first, file later: site photos can be snapped from here without picking a job. */}
+      {businessType !== "salon" && (
+        <AddPhotosButton jobNames={existingJobs} className="w-full sm:w-auto" />
+      )}
 
       {/* No client list lives on this page to update - onCreated only
           matters to a caller (like DocumentList) that renders one; here

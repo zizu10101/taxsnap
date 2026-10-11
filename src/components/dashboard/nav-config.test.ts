@@ -111,3 +111,28 @@ test("every hideable key is a real nav tab, and Dashboard is not hideable", () =
   for (const k of HIDEABLE_NAV_KEYS) assert.ok(real.has(k), k);
   assert.ok(!(HIDEABLE_NAV_KEYS as readonly string[]).includes("dashboard"));
 });
+
+test("Photos is a nav tab for every general account on every plan, never for a salon", () => {
+  for (const isPro of [false, true]) {
+    const item = getNavItems({ businessType: "general", isPro }).find((i) => i.key === "photos");
+    assert.equal(item?.href, "/dashboard/photos", `isPro=${isPro}`);
+  }
+  assert.equal(keysOf({ businessType: "salon", isPro: true }).includes("photos"), false);
+});
+
+test("the Photos page lights up Photos, not Jobs", () => {
+  assert.equal(getActiveNavKey("/dashboard/photos"), "photos");
+  assert.equal(getActiveNavKey("/dashboard/jobs"), "jobs");
+});
+
+test("Photos sits in the mobile More sheet and leaves the four primary slots alone", () => {
+  const { primary, overflow } = splitMobileNav(getNavItems({ businessType: "general", isPro: false }));
+  assert.deepEqual(primary.map((i) => i.key), ["dashboard", "estimates", "invoices", "jobs"]);
+  assert.ok(overflow.some((i) => i.key === "photos"));
+});
+
+test("Photos is not one of the tabs an owner can hide (the menu settings are unchanged)", () => {
+  assert.ok(!(HIDEABLE_NAV_KEYS as readonly string[]).includes("photos"));
+  const keys = keysOf({ businessType: "general", isPro: true, hiddenKeys: ["photos"] });
+  assert.ok(keys.includes("photos"));
+});

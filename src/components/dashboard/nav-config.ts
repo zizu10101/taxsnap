@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Briefcase,
+  Camera,
   ClipboardList,
   FileBarChart,
   FileText,
@@ -21,6 +22,7 @@ export type NavKey =
   | "employees"
   | "clients"
   | "expenses"
+  | "photos"
   | "progress-billing"
   | "overview"
   | "reports"
@@ -50,6 +52,7 @@ const NAV_ROUTES: { key: NavKey; prefixes: string[] }[] = [
   { key: "employees", prefixes: ["/dashboard/employees", "/dashboard/hours"] },
   { key: "clients", prefixes: ["/dashboard/clients"] },
   { key: "expenses", prefixes: ["/dashboard/expenses"] },
+  { key: "photos", prefixes: ["/dashboard/photos"] },
   { key: "progress-billing", prefixes: ["/dashboard/progress-billing"] },
   { key: "overview", prefixes: ["/dashboard/overview"] },
   { key: "reports", prefixes: ["/dashboard/reports"] },
@@ -78,6 +81,9 @@ const GENERAL_ITEMS: NavItem[] = [
   { key: "employees", label: "Employees", href: "/dashboard/employees", icon: HardHat },
   { key: "clients", label: "Clients", href: "/dashboard/clients", icon: Users },
   { key: "expenses", label: "Expenses", href: "/dashboard/expenses", icon: BarChart3 },
+  // Site photos, every plan (capped, not Pro-only). Last of the general tabs so the mobile bar's four
+  // primary slots are unchanged - it sits in "More". Not hideable (see HIDEABLE_NAV_KEYS).
+  { key: "photos", label: "Photos", href: "/dashboard/photos", icon: Camera },
 ];
 
 const PRO_ITEMS: NavItem[] = [

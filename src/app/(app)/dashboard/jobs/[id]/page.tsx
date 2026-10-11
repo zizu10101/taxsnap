@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { JobDetail } from "@/components/jobs/job-detail";
+import { JobPhotosSection } from "@/components/photos/job-photos-section";
 import { calculateJobRevenue } from "@/lib/job-revenue";
 import type { DocumentWithClient, HourEntryWithRelations } from "@/lib/database.types";
 
@@ -88,6 +89,8 @@ export default async function JobDetailPage({
         linkedDocuments={documents.map((d) => ({ ...d, has_payments: d.payments.length > 0 }))}
         jobRevenue={jobRevenue}
       />
+
+      <JobPhotosSection job={{ id: job.id, name: job.name }} jobNames={(jobs ?? []).map((j) => j.name)} />
     </div>
   );
 }

@@ -1219,6 +1219,34 @@ deletes. Lines freed before 0058 stay "not saved" (history already gone) - no ba
 - The expense drawer shows "From statement: TD, Jan 6 to Feb 5 - View" (`StatementLink`,
   `GET /api/statements/for-receipt/[receiptId]`), or "From a deleted statement".
 
+## Site photos (capture first, file later)
+
+Migration `0063_job_photos.sql` (table, RLS) + `0063_job_photos_storage.sql` (private `job-photos` bucket and its
+policies); one rollback in `supabase/rollbacks/`. Apply BOTH before the code ships. `job_photos.job_id` is nullable
+(null = "Unsorted") and `on delete cascade`.
+
+- **Files are never trusted or stored raw.** The browser re-encodes every photo through a canvas (`lib/photo-compress.ts`,
+  browser-only) into a ~1,600 px display JPEG (stepped down to ~250 KB) and a ~300 px thumbnail (~20 KB): upright, no EXIF
+  or location. Every size/quality is in `lib/photo-config.ts`; the stepping logic is `lib/photo-sizing.ts` (pure, tested).
+  `POST /api/job-photos` takes ONE photo per request (multipart), re-checks the bytes (`validatePhotoFiles`: real JPEG,
+  size limits, no EXIF/XMP/IPTC/comment segment) and writes both files to `<user id>/<photo id>[_thumb].jpg`.
+- **Private bucket, signed URLs only** (15 min, `PHOTO_URL_EXPIRY_SECONDS`); the gallery refetches when one lapses.
+  Storage policies are owner-folder-only (insert/select/delete), like `receipts`.
+- **Caps** are `PLAN_LIMITS.*.photos` (PLACEHOLDERS: Free 10, Basic 200, Pro 2000), counted from the database in the route
+  (`wouldExceedTotalLimit(..., "photos")`), never from the client; at the cap the route answers 403 `FREE_LIMIT_REACHED`.
+- **Cleanup**: SQL cannot delete a storage object, so the routes do. `POST /api/job-photos/bulk` (action `delete`, one or many
+  photos, each removed row-then-both-files one at a time, every outcome reported: deleted / filesLeft / failed) and
+  `DELETE /api/jobs/[id]` (which reads the job's photo paths BEFORE deleting the job, then removes both files of each) go
+  through `lib/job-photos-server.ts`. A failed file removal is logged (no paths) and reported, never fatal.
+- **Deleting in the UI** always asks first (`ConfirmDialog`, "Delete this photo? This can't be undone."): a small always-visible
+  trash on each thumbnail, Delete in the viewer (it closes the viewer so only one modal is open, and reopens it on cancel), and
+  Select mode (Select all, Move to job..., Delete (n)). The grid updates in place and `router.refresh()` updates the nav badge.
+- Typing a new job name in the photo form goes through `POST /api/jobs` (find-or-create, job cap applies). Unsorted photos
+  live at `/dashboard/photos`: a "Photos" tab in the nav (every general account, every plan; in the mobile "More" sheet; not
+  hideable) with a badge counting unsorted photos (a head count in `dashboard/layout.tsx`, refreshed by `router.refresh()`
+  after an upload, move or delete), a link on the Jobs page, and a "View unsorted photos" toast action after saving as Unsorted.
+- Out of scope on purpose: showing photos to clients or on PDFs, annotation, video, offline queueing.
+
 ## Auth
 
 Supabase Auth via `src/app/auth/auth-form.tsx`: magic link, email/password,

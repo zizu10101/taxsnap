@@ -137,10 +137,12 @@ export function DashboardMobileBottomNav({
   businessType,
   subscriptionStatus,
   hiddenNavKeys,
+  unsortedPhotoCount,
 }: {
   businessType: BusinessType;
   subscriptionStatus: SubscriptionStatus;
   hiddenNavKeys: readonly string[];
+  unsortedPhotoCount: number;
 }) {
   const pathname = usePathname();
   const { role } = useAppLock();
@@ -158,6 +160,8 @@ export function DashboardMobileBottomNav({
   });
   const { primary, overflow } = splitMobileNav(items);
   const overflowActive = overflow.some((i) => i.key === activeKey);
+  // Photos lives in "More"; a dot on More tells you there is something unsorted in there.
+  const overflowHasUnsorted = unsortedPhotoCount > 0 && overflow.some((i) => i.key === "photos");
 
   return (
     <nav
@@ -165,7 +169,13 @@ export function DashboardMobileBottomNav({
       style={{ gridTemplateColumns: `repeat(${primary.length + 1}, minmax(0, 1fr))` }}
     >
       {primary.map((item) => (
-        <NavItemButton key={item.key} item={item} active={item.key === activeKey} size="bottomnav" />
+        <NavItemButton
+          key={item.key}
+          item={item}
+          active={item.key === activeKey}
+          size="bottomnav"
+          badge={item.key === "photos" ? unsortedPhotoCount : 0}
+        />
       ))}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetTrigger
@@ -178,7 +188,12 @@ export function DashboardMobileBottomNav({
             />
           }
         >
-          <Ellipsis className="h-5 w-5" strokeWidth={1.6} />
+          <span className="relative">
+            <Ellipsis className="h-5 w-5" strokeWidth={1.6} />
+            {overflowHasUnsorted && (
+              <span aria-hidden="true" className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-primary" />
+            )}
+          </span>
           <span className={`text-[10px] leading-tight ${overflowActive ? "font-semibold" : "font-medium"}`}>More</span>
         </SheetTrigger>
         <SheetContent>
@@ -196,6 +211,11 @@ export function DashboardMobileBottomNav({
             >
               <item.icon className="h-4 w-4" strokeWidth={1.6} />
               {item.label}
+              {item.key === "photos" && unsortedPhotoCount > 0 && (
+                <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">
+                  {unsortedPhotoCount > 99 ? "99+" : unsortedPhotoCount}
+                </span>
+              )}
             </Button>
           ))}
 
