@@ -1,6 +1,8 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
 import { formatDocumentNumber } from "./document-number.ts";
 import { TAX_BASIS_LABELS, taxBasis } from "./tax-codes.ts";
+import type { VendorReport } from "./vendor-report.ts";
+import type { RevenueReport } from "./revenue-report.ts";
 
 function escapeCsvField(value: string | number): string {
   const str = String(value);
@@ -273,6 +275,41 @@ export function paymentsToCsv(payments: PaymentExportRow[]): string {
   const totalsRow = ["", "", "TOTAL", total.toFixed(2), "", "", "", ""];
 
   return [header, ...rows, totalsRow].map((row) => row.map(escapeCsvField).join(",")).join("\n");
+}
+
+function csvRows(rows: (string | number)[][]): string {
+  return rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
+}
+
+// Expenses by vendor, one row per vendor plus a TOTAL row.
+export function vendorReportToCsv(report: VendorReport): string {
+  const header = ["Vendor", "Expenses", "Subtotal", "Tax (HST)", "Total", "Share of Total (%)"];
+  const rows = report.vendors.map((v) => [
+    v.name,
+    v.count,
+    v.subtotal.toFixed(2),
+    v.tax.toFixed(2),
+    v.total.toFixed(2),
+    (v.share * 100).toFixed(1),
+  ]);
+  const t = report.totals;
+  const total = ["TOTAL", t.count, t.subtotal.toFixed(2), t.tax.toFixed(2), t.total.toFixed(2), t.total === 0 ? "0.0" : "100.0"];
+  return csvRows([header, ...rows, total]);
+}
+
+// Revenue report: one flat table with a Section column (Summary, Client, Job,
+// Month) so it opens as a single sheet. All figures are before HST.
+export function revenueReportToCsv(report: RevenueReport): string {
+  const header = ["Section", "Name", "Invoices", "Invoiced", "Received", "Outstanding"];
+  const money = (n: number) => n.toFixed(2);
+  const s = report.summary;
+  const rows: (string | number)[][] = [
+    ["Summary", "All", "", money(s.invoiced), money(s.received), money(s.outstanding)],
+    ...report.byClient.map((g) => ["Client", g.name, g.invoices, money(g.invoiced), money(g.received), money(g.outstanding)]),
+    ...report.byJob.map((g) => ["Job", g.name, g.invoices, money(g.invoiced), money(g.received), money(g.outstanding)]),
+    ...report.byMonth.map((m) => ["Month", m.month, "", money(m.invoiced), money(m.received), money(m.outstanding)]),
+  ];
+  return csvRows([header, ...rows]);
 }
 
 export function downloadCsv(filename: string, csv: string) {

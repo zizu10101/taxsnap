@@ -2,6 +2,8 @@ import type { ReadDb } from "@/lib/scoped-reader";
 import { getExpenseOverviewData } from "@/lib/expense-overview-query";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
+import { buildVendorReport, type VendorReport } from "@/lib/vendor-report";
+import { buildRevenueReport, type RevenueReport } from "@/lib/revenue-report";
 import { TAX_CATEGORIES } from "@/lib/tax-categories";
 import {
   groupSpendingByAccount,
@@ -335,4 +337,46 @@ export async function getExpenseDetail(
     }));
 
   return { rows, total: round2(rows.reduce((sum, r) => sum + r.amount, 0)) };
+}
+
+// Expenses by vendor: the same receipts rows the Expenses tab lists (a deleted
+// expense is gone from the table, so it is simply not here). Never selects
+// anything but the columns the report shows. `userId` adds an explicit
+// user_id filter on top of RLS / the accountant's scoped reader.
+export async function getVendorReport(
+  supabase: ReadDb,
+  userId: string,
+  from: string | null,
+  to: string | null,
+  category?: string | null,
+): Promise<VendorReport> {
+  let query = supabase
+    .from("receipts")
+    .select("id, merchant_name, transaction_date, tax_category, total_amount, tax_amount")
+    .eq("user_id", userId);
+  if (from) query = query.gte("transaction_date", from);
+  if (to) query = query.lte("transaction_date", to);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return buildVendorReport(data ?? [], category);
+}
+
+// Revenue: payments received in the range (see lib/revenue-report.ts). Every
+// invoice is read, not just those issued in the range, because a payment in the
+// range can belong to an older invoice. Only report columns: no notes, no line items.
+export async function getRevenueReport(
+  supabase: ReadDb,
+  userId: string,
+  from: string | null,
+  to: string | null,
+): Promise<RevenueReport> {
+  const { data, error } = await supabase
+    .from("documents")
+    .select(
+      "id, document_number, status, issue_date, subtotal, total_amount, excluded_from_hst, client_id, job_id, client:clients(name), job:jobs(name), payments(id, amount, paid_date)",
+    )
+    .eq("type", "invoice")
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return buildRevenueReport(data ?? [], from, to);
 }

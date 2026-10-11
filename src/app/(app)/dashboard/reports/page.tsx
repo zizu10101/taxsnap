@@ -54,7 +54,7 @@ export default async function ReportsPage() {
       <PageHeader
         back={<BackToDashboardLink />}
         title="Reports"
-        subtitle="Profit & loss, job summary and expenses by category."
+        subtitle="Profit & loss, job summary, expenses by category, vendor and revenue."
       />
 
       {isPro && initialData && initialJobs ? (

@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RevenueTab, VendorsTab } from "@/components/reports/vendor-revenue-tabs";
 import type {
   ExpenseDetailRow,
   JobSummaryData,
@@ -57,11 +58,14 @@ export interface ReportsEndpoints {
   apiBase: string;
   // Where an invoice opens from a drill-down row: `${documentBase}/${id}`.
   documentBase: string;
+  // Where one expense opens: `${expenseBase}${id}`. Omitted where there is no such page.
+  expenseBase?: string;
 }
 
 const OWNER_ENDPOINTS: ReportsEndpoints = {
   apiBase: "/api/reports",
   documentBase: "/dashboard/invoices",
+  expenseBase: "/dashboard/expenses?receipt=",
 };
 
 const ReportsEndpointsContext = createContext<ReportsEndpoints>(OWNER_ENDPOINTS);
@@ -82,13 +86,15 @@ const EMPTY_DATA: ReportsData = {
 
 const EMPTY_JOBS: JobSummaryData = { jobs: [], unlinked: null };
 
-type ReportTab = "pnl" | "jobs" | "categories" | "accounts";
+type ReportTab = "pnl" | "jobs" | "categories" | "accounts" | "vendors" | "revenue";
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: "pnl", label: "P&L" },
   { key: "jobs", label: "Job Summary" },
   { key: "categories", label: "Expenses by Category" },
   { key: "accounts", label: "By Account" },
+  { key: "vendors", label: "By Vendor" },
+  { key: "revenue", label: "Revenue" },
 ];
 
 // Fetches one drill-down's rows when its panel mounts. Callers key the panel
@@ -366,7 +372,7 @@ function ReportsViewInner({
   initialData: ReportsData;
   initialJobs: JobSummaryData;
 }) {
-  const { apiBase } = useContext(ReportsEndpointsContext);
+  const { apiBase, documentBase, expenseBase } = useContext(ReportsEndpointsContext);
   const [tab, setTab] = useState<ReportTab>("pnl");
 
   // P&L and Expenses by Category share one range...
@@ -465,13 +471,17 @@ function ReportsViewInner({
         ))}
       </div>
 
-      {tab === "jobs" ? (
+      {tab === "vendors" || tab === "revenue" ? null : tab === "jobs" ? (
         <DateRangeFilter preset={jobsPreset} range={jobsRange} onChange={handleJobsRangeChange} />
       ) : (
         <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
       )}
 
-      {tab === "jobs" ? (
+      {tab === "vendors" ? (
+        <VendorsTab apiBase={apiBase} expenseBase={expenseBase ?? null} />
+      ) : tab === "revenue" ? (
+        <RevenueTab apiBase={apiBase} documentBase={documentBase} />
+      ) : tab === "jobs" ? (
         jobsLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
