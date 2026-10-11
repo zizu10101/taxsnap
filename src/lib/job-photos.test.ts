@@ -15,14 +15,16 @@ import {
 import { encodeDisplay, encodeThumbnail, encodeWithinBudget, fitWithin } from "./photo-sizing.ts";
 import { hasMetadataSegment, isJpeg } from "./jpeg-check.ts";
 import {
+  MAX_BULK_PHOTOS,
   parseCaption,
+  parseIdList,
   parseJobRef,
   parseTakenAt,
   pathBelongsTo,
   photoPaths,
   validatePhotoFiles,
 } from "./job-photos.ts";
-import { deletePhoto, filePaths, removePhotoFiles } from "./job-photos-server.ts";
+import { deletePhoto, deletePhotos, filePaths, movePhotos, removePhotoFiles } from "./job-photos-server.ts";
 import { limitReachedMessage, PLAN_LIMITS, wouldExceedTotalLimit } from "./plan-limits.ts";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -404,11 +406,6 @@ test("deleting a job: the photo paths are read first, the job deleted, then the 
   );
 });
 
-test("deleting a photo route removes through deletePhoto (row + both files)", () => {
-  const route = read("../app/api/job-photos/[id]/route.ts");
-  assert.match(route, /deletePhoto\(supabase, supabase\.storage, user\.id, id\)/);
-});
-
 // ------------------------------------------------------------ discoverability
 
 test("the unsorted count reaches both navs: layout query -> shell -> sidebar and bottom nav -> badge", () => {
@@ -441,4 +438,204 @@ test("the Photos page has an empty state with the add buttons", () => {
   const dialog = read("../components/photos/add-photos-dialog.tsx");
   assert.match(dialog, /Take photo/);
   assert.match(dialog, /Choose from gallery/);
+});
+
+// ------------------------------------------------------------ bulk delete / move
+
+const U1 = "11111111-1111-4111-8111-111111111111";
+const U2 = "22222222-2222-4222-8222-222222222222";
+const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+
+interface MemRow {
+  id: string;
+  user_id: string;
+  job_id: string | null;
+  storage_path: string;
+  thumb_path: string;
+}
+
+// An in-memory job_photos table with just the query-builder calls the server helpers make, plus a way
+// to make one photo's delete fail.
+function memDb(rows: MemRow[], opts: { failDeleteFor?: string[] } = {}) {
+  return {
+    rows,
+    from(table: string) {
+      assert.equal(table, "job_photos");
+      return {
+        select: () => {
+          const f: Record<string, string> = {};
+          const chain = {
+            eq: (c: string, v: string) => ((f[c] = v), chain),
+            maybeSingle: async () => ({
+              data: rows.find((r) => Object.entries(f).every(([c, v]) => (r as unknown as Record<string, string>)[c] === v)) ?? null,
+              error: null,
+            }),
+          };
+          return chain;
+        },
+        delete: () => {
+          const f: Record<string, string> = {};
+          const chain = {
+            eq: (c: string, v: string) => {
+              f[c] = v;
+              if (!("id" in f && "user_id" in f)) return chain;
+              if (opts.failDeleteFor?.includes(f.id)) return Promise.resolve({ error: { message: "boom" } });
+              const at = rows.findIndex((r) => r.id === f.id && r.user_id === f.user_id);
+              if (at >= 0) rows.splice(at, 1);
+              return Promise.resolve({ error: null });
+            },
+          };
+          return chain;
+        },
+        update: (patch: { job_id: string | null }) => ({
+          in: (_c: string, ids: string[]) => ({
+            eq: (_c2: string, userId: string) => ({
+              select: async () => {
+                const hit = rows.filter((r) => ids.includes(r.id) && r.user_id === userId);
+                hit.forEach((r) => (r.job_id = patch.job_id));
+                return { data: hit.map((r) => ({ id: r.id })), error: null };
+              },
+            }),
+          }),
+        }),
+      };
+    },
+  } as never;
+}
+
+const mem = (id: string, user = U1): MemRow => ({
+  id,
+  user_id: user,
+  job_id: null,
+  ...photoPaths(user, id),
+});
+
+test("parseIdList: 1..100 real uuids, de-duplicated; anything else is refused", () => {
+  assert.deepEqual(parseIdList([ID(1), ID(2), ID(1)]), { ok: true, ids: [ID(1), ID(2)] });
+  assert.equal(parseIdList([]).ok, false);
+  assert.equal(parseIdList("x").ok, false);
+  assert.equal(parseIdList([ID(1), "nope"]).ok, false);
+  assert.equal(parseIdList([ID(1), "1; drop table job_photos"]).ok, false);
+  assert.equal(parseIdList(Array.from({ length: MAX_BULK_PHOTOS + 1 }, () => ID(1))).ok, false);
+});
+
+test("bulk delete: removes every row and BOTH files of every photo, one photo at a time", async () => {
+  const db = memDb([mem(ID(1)), mem(ID(2)), mem(ID(3))]);
+  const { calls, storage } = fakeStorage();
+  const out = await deletePhotos(db, storage, U1, [ID(1), ID(2), ID(3)]);
+  assert.deepEqual(out, { deleted: [ID(1), ID(2), ID(3)], filesLeft: [], failed: [] });
+  assert.equal((db as unknown as { rows: MemRow[] }).rows.length, 0, "all rows are gone");
+  // one storage call per photo, each carrying the display image and the thumbnail
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map((c) => c.paths), [1, 2, 3].map((n) => filePaths([photoPaths(U1, ID(n))])));
+  assert.ok(calls.every((c) => c.bucket === "job-photos" && c.paths.length === 2));
+});
+
+test("bulk delete: a failure is reported and does not stop or hide the others", async () => {
+  const db = memDb([mem(ID(1)), mem(ID(2)), mem(ID(3))], { failDeleteFor: [ID(2)] });
+  const { calls, storage } = fakeStorage();
+  const origError = console.error;
+  console.error = () => {};
+  let out;
+  try {
+    out = await deletePhotos(db, storage, U1, [ID(1), ID(2), ID(3)]);
+  } finally {
+    console.error = origError;
+  }
+  assert.deepEqual(out.deleted, [ID(1), ID(3)]);
+  assert.deepEqual(out.failed, [{ id: ID(2), reason: "error" }]);
+  const left = (db as unknown as { rows: MemRow[] }).rows;
+  assert.deepEqual(left.map((r) => r.id), [ID(2)], "the failed photo is still there, untouched");
+  assert.equal(calls.length, 2, "no file was removed for the photo whose row delete failed");
+  assert.ok(!calls.flatMap((c) => c.paths).some((p) => p.includes(ID(2))));
+});
+
+test("bulk delete: files storage refused to remove are reported, not hidden", async () => {
+  const db = memDb([mem(ID(1)), mem(ID(2))]);
+  const { storage } = fakeStorage("storage down");
+  const origError = console.error;
+  console.error = () => {};
+  let out;
+  try {
+    out = await deletePhotos(db, storage, U1, [ID(1), ID(2)]);
+  } finally {
+    console.error = origError;
+  }
+  assert.deepEqual(out.deleted, [ID(1), ID(2)], "the rows are gone");
+  assert.deepEqual(out.filesLeft, [ID(1), ID(2)], "and the leftover files are called out");
+  assert.deepEqual(out.failed, []);
+});
+
+test("bulk delete: someone else's photos and unknown ids are failures, and their files are never touched", async () => {
+  const db = memDb([mem(ID(1), U2), mem(ID(2), U1)]);
+  const { calls, storage } = fakeStorage();
+  const out = await deletePhotos(db, storage, U1, [ID(1), ID(3), ID(2)]);
+  assert.deepEqual(out.deleted, [ID(2)]);
+  assert.deepEqual(out.failed, [
+    { id: ID(1), reason: "not_found" }, // U2's photo
+    { id: ID(3), reason: "not_found" }, // does not exist
+  ]);
+  const left = (db as unknown as { rows: MemRow[] }).rows;
+  assert.deepEqual(left.map((r) => [r.id, r.user_id]), [[ID(1), U2]], "U2's row survives");
+  assert.ok(calls.flatMap((c) => c.paths).every((p) => p.startsWith(`${U1}/`)), "only U1's folder was touched");
+});
+
+test("bulk move: only the user's own photos move; the rest are reported not found", async () => {
+  const rows = [mem(ID(1)), mem(ID(2), U2)];
+  const job = "3f2b8c1e-0a4d-4e6f-9b1a-7c5d2e8f9a01";
+  const out = await movePhotos(memDb(rows), U1, [ID(1), ID(2), ID(3)], job);
+  assert.deepEqual(out, { moved: [ID(1)], notFound: [ID(2), ID(3)] });
+  assert.equal(rows[0].job_id, job);
+  assert.equal(rows[1].job_id, null, "U2's photo did not move");
+  assert.deepEqual((await movePhotos(memDb(rows), U1, [ID(1)], null)).moved, [ID(1)]);
+  assert.equal(rows[0].job_id, null, "null files it back under Unsorted");
+});
+
+test("the bulk route is scoped to the user and validates the target job", () => {
+  const route = read("../app/api/job-photos/bulk/route.ts");
+  assert.match(route, /requireUser\(\)/);
+  assert.match(route, /parseIdList\(body\.ids\)/);
+  assert.match(route, /deletePhotos\(supabase, supabase\.storage, user\.id, list\.ids\)/);
+  assert.match(route, /movePhotos\(supabase, user\.id, list\.ids, ref\.jobId\)/);
+  assert.match(route, /\.from\("jobs"\)[\s\S]*?\.eq\("id", ref\.jobId\)[\s\S]*?\.eq\("user_id", user\.id\)/);
+  const server = read("./job-photos-server.ts");
+  const move = server.slice(server.indexOf("export async function movePhotos"));
+  assert.match(move, /\.in\("id", ids\)\s*\.eq\("user_id", userId\)/);
+});
+
+test("deleting needs the confirm dialog: every delete control only asks, and only the dialog deletes", () => {
+  const gallery = read("../components/photos/photo-gallery.tsx");
+  // the one place that calls the delete endpoint is performDelete, and it is wired to ConfirmDialog
+  assert.equal((gallery.match(/action: "delete"/g) ?? []).length, 1);
+  assert.match(gallery, /onConfirm=\{performDelete\}/);
+  assert.equal((gallery.match(/performDelete/g) ?? []).length, 2, "defined once, used once (as the dialog's onConfirm)");
+  // the thumbnail trash, bulk Delete and the viewer's Delete all go through askDelete (which only opens the dialog)
+  assert.match(gallery, /aria-label="Delete photo"\s*onClick=\{\(\) => askDelete\(\[p\.id\]\)\}/);
+  assert.match(gallery, /onClick=\{\(\) => askDelete\(\[\.\.\.selected\]\)\}/);
+  assert.match(gallery, /onRequestDelete=\{\(\) => \{[\s\S]*?askDelete\(\[photos\[at\]\.id\], at\)/);
+  assert.match(gallery, /onClick=\{onRequestDelete\}/);
+  // the dialog copy
+  assert.match(gallery, /"Delete this photo\?"/);
+  assert.match(gallery, /"This can't be undone\."/);
+  assert.match(gallery, /Delete \$\{plural\(confirm\.ids\.length\)\}\?/);
+  assert.match(gallery, /import \{ ConfirmDialog \}/);
+});
+
+test("the thumbnail trash is always visible (not hover-only) and select mode has Select all / Delete / Move", () => {
+  const gallery = read("../components/photos/photo-gallery.tsx");
+  const trash = gallery.slice(gallery.indexOf('aria-label="Delete photo"'));
+  const classes = trash.slice(0, trash.indexOf("</button>"));
+  assert.doesNotMatch(classes, /opacity-0|hidden|group-hover|invisible/);
+  assert.match(gallery, /Select all \(\$\{photos\.length\}\)/);
+  assert.match(gallery, /Move to job\.\.\./);
+  assert.match(gallery, /Delete\{selected\.size > 0/);
+});
+
+test("after a delete the grid updates in place, the nav catches up and the toast counts", () => {
+  const gallery = read("../components/photos/photo-gallery.tsx");
+  assert.match(gallery, /removeLocal\(deleted\)/);
+  assert.match(gallery, /router\.refresh\(\)/);
+  assert.match(gallery, /toast\.success\(`Deleted \$\{plural\(deleted\.length\)\}`\)/);
+  assert.match(gallery, /toast\.warning\(/, "leftover files are surfaced");
+  assert.match(gallery, /toast\.error\(`\$\{plural\(notDeleted\.length\)\} couldn't be deleted/, "failures are surfaced");
 });

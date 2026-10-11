@@ -75,6 +75,60 @@ export async function deletePhoto(
   return { filesRemoved: await removePhotoFiles(storage, [row]) };
 }
 
+export interface BulkDeleteResult {
+  // Rows that are gone (and, unless listed in filesLeft, both of their files).
+  deleted: string[];
+  // Photos whose row was deleted but whose file(s) storage refused to remove: reported, never hidden.
+  filesLeft: string[];
+  // Photos that were not deleted at all, with why.
+  failed: { id: string; reason: "not_found" | "error" }[];
+}
+
+// Deletes photos ONE AT A TIME (row, then both files, via deletePhoto), so one failure never stops or
+// hides the rest. Every id ends up in exactly one of deleted / failed. Scoped to the user by deletePhoto.
+export async function deletePhotos(
+  db: Db,
+  storage: PhotoStorage,
+  userId: string,
+  ids: string[],
+): Promise<BulkDeleteResult> {
+  const result: BulkDeleteResult = { deleted: [], filesLeft: [], failed: [] };
+  for (const id of ids) {
+    try {
+      const outcome = await deletePhoto(db, storage, userId, id);
+      if (!outcome) {
+        result.failed.push({ id, reason: "not_found" });
+        continue;
+      }
+      result.deleted.push(id);
+      if (!outcome.filesRemoved) result.filesLeft.push(id);
+    } catch (err) {
+      console.error("[job-photos] delete failed", { error: err instanceof Error ? err.message : String(err) });
+      result.failed.push({ id, reason: "error" });
+    }
+  }
+  return result;
+}
+
+// Moves the user's photos to a job (or to Unsorted with null). The caller has already checked the job is
+// the user's. Returns which ids moved and which were not found (not theirs, or already gone).
+export async function movePhotos(
+  db: Db,
+  userId: string,
+  ids: string[],
+  jobId: string | null,
+): Promise<{ moved: string[]; notFound: string[] }> {
+  const { data, error } = await db
+    .from("job_photos")
+    .update({ job_id: jobId })
+    .in("id", ids)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  const moved = (data ?? []).map((r) => r.id);
+  return { moved, notFound: ids.filter((id) => !moved.includes(id)) };
+}
+
 export interface SignedPhoto {
   id: string;
   job_id: string | null;

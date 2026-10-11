@@ -1234,9 +1234,13 @@ policies); one rollback in `supabase/rollbacks/`. Apply BOTH before the code shi
   Storage policies are owner-folder-only (insert/select/delete), like `receipts`.
 - **Caps** are `PLAN_LIMITS.*.photos` (PLACEHOLDERS: Free 10, Basic 200, Pro 2000), counted from the database in the route
   (`wouldExceedTotalLimit(..., "photos")`), never from the client; at the cap the route answers 403 `FREE_LIMIT_REACHED`.
-- **Cleanup**: SQL cannot delete a storage object, so the routes do. `DELETE /api/job-photos/[id]` and
+- **Cleanup**: SQL cannot delete a storage object, so the routes do. `POST /api/job-photos/bulk` (action `delete`, one or many
+  photos, each removed row-then-both-files one at a time, every outcome reported: deleted / filesLeft / failed) and
   `DELETE /api/jobs/[id]` (which reads the job's photo paths BEFORE deleting the job, then removes both files of each) go
   through `lib/job-photos-server.ts`. A failed file removal is logged (no paths) and reported, never fatal.
+- **Deleting in the UI** always asks first (`ConfirmDialog`, "Delete this photo? This can't be undone."): a small always-visible
+  trash on each thumbnail, Delete in the viewer (it closes the viewer so only one modal is open, and reopens it on cancel), and
+  Select mode (Select all, Move to job..., Delete (n)). The grid updates in place and `router.refresh()` updates the nav badge.
 - Typing a new job name in the photo form goes through `POST /api/jobs` (find-or-create, job cap applies). Unsorted photos
   live at `/dashboard/photos`: a "Photos" tab in the nav (every general account, every plan; in the mobile "More" sheet; not
   hideable) with a badge counting unsorted photos (a head count in `dashboard/layout.tsx`, refreshed by `router.refresh()`

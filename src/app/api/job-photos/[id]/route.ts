@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { isUuid, parseCaption, parseJobRef } from "@/lib/job-photos";
-import { deletePhoto } from "@/lib/job-photos-server";
 import type { JobPhotoUpdate } from "@/lib/database.types";
 
+// (Deleting photos - one or many - is POST /api/job-photos/bulk.)
+//
 // Moves a photo to another job (or back to Unsorted) and/or edits its caption. Body: `{ job_id?, caption? }`
 // - `job_id: null` (or "unsorted") files it under Unsorted. Scoped to the signed-in user, and the target
 // job must be theirs.
@@ -55,24 +56,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
   return NextResponse.json({ photo: data });
-}
-
-// Deletes one photo: the row, then BOTH files (display image and thumbnail) from storage.
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const result = await requireUser();
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
-  }
-  const { supabase, user } = result;
-  const { id } = await params;
-  if (!isUuid(id)) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
-
-  let outcome;
-  try {
-    outcome = await deletePhoto(supabase, supabase.storage, user.id, id);
-  } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Couldn't delete the photo." }, { status: 500 });
-  }
-  if (!outcome) return NextResponse.json({ error: "Photo not found." }, { status: 404 });
-  return NextResponse.json({ success: true, files_removed: outcome.filesRemoved });
 }

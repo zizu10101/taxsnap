@@ -19,6 +19,16 @@ export function photoPaths(userId: string, photoId: string): { storage_path: str
   };
 }
 
+// A list of photo ids from a request body: 1..max real uuids, de-duplicated. Anything else is an error.
+export const MAX_BULK_PHOTOS = 100;
+
+export function parseIdList(raw: unknown, max = MAX_BULK_PHOTOS): { ok: true; ids: string[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw) || raw.length === 0) return { ok: false, error: "Choose at least one photo." };
+  if (raw.length > max) return { ok: false, error: `Choose at most ${max} photos at a time.` };
+  if (!raw.every(isUuid)) return { ok: false, error: "Invalid photo." };
+  return { ok: true, ids: [...new Set(raw as string[])] };
+}
+
 export function pathBelongsTo(userId: string, path: string): boolean {
   return path.startsWith(`${userId}/`) && !path.slice(userId.length + 1).includes("/") && !path.includes("..");
 }

@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, FolderInput, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -14,11 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PHOTOS_CHANGED_EVENT } from "@/components/photos/add-photos-dialog";
-import type { SignedPhoto } from "@/lib/job-photos-server";
+import type { BulkDeleteResult, SignedPhoto } from "@/lib/job-photos-server";
 
 // Thumbnail grid for one job's photos (`jobId`) or the Unsorted pile (`jobId` null), with a full-size
 // viewer (arrows / swipe, caption, move, delete, close). Photos come from /api/job-photos as short-lived
 // signed URLs; when one lapses the image fails to load and the list is fetched again for fresh URLs.
+//
+// Deleting: every thumbnail has its own trash button (always visible, not hover-only) and the viewer has
+// Delete; both ask first with the same ConfirmDialog. "Select" turns the grid into a multi-select with
+// Select all, Move to job... and Delete (n). All deletes go through POST /api/job-photos/bulk, which
+// removes each photo's row and BOTH files one at a time and reports every outcome.
 
 interface Usage {
   current: number;
@@ -26,6 +40,8 @@ interface Usage {
 }
 
 const UNSORTED_VALUE = "__unsorted__";
+
+const plural = (n: number) => `${n} photo${n === 1 ? "" : "s"}`;
 
 export function PhotoGallery({
   jobId,
@@ -35,10 +51,18 @@ export function PhotoGallery({
   // Shown when there are no photos (text, or a richer empty state).
   empty: React.ReactNode;
 }) {
+  const router = useRouter();
   const [photos, setPhotos] = useState<SignedPhoto[] | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [failed, setFailed] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // The delete being confirmed: which photos, and the viewer position to return to if cancelled.
+  const [confirm, setConfirm] = useState<{ ids: string[]; reopen: number | null } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [moveJobs, setMoveJobs] = useState<{ id: string; name: string }[] | null>(null);
+  const [moveOpen, setMoveOpen] = useState(false);
   const refreshedOnError = useRef(false);
 
   const load = useCallback(async () => {
@@ -71,9 +95,98 @@ export function PhotoGallery({
     void load();
   }
 
-  function removeLocal(id: string) {
-    setPhotos((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
-    setUsage((u) => (u ? { ...u, current: Math.max(0, u.current - 1) } : u));
+  // Photos that left this list (deleted, or moved to another job): drop them from the grid and the
+  // selection without a reload, then let the rest of the page (the nav's unsorted badge) catch up.
+  function removeLocal(ids: string[]) {
+    const gone = new Set(ids);
+    setPhotos((prev) => (prev ? prev.filter((p) => !gone.has(p.id)) : prev));
+    setSelected((prev) => new Set([...prev].filter((id) => !gone.has(id))));
+    setUsage((u) => (u ? { ...u, current: Math.max(0, u.current - ids.length) } : u));
+  }
+
+  function announceChange() {
+    window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
+    router.refresh();
+  }
+
+  function askDelete(ids: string[], reopen: number | null = null) {
+    if (ids.length === 0) return;
+    setConfirm({ ids, reopen });
+  }
+
+  function cancelDelete() {
+    if (deleting || !confirm) return;
+    const back = confirm.reopen;
+    setConfirm(null);
+    // Cancelled from the viewer: put the person back on the photo they were looking at.
+    if (back !== null) setViewing(Math.min(back, Math.max(0, (photos?.length ?? 1) - 1)));
+  }
+
+  async function performDelete() {
+    if (!confirm) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/job-photos/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: confirm.ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as Partial<BulkDeleteResult> & { error?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't delete the photos.");
+
+      const deleted = data.deleted ?? [];
+      const filesLeft = data.filesLeft ?? [];
+      const notDeleted = data.failed ?? [];
+      removeLocal(deleted);
+
+      if (deleted.length > 0) toast.success(`Deleted ${plural(deleted.length)}`);
+      if (filesLeft.length > 0) {
+        toast.warning(
+          `${plural(filesLeft.length)} deleted, but ${filesLeft.length === 1 ? "its" : "their"} image files couldn't be cleaned up.`,
+        );
+      }
+      if (notDeleted.length > 0) {
+        toast.error(`${plural(notDeleted.length)} couldn't be deleted. They're still here - try again.`);
+      }
+      if (deleted.length > 0) announceChange();
+      setConfirm(null);
+      // Back out of select mode once nothing is left selected.
+      if (notDeleted.length === 0) setSelecting(false);
+    } catch (err) {
+      // A failed request leaves the dialog open for another try.
+      toast.error(err instanceof Error ? err.message : "Couldn't delete the photos.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function openBulkMove() {
+    if (selected.size === 0) return;
+    setMoveOpen(true);
+    if (moveJobs) return;
+    try {
+      const res = await fetch("/api/jobs");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMoveJobs((data.jobs as { id: string; name: string }[]).map((j) => ({ id: j.id, name: j.name })));
+    } catch {
+      toast.error("Couldn't load your jobs.");
+      setMoveOpen(false);
+    }
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function endSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
   }
 
   if (failed && !photos) {
@@ -93,32 +206,102 @@ export function PhotoGallery({
       </div>
     );
   }
-  if (photos.length === 0) return typeof empty === "string" ? <p className="text-sm text-muted-foreground">{empty}</p> : <>{empty}</>;
+  if (photos.length === 0) {
+    return typeof empty === "string" ? <p className="text-sm text-muted-foreground">{empty}</p> : <>{empty}</>;
+  }
+
+  const allSelected = selected.size === photos.length;
 
   return (
     <div className="space-y-2">
-      <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-        {photos.map((p, i) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              onClick={() => setViewing(i)}
-              aria-label={p.caption ? `Open photo: ${p.caption}` : "Open photo"}
-              className="block aspect-square w-full overflow-hidden rounded-lg bg-muted"
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {selecting ? (
+          <>
+            <span className="mr-auto text-sm text-muted-foreground tabular-nums">
+              {selected.size} selected
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelected(allSelected ? new Set() : new Set(photos.map((p) => p.id)))}
             >
-              {p.thumb_url && (
-                // eslint-disable-next-line @next/next/no-img-element -- a private, short-lived signed URL
-                <img
-                  src={p.thumb_url}
-                  alt={p.caption ?? ""}
-                  loading="lazy"
-                  onError={handleImageError}
-                  className="h-full w-full object-cover"
+              {allSelected ? "Clear" : `Select all (${photos.length})`}
+            </Button>
+            <Button variant="outline" size="sm" disabled={selected.size === 0} onClick={openBulkMove}>
+              <FolderInput className="mr-1.5 h-4 w-4" />
+              Move to job...
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selected.size === 0}
+              onClick={() => askDelete([...selected])}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Delete{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={endSelecting}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setSelecting(true)}>
+            Select
+          </Button>
+        )}
+      </div>
+
+      <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        {photos.map((p, i) => {
+          const isSelected = selected.has(p.id);
+          return (
+            <li key={p.id} className="relative">
+              <button
+                type="button"
+                onClick={() => (selecting ? toggle(p.id) : setViewing(i))}
+                aria-label={
+                  selecting
+                    ? `${isSelected ? "Deselect" : "Select"} photo`
+                    : p.caption
+                      ? `Open photo: ${p.caption}`
+                      : "Open photo"
+                }
+                className={`block aspect-square w-full overflow-hidden rounded-lg bg-muted ${
+                  isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+                }`}
+              >
+                {p.thumb_url && (
+                  // eslint-disable-next-line @next/next/no-img-element -- a private, short-lived signed URL
+                  <img
+                    src={p.thumb_url}
+                    alt={p.caption ?? ""}
+                    loading="lazy"
+                    onError={handleImageError}
+                    className="h-full w-full object-cover"
+                  />
+                )}
+              </button>
+              {selecting ? (
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggle(p.id)}
+                  aria-label="Select photo"
+                  className="absolute top-1.5 left-1.5 size-5 border-white bg-black/40"
                 />
+              ) : (
+                // Always visible (touch has no hover), small, bottom-right so it stays out of the way.
+                <button
+                  type="button"
+                  aria-label="Delete photo"
+                  onClick={() => askDelete([p.id])}
+                  className="absolute right-1 bottom-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white hover:bg-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               )}
-            </button>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
       {usage && usage.limit !== null && (
         <p className="text-xs text-muted-foreground">
@@ -134,8 +317,16 @@ export function PhotoGallery({
           onIndex={setViewing}
           onClose={() => setViewing(null)}
           onImageError={handleImageError}
-          onRemoved={(id) => {
-            removeLocal(id);
+          // Deleting from the viewer closes it first (one modal at a time), asks in the same
+          // ConfirmDialog as the grid, and comes back here if cancelled.
+          onRequestDelete={() => {
+            const at = viewing;
+            setViewing(null);
+            askDelete([photos[at].id], at);
+          }}
+          onMoved={(id) => {
+            removeLocal([id]);
+            announceChange();
             setViewing((cur) => {
               if (cur === null) return null;
               const left = photos.length - 1;
@@ -144,11 +335,126 @@ export function PhotoGallery({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(open) => {
+          if (!open) cancelDelete();
+        }}
+        title={confirm && confirm.ids.length > 1 ? `Delete ${plural(confirm.ids.length)}?` : "Delete this photo?"}
+        description={
+          confirm && confirm.ids.length > 1
+            ? "This can't be undone. The photos and their thumbnails are removed for good."
+            : "This can't be undone."
+        }
+        loading={deleting}
+        onConfirm={performDelete}
+      />
+
+      {moveOpen && (
+        <BulkMoveDialog
+          ids={[...selected]}
+          currentJobId={jobId}
+          jobs={moveJobs}
+          onClose={() => setMoveOpen(false)}
+          onMoved={(movedIds) => {
+            removeLocal(movedIds);
+            announceChange();
+            setMoveOpen(false);
+            setSelecting(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-type Mode = "view" | "confirm-delete" | "move";
+// Move several selected photos to one job (or to Unsorted, when they are in a job now).
+function BulkMoveDialog({
+  ids,
+  currentJobId,
+  jobs,
+  onClose,
+  onMoved,
+}: {
+  ids: string[];
+  currentJobId: string | null;
+  jobs: { id: string; name: string }[] | null;
+  onClose: () => void;
+  onMoved: (movedIds: string[]) => void;
+}) {
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const items = useMemo(() => {
+    const map: Record<string, string> = currentJobId === null ? {} : { [UNSORTED_VALUE]: "Unsorted" };
+    for (const j of jobs ?? []) if (j.id !== currentJobId) map[j.id] = j.name;
+    return map;
+  }, [jobs, currentJobId]);
+
+  async function handleMove() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/job-photos/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "move", ids, job_id: target === UNSORTED_VALUE ? null : target }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { moved?: string[]; notFound?: string[]; error?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't move the photos.");
+      const moved = data.moved ?? [];
+      if (moved.length > 0) toast.success(`Moved ${plural(moved.length)} to ${items[target] ?? "Unsorted"}`);
+      if ((data.notFound ?? []).length > 0) {
+        toast.error(`${plural(data.notFound!.length)} couldn't be moved (already gone).`);
+      }
+      onMoved(moved);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't move the photos.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && !busy && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Move {plural(ids.length)} to...</DialogTitle>
+          <DialogDescription>Choose the job these photos belong to.</DialogDescription>
+        </DialogHeader>
+        {jobs ? (
+          <Select items={items} value={target || null} onValueChange={(v) => v && setTarget(v)}>
+            <SelectTrigger aria-label="Move to" className="w-full">
+              <SelectValue placeholder="Choose a job" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(items).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex justify-center py-2">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={busy || !jobs || !target} onClick={handleMove}>
+            {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Move
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Mode = "view" | "move";
 
 function Viewer({
   photos,
@@ -157,7 +463,8 @@ function Viewer({
   onIndex,
   onClose,
   onImageError,
-  onRemoved,
+  onRequestDelete,
+  onMoved,
 }: {
   photos: SignedPhoto[];
   index: number;
@@ -165,9 +472,9 @@ function Viewer({
   onIndex: (i: number) => void;
   onClose: () => void;
   onImageError: () => void;
-  onRemoved: (id: string) => void;
+  onRequestDelete: () => void;
+  onMoved: (id: string) => void;
 }) {
-  const router = useRouter();
   const photo = photos[index];
   const [mode, setMode] = useState<Mode>("view");
   const [busy, setBusy] = useState(false);
@@ -228,36 +535,11 @@ function Viewer({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't move the photo.");
       toast.success(`Moved to ${moveItems[target] ?? "Unsorted"}`);
-      window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
-      router.refresh(); // the Photos tab's unsorted count
+      setMode("view");
       // It no longer belongs in this list.
-      onRemovedLocalOnly();
+      onMoved(photo.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't move the photo.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // After a move the photo is in a different list; drop it here without calling delete.
-  function onRemovedLocalOnly() {
-    setMode("view");
-    onRemoved(photo.id);
-  }
-
-  async function handleDelete() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/job-photos/${photo.id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Couldn't delete the photo.");
-      toast.success("Photo deleted");
-      window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
-      router.refresh(); // the Photos tab's unsorted count
-      setMode("view");
-      onRemoved(photo.id);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't delete the photo.");
     } finally {
       setBusy(false);
     }
@@ -343,21 +625,9 @@ function Viewer({
                 <FolderInput className="mr-1.5 h-4 w-4" />
                 Move
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => setMode("confirm-delete")}>
+              <Button variant="secondary" size="sm" onClick={onRequestDelete}>
                 <Trash2 className="mr-1.5 h-4 w-4" />
                 Delete
-              </Button>
-            </div>
-          )}
-
-          {mode === "confirm-delete" && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm">Delete this photo for good?</span>
-              <Button size="sm" variant="destructive" disabled={busy} onClick={handleDelete}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
-              </Button>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode("view")}>
-                Cancel
               </Button>
             </div>
           )}
