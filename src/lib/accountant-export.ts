@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DocumentWithRelations, Receipt } from "@/lib/database.types";
 import {
@@ -152,6 +151,8 @@ export async function buildAndDownloadAccountantExport(
   filenameBase: string,
 ): Promise<void> {
   const { receipts, invoices, range, business } = inputs;
+  // Fetched when the export is built, not with the page that offers it.
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
 
   const bankAccountNames = new Map(inputs.bankAccounts.map((a) => [a.id, a.name]));

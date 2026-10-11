@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { createPaidStampDataUrl } from "@/lib/invoice-pdf";
+import { createPaidStampDataUrl } from "@/lib/paid-stamp-image";
 
 // Same canvas-drawn stamp graphic as the generated PDF (see
 // createPaidStampDataUrl's own comment) - overlaid on the on-screen
