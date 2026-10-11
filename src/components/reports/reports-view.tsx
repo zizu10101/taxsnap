@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, createContext, useContext } from "react";
+import { Fragment, useEffect, useMemo, useState, createContext, useContext } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RevenueTab, VendorsTab } from "@/components/reports/vendor-revenue-tabs";
+import { RevenueTab } from "@/components/reports/revenue-tab";
+import { VendorFilter } from "@/components/reports/vendor-filter";
+import { downloadCsv, expensesByCategoryToCsv, expensesByVendorToCsv } from "@/lib/csv";
+import type { CategoryRow, ExpensesReport } from "@/lib/expenses-report";
 import type {
   ExpenseDetailRow,
   JobSummaryData,
@@ -80,20 +83,18 @@ function rangeParams(range: DateRange) {
 
 const EMPTY_DATA: ReportsData = {
   pnl: { revenue: 0, expenses: 0, netProfit: 0 },
-  categories: [],
   accounts: { rows: [], total: 0 },
 };
 
 const EMPTY_JOBS: JobSummaryData = { jobs: [], unlinked: null };
 
-type ReportTab = "pnl" | "jobs" | "categories" | "accounts" | "vendors" | "revenue";
+type ReportTab = "pnl" | "jobs" | "expenses" | "accounts" | "revenue";
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: "pnl", label: "P&L" },
   { key: "jobs", label: "Job Summary" },
-  { key: "categories", label: "Expenses by Category" },
+  { key: "expenses", label: "Expenses" },
   { key: "accounts", label: "By Account" },
-  { key: "vendors", label: "By Vendor" },
   { key: "revenue", label: "Revenue" },
 ];
 
@@ -213,10 +214,13 @@ function ExpenseDetail({
   range,
   category,
   account,
+  vendor,
 }: {
   range: DateRange;
   category?: string;
   account?: string;
+  // A vendor key (Expenses report filter); only applies to a category drill-down.
+  vendor?: string;
 }) {
   const scoped: [string, string][] =
     account !== undefined
@@ -228,6 +232,7 @@ function ExpenseDetail({
         ? [
             ["type", "category"],
             ["category", category],
+            ...(vendor ? ([["vendor", vendor]] as [string, string][]) : []),
           ]
         : [["type", "expenses"]];
   const params = new URLSearchParams([...scoped, ...rangeParams(range)]);
@@ -390,7 +395,6 @@ function ReportsViewInner({
 
   const [revenueOpen, setRevenueOpen] = useState(false);
   const [expensesOpen, setExpensesOpen] = useState(false);
-  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
   // setLoading(true) is in the change handlers (real event handlers), not in
   // these effects' synchronous bodies - react-hooks/set-state-in-effect.
@@ -428,21 +432,8 @@ function ReportsViewInner({
     setJobsRange(nextRange);
   }
 
-  function toggleCategory(category: string) {
-    setOpenCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      return next;
-    });
-  }
-
   const rangeKey = `${range.start ?? ""}|${range.end ?? ""}`;
 
-  const categoryTotals = data.categories.reduce(
-    (acc, c) => ({ count: acc.count + c.count, preTax: acc.preTax + c.preTax, total: acc.total + c.total }),
-    { count: 0, preTax: 0, total: 0 },
-  );
   const jobRows = [...jobsData.jobs, ...(jobsData.unlinked ? [jobsData.unlinked] : [])];
   const jobTotals = jobRows.reduce(
     (acc, j) => ({
@@ -471,14 +462,14 @@ function ReportsViewInner({
         ))}
       </div>
 
-      {tab === "vendors" || tab === "revenue" ? null : tab === "jobs" ? (
+      {tab === "revenue" ? null : tab === "jobs" ? (
         <DateRangeFilter preset={jobsPreset} range={jobsRange} onChange={handleJobsRangeChange} />
       ) : (
         <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
       )}
 
-      {tab === "vendors" ? (
-        <VendorsTab apiBase={apiBase} expenseBase={expenseBase ?? null} />
+      {tab === "expenses" ? (
+        <ExpensesTab range={range} apiBase={apiBase} expenseBase={expenseBase ?? null} />
       ) : tab === "revenue" ? (
         <RevenueTab apiBase={apiBase} documentBase={documentBase} />
       ) : tab === "jobs" ? (
@@ -587,53 +578,7 @@ function ReportsViewInner({
         </Card>
       ) : tab === "accounts" ? (
         <AccountSpendingTab accounts={data.accounts} range={range} />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Expenses by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.categories.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No expenses in this range.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[26rem] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-3 font-medium">Category</th>
-                      <th className="px-2 py-2 text-right font-medium">Receipts</th>
-                      <th className="px-2 py-2 text-right font-medium">Before HST</th>
-                      <th className="py-2 pl-2 text-right font-medium">Total paid</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.categories.map((c) => {
-                      const open = openCategories.has(c.category);
-                      return (
-                        <CategoryBlock
-                          key={c.category}
-                          row={c}
-                          open={open}
-                          onToggle={() => toggleCategory(c.category)}
-                          detail={<ExpenseDetail key={rangeKey} range={range} category={c.category} />}
-                        />
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 font-semibold">
-                      <td className="py-2 pr-3">Total</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{categoryTotals.count}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(categoryTotals.preTax)}</td>
-                      <td className="py-2 pl-2 text-right tabular-nums">{formatCurrency(categoryTotals.total)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -775,7 +720,7 @@ function CategoryBlock({
   onToggle,
   detail,
 }: {
-  row: ReportsData["categories"][number];
+  row: CategoryRow;
   open: boolean;
   onToggle: () => void;
   detail: React.ReactNode;
@@ -813,5 +758,300 @@ function CategoryBlock({
         </tr>
       )}
     </>
+  );
+}
+
+type GroupBy = "category" | "vendor";
+
+function formatPercent(fraction: number) {
+  return `${(fraction * 100).toFixed(1)}%`;
+}
+
+// "Expenses": the period's expenses grouped by Category (the default, the look
+// the old Expenses by Category tab had) or by Vendor, with a Vendor filter and a
+// Category filter that work in both modes and combine. The totals row and the CSV
+// follow the grouping and the filters because the server applies them. The date
+// range is the page's shared one (P&L, Accounts), passed in.
+function ExpensesTab({
+  range,
+  apiBase,
+  expenseBase,
+}: {
+  range: DateRange;
+  apiBase: string;
+  expenseBase: string | null;
+}) {
+  const [groupBy, setGroupBy] = useState<GroupBy>("category");
+  const [vendor, setVendor] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
+
+  const params = rangeParams(range);
+  if (vendor !== "all") params.set("vendor", vendor);
+  if (category !== "all") params.set("category", category);
+  const url = `${apiBase}/expenses?${params}`;
+
+  // Loading is derived (the url the data belongs to vs. the url wanted), so a
+  // filter or range change needs no setState in an effect body.
+  const [state, setState] = useState<{ url: string | null; data: ExpensesReport | null }>({
+    url: null,
+    data: null,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((json: ExpensesReport) => {
+        if (!cancelled) setState({ url, data: json });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Failed to load expenses for this range");
+          setState({ url, data: null });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+  const loading = state.url !== url;
+  const data = state.data;
+
+  // Pickers list everything in the period; a picked value that has no spend in a
+  // newly chosen range stays selectable so the filter never silently vanishes.
+  const categoryItems = useMemo(() => {
+    const map: Record<string, string> = { all: "All categories" };
+    for (const c of data?.categoryOptions ?? []) map[c] = c;
+    if (category !== "all") map[category] = category;
+    return map;
+  }, [data?.categoryOptions, category]);
+
+  const detailKey = `${range.start ?? ""}|${range.end ?? ""}|${vendor}`;
+  const filtered = vendor !== "all" || category !== "all";
+
+  function toggle(setter: typeof setOpenCategories, key: string) {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function exportCsv() {
+    if (!data) return;
+    const span = `${range.start ?? "start"}-to-${range.end ?? "now"}`;
+    if (groupBy === "vendor") {
+      downloadCsv(`taxsnap-expenses-by-vendor-${span}.csv`, expensesByVendorToCsv(data));
+    } else {
+      downloadCsv(`taxsnap-expenses-by-category-${span}.csv`, expensesByCategoryToCsv(data));
+    }
+  }
+
+  const empty = !data || data.totals.count === 0;
+
+  return (
+    <Card>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">
+            {groupBy === "vendor" ? "Expenses by Vendor" : "Expenses by Category"}
+          </CardTitle>
+          <Button variant="outline" size="sm" disabled={empty} onClick={exportCsv}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Group by</span>
+          {(["category", "vendor"] as const).map((g) => (
+            <Button
+              key={g}
+              size="sm"
+              variant={groupBy === g ? "default" : "outline"}
+              className="hover:bg-primary/10 hover:text-primary"
+              aria-pressed={groupBy === g}
+              onClick={() => setGroupBy(g)}
+            >
+              {g === "category" ? "Category" : "Vendor"}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <div className="w-full max-w-xs">
+            <Select items={categoryItems} value={category} onValueChange={(v) => setCategory(v || "all")}>
+              <SelectTrigger aria-label="Category" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {Object.keys(categoryItems)
+                  .filter((k) => k !== "all")
+                  .map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full max-w-xs">
+            <VendorFilter options={data?.vendorOptions ?? []} value={vendor} onChange={setVendor} />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className={loading && data ? "opacity-60" : undefined}>
+        {!data && loading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !data || data.totals.count === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {filtered ? "No expenses match these filters in this range." : "No expenses in this range."}
+          </p>
+        ) : groupBy === "category" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[26rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Category</th>
+                  <th className="px-2 py-2 text-right font-medium">Receipts</th>
+                  <th className="px-2 py-2 text-right font-medium">Before HST</th>
+                  <th className="py-2 pl-2 text-right font-medium">Total paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.categories.map((c) => (
+                  <CategoryBlock
+                    key={c.category}
+                    row={c}
+                    open={openCategories.has(c.category)}
+                    onToggle={() => toggle(setOpenCategories, c.category)}
+                    detail={
+                      <ExpenseDetail
+                        key={detailKey}
+                        range={range}
+                        category={c.category}
+                        vendor={vendor !== "all" ? vendor : undefined}
+                      />
+                    }
+                  />
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 font-semibold">
+                  <td className="py-2 pr-3">Total</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{data.totals.count}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.subtotal)}</td>
+                  <td className="py-2 pl-2 text-right tabular-nums">{formatCurrency(data.totals.total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[38rem] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Vendor</th>
+                  <th className="px-2 py-2 text-right font-medium">Expenses</th>
+                  <th className="px-2 py-2 text-right font-medium">Subtotal</th>
+                  <th className="px-2 py-2 text-right font-medium">Tax (HST)</th>
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <th className="py-2 pl-2 text-right font-medium">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.vendors.map((v) => {
+                  const isOpen = openVendors.has(v.key);
+                  return (
+                    <Fragment key={v.key}>
+                      <tr className="border-b last:border-0">
+                        <td className="py-2 pr-3 font-medium">
+                          <button
+                            type="button"
+                            onClick={() => toggle(setOpenVendors, v.key)}
+                            aria-expanded={isOpen}
+                            className="flex items-center gap-1.5 text-left hover:text-primary"
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            {v.name}
+                          </button>
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums">{v.count}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.subtotal)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.tax)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.total)}</td>
+                        <td className="py-2 pl-2 text-right tabular-nums">{formatPercent(v.share)}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="border-b last:border-0">
+                          <td colSpan={6} className="bg-muted/20 p-2">
+                            <table className="w-full min-w-[30rem] text-xs">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="py-1.5 pr-2 font-medium">Date</th>
+                                  <th className="px-2 py-1.5 font-medium">Merchant</th>
+                                  <th className="px-2 py-1.5 font-medium">Category</th>
+                                  <th className="px-2 py-1.5 text-right font-medium">Tax</th>
+                                  <th className="py-1.5 pl-2 text-right font-medium">Paid</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {v.expenses.map((e) => (
+                                  <tr key={e.id} className="border-b last:border-0">
+                                    <td className="py-1.5 pr-2">{formatDate(e.date)}</td>
+                                    <td className="px-2 py-1.5">
+                                      {expenseBase ? (
+                                        <Link
+                                          href={`${expenseBase}${e.id}`}
+                                          className="underline underline-offset-2"
+                                        >
+                                          {e.merchant}
+                                        </Link>
+                                      ) : (
+                                        e.merchant
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5">{e.category}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(e.tax)}</td>
+                                    <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(e.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 font-semibold">
+                  <td className="py-2 pr-3">Total</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{data.totals.count}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.subtotal)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.tax)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.total)}</td>
+                  <td className="py-2 pl-2 text-right tabular-nums">
+                    {data.totals.total === 0 ? "0.0%" : "100.0%"}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+            <p className="pt-2 text-xs text-muted-foreground">
+              Receipts and card-statement expenses are grouped by vendor, so &quot;HOME DEPOT
+              #4521&quot; and &quot;Home Depot&quot; are one row. Amounts are as paid, HST included.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

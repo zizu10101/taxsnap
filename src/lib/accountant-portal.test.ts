@@ -31,10 +31,10 @@ test("the accountant API has the routes we expect and no others", () => {
     "app/api/accountant-portal/logout/route.ts",
     "app/api/accountant-portal/receipts/[id]/image/route.ts",
     "app/api/accountant-portal/reports/detail/route.ts",
+    "app/api/accountant-portal/reports/expenses/route.ts",
     "app/api/accountant-portal/reports/jobs/route.ts",
     "app/api/accountant-portal/reports/revenue/route.ts",
     "app/api/accountant-portal/reports/route.ts",
-    "app/api/accountant-portal/reports/vendors/route.ts",
   ]);
 });
 

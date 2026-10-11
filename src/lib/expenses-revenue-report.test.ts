@@ -1,12 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { buildVendorReport, NO_VENDOR_NAME } from "./vendor-report.ts";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildExpensesReport, NO_VENDOR_NAME } from "./expenses-report.ts";
 import { buildRevenueReport, NO_CLIENT_NAME, NO_JOB_NAME } from "./revenue-report.ts";
 import { recognizePayments } from "./payment-revenue.ts";
-import { revenueReportToCsv, vendorReportToCsv } from "./csv.ts";
+import { expensesByCategoryToCsv, expensesByVendorToCsv, revenueReportToCsv } from "./csv.ts";
 
-// ------------------------------------------------------------ vendors
+// ------------------------------------------------------------ expenses: vendor mode
 
 let n = 0;
 const expense = (merchant: string, total: number, tax: number, over = {}) => ({
@@ -20,7 +22,7 @@ const expense = (merchant: string, total: number, tax: number, over = {}) => ({
 });
 
 test("vendors: store numbers, case and statement spellings are one vendor", () => {
-  const report = buildVendorReport([
+  const report = buildExpensesReport([
     expense("HOME DEPOT #4521", 113, 13),
     expense("Home Depot", 226, 26),
     expense("Home Depot #77", 56.5, 6.5),
@@ -33,19 +35,16 @@ test("vendors: store numbers, case and statement spellings are one vendor", () =
   assert.equal(hd.subtotal, 350);
   assert.equal(hd.tax, 45.5);
   assert.equal(hd.total, 395.5);
+  assert.deepEqual(report.vendorOptions.map((o) => o.name), ["Home Depot", "Shell"]);
 });
 
 test("vendors: Shell and Shell Energy stay separate (same normalizer as the matcher)", () => {
-  const report = buildVendorReport([expense("Shell", 10, 0), expense("Shell Energy", 20, 0)]);
+  const report = buildExpensesReport([expense("Shell", 10, 0), expense("Shell Energy", 20, 0)]);
   assert.equal(report.vendors.length, 2);
 });
 
 test("vendors: sorted by total, share adds to 100%, total row ties out", () => {
-  const report = buildVendorReport([
-    expense("A", 25, 0),
-    expense("B", 75, 0),
-    expense("C", 100, 0),
-  ]);
+  const report = buildExpensesReport([expense("A", 25, 0), expense("B", 75, 0), expense("C", 100, 0)]);
   assert.deepEqual(report.vendors.map((v) => v.name), ["C", "B", "A"]);
   assert.deepEqual(report.vendors.map((v) => v.share), [0.5, 0.375, 0.125]);
   assert.equal(report.totals.total, 200);
@@ -54,30 +53,100 @@ test("vendors: sorted by total, share adds to 100%, total row ties out", () => {
 });
 
 test("vendors: refunds net off, an empty name gets its own bucket, an empty report is zeros", () => {
-  const report = buildVendorReport([expense("Rona", 100, 0), expense("Rona", -40, 0), expense("  ", 5, 0)]);
-  const rona = report.vendors.find((v) => v.name === "Rona")!;
-  assert.equal(rona.total, 60);
+  const report = buildExpensesReport([expense("Rona", 100, 0), expense("Rona", -40, 0), expense("  ", 5, 0)]);
+  assert.equal(report.vendors.find((v) => v.name === "Rona")!.total, 60);
   assert.ok(report.vendors.some((v) => v.name === NO_VENDOR_NAME));
-  const empty = buildVendorReport([]);
+  const empty = buildExpensesReport([]);
   assert.deepEqual(empty.totals, { count: 0, subtotal: 0, tax: 0, total: 0 });
 });
 
-test("vendors: category filter narrows the rows but keeps every category on offer", () => {
-  const rows = [
-    expense("Rona", 100, 0, { tax_category: "Supplies" }),
-    expense("Rona", 40, 0, { tax_category: "Fuel" }),
-    expense("Esso", 60, 0, { tax_category: "Fuel" }),
-  ];
-  const fuel = buildVendorReport(rows, "fuel");
-  assert.equal(fuel.totals.total, 100);
-  assert.deepEqual(fuel.vendors.map((v) => v.name), ["Esso", "Rona"]);
-  assert.deepEqual(fuel.categories, ["Fuel", "Supplies"]);
-  assert.equal(fuel.vendors.find((v) => v.name === "Rona")!.share, 0.4);
+test("vendors: drill-down expenses are exactly the ones counted", () => {
+  const report = buildExpensesReport([expense("Rona", 10, 1), expense("rona", 20, 2)]);
+  assert.equal(report.vendors[0].expenses.length, report.vendors[0].count);
 });
 
-test("vendors: drill-down expenses are exactly the ones counted", () => {
-  const report = buildVendorReport([expense("Rona", 10, 1), expense("rona", 20, 2)]);
-  assert.equal(report.vendors[0].expenses.length, report.vendors[0].count);
+// ------------------------------------------------------------ expenses: category mode
+
+test("categories: canonical spelling, custom marker, sorted by total, before-HST and total paid", () => {
+  const report = buildExpensesReport(
+    [
+      expense("A", 113, 13, { tax_category: "meals" }),
+      expense("B", 50, 0, { tax_category: "Meals" }),
+      expense("C", 500, 0, { tax_category: "Pet Care" }),
+      expense("D", 10, 0, { tax_category: null }),
+    ],
+    {},
+    ["Pet Care"],
+  );
+  assert.deepEqual(report.categories, [
+    { category: "Pet Care", count: 1, preTax: 500, total: 500, isCustom: true },
+    { category: "Meals", count: 2, preTax: 150, total: 163, isCustom: false },
+    { category: "Other", count: 1, preTax: 10, total: 10, isCustom: false },
+  ]);
+  assert.equal(report.categories.reduce((s, c) => s + c.total, 0), report.totals.total);
+});
+
+// ------------------------------------------------------------ expenses: filters
+
+const mixed = () => [
+  expense("Home Depot #1", 100, 10, { tax_category: "Supplies" }),
+  expense("HOME DEPOT", 40, 4, { tax_category: "Tools & Equipment" }),
+  expense("Esso", 60, 6, { tax_category: "Vehicle/Fuel" }),
+  expense("Rona", 25, 0, { tax_category: "Supplies" }),
+];
+
+test("filters: vendor and category together intersect, in both groupings", () => {
+  const all = buildExpensesReport(mixed());
+  const key = all.vendorOptions.find((o) => o.name === "Home Depot")!.key;
+  const both = buildExpensesReport(mixed(), { vendor: key, category: "supplies" });
+  assert.equal(both.totals.count, 1);
+  assert.equal(both.totals.total, 100);
+  assert.deepEqual(both.vendors.map((v) => v.name), ["Home Depot"]);
+  assert.deepEqual(both.categories.map((c) => c.category), ["Supplies"]);
+  // vendor alone spans two categories; category alone spans two vendors
+  assert.equal(buildExpensesReport(mixed(), { vendor: key }).categories.length, 2);
+  assert.equal(buildExpensesReport(mixed(), { category: "Supplies" }).vendors.length, 2);
+});
+
+test("filters: totals follow the filter in both modes and match the rows shown", () => {
+  const key = buildExpensesReport(mixed()).vendorOptions.find((o) => o.name === "Home Depot")!.key;
+  const r = buildExpensesReport(mixed(), { vendor: key });
+  assert.deepEqual(r.totals, { count: 2, subtotal: 126, tax: 14, total: 140 });
+  assert.equal(r.vendors.reduce((s, v) => s + v.total, 0), r.totals.total);
+  assert.equal(r.categories.reduce((s, c) => s + c.total, 0), r.totals.total);
+  assert.equal(r.categories.reduce((s, c) => s + c.preTax, 0), r.totals.subtotal);
+  assert.equal(r.vendors[0].share, 1);
+});
+
+test("filters: the pickers still list the whole period, and a filter never renames a vendor", () => {
+  const all = buildExpensesReport(mixed());
+  const filtered = buildExpensesReport(mixed(), { category: "Vehicle/Fuel" });
+  assert.deepEqual(filtered.vendorOptions, all.vendorOptions);
+  assert.deepEqual(filtered.categoryOptions, all.categoryOptions);
+  assert.deepEqual(filtered.vendors.map((v) => v.name), ["Esso"]);
+});
+
+test("filters: a combination with no rows is an empty report, not an error", () => {
+  const key = buildExpensesReport(mixed()).vendorOptions.find((o) => o.name === "Esso")!.key;
+  const r = buildExpensesReport(mixed(), { vendor: key, category: "Supplies" });
+  assert.deepEqual(r.totals, { count: 0, subtotal: 0, tax: 0, total: 0 });
+  assert.deepEqual(r.vendors, []);
+  assert.deepEqual(r.categories, []);
+});
+
+test("csv: both groupings export what the filters leave, with a TOTAL row", () => {
+  const key = buildExpensesReport(mixed()).vendorOptions.find((o) => o.name === "Home Depot")!.key;
+  const r = buildExpensesReport(mixed(), { vendor: key });
+  const byVendor = expensesByVendorToCsv(r);
+  assert.match(byVendor, /^Vendor,Expenses,Subtotal,Tax \(HST\),Total,Share of Total \(%\)\n/);
+  assert.match(byVendor, /\nHome Depot,2,126\.00,14\.00,140\.00,100\.0\n/);
+  assert.match(byVendor, /\nTOTAL,2,126\.00,14\.00,140\.00,100\.0$/);
+  assert.doesNotMatch(byVendor, /Esso|Rona/);
+  const byCategory = expensesByCategoryToCsv(r);
+  assert.match(byCategory, /^Category,Expenses,Before HST,Total Paid\n/);
+  assert.match(byCategory, /\nSupplies,1,90\.00,100\.00\n/);
+  assert.match(byCategory, /\nTOTAL,2,126\.00,140\.00$/);
+  assert.doesNotMatch(byCategory, /Vehicle\/Fuel/);
 });
 
 // ------------------------------------------------------------ revenue
@@ -201,10 +270,7 @@ test("revenue: by month splits invoiced by issue month and received by payment m
 
 // ------------------------------------------------------------ csv + source guards
 
-test("csv: vendor and revenue exports carry a total / summary row", () => {
-  const vendorCsv = vendorReportToCsv(buildVendorReport([expense("Rona", 113, 13)]));
-  assert.match(vendorCsv, /^Vendor,Expenses,Subtotal,Tax \(HST\),Total,Share of Total \(%\)\n/);
-  assert.match(vendorCsv, /\nTOTAL,1,100\.00,13\.00,113\.00,100\.0$/);
+test("csv: the revenue export carries a summary row and the groupings", () => {
   const revenueCsv = revenueReportToCsv(
     buildRevenueReport([invoice({ payments: [{ id: "a", amount: 565, paid_date: "2026-09-10" }] })], null, null),
   );
@@ -214,11 +280,39 @@ test("csv: vendor and revenue exports carry a total / summary row", () => {
 
 test("queries: both new reports scope by user_id and never read owner notes or line items", () => {
   const src = readFileSync(new URL("./reports-query.ts", import.meta.url), "utf8");
-  for (const fn of ["getVendorReport", "getRevenueReport"]) {
+  for (const fn of ["getExpensesReport", "getRevenueReport"]) {
     const body = src.slice(src.indexOf(`export async function ${fn}`));
     const end = body.indexOf("\n}\n");
     const text = body.slice(0, end);
     assert.match(text, /\.eq\("user_id", userId\)/, `${fn} filters on user_id`);
     assert.doesNotMatch(text, /notes|document_items|select\("\*"\)/, `${fn} selects only report columns`);
   }
+});
+
+test("the separate By Vendor tab, its routes and helpers are gone", () => {
+  const here = fileURLToPath(import.meta.url);
+  const leftovers = ["By " + "Vendor", "Vendors" + "Tab", "reports/" + "vendors", "vendor" + "-report", "get" + "VendorReport", "build" + "VendorReport", "vendor" + "ReportToCsv"];
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = join(dir, name);
+      return statSync(full).isDirectory() ? walk(full) : [full];
+    });
+  const offenders = walk(fileURLToPath(new URL("..", import.meta.url)))
+    .filter((f) => /\.(ts|tsx)$/.test(f) && f !== here)
+    .filter((f) => {
+      const text = readFileSync(f, "utf8");
+      return leftovers.some((l) => text.includes(l));
+    });
+  assert.deepEqual(offenders, []);
+  assert.ok(!existsSync(fileURLToPath(new URL("../app/api/reports/" + "vendors", import.meta.url))));
+  assert.ok(!existsSync(fileURLToPath(new URL("../app/api/accountant-portal/reports/" + "vendors", import.meta.url))));
+});
+
+test("the Expenses report is wired to its own route and the shared date range, owner and accountant", () => {
+  const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
+  assert.match(read("../app/api/reports/expenses/route.ts"), /getExpensesReport/);
+  assert.match(read("../app/api/accountant-portal/reports/expenses/route.ts"), /getAccountantApiContext/);
+  const view = read("../components/reports/reports-view.tsx");
+  assert.match(view, /<ExpensesTab range=\{range\}/);
+  assert.match(view, /\{ key: "expenses", label: "Expenses" \}/);
 });

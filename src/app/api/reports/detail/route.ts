@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   const type = searchParams.get("type");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  // Optional vendor key: narrows a category drill-down to one vendor (Expenses report filter).
+  const vendor = searchParams.get("vendor") ?? undefined;
 
   if (type === "revenue") {
     return NextResponse.json(await getRevenueDetail(supabase, from, to));
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
     if (!category) {
       return NextResponse.json({ error: "category is required." }, { status: 400 });
     }
-    return NextResponse.json(await getExpenseDetail(supabase, from, to, category));
+    return NextResponse.json(await getExpenseDetail(supabase, from, to, category, undefined, vendor));
   }
   if (type === "account") {
     const account = searchParams.get("account");

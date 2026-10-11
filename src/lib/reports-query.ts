@@ -2,9 +2,14 @@ import type { ReadDb } from "@/lib/scoped-reader";
 import { getExpenseOverviewData } from "@/lib/expense-overview-query";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
-import { buildVendorReport, type VendorReport } from "@/lib/vendor-report";
+import {
+  buildExpensesReport,
+  NO_VENDOR_KEY,
+  type ExpensesReport,
+  type ExpensesReportFilters,
+} from "@/lib/expenses-report";
+import { vendorKey } from "@/lib/merchant-name";
 import { buildRevenueReport, type RevenueReport } from "@/lib/revenue-report";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
 import {
   groupSpendingByAccount,
   matchesAccountFilter,
@@ -28,20 +33,8 @@ export interface ProfitAndLoss {
   netProfit: number;
 }
 
-export interface CategoryRow {
-  category: string;
-  count: number;
-  // total_amount minus tax_amount, and total_amount as paid.
-  preTax: number;
-  total: number;
-  // False for built-in categories; true for owner-added ones (shown with a
-  // marker). Also true for a category whose custom definition was removed.
-  isCustom: boolean;
-}
-
 export interface ReportsData {
   pnl: ProfitAndLoss;
-  categories: CategoryRow[];
   // Tracked spending per "Paid with" account (incl. a "Not specified" row) -
   // adds up to the P&L's expenses. Not an account balance.
   accounts: AccountSpendData;
@@ -82,13 +75,11 @@ export async function getReportsData(
   if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
   if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
 
-  const [overview, { data: receipts }, { data: customCategories }, { data: accountRows }] =
-    await Promise.all([
-      getExpenseOverviewData(supabase, from, to),
-      receiptsQuery,
-      supabase.from("expense_categories").select("name"),
-      supabase.from("bank_accounts").select("id, name, account_type, is_active"),
-    ]);
+  const [overview, { data: receipts }, { data: accountRows }] = await Promise.all([
+    getExpenseOverviewData(supabase, from, to),
+    receiptsQuery,
+    supabase.from("bank_accounts").select("id, name, account_type, is_active"),
+  ]);
 
   const pnl: ProfitAndLoss = {
     revenue: overview.totalSales,
@@ -96,38 +87,9 @@ export async function getReportsData(
     netProfit: overview.estProfit,
   };
 
-  // Grouped case-insensitively onto the canonical spelling (a built-in's, else
-  // the custom category's) so "meals" and "Meals" never split into two rows.
-  // A category with spend always appears, even if it has since been
-  // deactivated or removed; one with no spend in the range does not.
-  const canonical = new Map<string, string>();
-  for (const c of TAX_CATEGORIES) canonical.set(c.toLowerCase(), c);
-  for (const c of customCategories ?? []) {
-    const key = c.name.trim().toLowerCase();
-    if (!canonical.has(key)) canonical.set(key, c.name.trim());
-  }
-  const grouped = new Map<string, CategoryRow>();
-  for (const r of receipts ?? []) {
-    const key = categoryKey(r.tax_category);
-    const row = grouped.get(key) ?? {
-      category: canonical.get(key) ?? (r.tax_category?.trim() || "Other"),
-      count: 0,
-      preTax: 0,
-      total: 0,
-      isCustom: !TAX_CATEGORIES.some((c) => c.toLowerCase() === key),
-    };
-    row.count += 1;
-    row.preTax += r.total_amount - r.tax_amount;
-    row.total += r.total_amount;
-    grouped.set(key, row);
-  }
-  const categories = [...grouped.values()]
-    .map((r) => ({ ...r, preTax: round2(r.preTax), total: round2(r.total) }))
-    .sort((a, b) => b.total - a.total);
-
   const accounts = groupSpendingByAccount(receipts ?? [], accountRows ?? []);
 
-  return { pnl, categories, accounts };
+  return { pnl, accounts };
 }
 
 // Same normalization the grouping above uses, shared with the drill-down so a
@@ -306,6 +268,8 @@ export async function getExpenseDetail(
   category?: string,
   // An account id, or NOT_SPECIFIED ("none") for expenses with no "Paid with".
   account?: string,
+  // A vendor key from the Expenses report (vendorKey of the merchant name).
+  vendor?: string,
 ): Promise<{ rows: ExpenseDetailRow[]; total: number }> {
   let query = supabase
     .from("receipts")
@@ -326,6 +290,7 @@ export async function getExpenseDetail(
   const rows = (data ?? [])
     .filter((r) => wanted === null || categoryKey(r.tax_category) === wanted)
     .filter((r) => account === undefined || matchesAccountFilter(r.paid_with_account_id, account))
+    .filter((r) => vendor === undefined || (vendorKey(r.merchant_name) ?? NO_VENDOR_KEY) === vendor)
     .map((r) => ({
       id: r.id,
       date: r.transaction_date,
@@ -339,26 +304,35 @@ export async function getExpenseDetail(
   return { rows, total: round2(rows.reduce((sum, r) => sum + r.amount, 0)) };
 }
 
-// Expenses by vendor: the same receipts rows the Expenses tab lists (a deleted
-// expense is gone from the table, so it is simply not here). Never selects
-// anything but the columns the report shows. `userId` adds an explicit
-// user_id filter on top of RLS / the accountant's scoped reader.
-export async function getVendorReport(
+// The Expenses report (by category or by vendor, optional vendor and category
+// filters): the same receipts rows the Expenses tab lists (a deleted expense is
+// gone from the table, so it is simply not here). Reads only the columns the
+// report shows. `userId` adds an explicit user_id filter on top of RLS / the
+// accountant's scoped reader.
+export async function getExpensesReport(
   supabase: ReadDb,
   userId: string,
   from: string | null,
   to: string | null,
-  category?: string | null,
-): Promise<VendorReport> {
+  filters: ExpensesReportFilters = {},
+): Promise<ExpensesReport> {
   let query = supabase
     .from("receipts")
     .select("id, merchant_name, transaction_date, tax_category, total_amount, tax_amount")
     .eq("user_id", userId);
   if (from) query = query.gte("transaction_date", from);
   if (to) query = query.lte("transaction_date", to);
-  const { data, error } = await query;
+
+  const [{ data, error }, { data: customCategories }] = await Promise.all([
+    query,
+    supabase.from("expense_categories").select("name").eq("user_id", userId),
+  ]);
   if (error) throw new Error(error.message);
-  return buildVendorReport(data ?? [], category);
+  return buildExpensesReport(
+    data ?? [],
+    filters,
+    (customCategories ?? []).map((c) => c.name),
+  );
 }
 
 // Revenue: payments received in the range (see lib/revenue-report.ts). Every

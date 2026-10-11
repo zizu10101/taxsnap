@@ -1,22 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { getPresetRange, type DateRange, type RangePreset } from "@/lib/date-range";
-import { downloadCsv, revenueReportToCsv, vendorReportToCsv } from "@/lib/csv";
-import type { VendorReport } from "@/lib/vendor-report";
+import { downloadCsv, revenueReportToCsv } from "@/lib/csv";
 import type { RevenueGroup, RevenueReport } from "@/lib/revenue-report";
 
 function formatCurrency(amount: number) {
@@ -36,10 +28,6 @@ function formatMonth(month: string) {
     month: "long",
     year: "numeric",
   });
-}
-
-function formatPercent(fraction: number) {
-  return `${(fraction * 100).toFixed(1)}%`;
 }
 
 function rangeQuery(range: DateRange): URLSearchParams {
@@ -97,208 +85,6 @@ function Chevron({ open }: { open: boolean }) {
     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
   ) : (
     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-  );
-}
-
-// ---------------------------------------------------------------- vendors
-
-export function VendorsTab({
-  apiBase,
-  expenseBase,
-}: {
-  apiBase: string;
-  // Where one expense opens (`${expenseBase}${id}`); null when the viewer has no such page.
-  expenseBase: string | null;
-}) {
-  const [preset, setPreset] = useState<RangePreset>("this-month");
-  const [range, setRange] = useState<DateRange>(getPresetRange("this-month"));
-  const [category, setCategory] = useState<string>("all");
-  const [open, setOpen] = useState<Set<string>>(new Set());
-
-  const params = rangeQuery(range);
-  if (category !== "all") params.set("category", category);
-  const { data, loading, setLoading } = useReport<VendorReport>(
-    `${apiBase}/vendors?${params}`,
-    "Failed to load expenses by vendor",
-  );
-
-  const items = useMemo(() => {
-    const map: Record<string, string> = { all: "All categories" };
-    for (const c of data?.categories ?? []) map[c] = c;
-    // A picked category can have no spend in a newly chosen range; keep it selectable.
-    if (category !== "all") map[category] = category;
-    return map;
-  }, [data?.categories, category]);
-
-  function toggle(key: string) {
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  return (
-    <div className="space-y-4">
-      <DateRangeFilter
-        preset={preset}
-        range={range}
-        onChange={(p, r) => {
-          setLoading(true);
-          setPreset(p);
-          setRange(r);
-        }}
-      />
-      {loading && !data ? (
-        <Spinner />
-      ) : (
-        <Card>
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base">Expenses by Vendor</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!data || data.vendors.length === 0}
-                onClick={() => data && downloadCsv(`taxsnap-expenses-by-vendor-${fileRange(range)}.csv`, vendorReportToCsv(data))}
-              >
-                <Download className="mr-1.5 h-4 w-4" />
-                Export CSV
-              </Button>
-            </div>
-            <div className="max-w-xs">
-              <Select
-                items={items}
-                value={category}
-                onValueChange={(v) => {
-                  setLoading(true);
-                  setCategory(v || "all");
-                }}
-              >
-                <SelectTrigger aria-label="Category" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All categories</SelectItem>
-                  {Object.keys(items)
-                    .filter((k) => k !== "all")
-                    .map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent className={loading ? "opacity-60" : undefined}>
-            {!data || data.vendors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No expenses in this range.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[38rem] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-3 font-medium">Vendor</th>
-                      <th className="px-2 py-2 text-right font-medium">Expenses</th>
-                      <th className="px-2 py-2 text-right font-medium">Subtotal</th>
-                      <th className="px-2 py-2 text-right font-medium">Tax (HST)</th>
-                      <th className="px-2 py-2 text-right font-medium">Total</th>
-                      <th className="py-2 pl-2 text-right font-medium">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.vendors.map((v) => {
-                      const isOpen = open.has(v.key);
-                      return (
-                        <Fragment key={v.key}>
-                          <tr className="border-b last:border-0">
-                            <td className="py-2 pr-3 font-medium">
-                              <button
-                                type="button"
-                                onClick={() => toggle(v.key)}
-                                aria-expanded={isOpen}
-                                className="flex items-center gap-1.5 text-left hover:text-primary"
-                              >
-                                <Chevron open={isOpen} />
-                                {v.name}
-                              </button>
-                            </td>
-                            <td className="px-2 py-2 text-right tabular-nums">{v.count}</td>
-                            <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.subtotal)}</td>
-                            <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.tax)}</td>
-                            <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(v.total)}</td>
-                            <td className="py-2 pl-2 text-right tabular-nums">{formatPercent(v.share)}</td>
-                          </tr>
-                          {isOpen && (
-                            <tr className="border-b last:border-0">
-                              <td colSpan={6} className="bg-muted/20 p-2">
-                                <table className="w-full min-w-[30rem] text-xs">
-                                  <thead>
-                                    <tr className="border-b text-left text-muted-foreground">
-                                      <th className="py-1.5 pr-2 font-medium">Date</th>
-                                      <th className="px-2 py-1.5 font-medium">Merchant</th>
-                                      <th className="px-2 py-1.5 font-medium">Category</th>
-                                      <th className="px-2 py-1.5 text-right font-medium">Tax</th>
-                                      <th className="py-1.5 pl-2 text-right font-medium">Paid</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {v.expenses.map((e) => (
-                                      <tr key={e.id} className="border-b last:border-0">
-                                        <td className="py-1.5 pr-2">{formatDate(e.date)}</td>
-                                        <td className="px-2 py-1.5">
-                                          {expenseBase ? (
-                                            <Link
-                                              href={`${expenseBase}${e.id}`}
-                                              className="underline underline-offset-2"
-                                            >
-                                              {e.merchant}
-                                            </Link>
-                                          ) : (
-                                            e.merchant
-                                          )}
-                                        </td>
-                                        <td className="px-2 py-1.5">{e.category}</td>
-                                        <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(e.tax)}</td>
-                                        <td className="py-1.5 pl-2 text-right tabular-nums">{formatCurrency(e.total)}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 font-semibold">
-                      <td className="py-2 pr-3">Total</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{data.totals.count}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.subtotal)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.tax)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(data.totals.total)}</td>
-                      <td className="py-2 pl-2 text-right tabular-nums">
-                        {data.totals.total === 0 ? "0.0%" : "100.0%"}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-                <p className="pt-2 text-xs text-muted-foreground">
-                  Receipts and card-statement expenses are grouped by vendor, so &quot;HOME DEPOT
-                  #4521&quot; and &quot;Home Depot&quot; are one row. Amounts are as paid, HST
-                  included; the total equals Expenses on the P&amp;L for the same range
-                  {category !== "all" ? ` (filtered to ${category})` : ""}.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
   );
 }
 

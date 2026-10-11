@@ -1,7 +1,7 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
 import { formatDocumentNumber } from "./document-number.ts";
 import { TAX_BASIS_LABELS, taxBasis } from "./tax-codes.ts";
-import type { VendorReport } from "./vendor-report.ts";
+import type { ExpensesReport } from "./expenses-report.ts";
 import type { RevenueReport } from "./revenue-report.ts";
 
 function escapeCsvField(value: string | number): string {
@@ -281,8 +281,9 @@ function csvRows(rows: (string | number)[][]): string {
   return rows.map((row) => row.map(escapeCsvField).join(",")).join("\n");
 }
 
-// Expenses by vendor, one row per vendor plus a TOTAL row.
-export function vendorReportToCsv(report: VendorReport): string {
+// The Expenses report grouped by vendor: one row per vendor plus a TOTAL row. The
+// report is already filtered, so the file matches what is on screen.
+export function expensesByVendorToCsv(report: ExpensesReport): string {
   const header = ["Vendor", "Expenses", "Subtotal", "Tax (HST)", "Total", "Share of Total (%)"];
   const rows = report.vendors.map((v) => [
     v.name,
@@ -295,6 +296,14 @@ export function vendorReportToCsv(report: VendorReport): string {
   const t = report.totals;
   const total = ["TOTAL", t.count, t.subtotal.toFixed(2), t.tax.toFixed(2), t.total.toFixed(2), t.total === 0 ? "0.0" : "100.0"];
   return csvRows([header, ...rows, total]);
+}
+
+// The same report grouped by category (the on-screen columns), plus a TOTAL row.
+export function expensesByCategoryToCsv(report: ExpensesReport): string {
+  const header = ["Category", "Expenses", "Before HST", "Total Paid"];
+  const rows = report.categories.map((c) => [c.category, c.count, c.preTax.toFixed(2), c.total.toFixed(2)]);
+  const t = report.totals;
+  return csvRows([header, ...rows, ["TOTAL", t.count, t.subtotal.toFixed(2), t.total.toFixed(2)]]);
 }
 
 // Revenue report: one flat table with a Section column (Summary, Client, Job,
