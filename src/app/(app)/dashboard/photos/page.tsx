@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { AddPhotosButton } from "@/components/photos/add-photos-dialog";
 import { PhotoGallery } from "@/components/photos/photo-gallery";
+import { UnsortedEmpty } from "@/components/photos/unsorted-empty";
 
 export const metadata: Metadata = {
   title: "Photos — TaxSnap",
@@ -41,7 +42,7 @@ export default async function PhotosPage() {
 
       <Card>
         <CardContent className="pt-4">
-          <PhotoGallery jobId={null} emptyText="Nothing unsorted. Photos you add without a job land here." />
+          <PhotoGallery jobId={null} empty={<UnsortedEmpty jobNames={(jobs ?? []).map((j) => j.name)} />} />
         </CardContent>
       </Card>
     </div>

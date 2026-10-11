@@ -34,6 +34,7 @@ export default async function DashboardLayout({
     { data: bankAccounts },
     { data: customCategories },
     { data: navPrefs },
+    { count: unsortedPhotoCount },
   ] = await Promise.all([
       supabase
         .from("profiles")
@@ -47,6 +48,13 @@ export default async function DashboardLayout({
       // the profile above (business type, tier) still loads - the menu just
       // shows every tab.
       supabase.from("profiles").select("hidden_nav_keys").eq("id", user.id).maybeSingle(),
+      // Photos snapped without a job: the badge on the Photos tab. A head count, no rows; an error (the
+      // table not applied yet) just reads as none.
+      supabase
+        .from("job_photos")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("job_id", null),
     ]);
 
   return (
@@ -57,6 +65,7 @@ export default async function DashboardLayout({
       businessType={profile?.business_type ?? "general"}
       logoPath={profile?.logo_url ?? null}
       hiddenNavKeys={sanitizeHiddenNavKeys(navPrefs?.hidden_nav_keys)}
+      unsortedPhotoCount={unsortedPhotoCount ?? 0}
     >
       <OwnerListsProvider
         bankAccounts={bankAccounts ?? []}

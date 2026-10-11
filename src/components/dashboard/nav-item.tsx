@@ -11,10 +11,13 @@ export function NavItemButton({
   item,
   active,
   size = "sidebar",
+  badge = 0,
 }: {
   item: NavItem;
   active: boolean;
   size?: "sidebar" | "bottomnav";
+  // A small count on the icon (e.g. unsorted photos). 0 shows nothing.
+  badge?: number;
 }) {
   const Icon = item.icon;
   return (
@@ -28,7 +31,17 @@ export function NavItemButton({
         active && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
       )}
     >
-      <Icon className={size === "sidebar" ? "h-5 w-5" : "h-5 w-5"} strokeWidth={1.6} />
+      <span className="relative">
+        <Icon className={size === "sidebar" ? "h-5 w-5" : "h-5 w-5"} strokeWidth={1.6} />
+        {badge > 0 && (
+          <span
+            aria-label={`${badge} unsorted`}
+            className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums"
+          >
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
       {/* whitespace-normal overrides whitespace-nowrap, which the Button's
           own base classes set and which this span inherits by default
           (white-space is an inherited CSS property) - without it, a

@@ -1238,7 +1238,9 @@ policies); one rollback in `supabase/rollbacks/`. Apply BOTH before the code shi
   `DELETE /api/jobs/[id]` (which reads the job's photo paths BEFORE deleting the job, then removes both files of each) go
   through `lib/job-photos-server.ts`. A failed file removal is logged (no paths) and reported, never fatal.
 - Typing a new job name in the photo form goes through `POST /api/jobs` (find-or-create, job cap applies). Unsorted photos
-  live at `/dashboard/photos` (highlights the Jobs tab; reached from the Jobs page and the dashboard's Add photos button).
+  live at `/dashboard/photos`: a "Photos" tab in the nav (every general account, every plan; in the mobile "More" sheet; not
+  hideable) with a badge counting unsorted photos (a head count in `dashboard/layout.tsx`, refreshed by `router.refresh()`
+  after an upload, move or delete), a link on the Jobs page, and a "View unsorted photos" toast action after saving as Unsorted.
 - Out of scope on purpose: showing photos to clients or on PDFs, annotation, video, offline queueing.
 
 ## Auth

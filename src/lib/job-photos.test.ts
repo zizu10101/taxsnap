@@ -408,3 +408,37 @@ test("deleting a photo route removes through deletePhoto (row + both files)", ()
   const route = read("../app/api/job-photos/[id]/route.ts");
   assert.match(route, /deletePhoto\(supabase, supabase\.storage, user\.id, id\)/);
 });
+
+// ------------------------------------------------------------ discoverability
+
+test("the unsorted count reaches both navs: layout query -> shell -> sidebar and bottom nav -> badge", () => {
+  const layout = read("../app/(app)/dashboard/layout.tsx");
+  assert.match(layout, /from\("job_photos"\)[\s\S]*?\.eq\("user_id", user\.id\)[\s\S]*?\.is\("job_id", null\)/);
+  assert.match(layout, /unsortedPhotoCount=\{unsortedPhotoCount \?\? 0\}/);
+  const shell = read("../components/dashboard/dashboard-shell.tsx");
+  assert.equal((shell.match(/unsortedPhotoCount=\{unsortedPhotoCount\}/g) ?? []).length, 2, "sidebar and bottom nav");
+  for (const rel of ["../components/dashboard/dashboard-sidebar.tsx", "../components/dashboard/dashboard-mobile-nav.tsx"]) {
+    assert.match(read(rel), /badge=\{item\.key === "photos" \? unsortedPhotoCount : 0\}/, rel);
+  }
+});
+
+test("the Jobs page still links to the Unsorted photos", () => {
+  assert.match(read("../app/(app)/dashboard/jobs/page.tsx"), /href="\/dashboard\/photos"/);
+});
+
+test("saving as Unsorted offers a 'View unsorted photos' link", () => {
+  const dialog = read("../components/photos/add-photos-dialog.tsx");
+  assert.match(dialog, /jobId === ""/);
+  assert.match(dialog, /label: "View unsorted photos", onClick: \(\) => router\.push\("\/dashboard\/photos"\)/);
+});
+
+test("the Photos page has an empty state with the add buttons", () => {
+  const page = read("../app/(app)/dashboard/photos/page.tsx");
+  assert.match(page, /empty=\{<UnsortedEmpty/);
+  const empty = read("../components/photos/unsorted-empty.tsx");
+  assert.match(empty, /No unsorted photos yet/);
+  assert.match(empty, /<AddPhotosButtons/);
+  const dialog = read("../components/photos/add-photos-dialog.tsx");
+  assert.match(dialog, /Take photo/);
+  assert.match(dialog, /Choose from gallery/);
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, FolderInput, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,11 @@ const UNSORTED_VALUE = "__unsorted__";
 
 export function PhotoGallery({
   jobId,
-  emptyText,
+  empty,
 }: {
   jobId: string | null;
-  emptyText: string;
+  // Shown when there are no photos (text, or a richer empty state).
+  empty: React.ReactNode;
 }) {
   const [photos, setPhotos] = useState<SignedPhoto[] | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -91,7 +93,7 @@ export function PhotoGallery({
       </div>
     );
   }
-  if (photos.length === 0) return <p className="text-sm text-muted-foreground">{emptyText}</p>;
+  if (photos.length === 0) return typeof empty === "string" ? <p className="text-sm text-muted-foreground">{empty}</p> : <>{empty}</>;
 
   return (
     <div className="space-y-2">
@@ -165,6 +167,7 @@ function Viewer({
   onImageError: () => void;
   onRemoved: (id: string) => void;
 }) {
+  const router = useRouter();
   const photo = photos[index];
   const [mode, setMode] = useState<Mode>("view");
   const [busy, setBusy] = useState(false);
@@ -226,6 +229,7 @@ function Viewer({
       if (!res.ok) throw new Error(data.error || "Couldn't move the photo.");
       toast.success(`Moved to ${moveItems[target] ?? "Unsorted"}`);
       window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
+      router.refresh(); // the Photos tab's unsorted count
       // It no longer belongs in this list.
       onRemovedLocalOnly();
     } catch (err) {
@@ -249,6 +253,7 @@ function Viewer({
       if (!res.ok) throw new Error(data.error || "Couldn't delete the photo.");
       toast.success("Photo deleted");
       window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
+      router.refresh(); // the Photos tab's unsorted count
       setMode("view");
       onRemoved(photo.id);
     } catch (err) {

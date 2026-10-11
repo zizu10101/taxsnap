@@ -42,6 +42,87 @@ interface Picked {
   caption: string;
 }
 
+// Turns what the file input gave us into list items (image files only, at most MAX_PHOTOS_PER_BATCH
+// including the `already` picked). Called from event handlers: it creates preview URLs.
+function pickFiles(list: FileList | null, already: number): Picked[] {
+  if (!list || list.length === 0) return [];
+  const images = Array.from(list).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
+  if (images.length < list.length) toast.error("Only image files can be added.");
+  const room = MAX_PHOTOS_PER_BATCH - already;
+  if (images.length > room) toast.error(`Add up to ${MAX_PHOTOS_PER_BATCH} photos at a time.`);
+  return images.slice(0, Math.max(0, room)).map((file) => ({
+    key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
+    file,
+    previewUrl: URL.createObjectURL(file),
+    caption: "",
+  }));
+}
+
+// Two buttons that go straight to the camera / gallery picker and then open the form with the chosen
+// photos already in it. Used where there is no photo yet to hang a single "Add photos" button on (the
+// empty Unsorted page).
+export function AddPhotosButtons({
+  jobNames,
+  fixedJob,
+}: {
+  jobNames: string[];
+  fixedJob?: { id: string; name: string };
+}) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const [initial, setInitial] = useState<Picked[] | null>(null);
+
+  function onChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = pickFiles(e.target.files, 0);
+    e.target.value = "";
+    if (picked.length > 0) setInitial(picked);
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button type="button" onClick={() => cameraRef.current?.click()}>
+          <Camera className="mr-1.5 h-4 w-4" />
+          Take photo
+        </Button>
+        <Button type="button" variant="outline" onClick={() => galleryRef.current?.click()}>
+          <ImagePlus className="mr-1.5 h-4 w-4" />
+          Choose from gallery
+        </Button>
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Take photo"
+          onChange={onChosen}
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Choose photos from gallery"
+          onChange={onChosen}
+        />
+      </div>
+      {initial && (
+        <AddPhotosDialog
+          jobNames={jobNames}
+          fixedJob={fixedJob}
+          initialPicked={initial}
+          onClose={() => setInitial(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export function AddPhotosButton({
   jobNames,
   fixedJob,
@@ -75,16 +156,19 @@ export function AddPhotosButton({
 function AddPhotosDialog({
   jobNames,
   fixedJob,
+  initialPicked,
   onClose,
 }: {
   jobNames: string[];
   fixedJob?: { id: string; name: string };
+  // Photos already chosen before the form opened (AddPhotosButtons).
+  initialPicked?: Picked[];
   onClose: () => void;
 }) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const [picked, setPicked] = useState<Picked[]>([]);
+  const [picked, setPicked] = useState<Picked[]>(initialPicked ?? []);
   const [jobMode, setJobMode] = useState<string>(fixedJob ? fixedJob.name : UNSORTED);
   const [newJobName, setNewJobName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -108,17 +192,8 @@ function AddPhotosDialog({
   }, [jobNames, fixedJob]);
 
   function addFiles(list: FileList | null) {
-    if (!list || list.length === 0) return;
-    const images = Array.from(list).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
-    if (images.length < list.length) toast.error("Only image files can be added.");
-    const room = MAX_PHOTOS_PER_BATCH - picked.length;
-    if (images.length > room) toast.error(`Add up to ${MAX_PHOTOS_PER_BATCH} photos at a time.`);
-    const next = images.slice(0, Math.max(0, room)).map((file) => ({
-      key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-      caption: "",
-    }));
+    const next = pickFiles(list, picked.length);
+    if (next.length === 0) return;
     setPicked((prev) => [...prev, ...next]);
     setError(null);
   }
@@ -214,15 +289,23 @@ function AddPhotosDialog({
         window.dispatchEvent(new Event(PHOTOS_CHANGED_EVENT));
         router.refresh();
       }
+      // Saved as Unsorted: say where they went, with a way there.
+      const unsortedAction =
+        jobId === ""
+          ? { action: { label: "View unsorted photos", onClick: () => router.push("/dashboard/photos") } }
+          : undefined;
       if (failed.length === 0) {
-        toast.success(done === 1 ? "Photo added" : `${done} photos added`);
+        toast.success(
+          done === 1 ? "Photo added" : `${done} photos added`,
+          unsortedAction ? { ...unsortedAction, description: "Saved as Unsorted - file them under a job later." } : undefined,
+        );
         // Previews were revoked above as each one succeeded; nothing left to show.
         pickedRef.current = [];
         onClose();
       } else {
         // Keep only what didn't go up, so a retry doesn't duplicate the others.
         setPicked(failed);
-        if (done > 0) toast.success(`${done} added. ${failed.length} didn't upload.`);
+        if (done > 0) toast.success(`${done} added. ${failed.length} didn't upload.`, unsortedAction);
       }
     } finally {
       setUploading(false);

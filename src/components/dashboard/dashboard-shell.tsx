@@ -22,6 +22,7 @@ export function DashboardShell({
   businessType,
   logoPath,
   hiddenNavKeys,
+  unsortedPhotoCount,
   children,
 }: {
   email: string;
@@ -31,6 +32,8 @@ export function DashboardShell({
   logoPath: string | null;
   // The owner's cosmetic "Hide from my menu" choices - see nav-config.ts.
   hiddenNavKeys: readonly string[];
+  // Photos waiting to be filed under a job - the badge on the Photos tab.
+  unsortedPhotoCount: number;
   children: React.ReactNode;
 }) {
   const { role } = useAppLock();
@@ -44,6 +47,7 @@ export function DashboardShell({
           subscriptionStatus={subscriptionStatus}
           logoPath={logoPath}
           hiddenNavKeys={hiddenNavKeys}
+          unsortedPhotoCount={unsortedPhotoCount}
         />
       )}
       <DashboardMobileHeader
@@ -70,6 +74,7 @@ export function DashboardShell({
         businessType={businessType}
         subscriptionStatus={subscriptionStatus}
         hiddenNavKeys={hiddenNavKeys}
+        unsortedPhotoCount={unsortedPhotoCount}
       />
     </div>
   );

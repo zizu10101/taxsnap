@@ -19,7 +19,7 @@ export function JobPhotosSection({
         <AddPhotosButton jobNames={jobNames} fixedJob={job} />
       </CardHeader>
       <CardContent>
-        <PhotoGallery jobId={job.id} emptyText="No photos on this job yet." />
+        <PhotoGallery jobId={job.id} empty="No photos on this job yet." />
       </CardContent>
     </Card>
   );
