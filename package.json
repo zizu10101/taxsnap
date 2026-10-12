@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "record:demo": "node scripts/record-demo/estimate-to-invoice.ts",
+    "record:demo:photos": "node scripts/record-demo/job-photos.ts",
+    "videos:encode": "node scripts/record-demo/encode.ts",
     "test": "node --test src/lib/*.test.ts src/components/dashboard/*.test.ts"
   },
   "dependencies": {
@@ -38,6 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "playwright": "^1.64.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

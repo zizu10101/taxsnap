@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { FEATURE_PAGES } from "@/lib/feature-pages";
+import { availableHowToVideos } from "@/lib/how-to-videos-server";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://gettaxsnap.ca";
 
@@ -18,6 +19,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/salons`, lastModified: now },
     { url: `${BASE_URL}/features`, lastModified: now },
     { url: `${BASE_URL}/faq`, lastModified: now },
+    { url: `${BASE_URL}/how-to`, lastModified: now },
+    ...availableHowToVideos().map((video) => ({
+      url: `${BASE_URL}/how-to/${video.slug}`,
+      lastModified: now,
+    })),
     ...FEATURE_PAGES.map((feature) => ({
       url: `${BASE_URL}${feature.href}`,
       lastModified: now,

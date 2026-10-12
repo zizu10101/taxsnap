@@ -1,21 +1,34 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { DemoVideo } from "@/components/landing/demo-video";
+import { PhoneFrame } from "@/components/landing/phone-frame";
 
 export interface ShowcaseTab {
   id: string;
   label: string;
   title: string;
   description: string;
-  src: string;
+  /** A still screen. Omit for a video tab. */
+  src?: string;
+  /** A demo clip (public/videos/*), shown instead of a still. */
+  video?: { mp4: string; poster?: string };
 }
 
-// Feature tabs, phone frame only. The page decides which tabs exist (it
+// Feature tabs (stills and demo videos), phone frame only. The page decides which tabs exist (it
 // drops one whose image file is missing), so this component never renders a
 // broken image. Every image is lazy and only the active one is displayed; an
 // inactive `display: none` image is never fetched, so a tab's picture loads
 // the first time it is opened.
-export function ScreenShowcase({ tabs }: { tabs: ShowcaseTab[] }) {
+export function ScreenShowcase({
+  tabs,
+  moreHref,
+}: {
+  tabs: ShowcaseTab[];
+  /** Optional "More how-to videos" link under the section. */
+  moreHref?: string;
+}) {
   const [activeId, setActiveId] = useState(tabs[0]?.id);
 
   if (tabs.length === 0) return null;
@@ -74,19 +87,37 @@ export function ScreenShowcase({ tabs }: { tabs: ShowcaseTab[] }) {
               hidden={tab.id !== active.id}
               className="w-full max-w-[280px] sm:max-w-[320px]"
             >
-              <div className="rounded-[2.5rem] border-[10px] border-foreground/90 bg-foreground/90 shadow-2xl">
-                {/* eslint-disable-next-line @next/next/no-img-element -- fixed marketing asset, lazy-loaded */}
-                <img
-                  src={tab.src}
-                  alt={`${tab.label} screen on a phone`}
-                  loading="lazy"
-                  decoding="async"
-                  className="block h-auto w-full rounded-[1.9rem]"
-                />
-              </div>
+              <PhoneFrame>
+                {tab.video ? (
+                  <DemoVideo
+                    mp4={tab.video.mp4}
+                    poster={tab.video.poster}
+                    label={`${tab.label} demo`}
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- fixed marketing asset, lazy-loaded
+                  <img
+                    src={tab.src}
+                    alt={`${tab.label} screen on a phone`}
+                    loading="lazy"
+                    decoding="async"
+                    className="block h-auto w-full"
+                  />
+                )}
+              </PhoneFrame>
             </div>
           ))}
         </div>
+        {moreHref && (
+          <p className="mt-8 text-center">
+            <Link
+              href={moreHref}
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              More how-to videos
+            </Link>
+          </p>
+        )}
       </div>
     </section>
   );

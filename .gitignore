@@ -42,3 +42,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# demo recordings
+/scripts/record-demo/out/
+/scripts/record-demo/assets/

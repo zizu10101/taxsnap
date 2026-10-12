@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, Moon, Sun, X } from "lucide-react";
+import { ChevronDown, Menu, Moon, PlayCircle, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   NavigationMenu,
@@ -67,6 +67,12 @@ function FeatureLinks({ onNavigate }: { onNavigate?: () => void }) {
           </span>
         </NavigationMenuLink>
       ))}
+      <NavigationMenuLink render={<Link href="/how-to" onClick={onNavigate} />}>
+        <span className="flex items-center gap-2 font-medium text-foreground">
+          <PlayCircle className="h-4 w-4 text-primary" />
+          How-to videos
+        </span>
+      </NavigationMenuLink>
     </>
   );
 }

@@ -24,6 +24,7 @@ import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection } from "@/components/landing/faq-section";
 import { HOME_FAQ_ITEMS } from "@/lib/faq-items";
+import { availableHowToVideos } from "@/lib/how-to-videos-server";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import { ScreenShowcase, type ShowcaseTab } from "@/components/landing/screen-showcase";
 
@@ -71,13 +72,23 @@ const SHOWCASE_TABS: ShowcaseTab[] = ([
     description: "Revenue, expenses and your HST position for any date range.",
     src: "/screens/reports.png",
   },
-] as (ShowcaseTab & { fallback?: string })[])
+] as (Omit<ShowcaseTab, "src"> & { src: string; fallback?: string })[])
   .map(({ fallback, ...tab }) => {
     const exists = (src: string) => fs.existsSync(path.join(process.cwd(), "public", src));
     const src = exists(tab.src) ? tab.src : fallback && exists(fallback) ? fallback : null;
     return src ? { ...tab, src } : null;
   })
-  .filter((tab): tab is ShowcaseTab => tab !== null);
+  .filter((tab): tab is NonNullable<typeof tab> => tab !== null);
+
+// Demo clips flagged `showcase` in src/lib/how-to-videos.ts; a clip whose mp4 is
+// missing is left out.
+const VIDEO_TABS: ShowcaseTab[] = availableHowToVideos()
+  .filter((video) => video.showcase)
+  .map((video) => ({
+    id: video.slug,
+    ...video.showcase!,
+    video: { mp4: video.mp4, poster: video.poster },
+  }));
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
@@ -383,7 +394,7 @@ export default function Home() {
         </div>
       </section>
 
-      <ScreenShowcase tabs={SHOWCASE_TABS} />
+      <ScreenShowcase tabs={[...SHOWCASE_TABS, ...VIDEO_TABS]} moreHref="/how-to" />
 
       <PricingSection
         highlightTier="basic"
