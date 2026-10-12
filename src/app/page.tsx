@@ -1,75 +1,83 @@
 import Link from "next/link";
+import fs from "node:fs";
+import path from "node:path";
 import {
+  BarChart3,
+  Briefcase,
   Camera,
   Clock,
   FileSignature,
   FileSpreadsheet,
   HandCoins,
+  Images,
   Layers,
   Receipt,
   Sparkles,
   TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { InstallPromptCards } from "@/components/install-prompt-cards";
+import { FinalCta } from "@/components/landing/final-cta";
+import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
-import { FaqSection, type FaqItem } from "@/components/landing/faq-section";
+import { FaqSection } from "@/components/landing/faq-section";
+import { HOME_FAQ_ITEMS } from "@/lib/faq-items";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
-import { BILLING_CHANGE_POLICY } from "@/lib/pricing-plans";
-import { ScreenShowcase, type ShowcaseGroup } from "@/components/landing/screen-showcase";
+import { ScreenShowcase, type ShowcaseTab } from "@/components/landing/screen-showcase";
 
-// Mobile and desktop screens are the user's own phone/laptop captures
-// (public/screenshots/<slug>-mobile.webp and <slug>-desktop.webp).
-const SHOWCASE_GROUPS: ShowcaseGroup[] = [
+// Phone screens live in public/screens/<id>.png. Until those exist, a tab
+// falls back to a matching old screenshot (`fallback`); the png wins as soon as
+// it is added. A tab with neither is dropped (checked on the server) so the
+// section never shows a broken image. Drop the `fallback` lines once all five
+// pngs are in.
+const SHOWCASE_TABS: ShowcaseTab[] = ([
   {
-    label: "Track everything automatically",
-    screens: [
-      {
-        title: "Dashboard",
-        description: "Scan a receipt, start an invoice, and see your estimated reclaimable HST and deductible spend at a glance.",
-        mobileSrc: "/screenshots/dashboard-mobile.webp",
-        desktopSrc: "/screenshots/dashboard-desktop.webp",
-      },
-      {
-        title: "Expenses",
-        description: "Every scanned receipt in one place, filtered by date range and job, with one-tap exports for your accountant.",
-        mobileSrc: "/screenshots/expenses-mobile.webp",
-        desktopSrc: "/screenshots/expenses-desktop.webp",
-      },
-      {
-        title: "HST Summary Helper",
-        description: "A running estimate of what you owe, mapped straight to the real CRA line numbers.",
-        mobileSrc: "/screenshots/hst-mobile.webp",
-        desktopSrc: "/screenshots/hst-desktop.webp",
-      },
-    ],
+    id: "receipts",
+    label: "Receipts",
+    title: "Snap it, done",
+    description: "Every scanned receipt in one place, with merchant, tax and write-off category filled in.",
+    src: "/screens/receipts.png",
+    fallback: "/screenshots/expenses-mobile.webp",
   },
   {
-    label: "Run your whole business",
-    screens: [
-      {
-        title: "Invoices",
-        description: "See what you've billed and collected, and bill your clients directly from TaxSnap.",
-        mobileSrc: "/screenshots/invoices-mobile.webp",
-        desktopSrc: "/screenshots/invoices-desktop.webp",
-      },
-      {
-        title: "New Invoice",
-        description: "Pick a client and job, add line items, and switch between an estimate and an invoice in one form.",
-        mobileSrc: "/screenshots/new-invoice-mobile.webp",
-        desktopSrc: "/screenshots/new-invoice-desktop.webp",
-      },
-      {
-        title: "Progress Billing",
-        description: "Track draws against a job's contract value - invoiced to date, received, and what's still owed.",
-        mobileSrc: "/screenshots/progress-billing-mobile.webp",
-        desktopSrc: "/screenshots/progress-billing-desktop.webp",
-      },
-    ],
+    id: "jobs",
+    label: "Jobs",
+    title: "Know every job's real profit",
+    description: "Materials, labor and payments received, netted out for each job.",
+    src: "/screens/jobs.png",
+    fallback: "/screenshots/jobs-mobile.webp",
   },
-];
+  {
+    id: "invoices",
+    label: "Invoices",
+    title: "Bill clients from your phone",
+    description: "Send invoices and estimates, record deposits, and see what's still owed.",
+    src: "/screens/invoices.png",
+    fallback: "/screenshots/invoices-mobile.webp",
+  },
+  {
+    id: "photos",
+    label: "Photos",
+    title: "Site photos on every job",
+    description: "Snap before and after photos and keep them with the job. Private to you.",
+    src: "/screens/photos.png",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    title: "Your numbers, any time",
+    description: "Revenue, expenses and your HST position for any date range.",
+    src: "/screens/reports.png",
+  },
+] as (ShowcaseTab & { fallback?: string })[])
+  .map(({ fallback, ...tab }) => {
+    const exists = (src: string) => fs.existsSync(path.join(process.cwd(), "public", src));
+    const src = exists(tab.src) ? tab.src : fallback && exists(fallback) ? fallback : null;
+    return src ? { ...tab, src } : null;
+  })
+  .filter((tab): tab is ShowcaseTab => tab !== null);
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
@@ -165,117 +173,75 @@ const STEPS = [
 // /salons' "Built for the front counter" grid, for general-business
 // strengths the three steps above don't cover (steps explain the
 // receipt-to-HST flow; these are the rest of the product).
-const GENERAL_FEATURES = [
+const GENERAL_FEATURES: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  href?: string;
+}[] = [
   {
     icon: Receipt,
     title: "Job & overhead expenses",
     description:
-      "Tag costs to a job or file them as overhead, then export a QuickBooks-ready CSV or a full accountant bundle.",
+      "Tag costs to a job or file them as overhead, then export a QuickBooks-ready CSV.",
+    href: "/features/expense-tracking",
   },
   {
     icon: TrendingUp,
     title: "Real profit per job",
     description:
       "Materials, labor, and the payments you've actually received, netted out for every job.",
+    href: "/features/job-costing",
   },
   {
-    icon: Clock,
-    title: "Employee clock-in",
+    icon: Images,
+    title: "Site photos on every job",
     description:
-      "Your crew clocks in and out from their own phone with a personal PIN. No accounts to set up and nothing for you to type in, and the hours land on the right job.",
+      "Snap before and after photos on the job. Everything stays private to you, organized by job.",
   },
   {
     icon: Layers,
     title: "Progress billing",
     description:
       "Bill a job in draws and see what's invoiced, received, and still owed against the contract.",
+    href: "/features/progress-billing",
   },
   {
     icon: HandCoins,
     title: "Deposits & partial payments",
     description:
       "Record deposits and partial payments as they arrive. TaxSnap counts them for HST in the period you actually got paid.",
+    href: "/features/invoicing",
   },
   {
     icon: FileSignature,
     title: "E-signatures on estimates",
     description:
       "Clients approve estimates by signing online, and the estimate turns into an invoice the moment they do.",
+    href: "/features/invoicing",
+  },
+  {
+    icon: BarChart3,
+    title: "Reports",
+    description:
+      "Revenue by client, expenses by category or vendor, and your HST position. Export when tax time comes.",
+  },
+  {
+    icon: Clock,
+    title: "Employee clock-in",
+    description:
+      "Your crew clocks in and out from their own phone with a personal PIN. No accounts to set up and nothing for you to type in, and the hours land on the right job.",
+    href: "/features/employee-clock-in",
+  },
+  {
+    icon: Briefcase,
+    title: "Jobs with client, location and notes",
+    description:
+      "Pick a client once and it follows the job. Keep private notes that never reach the client.",
+    href: "/features/job-costing",
   },
 ];
 
-// General-business question set - Jobs applies here (hidden entirely for
-// salon accounts elsewhere in the app) and invoicing covers both Invoices
-// and Estimates (also general-only). A salon FAQ would swap Jobs for
-// Commission and drop Estimates from the invoicing answer - not built yet,
-// scoped to this page only for now.
-const FAQ_ITEMS: FaqItem[] = [
-  {
-    question: "How does the AI scanning work?",
-    answer:
-      "Snap or upload a photo of a receipt and TaxSnap's AI reads it automatically - merchant, date, total, tax, and a suggested write-off category are filled in for you to review before saving. No manual data entry.",
-  },
-  {
-    question: "What happens after my free scans run out?",
-    answer:
-      "The Free plan includes 5 receipt scans per month at no cost. Once you hit that limit, upgrade to Plus for unlimited scans - or just wait, since the limit resets automatically at the start of each month either way.",
-  },
-  {
-    question: "Can I use this on my computer, or only my phone?",
-    answer:
-      "Both. TaxSnap is a full web app that works in any browser on your computer, and it's also an installable app (PWA) you can add to your phone's home screen for a native-app-like experience - no app store required either way.",
-  },
-  {
-    question: "Do I need to install any software?",
-    answer:
-      "No - TaxSnap is a Progressive Web App, so it works directly in any browser with nothing to download. If you'd like quicker access, you can optionally install it to your phone or computer's home screen, just like a native app - but it's never required.",
-  },
-  {
-    question: "How does billing and cancellation work?",
-    answer:
-      `Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to switch plans or billing interval anytime, no need to contact support. ${BILLING_CHANGE_POLICY}`,
-  },
-  {
-    question: "What does “HST mapping” mean?",
-    answer:
-      "TaxSnap automatically maps your income and expenses to the actual CRA line numbers on the Ontario GST/HST return (Lines 101, 103, and 106), so you get a running estimate of what you owe. It's a planning tool, not a filing service - always confirm final numbers with a bookkeeper or accountant.",
-  },
-  {
-    question: "How do invoices and estimates work?",
-    answer:
-      `Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves. Invoicing is included on every plan - Free covers ${PLAN_LIMITS.free.invoicesPerMonth} invoices a month, Plus ${PLAN_LIMITS.basic.invoicesPerMonth}, and Pro is unlimited. Estimates themselves are always unlimited, no matter your plan.`,
-  },
-  {
-    question: "Can I share an estimate or invoice with a client?",
-    answer:
-      "Yes - share a PDF straight from your phone's share sheet (WhatsApp, Messages, email, and more) on mobile, or email or download it directly on desktop.",
-  },
-  {
-    question: "Can I add my business logo?",
-    answer:
-      "Yes. Upload it once in Settings and it appears automatically on every invoice, estimate, and PDF report you generate.",
-  },
-  {
-    question: "What are Jobs?",
-    answer:
-      `Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking. Every plan includes Jobs - Free covers ${PLAN_LIMITS.free.jobs} job and ${PLAN_LIMITS.free.employees} employee, Plus ${PLAN_LIMITS.basic.jobs} jobs and ${PLAN_LIMITS.basic.employees} employees, and Pro is unlimited.`,
-  },
-  {
-    question: "Are there reports for sales and expenses?",
-    answer:
-      "Yes - your dashboard shows running totals for expenses, deductible spend, and estimated tax savings, plus the Ontario HST Return Helper for a real-time view of what you owe. Pro accounts also get an Overview page with trend charts over time.",
-  },
-  {
-    question: "Can I export my reports, and how?",
-    answer:
-      "Yes. Export a plain CSV of your receipts anytime, or download a full accountant-ready package - CSV, receipt images, and invoice PDFs together - in one tap.",
-  },
-  {
-    question: "Can I share reports with my accountant?",
-    answer:
-      "Yes - the accountant export bundle is built exactly for that: hand your accountant a single file with everything they need for tax season, no back-and-forth required.",
-  },
-];
 
 export default function Home() {
   return (
@@ -292,9 +258,8 @@ export default function Home() {
             <span className="text-primary">Write it off.</span>
           </h1>
           <p className="max-w-md text-base text-muted-foreground sm:text-lg">
-            TaxSnap is built for painters, handymen, barbers, owner-operator
-            truck drivers, freelancers, and every other self-employed business
-            owner who&apos;d rather be working than doing bookkeeping.
+            Built for contractors, salons and the self-employed who&apos;d
+            rather be working than doing bookkeeping.
           </p>
           <p className="max-w-md text-sm font-medium text-foreground">
             No accounting degree required. Snap a receipt, send an invoice, see
@@ -386,25 +351,39 @@ export default function Home() {
             Everything a one-person business needs, nothing it doesn&apos;t.
           </h2>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {GENERAL_FEATURES.map((feature) => (
-              <div
-                key={feature.title}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
-              >
-                <feature.icon className="h-5 w-5 text-primary" />
-                <h3 className="font-heading text-lg font-bold">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
+            {GENERAL_FEATURES.map((feature) => {
+              const body = (
+                <>
+                  <feature.icon className="h-5 w-5 text-primary" />
+                  <h3 className="font-heading text-lg font-bold">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {feature.description}
+                  </p>
+                </>
+              );
+              const cardClass =
+                "flex flex-col gap-3 rounded-lg border border-border bg-card p-5";
+              return feature.href ? (
+                <Link
+                  key={feature.title}
+                  href={feature.href}
+                  className={`${cardClass} transition-colors hover:border-primary`}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div key={feature.title} className={cardClass}>
+                  {body}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <ScreenShowcase groups={SHOWCASE_GROUPS} />
+      <ScreenShowcase tabs={SHOWCASE_TABS} />
 
       <PricingSection
         highlightTier="basic"
@@ -414,9 +393,9 @@ export default function Home() {
         comparisonRows={COMPARISON_ROWS}
       />
 
-      <FaqSection items={FAQ_ITEMS} />
+      <FaqSection items={HOME_FAQ_ITEMS} seeAllHref="/faq" />
 
-      <InstallPromptCards />
+      <FinalCta />
 
       <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
         <div className="mx-auto max-w-4xl space-y-3 px-4">
@@ -429,6 +408,7 @@ export default function Home() {
               info@gettaxsnap.ca
             </a>
           </p>
+          <FooterFaqLink />
           <p className="mx-auto max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
             TaxSnap is a division of Edge Digital Business Solutions.
             TaxSnap is an independent expense-tracking and bookkeeping

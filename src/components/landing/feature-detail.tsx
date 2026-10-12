@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -174,6 +175,7 @@ export function FeatureDetail({
               info@gettaxsnap.ca
             </a>
           </p>
+          <FooterFaqLink />
           <p className="mx-auto max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
             TaxSnap is a division of Edge Digital Business Solutions.
             TaxSnap is an independent expense-tracking and bookkeeping

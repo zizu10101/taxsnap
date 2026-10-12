@@ -17,6 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: BASE_URL, lastModified: now },
     { url: `${BASE_URL}/salons`, lastModified: now },
     { url: `${BASE_URL}/features`, lastModified: now },
+    { url: `${BASE_URL}/faq`, lastModified: now },
     ...FEATURE_PAGES.map((feature) => ({
       url: `${BASE_URL}${feature.href}`,
       lastModified: now,

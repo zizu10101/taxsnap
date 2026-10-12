@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
 export interface FaqItem {
@@ -44,7 +45,13 @@ function FaqAccordionItem({ item }: { item: FaqItem }) {
 // even though the accordion shell itself is identical, same reasoning as
 // PricingSection reading its copy from props/pricing-plans.ts instead of
 // hardcoding it.
-export function FaqSection({ items }: { items: FaqItem[] }) {
+export function FaqSection({
+  items,
+  seeAllHref,
+}: {
+  items: FaqItem[];
+  seeAllHref?: string;
+}) {
   return (
     <section id="faq" className="border-t border-border">
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
@@ -56,6 +63,14 @@ export function FaqSection({ items }: { items: FaqItem[] }) {
             <FaqAccordionItem key={item.question} item={item} />
           ))}
         </div>
+        {seeAllHref && (
+          <Link
+            href={seeAllHref}
+            className="mt-4 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            See all questions
+          </Link>
+        )}
       </div>
     </section>
   );
