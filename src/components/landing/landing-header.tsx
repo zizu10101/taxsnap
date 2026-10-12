@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, Moon, PlayCircle, Sun, X } from "lucide-react";
@@ -51,28 +51,57 @@ function ThemeToggle() {
   );
 }
 
+// NavigationMenuLink only works inside <NavigationMenu> (Base UI throws
+// "NavigationMenuRootContext is missing" anywhere else). The desktop dropdowns
+// are inside it; the mobile panel is not, so it gets the same-looking plain Link.
+function MenuLink({
+  href,
+  onNavigate,
+  plain,
+  children,
+}: {
+  href: string;
+  onNavigate?: () => void;
+  plain?: boolean;
+  children: ReactNode;
+}) {
+  if (plain) {
+    return (
+      <Link
+        href={href}
+        onClick={onNavigate}
+        className="flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-sm outline-none hover:bg-accent"
+      >
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <NavigationMenuLink render={<Link href={href} onClick={onNavigate} />}>
+      {children}
+    </NavigationMenuLink>
+  );
+}
+
 // Shared by the desktop NavigationMenu content and the mobile accordion -
 // same five links either way.
-function FeatureLinks({ onNavigate }: { onNavigate?: () => void }) {
+function FeatureLinks({ onNavigate, plain }: { onNavigate?: () => void; plain?: boolean }) {
   return (
     <>
       {FEATURE_PAGES.map((feature) => (
-        <NavigationMenuLink
-          key={feature.href}
-          render={<Link href={feature.href} onClick={onNavigate} />}
-        >
+        <MenuLink key={feature.href} href={feature.href} onNavigate={onNavigate} plain={plain}>
           <span className="flex items-center gap-2 font-medium text-foreground">
             <feature.icon className="h-4 w-4 text-primary" />
             {feature.title}
           </span>
-        </NavigationMenuLink>
+        </MenuLink>
       ))}
-      <NavigationMenuLink render={<Link href="/how-to" onClick={onNavigate} />}>
+      <MenuLink href="/how-to" onNavigate={onNavigate} plain={plain}>
         <span className="flex items-center gap-2 font-medium text-foreground">
           <PlayCircle className="h-4 w-4 text-primary" />
           How-to videos
         </span>
-      </NavigationMenuLink>
+      </MenuLink>
     </>
   );
 }
@@ -82,28 +111,25 @@ function FeatureLinks({ onNavigate }: { onNavigate?: () => void }) {
 // hardcoded, so a future rename (like Basic -> Plus) can't leave this
 // dropdown stale. Card-specific anchor ids (#plan-free, #plan-basic,
 // #plan-pro) are added on pricing-section.tsx's own cards.
-function PricingLinks({ onNavigate }: { onNavigate?: () => void }) {
+function PricingLinks({ onNavigate, plain }: { onNavigate?: () => void; plain?: boolean }) {
   return (
     <>
-      <NavigationMenuLink render={<Link href="/#plan-free" onClick={onNavigate} />}>
+      <MenuLink href="/#plan-free" onNavigate={onNavigate} plain={plain}>
         <span className="font-medium text-foreground">{FREE_PLAN.name}</span>
         <span className="text-xs text-muted-foreground">{FREE_PLAN.price}</span>
-      </NavigationMenuLink>
+      </MenuLink>
       {PRICING_PLANS.map((plan) => (
-        <NavigationMenuLink
-          key={plan.tier}
-          render={<Link href={`/#plan-${plan.tier}`} onClick={onNavigate} />}
-        >
+        <MenuLink key={plan.tier} href={`/#plan-${plan.tier}`} onNavigate={onNavigate} plain={plain}>
           <span className="font-medium text-foreground">{plan.name}</span>
           <span className="text-xs text-muted-foreground">
             ${plan.monthlyPrice} CAD/mo
           </span>
-        </NavigationMenuLink>
+        </MenuLink>
       ))}
-      <NavigationMenuLink render={<Link href="/salons#pricing" onClick={onNavigate} />}>
+      <MenuLink href="/salons#pricing" onNavigate={onNavigate} plain={plain}>
         <span className="font-medium text-foreground">Salon pricing</span>
         <span className="text-xs text-muted-foreground">Commission &amp; payouts pricing</span>
-      </NavigationMenuLink>
+      </MenuLink>
     </>
   );
 }
@@ -207,7 +233,7 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
               <AccordionTrigger>Features</AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-col gap-1">
-                  <FeatureLinks onNavigate={closeMobile} />
+                  <FeatureLinks onNavigate={closeMobile} plain />
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -219,7 +245,7 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             </p>
             <div className="mt-2 flex flex-col gap-1">
-              <PricingLinks onNavigate={closeMobile} />
+              <PricingLinks onNavigate={closeMobile} plain />
             </div>
           </div>
 
