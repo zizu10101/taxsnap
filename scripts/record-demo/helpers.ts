@@ -8,6 +8,13 @@ import {
   type Response,
 } from "playwright";
 
+// NOTE: record against a PRODUCTION build when you can (npm run build && npm run start, then
+// DEMO_BASE_URL=http://localhost:3000). `npm run dev` adds things that do not belong in a demo:
+// the Next.js dev indicator and error overlay, slower first loads while Turbopack compiles routes
+// on demand (dead air in the video), and extra dev-only re-renders. A production build also shows
+// what customers actually get. As a safety net, the dev overlay is hidden in every recording
+// context (see hideDevOverlay below; DEMO_SHOW_DEV_OVERLAY=1 turns that off for debugging).
+//
 // Shared pieces for the scripted demo recordings: a visible cursor dot, a
 // caption bar fixed to the bottom of the screen, human-speed typing and short
 // pauses. The cursor and caption are injected into every page (and restored
@@ -156,11 +163,43 @@ export const PHONE_CONTEXT_OPTIONS = {
   colorScheme: "light",
 } as const;
 
-export function newPhoneContext(browser: Browser, rawDir?: string) {
-  return browser.newContext({
+export async function newPhoneContext(browser: Browser, rawDir?: string) {
+  const context = await browser.newContext({
     ...PHONE_CONTEXT_OPTIONS,
     ...(rawDir ? { recordVideo: { dir: rawDir, size: { width: 390, height: 844 } } } : {}),
   });
+  await hideDevOverlay(context);
+  return context;
+}
+
+// Next 16 renders its whole dev UI (indicator badge, toasts, the error overlay and its dialog)
+// inside the <nextjs-portal> shadow host, so hiding the host hides all of it; the data-* names are
+// the elements it uses inside, listed in case a version renders them outside the host. Only these
+// exact names: nothing here can match app UI. Injected as an init script so it is present on every
+// page, navigation and new tab of the context - recordings and the cleanup sessions alike.
+const DEV_OVERLAY_CSS = [
+  "nextjs-portal",
+  "[data-nextjs-toast]",
+  "[data-nextjs-dev-tools-button]",
+  "[data-nextjs-dev-overlay]",
+  "[data-nextjs-dialog-overlay]",
+  "[data-next-badge-root]",
+  "#__next-build-watcher",
+].join(",") + "{display:none !important;visibility:hidden !important;}";
+
+async function hideDevOverlay(context: BrowserContext) {
+  if (process.env.DEMO_SHOW_DEV_OVERLAY === "1") return;
+  await context.addInitScript((css) => {
+    const add = () => {
+      if (document.getElementById("__demo_hide_dev_overlay")) return;
+      const style = document.createElement("style");
+      style.id = "__demo_hide_dev_overlay";
+      style.textContent = css;
+      (document.head || document.documentElement).appendChild(style);
+    };
+    add();
+    document.addEventListener("DOMContentLoaded", add);
+  }, DEV_OVERLAY_CSS);
 }
 
 /** Click an option of an opened dropdown by role, falling back to its visible text. */
@@ -358,6 +397,15 @@ export class CreatedTracker {
     this.add(kind, m[2], kind);
   }
 
+  /**
+   * Track something the run is known to own although no 201 was seen for it. POST /api/jobs
+   * answers 200 (not 201) for a name that already exists - e.g. one a previous failed run left
+   * behind - so a script that finds its job on screen adopts it here by id.
+   */
+  adopt(kind: CreatedKind, id: string, label: string) {
+    this.add(kind, id, label);
+  }
+
   private add(kind: CreatedKind, id: string, label: string) {
     const existing = this.items.find((i) => i.kind === kind && i.id === id);
     if (existing) {
@@ -393,12 +441,17 @@ export class CreatedTracker {
 
 type Failure = { item: CreatedItem; reason: string };
 
+/** Per-step wait during cleanup: a stuck deletion is reported after this, not after a minute. */
+const CLEANUP_TIMEOUT_MS = 15_000;
+
 /** Run `act`, wait for the app's DELETE call, and require it to succeed (a 404 means already gone). */
 async function deleteVia(page: Page, pathRegex: RegExp, act: () => Promise<void>) {
   const response = page.waitForResponse(
     (r) => r.request().method() === "DELETE" && pathRegex.test(new URL(r.url()).pathname),
-    { timeout: 60_000 },
+    { timeout: CLEANUP_TIMEOUT_MS },
   );
+  // If `act` throws first, nobody awaits `response`; its later timeout must not become an unhandled rejection.
+  response.catch(() => {});
   await act();
   const r = await response;
   if (!r.ok() && r.status() !== 404) {
@@ -412,6 +465,32 @@ async function deleteDocument(page: Page, baseUrl: string, item: CreatedItem) {
   if (nav?.status() === 404) return;
   const deleteButton = page.getByRole("button", { name: "Delete", exact: true });
   await deleteButton.waitFor();
+
+  // An estimate the client signed was converted to an invoice by the app itself (not by a click the
+  // run made), so the run may not have tracked it. Delete whatever invoice it links to first.
+  if (item.kind === "estimate") {
+    const hrefs = await page
+      .locator('a[href^="/dashboard/invoices/"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+    const linked = new Set<string>();
+    for (const href of hrefs) {
+      const m = new RegExp(`^/dashboard/invoices/(${UUID})`).exec(href);
+      if (m) linked.add(m[1]);
+    }
+    for (const id of linked) {
+      await deleteDocument(page, baseUrl, {
+        kind: "invoice",
+        id,
+        label: "invoice converted from the estimate",
+        path: `/dashboard/invoices/${id}`,
+      });
+      console.log(`Cleanup: also deleted the invoice converted from this estimate (${id}).`);
+    }
+    if (linked.size > 0) {
+      await page.goto(`${baseUrl}${item.path}`);
+      await deleteButton.waitFor();
+    }
+  }
 
   // An invoice with payments can't be deleted, and removing the last payment leaves it "sent",
   // which is locked too. So: remove each payment, then set it back to Draft, then delete.
@@ -441,7 +520,7 @@ async function deleteDocument(page: Page, baseUrl: string, item: CreatedItem) {
 
   await deleteVia(page, new RegExp(`^/api/documents/${item.id}$`), async () => {
     await deleteButton.click();
-    await page.getByRole("dialog").getByRole("button", { name: /^delete (invoice|estimate)$/i }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^delete (progress invoice|invoice|estimate)$/i }).click();
   });
 }
 
@@ -481,7 +560,7 @@ export async function cleanupCreated(
   tracker: CreatedTracker,
   creds: DemoCreds,
 ): Promise<number> {
-  await tracker.settle();
+  await tracker.settle().catch(() => {});
   if (tracker.items.length === 0) {
     console.log("Cleanup: the run created nothing, so there is nothing to delete.");
     return 0;
@@ -495,7 +574,7 @@ export async function cleanupCreated(
   try {
     context = await newPhoneContext(browser);
     const page = await context.newPage();
-    page.setDefaultTimeout(30_000);
+    page.setDefaultTimeout(CLEANUP_TIMEOUT_MS);
     await signIn(page, creds, false);
     for (const item of todo) {
       try {
@@ -523,7 +602,7 @@ export async function cleanupCreated(
   }
   const bar = "!".repeat(70);
   console.warn(
-    `\n${bar}\nWARNING: cleanup could NOT delete ${failures.length} of ${todo.length} item(s) the run created.\nThey are in the demo account (which shares the production database). Delete them by hand:\n`,
+    `\n${bar}\nLEFT BEHIND: cleanup could NOT delete ${failures.length} of ${todo.length} item(s) the run created.\nThey are in the demo account (which shares the production database). Delete them by hand\n(invoices first, then the job; exit code ${CLEANUP_INCOMPLETE_EXIT}):\n`,
   );
   for (const { item, reason } of failures) {
     console.warn(`  - ${item.kind} "${item.label}": ${creds.baseUrl}${item.path}\n      ${reason}`);
@@ -552,8 +631,50 @@ export async function runDemo(
     console.error(err);
     process.exitCode = 1;
   } finally {
-    const left = await cleanupCreated(browser, tracker, creds);
+    let left = 0;
+    try {
+      left = await cleanupCreated(browser, tracker, creds);
+    } catch (err) {
+      // cleanupCreated is written not to throw; if it somehow does, say what is unaccounted for.
+      left = tracker.items.length;
+      console.error(`Cleanup crashed (${err instanceof Error ? err.message : err}). Check the demo account by hand for:`);
+      for (const item of tracker.items) console.error(`  - ${item.kind} "${item.label}": ${creds.baseUrl}${item.path}`);
+    }
     await browser.close().catch(() => {});
     if (left > 0 && !process.exitCode) process.exitCode = CLEANUP_INCOMPLETE_EXIT;
   }
+}
+
+/**
+ * Hide controls whose (short) text matches `pattern` on every page of the context, now and
+ * as the page re-renders. For recordings that must not show certain features: the controls
+ * are only hidden, never clicked.
+ */
+export async function hideControls(context: BrowserContext, pattern: RegExp) {
+  await context.addInitScript(
+    ({ source, flags }) => {
+      const re = new RegExp(source, flags);
+      const sweep = () => {
+        document.querySelectorAll("button, a, [role=button], [role=menuitem]").forEach((el) => {
+          const text = (el.textContent ?? "").trim();
+          if (text.length > 0 && text.length < 40 && re.test(text)) (el as HTMLElement).style.display = "none";
+        });
+      };
+      new MutationObserver(sweep).observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      document.addEventListener("DOMContentLoaded", sweep);
+    },
+    { source: pattern.source, flags: pattern.flags },
+  );
+}
+
+/** Glide to a date input and set it (type="date" inputs take an ISO value via fill, not key presses). */
+export async function fillDate(page: Page, target: Locator, iso: string) {
+  await moveTo(page, target);
+  await target.click();
+  await target.fill(iso);
+  await pause(page);
 }

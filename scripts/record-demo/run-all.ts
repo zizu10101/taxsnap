@@ -11,7 +11,16 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { CLEANUP_INCOMPLETE_EXIT } from "./helpers.ts";
 
-const SCRIPTS = ["estimate-to-invoice", "job-photos", "record-payment", "job-profit"];
+const SCRIPTS = [
+  "estimate-to-invoice",
+  "job-photos",
+  "record-payment",
+  "job-profit",
+  "record-esign",
+  "record-progress-billing",
+  "record-reports",
+  "record-receipt-scan",
+];
 
 type Result = { name: string; status: "PASS" | "FAIL" | "CLEANUP"; seconds: number; code: number | null };
 const results: Result[] = [];
@@ -36,7 +45,7 @@ for (const r of results) {
       : r.status === "CLEANUP"
         ? "  recorded, but cleanup left items behind - see the warning above"
         : `  exit code ${r.code ?? "none (killed)"}`;
-  console.log(`${r.status.padEnd(8)} ${r.name.padEnd(22)} ${String(r.seconds).padStart(4)}s${note}`);
+  console.log(`${r.status.padEnd(8)} ${r.name.padEnd(26)} ${String(r.seconds).padStart(4)}s${note}`);
 }
 const bad = results.filter((r) => r.status !== "PASS").length;
 console.log(`\n${results.length - bad} of ${results.length} passed.`);

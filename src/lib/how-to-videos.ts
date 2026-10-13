@@ -79,4 +79,58 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     mp4: "/videos/job-profit.mp4",
     poster: "/videos/job-profit.jpg",
   },
+  {
+    slug: "record-esign",
+    title: "Get an estimate signed online",
+    description: "Send your client a link, let them sign on their phone, then invoice the approved estimate.",
+    steps: [
+      "Create your estimate: pick the client and add your work.",
+      "Send the link: tap Send, then Copy link, and pass it to your client.",
+      "Your client opens the link on their phone, reads the estimate and signs it.",
+      "The estimate shows as signed. Open the invoice made from it.",
+    ],
+    mp4: "/videos/record-esign.mp4",
+    poster: "/videos/record-esign.jpg",
+  },
+  {
+    slug: "record-progress-billing",
+    title: "Bill a big job in stages",
+    description: "Set a contract value, then bill it in draws and see what is still owed.",
+    steps: [
+      "Set the contract: start progress billing with the job and its total value.",
+      "Bill the first draw, for example 30% of the contract.",
+      "Bill the next draw, for example 40% more.",
+      "See what you have invoiced, what you have received and what is still owed against the contract.",
+    ],
+    mp4: "/videos/record-progress-billing.mp4",
+    poster: "/videos/record-progress-billing.jpg",
+  },
+  {
+    slug: "record-reports",
+    title: "Check your revenue, expenses and HST",
+    description: "Pick a date range and read your reports for that period.",
+    steps: [
+      "Open Reports and pick your dates.",
+      "Read Revenue by client.",
+      "See your expenses by category, or switch to vendor.",
+      "Open the HST Return Helper to know what you owe or can claim.",
+    ],
+    mp4: "/videos/record-reports.mp4",
+    poster: "/videos/record-reports.jpg",
+    hidden: true, // until the recording has been watched
+  },
+  {
+    slug: "record-receipt-scan",
+    title: "Scan a receipt",
+    description: "Upload a receipt and let the AI read the merchant, tax and category for you.",
+    steps: [
+      "Tap Scan Receipt and snap a photo, or upload one from your phone.",
+      "The AI reads the receipt in a few seconds.",
+      "The merchant, total, tax and category are filled in. Fix anything that looks off.",
+      "Save it. It is counted in your HST right away.",
+    ],
+    mp4: "/videos/record-receipt-scan.mp4",
+    poster: "/videos/record-receipt-scan.jpg",
+    hidden: true, // until the recording has been watched
+  },
 ];
