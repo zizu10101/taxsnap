@@ -9,6 +9,9 @@
     "lint": "eslint",
     "record:demo": "node scripts/record-demo/estimate-to-invoice.ts",
     "record:demo:photos": "node scripts/record-demo/job-photos.ts",
+    "record:demo:payment": "node scripts/record-demo/record-payment.ts",
+    "record:demo:profit": "node scripts/record-demo/job-profit.ts",
+    "record:demo:all": "node scripts/record-demo/run-all.ts",
     "videos:encode": "node scripts/record-demo/encode.ts",
     "test": "node --test src/lib/*.test.ts src/components/dashboard/*.test.ts"
   },

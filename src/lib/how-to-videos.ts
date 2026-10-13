@@ -53,4 +53,30 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     mp4: "/videos/job-photos.mp4",
     poster: "/videos/job-photos.jpg",
   },
+  {
+    slug: "record-payment",
+    title: "Record a deposit and get paid in full",
+    description: "Log a deposit on an invoice, then collect the remaining balance.",
+    steps: [
+      "Open your invoice.",
+      "Record a deposit: the amount, the date and how it was paid.",
+      "Tap Collect remaining balance to fill in what is still owing, then record it.",
+      "The invoice shows Paid in full, and the payments are counted in your HST.",
+    ],
+    mp4: "/videos/record-payment.mp4",
+    poster: "/videos/record-payment.jpg",
+  },
+  {
+    slug: "job-profit",
+    title: "See what a job really made you",
+    description: "Add a job's costs, get paid, and see your profit on the job.",
+    steps: [
+      "Create a job for your client.",
+      "Add your costs, like lumber and hardware, and tag them to the job.",
+      "Create an invoice for the job and record the payment you receive.",
+      "Open the job to see its revenue, its costs and your real profit.",
+    ],
+    mp4: "/videos/job-profit.mp4",
+    poster: "/videos/job-profit.jpg",
+  },
 ];

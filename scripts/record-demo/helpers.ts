@@ -1,4 +1,12 @@
-import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+import fs from "node:fs";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Response,
+} from "playwright";
 
 // Shared pieces for the scripted demo recordings: a visible cursor dot, a
 // caption bar fixed to the bottom of the screen, human-speed typing and short
@@ -162,4 +170,390 @@ export async function pickOption(page: Page, name: string) {
     ? byRole
     : page.getByRole("listbox").getByText(name, { exact: true });
   await clickWithCursor(page, option);
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in, recording scaffold, DEMO_DEBUG diagnostics
+// ---------------------------------------------------------------------------
+
+export interface DemoCreds {
+  baseUrl: string;
+  email: string;
+  password: string;
+}
+
+export async function signIn(page: Page, creds: DemoCreds, withCursor: boolean) {
+  await page.goto(`${creds.baseUrl}/auth`);
+  const password = page.getByRole("tab", { name: "Password" });
+  if (withCursor) {
+    await clickWithCursor(page, password);
+    // #pw-email / #pw-password: the Magic Link tab has a second "Email" field.
+    await typeWithCursor(page, page.locator("#pw-email"), creds.email);
+    await typeWithCursor(page, page.locator("#pw-password"), creds.password);
+    await clickWithCursor(page, page.getByRole("button", { name: "Sign in", exact: true }));
+  } else {
+    await password.click();
+    await page.locator("#pw-email").fill(creds.email);
+    await page.locator("#pw-password").fill(creds.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  }
+  await page.waitForURL(/\/dashboard/);
+}
+
+export const DEBUG = process.env.DEMO_DEBUG === "1";
+
+/** DEMO_DEBUG=1: log the page's width/scale numbers, and what overflows, after a step. */
+export async function debugStep(page: Page, label: string) {
+  if (!DEBUG) return;
+  try {
+    const info = await page.evaluate(() => {
+      const innerWidth = window.innerWidth;
+      const scrollWidth = document.documentElement.scrollWidth;
+      const offenders =
+        scrollWidth > innerWidth
+          ? Array.from(document.querySelectorAll("body *"))
+              .map((el) => ({ el, right: el.getBoundingClientRect().right }))
+              .filter((x) => x.right > innerWidth)
+              .sort((a, b) => b.right - a.right)
+              .slice(0, 5)
+              .map(({ el, right }) => ({
+                tag: el.tagName.toLowerCase(),
+                class: String(el.getAttribute("class") ?? "").slice(0, 120),
+                id: el.id,
+                text: (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40),
+                right: Math.round(right * 10) / 10,
+              }))
+          : [];
+      return {
+        innerWidth,
+        scrollWidth,
+        scale: window.visualViewport?.scale ?? null,
+        viewportMeta: document.querySelector('meta[name="viewport"]')?.getAttribute("content") ?? null,
+        url: location.href,
+        offenders,
+      };
+    });
+    console.log(
+      `[debug] ${label}: innerWidth=${info.innerWidth} scrollWidth=${info.scrollWidth} visualViewport.scale=${info.scale} url=${info.url}\n        meta viewport: ${info.viewportMeta}`,
+    );
+    for (const o of info.offenders) {
+      console.log(`        overflow: <${o.tag}> id="${o.id}" class="${o.class}" text="${o.text}" right=${o.right}`);
+    }
+  } catch (err) {
+    console.log(`[debug] ${label}: could not read page (${err instanceof Error ? err.message : err})`);
+  }
+}
+
+/**
+ * A fresh recording context + page: video into `rawDir` (emptied first), the cursor/caption
+ * overlay and the light theme installed. Init scripts only apply to pages opened afterwards,
+ * so this must run before the first navigation.
+ */
+export async function newRecordingPage(browser: Browser, rawDir: string) {
+  fs.rmSync(rawDir, { recursive: true, force: true });
+  fs.mkdirSync(rawDir, { recursive: true });
+  const context = await newPhoneContext(browser, rawDir);
+  if (DEBUG) {
+    const o = PHONE_CONTEXT_OPTIONS;
+    console.log(
+      `[debug] context: isMobile=${o.isMobile} hasTouch=${o.hasTouch} viewport=${o.viewport.width}x${o.viewport.height} deviceScaleFactor=${o.deviceScaleFactor}`,
+    );
+  }
+  await installOverlay(context);
+  // The app reads a "theme" localStorage key before first paint.
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem("theme", "light");
+    } catch {}
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20_000);
+  return { context, page };
+}
+
+/**
+ * Open a main-nav destination the way a user would: the bottom bar, else the "More" sheet,
+ * else (not reachable by clicking) straight to the URL. Nav items are Base UI buttons
+ * rendered as <a href>, so they are matched by href, not by role/name.
+ */
+export async function openNav(page: Page, baseUrl: string, href: string) {
+  try {
+    const inBar = page.locator(`nav a[href="${href}"]`).first();
+    if (!(await inBar.isVisible().catch(() => false))) {
+      await clickWithCursor(page, page.getByRole("button", { name: "More" }).first());
+    }
+    const entry = page.locator(`nav a[href="${href}"], [role="dialog"] a[href="${href}"]`);
+    await entry.first().waitFor({ state: "visible", timeout: 5000 });
+    await clickWithCursor(page, entry.first());
+  } catch {
+    await page.goto(`${baseUrl}${href}`);
+  }
+  await page.waitForURL(new RegExp(`${href.replace(/\//g, "\\/")}(\\?.*)?$`));
+}
+
+// ---------------------------------------------------------------------------
+// Everything a recording creates is tracked, then deleted again through the UI
+// ---------------------------------------------------------------------------
+
+export type CreatedKind = "invoice" | "estimate" | "expense" | "job";
+
+export interface CreatedItem {
+  kind: CreatedKind;
+  id: string;
+  /** Human label for warnings: a job/merchant name, or the document type. */
+  label: string;
+  /** Where to find it by hand if cleanup fails. */
+  path: string;
+}
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/**
+ * Records the id of every job, estimate, invoice and expense the recorded run creates.
+ * Ids come from the app's own 201 responses (POST /api/jobs, /api/documents, /api/receipts
+ * and the estimate->invoice convert route) and, for pages, from the URL the run lands on.
+ * Only a 201 counts: POST /api/jobs answers 200 for a job that already existed, and that
+ * one is not ours to delete.
+ */
+export class CreatedTracker {
+  readonly items: CreatedItem[] = [];
+  private readonly pending: Promise<void>[] = [];
+
+  watch(context: BrowserContext) {
+    context.on("response", (res) => {
+      if (res.request().method() !== "POST" || res.status() !== 201) return;
+      this.pending.push(this.fromResponse(res).catch(() => {}));
+    });
+  }
+
+  private async fromResponse(res: Response) {
+    const pathname = new URL(res.url()).pathname;
+    const isDocument =
+      pathname === "/api/documents" || new RegExp(`^/api/documents/${UUID}/convert$`).test(pathname);
+    if (!isDocument && pathname !== "/api/receipts" && pathname !== "/api/jobs") return;
+    let body: Record<string, { id?: string; type?: string; name?: string; merchant_name?: string }>;
+    try {
+      body = await res.json();
+    } catch {
+      console.warn(
+        `Tracker: created something at ${pathname} but could not read its id (a URL capture may still cover it).`,
+      );
+      return;
+    }
+    if (isDocument && body.document?.id) {
+      const kind = body.document.type === "estimate" ? "estimate" : "invoice";
+      this.add(kind, body.document.id, kind);
+    } else if (pathname === "/api/receipts" && body.receipt?.id) {
+      this.add("expense", body.receipt.id, body.receipt.merchant_name ?? "expense");
+    } else if (pathname === "/api/jobs" && body.job?.id) {
+      this.add("job", body.job.id, body.job.name ?? "job");
+    }
+  }
+
+  /** Also remember a page the run is on (/dashboard/invoices|estimates|jobs/<id>): a second source for the same id. */
+  addFromUrl(url: string) {
+    const m = new RegExp(`/dashboard/(invoices|estimates|jobs)/(${UUID})(?:[/?#]|$)`).exec(url);
+    if (!m) return;
+    const kind: CreatedKind = m[1] === "invoices" ? "invoice" : m[1] === "estimates" ? "estimate" : "job";
+    this.add(kind, m[2], kind);
+  }
+
+  private add(kind: CreatedKind, id: string, label: string) {
+    const existing = this.items.find((i) => i.kind === kind && i.id === id);
+    if (existing) {
+      // A response knows the real name; a URL capture only knows the kind.
+      if (existing.label === existing.kind) existing.label = label;
+      return;
+    }
+    const path =
+      kind === "expense"
+        ? `/dashboard/expenses?receipt=${id}`
+        : `/dashboard/${kind === "invoice" ? "invoices" : kind === "estimate" ? "estimates" : "jobs"}/${id}`;
+    this.items.push({ kind, id, label, path });
+  }
+
+  /** Wait for in-flight response reads; call once the recorded run is over. */
+  async settle() {
+    await Promise.all(this.pending);
+  }
+
+  count(kind: CreatedKind) {
+    return this.items.filter((i) => i.kind === kind).length;
+  }
+
+  /** Warn when the run created fewer things than the script meant to (so cleanup may miss some). */
+  async expectCount(kind: CreatedKind, n: number) {
+    await this.settle();
+    const got = this.count(kind);
+    if (got < n) {
+      console.warn(`WARNING: expected to track ${n} ${kind}(s) but only captured ${got}. Check for leftovers by hand.`);
+    }
+  }
+}
+
+type Failure = { item: CreatedItem; reason: string };
+
+/** Run `act`, wait for the app's DELETE call, and require it to succeed (a 404 means already gone). */
+async function deleteVia(page: Page, pathRegex: RegExp, act: () => Promise<void>) {
+  const response = page.waitForResponse(
+    (r) => r.request().method() === "DELETE" && pathRegex.test(new URL(r.url()).pathname),
+    { timeout: 60_000 },
+  );
+  await act();
+  const r = await response;
+  if (!r.ok() && r.status() !== 404) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`DELETE answered ${r.status()}${body?.error ? `: ${body.error}` : ""}`);
+  }
+}
+
+async function deleteDocument(page: Page, baseUrl: string, item: CreatedItem) {
+  const nav = await page.goto(`${baseUrl}${item.path}`);
+  if (nav?.status() === 404) return;
+  const deleteButton = page.getByRole("button", { name: "Delete", exact: true });
+  await deleteButton.waitFor();
+
+  // An invoice with payments can't be deleted, and removing the last payment leaves it "sent",
+  // which is locked too. So: remove each payment, then set it back to Draft, then delete.
+  const paymentCard = page.locator('[data-slot="card"]').filter({ hasText: "Payment History" });
+  for (let i = 0; i < 10; i++) {
+    const trash = paymentCard.locator("button.text-destructive");
+    if ((await trash.count()) === 0) break;
+    await deleteVia(page, new RegExp(`^/api/documents/${item.id}/payments/${UUID}$`), async () => {
+      await trash.first().click();
+      await page.getByRole("dialog").getByRole("button", { name: "Remove payment", exact: true }).click();
+    });
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await page.waitForTimeout(400);
+  }
+
+  if (await deleteButton.isDisabled()) {
+    const status = page.getByRole("combobox").filter({ hasText: /^\s*(sent|draft)\s*$/i }).first();
+    await status.click();
+    await page.getByRole("option", { name: "Draft", exact: true }).click();
+    await page.waitForFunction(
+      () =>
+        !Array.from(document.querySelectorAll("button")).some(
+          (b) => b.textContent?.trim() === "Delete" && b.disabled,
+        ),
+    );
+  }
+
+  await deleteVia(page, new RegExp(`^/api/documents/${item.id}$`), async () => {
+    await deleteButton.click();
+    await page.getByRole("dialog").getByRole("button", { name: /^delete (invoice|estimate)$/i }).click();
+  });
+}
+
+async function deleteExpense(page: Page, baseUrl: string, item: CreatedItem) {
+  await page.goto(`${baseUrl}${item.path}`);
+  const drawer = page.getByRole("dialog");
+  // The Expenses page opens that receipt's drawer from ?receipt=<id>; if it never opens, the id is gone.
+  const opened = await drawer.waitFor({ timeout: 10_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (!opened) return;
+  await deleteVia(page, new RegExp(`^/api/receipts/${item.id}$`), () =>
+    drawer.getByRole("button", { name: "Delete", exact: true }).click(),
+  );
+}
+
+async function deleteJob(page: Page, baseUrl: string, item: CreatedItem) {
+  const nav = await page.goto(`${baseUrl}${item.path}`);
+  if (nav?.status() === 404) return;
+  const deleteButton = page.getByRole("button", { name: "Delete", exact: true }).first();
+  await deleteButton.waitFor();
+  await deleteVia(page, new RegExp(`^/api/jobs/${item.id}$`), async () => {
+    await deleteButton.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+  });
+}
+
+/**
+ * Unrecorded: sign in again and delete exactly what `tracker` captured, through the UI.
+ * Order matters: invoices and estimates (payments first), then expenses, then jobs (a job
+ * with a paid invoice can't be deleted). Never throws. Returns how many items could not be
+ * deleted, after printing a warning that names each one.
+ */
+export async function cleanupCreated(
+  browser: Browser,
+  tracker: CreatedTracker,
+  creds: DemoCreds,
+): Promise<number> {
+  await tracker.settle();
+  if (tracker.items.length === 0) {
+    console.log("Cleanup: the run created nothing, so there is nothing to delete.");
+    return 0;
+  }
+  const rank: Record<CreatedKind, number> = { invoice: 0, estimate: 1, expense: 2, job: 3 };
+  const todo = [...tracker.items].sort((a, b) => rank[a.kind] - rank[b.kind]);
+  const failures: Failure[] = [];
+  let deleted = 0;
+
+  let context: BrowserContext | null = null;
+  try {
+    context = await newPhoneContext(browser);
+    const page = await context.newPage();
+    page.setDefaultTimeout(30_000);
+    await signIn(page, creds, false);
+    for (const item of todo) {
+      try {
+        if (item.kind === "invoice" || item.kind === "estimate") await deleteDocument(page, creds.baseUrl, item);
+        else if (item.kind === "expense") await deleteExpense(page, creds.baseUrl, item);
+        else await deleteJob(page, creds.baseUrl, item);
+        deleted++;
+      } catch (err) {
+        failures.push({ item, reason: err instanceof Error ? err.message.split("\n")[0] : String(err) });
+      }
+    }
+  } catch (err) {
+    // Sign-in itself failed: nothing was attempted.
+    const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    for (const item of todo.slice(deleted + failures.length)) {
+      failures.push({ item, reason: `could not sign in: ${reason}` });
+    }
+  } finally {
+    await context?.close().catch(() => {});
+  }
+
+  if (failures.length === 0) {
+    console.log(`Cleanup: deleted ${deleted} item(s) the run created.`);
+    return 0;
+  }
+  const bar = "!".repeat(70);
+  console.warn(
+    `\n${bar}\nWARNING: cleanup could NOT delete ${failures.length} of ${todo.length} item(s) the run created.\nThey are in the demo account (which shares the production database). Delete them by hand:\n`,
+  );
+  for (const { item, reason } of failures) {
+    console.warn(`  - ${item.kind} "${item.label}": ${creds.baseUrl}${item.path}\n      ${reason}`);
+  }
+  console.warn(`${bar}\n`);
+  return failures.length;
+}
+
+/** Exit code for "the video was recorded, but cleanup left something behind". */
+export const CLEANUP_INCOMPLETE_EXIT = 3;
+
+/**
+ * The shared main(): launch, run the recording, then ALWAYS run the unrecorded cleanup (also
+ * after a failed recording, so a half-made job or invoice is removed). Exit code: 0 ok,
+ * 1 the recording failed, CLEANUP_INCOMPLETE_EXIT (3) recorded but something was left behind.
+ */
+export async function runDemo(
+  creds: DemoCreds,
+  record: (browser: Browser, tracker: CreatedTracker) => Promise<void>,
+) {
+  const browser = await launchBrowser();
+  const tracker = new CreatedTracker();
+  try {
+    await record(browser, tracker);
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    const left = await cleanupCreated(browser, tracker, creds);
+    await browser.close().catch(() => {});
+    if (left > 0 && !process.exitCode) process.exitCode = CLEANUP_INCOMPLETE_EXIT;
+  }
 }

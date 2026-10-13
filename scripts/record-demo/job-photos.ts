@@ -1,7 +1,7 @@
 /**
  * Records a phone-sized screen capture: sign in -> create a job -> add two
  * site photos -> open one full size -> the Photos page. Afterwards an
- * unrecorded second session deletes the demo job again.
+ * unrecorded second session deletes the demo job again (by the id the run captured).
  *
  * Env vars (nothing is hardcoded):
  *   DEMO_BASE_URL   app to record, default http://localhost:3000
@@ -18,25 +18,26 @@
  * This writes a real job and two real photos to whichever database the app
  * points at (local dev and production share one Supabase project) - use the
  * demo account. The cleanup step deletes the job (and its photos) afterwards;
- * if that fails you get a warning to delete it by hand.
+ * if that fails you get a warning naming it.
  *
  * Run:  npm run record:demo:photos
  * Out:  scripts/record-demo/out/job-photos.webm
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { Browser, Page } from "playwright";
+import type { Browser } from "playwright";
 import {
   caption,
   clickWithCursor,
-  installOverlay,
-  launchBrowser,
-  newPhoneContext,
-  PHONE_CONTEXT_OPTIONS,
+  CreatedTracker,
+  debugStep,
   moveTo,
+  newRecordingPage,
   pause,
   pickOption,
   requireEnv,
+  runDemo,
+  signIn,
   typeWithCursor,
 } from "./helpers.ts";
 
@@ -44,6 +45,7 @@ const BASE_URL = (process.env.DEMO_BASE_URL || "http://localhost:3000").replace(
 const EMAIL = requireEnv("DEMO_EMAIL");
 const PASSWORD = requireEnv("DEMO_PASSWORD");
 const CLIENT = process.env.DEMO_CLIENT || "Sample Client";
+const CREDS = { baseUrl: BASE_URL, email: EMAIL, password: PASSWORD };
 
 const JOB_NAME = "Kitchen & basement update";
 const JOB_LOCATION = "123 Maple Street, Mississauga";
@@ -70,94 +72,11 @@ if (PHOTOS.some((p) => p === null)) {
 }
 const PHOTO_FILES = PHOTOS as string[];
 
-// Set once the recording has created the demo job, so cleanup can delete that exact one.
-let createdJobUrl: string | null = null;
-
-const DEBUG = process.env.DEMO_DEBUG === "1";
-
-/** DEMO_DEBUG=1: log the page's width/scale numbers, and what overflows, after a step. */
-async function debugStep(page: Page, label: string) {
-  if (!DEBUG) return;
+async function record(browser: Browser, tracker: CreatedTracker) {
+  const { context, page } = await newRecordingPage(browser, RAW_DIR);
+  tracker.watch(context);
   try {
-    const info = await page.evaluate(() => {
-      const innerWidth = window.innerWidth;
-      const scrollWidth = document.documentElement.scrollWidth;
-      const offenders =
-        scrollWidth > innerWidth
-          ? Array.from(document.querySelectorAll("body *"))
-              .map((el) => ({ el, right: el.getBoundingClientRect().right }))
-              .filter((x) => x.right > innerWidth)
-              .sort((a, b) => b.right - a.right)
-              .slice(0, 5)
-              .map(({ el, right }) => ({
-                tag: el.tagName.toLowerCase(),
-                class: String(el.getAttribute("class") ?? "").slice(0, 120),
-                id: el.id,
-                text: (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40),
-                right: Math.round(right * 10) / 10,
-              }))
-          : [];
-      return {
-        innerWidth,
-        scrollWidth,
-        scale: window.visualViewport?.scale ?? null,
-        viewportMeta: document.querySelector('meta[name="viewport"]')?.getAttribute("content") ?? null,
-        url: location.href,
-        offenders,
-      };
-    });
-    console.log(
-      `[debug] ${label}: innerWidth=${info.innerWidth} scrollWidth=${info.scrollWidth} visualViewport.scale=${info.scale} url=${info.url}\n        meta viewport: ${info.viewportMeta}`,
-    );
-    for (const o of info.offenders) {
-      console.log(`        overflow: <${o.tag}> id="${o.id}" class="${o.class}" text="${o.text}" right=${o.right}`);
-    }
-  } catch (err) {
-    console.log(`[debug] ${label}: could not read page (${err instanceof Error ? err.message : err})`);
-  }
-}
-
-async function signIn(page: Page, withCursor: boolean) {
-  await page.goto(`${BASE_URL}/auth`);
-  const password = page.getByRole("tab", { name: "Password" });
-  if (withCursor) {
-    await clickWithCursor(page, password);
-    // #pw-email / #pw-password: the Magic Link tab has a second "Email" field.
-    await typeWithCursor(page, page.locator("#pw-email"), EMAIL);
-    await typeWithCursor(page, page.locator("#pw-password"), PASSWORD);
-    await clickWithCursor(page, page.getByRole("button", { name: "Sign in", exact: true }));
-  } else {
-    await password.click();
-    await page.locator("#pw-email").fill(EMAIL);
-    await page.locator("#pw-password").fill(PASSWORD);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  }
-  await page.waitForURL(/\/dashboard/);
-}
-
-async function record(browser: Browser) {
-  fs.rmSync(RAW_DIR, { recursive: true, force: true });
-  fs.mkdirSync(RAW_DIR, { recursive: true });
-
-  const context = await newPhoneContext(browser, RAW_DIR);
-  if (DEBUG) {
-    const o = PHONE_CONTEXT_OPTIONS;
-    console.log(
-      `[debug] context: isMobile=${o.isMobile} hasTouch=${o.hasTouch} viewport=${o.viewport.width}x${o.viewport.height} deviceScaleFactor=${o.deviceScaleFactor}`,
-    );
-  }
-  // Init scripts only apply to pages opened after they are registered.
-  await installOverlay(context);
-  await context.addInitScript(() => {
-    try {
-      localStorage.setItem("theme", "light");
-    } catch {}
-  });
-  const page = await context.newPage();
-  try {
-    page.setDefaultTimeout(20_000);
-
-    await signIn(page, true);
+    await signIn(page, CREDS, true);
     await pause(page, 1000);
 
     // --- 1. Create a job ---
@@ -179,7 +98,7 @@ async function record(browser: Browser) {
     // Creating a job already navigates to its page (NewJobDialog's onCreated
     // does router.push), so there is no list row to click: wait for the page.
     await page.waitForURL(/\/dashboard\/jobs\/[^/]+$/);
-    createdJobUrl = page.url();
+    tracker.addFromUrl(page.url());
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await debugStep(page, "job page");
     await pause(page, 800);
@@ -250,89 +169,11 @@ async function record(browser: Browser) {
     await context.close(); // flushes the video
     await video?.saveAs(OUT_FILE);
     console.log(`Saved ${OUT_FILE}`);
+    await tracker.expectCount("job", 1);
   } finally {
     await context.close().catch(() => {});
     fs.rmSync(RAW_DIR, { recursive: true, force: true });
   }
 }
 
-/** On a job's page: Delete, then confirm in the dialog, then wait for the jobs list. */
-async function deleteCurrentJob(page: Page) {
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
-  await confirm.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.waitForURL(/\/dashboard\/jobs$/);
-}
-
-/**
- * Unrecorded: sign in again and delete the demo job through the UI. Never throws.
- * First the exact job the recording created (by its URL); then a sweep by name for
- * any leftover (e.g. from an earlier failed run).
- */
-async function cleanup(browser: Browser) {
-  try {
-    const context = await newPhoneContext(browser);
-    const page = await context.newPage();
-    page.setDefaultTimeout(15_000);
-    await signIn(page, false);
-
-    let deleted = 0;
-    if (createdJobUrl) {
-      try {
-        await page.goto(createdJobUrl);
-        await deleteCurrentJob(page);
-        deleted++;
-      } catch (err) {
-        console.warn(
-          `Cleanup: could not delete ${createdJobUrl} directly (${err instanceof Error ? err.message : err}); trying by name.`,
-        );
-      }
-    }
-
-    // The list is server-rendered then hydrated, so wait for a row instead of
-    // checking at once (an instant check reads "no job" on a page still loading).
-    await page.goto(`${BASE_URL}/dashboard/jobs`);
-    await page.waitForLoadState("networkidle").catch(() => {});
-    for (let i = 0; i < 5; i++) {
-      const card = page.getByRole("button", { name: JOB_NAME }).first();
-      const found = await card.waitFor({ state: "visible", timeout: i === 0 ? 5000 : 2000 }).then(
-        () => true,
-        () => false,
-      );
-      if (!found) break;
-      await card.click();
-      await page.waitForURL(/\/dashboard\/jobs\/[^/]+$/);
-      await deleteCurrentJob(page);
-      deleted++;
-    }
-    await context.close();
-    if (deleted === 0) {
-      console.warn(
-        `Cleanup: nothing was deleted${createdJobUrl ? "" : " (the recording never created the job)"}. If "${JOB_NAME}" exists, delete it by hand.`,
-      );
-    } else {
-      console.log(`Cleanup: deleted ${deleted} demo job(s).`);
-    }
-  } catch (err) {
-    console.warn(
-      `\nWARNING: cleanup failed. Delete the job "${JOB_NAME}" (and its photos) by hand in the demo account.\n`,
-      err instanceof Error ? err.message : err,
-    );
-  }
-}
-
-async function main() {
-  const browser = await launchBrowser();
-  try {
-    await record(browser);
-  } finally {
-    // Runs even if the recording failed part-way, so a half-made job is removed.
-    await cleanup(browser);
-    await browser.close();
-  }
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+runDemo(CREDS, record);
