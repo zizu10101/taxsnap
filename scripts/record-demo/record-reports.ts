@@ -72,6 +72,23 @@ async function warnIfMentionsStatements(page: Page, view: string) {
   }
 }
 
+/**
+ * Wait until `rows` has rendered (the report's data has loaded), or stop with a clear message if the
+ * view says it is empty. A heading renders before its data does, so waiting on a heading is not enough.
+ */
+async function waitForRows(page: Page, view: string, rows: Locator, emptyText: RegExp) {
+  const empty = page.getByText(emptyText).first();
+  const winner = await Promise.race([
+    rows.first().waitFor({ timeout: 30_000 }).then(() => "rows" as const),
+    empty.waitFor({ timeout: 30_000 }).then(() => "empty" as const),
+  ]).catch(() => {
+    throw new Error(`${view}: neither rows nor an empty message appeared within 30 s (still loading?).`);
+  });
+  if (winner === "empty") {
+    throw new Error(`No ${view} in ${RANGE_START} to ${RANGE_END}: add some to the demo account, then record again.`);
+  }
+}
+
 /** Open the Custom Range option of the date filter inside `scope` and set June 1 - Sept 30. */
 async function setRange(page: Page, scope: Page | Locator) {
   await clickWithCursor(page, scope.getByRole("combobox").first());
@@ -103,9 +120,11 @@ async function record(browser: Browser, tracker: CreatedTracker) {
     await page.getByRole("combobox").first().waitFor();
     await setRange(page, page); // the Revenue tab keeps its own range
     await page.getByRole("columnheader", { name: "Client" }).first().waitFor();
+    const clientRows = page.locator("table").first().locator("tbody tr td:first-child");
+    await waitForRows(page, "revenue", clientRows, /Nothing in this range/);
     await moveTo(page, page.getByRole("columnheader", { name: "Client" }).first());
     await debugStep(page, "revenue by client");
-    await logNames(page, "Revenue, clients", page.locator("table").first().locator("tbody tr td:first-child"));
+    await logNames(page, "Revenue, clients", clientRows);
     await warnIfMentionsStatements(page, "Revenue");
     await pause(page, HOLD_MS);
 
@@ -114,15 +133,20 @@ async function record(browser: Browser, tracker: CreatedTracker) {
     await clickWithCursor(page, page.getByRole("button", { name: "Expenses", exact: true }));
     await page.getByText("Expenses by Category").first().waitFor();
     await moveTo(page, page.getByText("Expenses by Category").first());
-    await page.waitForLoadState("networkidle").catch(() => {});
+    const expensesCard = page.locator('[data-slot="card"]').filter({ hasText: /Expenses by (Category|Vendor)/ });
+    const expenseRows = expensesCard.locator("table tbody tr td:first-child");
+    await waitForRows(page, "expenses", expenseRows, /No expenses in this range/);
     await debugStep(page, "expenses by category");
-    await logNames(page, "Expenses, categories", page.locator("table").first().locator("tbody tr td:first-child"));
+    await logNames(page, "Expenses, categories", expenseRows);
     await warnIfMentionsStatements(page, "Expenses by category");
     await pause(page, HOLD_MS);
-    await clickWithCursor(page, page.getByRole("button", { name: "Vendor", exact: true }));
+    // The Group-by toggle has aria-pressed; the Vendor filter dropdown (aria-expanded) does not.
+    await clickWithCursor(page, page.locator("button[aria-pressed]", { hasText: /^Vendor$/ }));
     await page.getByText("Expenses by Vendor").first().waitFor();
+    await expensesCard.getByRole("columnheader", { name: "Vendor" }).first().waitFor();
+    await waitForRows(page, "expenses", expenseRows, /No expenses in this range/);
     await debugStep(page, "expenses by vendor");
-    await logNames(page, "Expenses, vendors", page.locator("table").first().locator("tbody tr td:first-child"));
+    await logNames(page, "Expenses, vendors", expenseRows);
     await warnIfMentionsStatements(page, "Expenses by vendor");
     await pause(page, HOLD_MS);
 
@@ -135,6 +159,7 @@ async function record(browser: Browser, tracker: CreatedTracker) {
     await hst.getByRole("combobox").first().waitFor();
     await setRange(page, hst);
     await hst.getByText("Line 109").first().waitFor();
+    await page.waitForLoadState("networkidle").catch(() => {});
     await moveTo(page, hst.getByText("Line 109").first());
     await debugStep(page, "HST summary");
     await warnIfMentionsStatements(page, "HST");
