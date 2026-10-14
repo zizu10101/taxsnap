@@ -117,7 +117,6 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     ],
     mp4: "/videos/record-reports.mp4",
     poster: "/videos/record-reports.jpg",
-    hidden: true, // until the recording has been watched
   },
   {
     slug: "record-receipt-scan",
@@ -131,6 +130,5 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     ],
     mp4: "/videos/record-receipt-scan.mp4",
     poster: "/videos/record-receipt-scan.jpg",
-    hidden: true, // until the recording has been watched
   },
 ];
