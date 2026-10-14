@@ -20,6 +20,7 @@ const SCRIPTS = [
   "record-progress-billing",
   "record-reports",
   "record-receipt-scan",
+  "record-clock-in",
 ];
 
 type Result = { name: string; status: "PASS" | "FAIL" | "CLEANUP"; seconds: number; code: number | null };

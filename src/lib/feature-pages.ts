@@ -78,7 +78,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
     description:
       "Your crew clocks in and out of jobs from their own phone with a personal PIN. No accounts to manage, no hours to type in, and every session lands on the right job.",
     href: "/features/employee-clock-in",
-    videos: [],
+    videos: ["record-clock-in"],
   },
   {
     icon: Layers,

@@ -134,4 +134,17 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     mp4: "/videos/record-receipt-scan.mp4",
     poster: "/videos/record-receipt-scan.jpg",
   },
+  {
+    slug: "record-clock-in",
+    title: "Clock your crew in and out",
+    description: "Add an employee with a PIN, let them clock in on a job from their phone, and see the hours on the job.",
+    steps: [
+      "Add your employee: a name, their rates and a 4-digit PIN.",
+      "They open your shared link, pick their name and enter their PIN to clock in on a job.",
+      "They clock out when the work is done.",
+      "The hours land on the right job, ready for your job costing.",
+    ],
+    mp4: "/videos/record-clock-in.mp4",
+    poster: "/videos/record-clock-in.jpg",
+  },
 ];

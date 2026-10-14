@@ -91,15 +91,29 @@ export async function installOverlay(context: BrowserContext) {
   await context.addInitScript(OVERLAY_SCRIPT);
 }
 
+/**
+ * Safety net for a page that was loaded before the overlay was installed (or in a context that
+ * never had it): inject it now instead of failing on "window.__demoMove is not a function".
+ * The script is idempotent, so running it on a page that already has the overlay changes nothing.
+ */
+async function ensureOverlay(page: Page) {
+  const present = await page.evaluate(
+    () => typeof (window as unknown as { __demoMove?: unknown }).__demoMove === "function",
+  );
+  if (!present) await page.evaluate(OVERLAY_SCRIPT);
+}
+
 export const pause = (page: Page, ms = STEP_PAUSE_MS) => page.waitForTimeout(ms);
 
 export async function caption(page: Page, text: string) {
+  await ensureOverlay(page);
   await page.evaluate((t) => (window as unknown as DemoWindow).__demoCaption(t), text);
   await pause(page);
 }
 
 /** Glide the dot to the middle of an element (scrolled into view first). */
 export async function moveTo(page: Page, target: Locator) {
+  await ensureOverlay(page);
   await target.scrollIntoViewIfNeeded();
   const box = await target.boundingBox();
   if (!box) throw new Error("moveTo: element has no bounding box");
@@ -169,6 +183,9 @@ export async function newPhoneContext(browser: Browser, rawDir?: string) {
     ...(rawDir ? { recordVideo: { dir: rawDir, size: { width: 390, height: 844 } } } : {}),
   });
   await hideDevOverlay(context);
+  // Every context gets the cursor/caption overlay, so any page opened in it (setup sessions
+  // included) can use clickWithCursor; it survives navigations like the dev-overlay hiding does.
+  await installOverlay(context);
   return context;
 }
 
@@ -298,7 +315,6 @@ export async function newRecordingPage(browser: Browser, rawDir: string) {
       `[debug] context: isMobile=${o.isMobile} hasTouch=${o.hasTouch} viewport=${o.viewport.width}x${o.viewport.height} deviceScaleFactor=${o.deviceScaleFactor}`,
     );
   }
-  await installOverlay(context);
   // The app reads a "theme" localStorage key before first paint.
   await context.addInitScript(() => {
     try {

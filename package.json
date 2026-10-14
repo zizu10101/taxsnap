@@ -14,6 +14,7 @@
     "record:demo:esign": "node scripts/record-demo/record-esign.ts",
     "record:demo:progress": "node scripts/record-demo/record-progress-billing.ts",
     "record:demo:reports": "node scripts/record-demo/record-reports.ts",
+    "record:demo:clockin": "node scripts/record-demo/record-clock-in.ts",
     "record:demo:receipt": "node scripts/record-demo/record-receipt-scan.ts",
     "record:demo:make-receipt": "node scripts/record-demo/make-receipt.ts",
     "record:demo:all": "node scripts/record-demo/run-all.ts",
