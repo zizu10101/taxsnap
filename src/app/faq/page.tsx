@@ -4,6 +4,7 @@ import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { SITE_FAQ_ITEMS } from "@/lib/faq-items";
+import { withVideoLinks } from "@/lib/how-to-videos-server";
 
 export const metadata: Metadata = {
   title: "TaxSnap FAQ — Receipts, Invoicing, Jobs & HST",
@@ -32,7 +33,7 @@ export default function FaqPage() {
           __html: JSON.stringify(FAQ_JSON_LD).replace(/</g, "\\u003c"),
         }}
       />
-      <FaqSection items={SITE_FAQ_ITEMS} />
+      <FaqSection items={withVideoLinks(SITE_FAQ_ITEMS)} />
       <FinalCta />
       <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
         <div className="mx-auto max-w-4xl space-y-3 px-4">

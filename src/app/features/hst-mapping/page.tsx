@@ -9,12 +9,10 @@ export const metadata: Metadata = {
 export default function HstMappingPage() {
   return (
     <FeatureDetail
+      featureHref="/features/hst-mapping"
       icon={Landmark}
       title="HST-Ready, Automatically"
       tagline="Every receipt and invoice maps to the right CRA line items, so your HST return estimate is always current. No spreadsheets, no manual math."
-      mobileSrc="/screenshots/hst-mobile.webp"
-      desktopSrc="/screenshots/hst-desktop.webp"
-      screenshotAlt="The Ontario HST Return Helper in TaxSnap, showing a running estimate mapped to real CRA line numbers"
       paragraphs={[
         "Every expense you scan and every payment you receive is mapped automatically to the actual line numbers on the Ontario GST/HST return — Line 101 (total sales), Line 103 (HST collected), and Line 106 (input tax credits) — so your running total is built from real numbers, not a rough guess.",
         "Invoiced revenue counts payments as they're actually received, pro-rated for deposits, the same way job costing does — so a deposit on a large invoice counts toward the right period even if the invoice isn't fully paid until later. Meals and entertainment purchases are automatically limited to the 50% input tax credit the CRA allows, rather than a flat pass-through of every dollar spent.",

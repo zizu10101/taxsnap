@@ -5,6 +5,8 @@ export interface SiteFaqItem {
   answer: string;
   /** Shown on the homepage; every item is on /faq. */
   home?: boolean;
+  /** A how-to video that shows the answer; linked only while that video is published. */
+  videoSlug?: string;
 }
 
 // General-business question set - Jobs applies here (hidden entirely for
@@ -19,6 +21,7 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
     answer:
       "Snap or upload a photo of a receipt and TaxSnap's AI reads it automatically - merchant, date, total, tax, and a suggested write-off category are filled in for you to review before saving. No manual data entry.",
     home: true,
+    videoSlug: "record-receipt-scan",
   },
   {
     question: "What happens after my free scans run out?",
@@ -52,6 +55,7 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
     answer:
       "Create a professional invoice or estimate in a few taps - pick a client, add line items, and TaxSnap calculates HST and totals automatically. Estimates convert into invoices with one click once a client approves. Invoicing is included on every plan.",
     home: true,
+    videoSlug: "estimate-to-invoice",
   },
   {
     question: "Can I share an estimate or invoice with a client?",
@@ -67,16 +71,19 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
     question: "What are Jobs?",
     answer:
       "Jobs let you tag receipts to a specific project and track employee hours against it, so you can see the true cost of any job - materials plus labor - kept separate from your regular tax tracking. Every plan includes Jobs.",
+    videoSlug: "job-profit",
   },
   {
     question: "Can I attach site photos to a job?",
     answer:
       "Yes. Snap before and after photos on the job and file them under it, or save them as unsorted and sort them later. Photos are private to you - they aren't shown to clients or added to invoices.",
+    videoSlug: "job-photos",
   },
   {
     question: "What reports do I get?",
     answer:
       "Your dashboard shows running totals for expenses, deductible spend, and estimated tax savings, plus the Ontario HST Return Helper for a real-time view of what you owe. Reports add revenue by client, expenses by category or vendor, and your HST position for any date range.",
+    videoSlug: "record-reports",
   },
   {
     question: "Can I export my data?",

@@ -49,7 +49,7 @@ function NavigationMenuTrigger({
     <NavigationMenuPrimitive.Trigger
       data-slot="navigation-menu-trigger"
       className={cn(
-        "flex items-center gap-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground data-popup-open:text-foreground",
+        "flex items-center gap-1 rounded-sm text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-popup-open:text-foreground",
         className
       )}
       {...props}
@@ -81,7 +81,7 @@ function NavigationMenuLink({
     <NavigationMenuPrimitive.Link
       data-slot="navigation-menu-link"
       className={cn(
-        "flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-sm outline-none hover:bg-accent",
+        "flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
         className
       )}
       {...props}

@@ -24,7 +24,7 @@ import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection } from "@/components/landing/faq-section";
 import { HOME_FAQ_ITEMS } from "@/lib/faq-items";
-import { availableHowToVideos } from "@/lib/how-to-videos-server";
+import { availableHowToVideos, withVideoLinks } from "@/lib/how-to-videos-server";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import { ScreenShowcase, type ShowcaseTab } from "@/components/landing/screen-showcase";
 
@@ -159,6 +159,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
   { feature: "Send via email, WhatsApp, or SMS", free: true, basic: true, pro: true },
   { feature: "Job costing (materials + labor)", free: true, basic: true, pro: true },
   { feature: "Job profitability (Est. Profit)", free: true, basic: true, pro: true },
+  { feature: "Reports: revenue, expenses by category or vendor, HST", free: false, basic: false, pro: true },
   { feature: "Priority support", free: false, basic: false, pro: true },
 ];
 
@@ -209,6 +210,7 @@ const GENERAL_FEATURES: {
     title: "Site photos on every job",
     description:
       "Snap before and after photos on the job. Everything stays private to you, organized by job.",
+    href: "/features/site-photos",
   },
   {
     icon: Layers,
@@ -236,6 +238,7 @@ const GENERAL_FEATURES: {
     title: "Reports",
     description:
       "Revenue by client, expenses by category or vendor, and your HST position. Export when tax time comes.",
+    href: "/features/reports",
   },
   {
     icon: Clock,
@@ -246,10 +249,10 @@ const GENERAL_FEATURES: {
   },
   {
     icon: Briefcase,
-    title: "Jobs with client, location and notes",
+    title: "Jobs with client and location, plus private notes",
     description:
-      "Pick a client once and it follows the job. Keep private notes that never reach the client.",
-    href: "/features/job-costing",
+      "Pick a client once and it follows the job. Private internal notes on every estimate and invoice never reach the client.",
+    href: "/features/jobs",
   },
 ];
 
@@ -404,7 +407,7 @@ export default function Home() {
         comparisonRows={COMPARISON_ROWS}
       />
 
-      <FaqSection items={HOME_FAQ_ITEMS} seeAllHref="/faq" />
+      <FaqSection items={withVideoLinks(HOME_FAQ_ITEMS)} seeAllHref="/faq" />
 
       <FinalCta />
 

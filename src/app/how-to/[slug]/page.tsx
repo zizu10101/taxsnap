@@ -7,6 +7,7 @@ import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PhoneFrame } from "@/components/landing/phone-frame";
+import { featurePageForVideo } from "@/lib/feature-pages";
 import { availableHowToVideos } from "@/lib/how-to-videos-server";
 
 // Only the listed slugs exist; anything else is a 404.
@@ -50,6 +51,7 @@ export default async function HowToVideoPage({
   if (index === -1) notFound();
 
   const video = videos[index];
+  const feature = featurePageForVideo(video.slug);
   const next = videos.length > 1 ? videos[(index + 1) % videos.length] : null;
 
   return (
@@ -69,6 +71,9 @@ export default async function HowToVideoPage({
               {video.title}
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg">{video.description}</p>
+            {video.planNote && (
+              <p className="mt-2 text-sm font-medium text-primary">{video.planNote}</p>
+            )}
 
             <h2 className="mt-8 font-heading text-xl font-bold">Steps</h2>
             <ol className="mt-3 space-y-3">
@@ -83,6 +88,15 @@ export default async function HowToVideoPage({
             </ol>
 
             <div className="mt-10 flex flex-col gap-3 text-sm font-medium">
+              {feature && (
+                <Link
+                  href={feature.href}
+                  className="inline-flex items-center gap-2 text-primary underline-offset-4 hover:underline"
+                >
+                  Learn more about this feature: {feature.title}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
               {next && (
                 <Link
                   href={`/how-to/${next.slug}`}

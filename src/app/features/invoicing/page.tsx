@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { FileText } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
+import { PricingNote } from "@/components/landing/pricing-note";
 
 const DESCRIPTION =
   "Build a professional estimate, get it approved with a client e-signature, convert it to an invoice with one click, and log payments as they come in.";
@@ -18,14 +19,12 @@ export const metadata: Metadata = {
 export default function InvoicingPage() {
   return (
     <FeatureDetail
+      featureHref="/features/invoicing"
       icon={FileText}
       eyebrow="Invoicing & Estimates"
       title="Invoicing & Estimates"
       tagline="Build a professional estimate, get it e-signed by your client, convert it to an invoice once approved, and record payments as they come in — cash, card, e-transfer, whatever the client used."
-      note="Available on the Pro plan."
-      mobileSrc="/screenshots/new-invoice-mobile.webp"
-      desktopSrc="/screenshots/new-invoice-desktop.webp"
-      screenshotAlt="The New Invoice screen in TaxSnap, with an Estimate/Invoice toggle and client and job details to fill in"
+      note={<PricingNote />}
       howItWorks={[
         {
           title: "Build the estimate",

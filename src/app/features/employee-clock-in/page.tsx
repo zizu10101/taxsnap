@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Clock } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
-import { everyPlanCapNote } from "@/lib/plan-cap-copy";
+import { PricingNote } from "@/components/landing/pricing-note";
 
 export const metadata: Metadata = {
   title: "Employee Clock-In — TaxSnap",
@@ -11,14 +10,11 @@ export const metadata: Metadata = {
 export default function EmployeeClockInPage() {
   return (
     <FeatureDetail
+      featureHref="/features/employee-clock-in"
       icon={Clock}
       title="Employee Clock-In"
       tagline="Your crew logs their own hours, and you get accurate labor cost on every job without typing a number."
-      note={everyPlanCapNote("employee", {
-        free: PLAN_LIMITS.free.employees,
-        basic: PLAN_LIMITS.basic.employees,
-        pro: PLAN_LIMITS.pro.employees,
-      })}
+      note={<PricingNote />}
       mobileSrc="/screenshots/employee-clock-in-mobile.webp"
       desktopSrc="/screenshots/employee-clock-in-desktop.webp"
       screenshotAlt="Employee clock-in in TaxSnap: on a phone, an employee clocked in to a job with a running timer and a Clock out button above their recent hours; on desktop, the owner's Employees page showing who is clocked in and flagging a forgotten clock-out"

@@ -13,6 +13,8 @@ export interface HowToVideo {
   steps: string[];
   mp4: string;
   poster: string;
+  /** Plan note shown under the description, for a Pro-only feature. */
+  planNote?: string;
   /** Omit from the index, the routes and the sitemap. */
   hidden?: boolean;
   /** Also show it as a tab in the homepage's "See it in action". */
@@ -117,6 +119,7 @@ export const HOW_TO_VIDEOS: HowToVideo[] = [
     ],
     mp4: "/videos/record-reports.mp4",
     poster: "/videos/record-reports.jpg",
+    planNote: "Available on the Pro plan.",
   },
   {
     slug: "record-receipt-scan",

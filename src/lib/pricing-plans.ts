@@ -98,6 +98,7 @@ export const PRICING_PLANS: {
       "Unlimited invoices, clients, jobs",
       "Job costing with Est. Profit",
       "Accountant export bundle",
+      "Reports: revenue, expenses by category or vendor, HST",
       "Priority support",
     ],
   },

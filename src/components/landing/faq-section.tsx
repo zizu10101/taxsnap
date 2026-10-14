@@ -7,6 +7,8 @@ import { ChevronDown } from "lucide-react";
 export interface FaqItem {
   question: string;
   answer: string;
+  /** A how-to video that shows the answer. */
+  link?: { href: string; label: string };
 }
 
 // Independent open/closed state per item (not a single-open-at-a-time
@@ -33,7 +35,17 @@ function FaqAccordionItem({ item }: { item: FaqItem }) {
         />
       </button>
       {open && (
-        <p className="mt-3 text-sm text-muted-foreground">{item.answer}</p>
+        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <p>{item.answer}</p>
+          {item.link && (
+            <Link
+              href={item.link.href}
+              className="inline-block font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {item.link.label}
+            </Link>
+          )}
+        </div>
       )}
     </div>
   );

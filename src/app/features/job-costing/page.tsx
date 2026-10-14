@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Briefcase } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
-import { everyPlanCapNote } from "@/lib/plan-cap-copy";
+import { PricingNote } from "@/components/landing/pricing-note";
 
 export const metadata: Metadata = {
   title: "Job Costing — TaxSnap",
@@ -11,17 +10,11 @@ export const metadata: Metadata = {
 export default function JobCostingPage() {
   return (
     <FeatureDetail
+      featureHref="/features/job-costing"
       icon={Briefcase}
       title="Job Costing"
       tagline="Track profitability per job. Log materials, assign labor hours, link the invoice — see your real margin on every project, not just a guess."
-      note={everyPlanCapNote("job", {
-        free: PLAN_LIMITS.free.jobs,
-        basic: PLAN_LIMITS.basic.jobs,
-        pro: PLAN_LIMITS.pro.jobs,
-      })}
-      mobileSrc="/screenshots/jobs-mobile.webp"
-      desktopSrc="/screenshots/jobs-desktop.webp"
-      screenshotAlt="The Jobs screen in TaxSnap, listing each job with its total cost, and on desktop a cost preview showing expenses, labor, and estimated profit"
+      note={<PricingNote />}
       paragraphs={[
         "Tag any receipt to a job while you're scanning it, and log employee hours against that same job as work happens. TaxSnap adds up materials and labor automatically, so you always know a job's true cost — not just what you quoted for it.",
         "Revenue is counted from payments you've actually received on invoices linked to that job, pro-rated for deposits — not the full invoice total the moment it's sent. That means your estimated profit reflects money in hand, not money you're still waiting on.",

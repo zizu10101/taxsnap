@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 export default function AccountantExportPage() {
   return (
     <FeatureDetail
+      featureHref="/features/accountant-export"
       icon={FileArchive}
       title="One-Click Accountant Export"
       tagline="Bundle receipts, invoices, and a period summary into one download — everything your accountant needs, ready to go."

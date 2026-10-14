@@ -1,25 +1,42 @@
 import Link from "next/link";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, HelpCircle, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { FeatureScreenshotToggle } from "@/components/landing/feature-screenshot-toggle";
 import { InstallPromptCards } from "@/components/install-prompt-cards";
+import { DemoVideo } from "@/components/landing/demo-video";
+import { PhoneFrame } from "@/components/landing/phone-frame";
+import { FEATURE_PAGES } from "@/lib/feature-pages";
+import { availableHowToVideos } from "@/lib/how-to-videos-server";
 
 export interface FeatureHowItWorksStep {
   title: string;
   description: string;
 }
 
+export interface FeatureBenefit {
+  title: string;
+  description: string;
+}
+
 export interface FeatureDetailProps {
   icon: LucideIcon;
+  /**
+   * This page's own path (e.g. "/features/reports"). Its how-to videos come from
+   * the matching FEATURE_PAGES entry, minus any that are hidden or missing.
+   */
+  featureHref: string;
+  /** Three short benefit blocks under the tagline - omit if not needed. */
+  benefits?: FeatureBenefit[];
   /** Small uppercase label above the H1, e.g. "EXPENSE TRACKING" - omit if not needed. */
   eyebrow?: string;
   title: string;
   tagline: string;
   /** Short note shown under the tagline, e.g. plan availability - omit if not needed. */
-  note?: string;
+  note?: ReactNode;
   /** Numbered "How it works" steps, shown right under the screenshot - omit if not needed. */
   howItWorks?: FeatureHowItWorksStep[];
   paragraphs: string[];
@@ -47,6 +64,8 @@ export interface FeatureDetailProps {
 // plain Lucide icon component as a prop.
 export function FeatureDetail({
   icon: Icon,
+  featureHref,
+  benefits,
   eyebrow,
   title,
   tagline,
@@ -58,6 +77,9 @@ export function FeatureDetail({
   screenshotAlt = "",
   hideScreenshot = false,
 }: FeatureDetailProps) {
+  const videoSlugs = FEATURE_PAGES.find((f) => f.href === featureHref)?.videos ?? [];
+  const videos = availableHowToVideos().filter((v) => videoSlugs.includes(v.slug));
+
   return (
     <main className="flex flex-1 flex-col bg-background">
       <LandingHeader />
@@ -89,7 +111,20 @@ export function FeatureDetail({
         )}
       </section>
 
-      {!hideScreenshot && (
+      {benefits && benefits.length > 0 && (
+        <section className="border-t border-border">
+          <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-10 sm:grid-cols-3 sm:px-8">
+            {benefits.map((benefit) => (
+              <div key={benefit.title} className="rounded-lg border border-border bg-card p-5">
+                <h2 className="font-heading text-lg font-bold">{benefit.title}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">{benefit.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!hideScreenshot && videos.length === 0 && (
         <section className="border-t border-border">
           <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
             <FeatureScreenshotToggle
@@ -102,7 +137,7 @@ export function FeatureDetail({
         </section>
       )}
 
-      {howItWorks && howItWorks.length > 0 && (
+      {videos.length === 0 && howItWorks && howItWorks.length > 0 && (
         <section className="border-t border-border">
           <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-8">
             <h2 className="font-heading text-2xl font-bold">How it works</h2>
@@ -122,6 +157,41 @@ export function FeatureDetail({
           </div>
         </section>
       )}
+
+      {videos.map((video, i) => (
+        <section key={video.slug} className="border-t border-border">
+          <div className="mx-auto grid w-full max-w-5xl items-center gap-8 px-4 py-10 sm:px-8 md:grid-cols-[300px_1fr] md:gap-14">
+            <div
+              className={`mx-auto w-full max-w-[280px] md:max-w-[300px] ${i % 2 === 1 ? "md:order-2" : ""}`}
+            >
+              <PhoneFrame>
+                <DemoVideo mp4={video.mp4} poster={video.poster} label={video.title} />
+              </PhoneFrame>
+            </div>
+            <div className={i % 2 === 1 ? "md:order-1" : ""}>
+              <h2 className="font-heading text-2xl font-bold">{video.title}</h2>
+              <p className="mt-2 text-muted-foreground">{video.description}</p>
+              <ol className="mt-6 space-y-4">
+                {video.steps.map((step, n) => (
+                  <li key={step} className="flex gap-4">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {n + 1}
+                    </span>
+                    <p className="pt-1 text-sm text-muted-foreground sm:text-base">{step}</p>
+                  </li>
+                ))}
+              </ol>
+              <Link
+                href={`/how-to/${video.slug}`}
+                className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <PlayCircle className="h-4 w-4" />
+                Watch the full how-to
+              </Link>
+            </div>
+          </div>
+        </section>
+      ))}
 
       <section className="border-t border-border">
         <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-10 sm:px-8">

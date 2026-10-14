@@ -70,7 +70,7 @@ function MenuLink({
       <Link
         href={href}
         onClick={onNavigate}
-        className="flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-sm outline-none hover:bg-accent"
+        className="flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
       >
         {children}
       </Link>
@@ -162,7 +162,7 @@ export function LandingHeader({ getStartedHref = "/auth" }: { getStartedHref?: s
               <NavigationMenuItem>
                 <NavigationMenuTrigger>Features</NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <div className="grid w-64 gap-1">
+                  <div className="grid w-[34rem] grid-cols-2 gap-1">
                     <FeatureLinks />
                   </div>
                 </NavigationMenuContent>

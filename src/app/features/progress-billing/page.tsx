@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Layers } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
+import { PricingNote } from "@/components/landing/pricing-note";
 
 const DESCRIPTION =
   "Bill large jobs in draws against a contract value, log change orders, track retainage, and keep a running received/remaining ledger — no spreadsheets.";
@@ -18,14 +19,12 @@ export const metadata: Metadata = {
 export default function ProgressBillingPage() {
   return (
     <FeatureDetail
+      featureHref="/features/progress-billing"
       icon={Layers}
       eyebrow="Progress Billing"
       title="Progress Billing"
       tagline="Bill large jobs in draws against a contract value, track retainage, and keep a running received/remaining ledger — no spreadsheets, no manual math."
-      note="Available on the Pro plan."
-      mobileSrc="/screenshots/progress-billing-mobile.webp"
-      desktopSrc="/screenshots/progress-billing-desktop.webp"
-      screenshotAlt="The Progress Billing screen in TaxSnap, showing contract value, invoiced to date, remaining balance, and a list of draws"
+      note={<PricingNote lead="Available on the Pro plan." />}
       howItWorks={[
         {
           title: "Set a contract value",
