@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { Download, Loader2, Mail, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { generateDocumentPdf, type PriorDraw } from "@/lib/invoice-pdf";
@@ -39,12 +40,25 @@ export function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-// Tells the server a PDF was downloaded or shared (it happens in the browser),
-// so the first-invoice-sent activation timestamp can be set. Fire-and-forget:
-// it must never get in the way of the send itself.
-export function reportDocumentSent(documentId: string) {
-  fetch(`/api/documents/${documentId}/mark-sent`, { method: "POST" }).catch(() => {});
+// Tells the server a PDF was downloaded or shared (it happens in the browser), so the
+// first-invoice-sent activation timestamp can be set. With `markSent` (the share sheet - not a
+// plain download) a DRAFT invoice also becomes Sent. Resolves to whether the status changed;
+// it never throws, so it can not get in the way of the send itself.
+export async function reportDocumentSent(documentId: string, markSent = false): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/documents/${documentId}/mark-sent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mark_sent: markSent }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.marked_sent === true;
+  } catch {
+    return false;
+  }
 }
+
+export const MARKED_SENT_MESSAGE = "Invoice marked as Sent";
 
 export async function buildDocumentPdf(
   document: DocumentWithRelations,
@@ -89,6 +103,7 @@ export function ShareDocumentButton({
   // otherwise.
   priorDraws?: PriorDraw[];
 }) {
+  const router = useRouter();
   const canShare = useSyncExternalStore(noSubscription, canShareFiles, getServerFalse);
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -112,7 +127,11 @@ export function ShareDocumentButton({
         files: [file],
         title: `${label} ${document.client?.name ? `for ${document.client.name}` : ""}`,
       });
-      reportDocumentSent(document.id);
+      // Handing the PDF to the share sheet counts as sending the invoice.
+      if (await reportDocumentSent(document.id, true)) {
+        toast.success(MARKED_SENT_MESSAGE);
+        router.refresh();
+      }
     } catch (err) {
       // The user closing the native share sheet throws AbortError - not a real failure.
       if (err instanceof Error && err.name === "AbortError") return;

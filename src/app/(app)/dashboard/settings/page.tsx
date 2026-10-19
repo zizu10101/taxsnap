@@ -13,6 +13,8 @@ import {
 } from "@/components/settings/owner-lists-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
+import { OnlinePaymentsCard } from "@/components/settings/online-payments-card";
+import type { ConnectStatus } from "@/lib/connect-status";
 import {
   NavigationSettings,
   type NavSettingsRow,
@@ -34,7 +36,12 @@ export const metadata: Metadata = {
 // sidebar/bottom-nav (it has no nav item of its own - see nav-config.ts),
 // since it's an account-level page like /billing, not one of the tabbed
 // sections, and the app lock isn't a subscription-tier feature.
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stripe?: string; code?: string }>;
+}) {
+  const { stripe: stripeFlag, code: stripeCode } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,7 +58,7 @@ export default async function SettingsPage() {
     supabase
       .from("profiles")
       .select(
-        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at, logo_url, business_name, business_address, business_phone, business_email, business_number, business_profile_skipped",
+        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at, stripe_connect_status, online_payments_terms_accepted_at, logo_url, business_name, business_address, business_phone, business_email, business_number, business_profile_skipped",
       )
       .eq("id", user.id)
       .single(),
@@ -176,6 +183,15 @@ export default async function SettingsPage() {
           pendingTier={profile?.pending_tier ?? null}
           pendingChangeEffectiveAt={profile?.pending_change_effective_at ?? null}
         />
+
+        {isGeneral && (
+          <OnlinePaymentsCard
+            status={(profile?.stripe_connect_status ?? "not_connected") as ConnectStatus}
+            returnFlag={stripeFlag ?? null}
+            returnCode={stripeCode ? stripeCode.slice(0, 60) : null}
+            termsAcceptedAt={profile?.online_payments_terms_accepted_at ?? null}
+          />
+        )}
 
         {showEmployeeLogin && <EmployeeLoginSettings />}
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { resolveBankAccountId, round2, statusFromPaid } from "@/lib/payments";
+import { stripePaymentLockMessage } from "@/lib/stripe-payment-lock";
 
 export async function PATCH(
   request: Request,
@@ -23,6 +24,9 @@ export async function PATCH(
   if (!document) {
     return NextResponse.json({ error: "Document not found." }, { status: 404 });
   }
+
+  const lockMessage = await stripePaymentLockMessage(supabase, id, paymentId);
+  if (lockMessage) return NextResponse.json({ error: lockMessage }, { status: 403 });
 
   const body = await request.json();
   const update: {
@@ -141,6 +145,9 @@ export async function DELETE(
   if (!document) {
     return NextResponse.json({ error: "Document not found." }, { status: 404 });
   }
+
+  const lockMessage = await stripePaymentLockMessage(supabase, id, paymentId);
+  if (lockMessage) return NextResponse.json({ error: lockMessage }, { status: 403 });
 
   const { error: deleteError } = await supabase
     .from("payments")

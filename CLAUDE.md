@@ -688,6 +688,43 @@ makes ONE demo client and ONE demo job (`is_sample`); `sampleBlockMessage()` mak
 and photos refuse them, pickers and the usage bars skip them, they never count toward the client/job caps and
 are left out of reports, so they cannot reach a PDF, public page, portal, email, export or the HST totals.
 
+## Online invoice payments (Stripe Connect)
+
+**Local dev MUST use the Taxsnap sandbox `sk_test_` key.** `.env.local` once held an `sk_live_` key, which made
+local dev talk to production Stripe. The Connect routes, the Connect webhook and the public checkout route
+all get their Stripe client from `getConnectStripe()` (`lib/stripe-connect.ts`), which refuses a live key
+unless `NODE_ENV` is `production` (and, on Vercel, `VERCEL_ENV` is `production` - preview deployments build
+with `NODE_ENV=production`). Rule: `lib/connect-guard.ts`. A local `npm run build && npm run start` IS
+`NODE_ENV=production`, so keep `.env.local` on the sandbox key even for that.
+
+Migration `0067_online_payments_connect.sql` (+ rollback; apply BEFORE the code ships). Each general-business
+contractor gets their OWN connected account (full Stripe Dashboard, Stripe collects requirements and covers
+negative balances, Stripe bills its fee to the contractor, Canada, `card_payments` AND `transfers` requested
+together - Stripe rejects card_payments alone); clients pay by hosted
+Checkout as a DIRECT charge on that account, no TaxSnap fee, CAD only, full balance only (deposits, partials,
+refunds, disputes and the double-pay refund are later phases). Status lives on `profiles.stripe_connect_*`
+(`not_connected | incomplete | restricted | active | disconnected`, `connectStatusFromAccount`); "Pay now" on
+`/invoice/[token]` shows only for a sent/partial invoice, an `active` account and a balance over $1
+(`onlinePayableAmount`, the same rule the route enforces). `POST /api/public/invoice/[token]/checkout` reads
+NOTHING from the browser: it computes the amount from the invoice and its payments, is rate limited per token
+and per IP (`checkout_attempts`, hashed), and answers every "can not pay" reason identically. Only the invoice
+number, business name, amount and `document_id` go to Stripe - never notes, line items or sample data. The
+Connect webhook is `POST /api/stripe/connect-webhook` (scope "Connected accounts", its own
+`STRIPE_CONNECT_WEBHOOK_SECRET`; the subscription webhook is separate and untouched): signature verified,
+livemode must match the key, every event id is claimed in `stripe_events` first, a failure returns 500 so
+Stripe retries. `checkout.session.completed` inserts a normal `payments` row (`source='stripe'`, gross
+`amount`, so invoice status and the HST sales figures behave exactly as for a manual payment; Stripe's fee is
+stored in `stripe_fee`/`stripe_net` for information only and never touches a total), then emails a receipt.
+Sharing an INVOICE (copy link, email to client, the share sheet) moves a Draft to Sent through
+`markInvoiceShared()` (`lib/mark-invoice-sent.ts`; the guard `status = draft` is in the query, so Sent/Partial/Paid
+are never touched, and estimates never are; a plain Download does not count) and the UI toasts "Invoice marked as
+Sent". The receipt email goes to the client's email on file, else to the email the payer typed in Checkout
+(`customer_details.email`, used once and never saved onto the client). The connected account is prefilled with
+the business name and a product description (`connectedAccountParams`). A `stripe` payment can not be edited or deleted in the app, and an invoice with a Checkout Session ever opened
+(`documents.online_session_opened_at`) can not go back to draft. A second payment on an already covered
+invoice is NOT recorded and is logged as `overpaid:` in `stripe_events.note` for a human (auto-refund is a
+later phase).
+
 ## Local dev / testing this app on a phone
 
 **Local dev and production share one Supabase project** (verified

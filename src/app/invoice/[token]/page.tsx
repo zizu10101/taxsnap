@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { PublicDocumentPaper } from "@/components/public/document-paper";
 import { showsInvoiceFooter } from "@/lib/invoice-footer";
+import { PayNowButton } from "@/components/public/pay-now-button";
+import { onlinePayableAmount } from "@/lib/connect-status";
 
 export const metadata: Metadata = {
   title: "Invoice — TaxSnap",
@@ -15,16 +17,19 @@ export const metadata: Metadata = {
 // session to satisfy RLS with.
 export default async function PublicInvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ paid?: string }>;
 }) {
   const { token } = await params;
+  const { paid: justPaid } = await searchParams;
   const supabase = createAdminClient();
 
   const { data: invoice } = await supabase
     .from("documents")
     // Explicit columns, never "*": this page is public, and documents carries owner-only fields.
-    .select("user_id, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, items:document_items(*), client:clients(*), job:jobs(name)")
+    .select("user_id, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, payments(amount), items:document_items(*), client:clients(*), job:jobs(name)")
     .eq("view_token", token)
     .eq("type", "invoice")
     .maybeSingle();
@@ -33,7 +38,7 @@ export default async function PublicInvoicePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, business_number, logo_url, subscription_status")
+    .select("business_name, business_email, business_phone, business_address, business_number, logo_url, subscription_status, stripe_connect_account_id, stripe_connect_status, stripe_connect_charges_enabled")
     .eq("id", invoice.user_id)
     .single();
 
@@ -44,6 +49,20 @@ export default async function PublicInvoicePage({
       .createSignedUrl(profile.logo_url, 60 * 60);
     logoUrl = signed?.signedUrl ?? null;
   }
+
+  // "Pay now" is offered only when the server would accept the payment: invoice sent, the
+  // owner's Stripe account active, and a balance over $1. The checkout route re-checks all of it.
+  const amountPaid = (invoice.payments ?? []).reduce((sum, p) => sum + p.amount, 0);
+  const payable = onlinePayableAmount({
+    type: "invoice",
+    status: invoice.status,
+    total: invoice.total_amount,
+    paid: amountPaid,
+    connectStatus: profile?.stripe_connect_status,
+    chargesEnabled: profile?.stripe_connect_charges_enabled,
+    hasAccount: Boolean(profile?.stripe_connect_account_id),
+  });
+  const fullyPaid = invoice.status === "paid";
 
   const business = {
     name: profile?.business_name ?? null,
@@ -72,6 +91,23 @@ export default async function PublicInvoicePage({
         showBrandFooter={showsInvoiceFooter(profile?.subscription_status, "invoice")}
         logoUrl={logoUrl}
       />
+
+      {justPaid && (
+        <div className="rounded-lg border border-success/40 bg-success/10 p-4 text-center text-sm text-success">
+          Thank you - your payment is being confirmed. You will get a receipt by email shortly.
+        </div>
+      )}
+      {fullyPaid && !justPaid && (
+        <div className="rounded-lg border border-success/40 bg-success/10 p-4 text-center text-sm text-success">
+          This invoice has been paid in full.
+        </div>
+      )}
+      {payable !== null && (
+        <PayNowButton
+          token={token}
+          amountLabel={new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(payable)}
+        />
+      )}
     </div>
   );
 }

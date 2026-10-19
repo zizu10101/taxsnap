@@ -698,7 +698,15 @@ export function DocumentDetail({
                             }`}
                           {payment.note && ` · ${payment.note}`}
                         </p>
+                        {payment.source === "stripe" && payment.stripe_fee !== null && (
+                          <p className="text-xs text-muted-foreground">
+                            Stripe fee {formatCurrency(payment.stripe_fee)}
+                            {payment.stripe_net !== null && ` · you receive ${formatCurrency(payment.stripe_net)}`}
+                            {" "}(information only, not in your HST totals)
+                          </p>
+                        )}
                       </div>
+                      {payment.source === "manual" ? (
                       <div className="flex shrink-0 items-center gap-1">
                         <Button
                           variant="ghost"
@@ -723,6 +731,9 @@ export function DocumentDetail({
                           )}
                         </Button>
                       </div>
+                      ) : (
+                        <span className="shrink-0 text-xs text-muted-foreground">Paid online</span>
+                      )}
                     </div>
                   ))}
               </div>

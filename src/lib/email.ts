@@ -182,3 +182,68 @@ export async function sendDocumentEmail({
     return false;
   }
 }
+
+// Sent by the Connect webhook right after an online invoice payment is recorded.
+// Only what the client already knows: who they paid, which invoice, how much, what
+// is left, and the link to the invoice page. No notes, no line items, nothing from
+// Stripe's objects. Same never-throws/returns-false contract as the senders above -
+// the payment is already recorded whether or not this goes out.
+export async function sendPaymentReceiptEmail({
+  to,
+  businessName,
+  clientName,
+  documentNumber,
+  amountPaid,
+  balanceRemaining,
+  viewToken,
+  brandFooter,
+  appUrl,
+}: {
+  to: string;
+  businessName: string | null;
+  clientName: string;
+  documentNumber: number;
+  amountPaid: number;
+  balanceRemaining: number;
+  viewToken: string | null;
+  brandFooter: boolean;
+  appUrl: string;
+}): Promise<boolean> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.error("sendPaymentReceiptEmail: RESEND_API_KEY is not set, skipping send.");
+    return false;
+  }
+
+  const label = formatDocumentNumber("invoice", documentNumber);
+  const fromWho = businessName ?? "your contractor";
+  const viewUrl = viewToken ? `${appUrl}/invoice/${viewToken}` : null;
+  const status =
+    balanceRemaining > 0
+      ? `The remaining balance is <strong>${formatCurrency(balanceRemaining)}</strong>.`
+      : "This invoice is now paid in full.";
+
+  try {
+    const { error } = await resend.emails.send({
+      from: buildFromHeader(businessName),
+      to,
+      subject: `Receipt for invoice ${label} from ${fromWho}`,
+      html: `
+        <p>Hi ${escapeHtml(clientName)},</p>
+        <p>We received your payment of <strong>${formatCurrency(amountPaid)}</strong> to ${escapeHtml(fromWho)}
+        for invoice ${escapeHtml(label)}. ${status}</p>
+        ${viewUrl ? `<p>You can view the invoice here: <a href="${viewUrl}">${viewUrl}</a></p>` : ""}
+        <p>Sent via TaxSnap on behalf of ${escapeHtml(fromWho)}.</p>
+        ${brandFooterHtml(brandFooter)}
+      `,
+    });
+    if (error) {
+      console.error("sendPaymentReceiptEmail: Resend returned an error.", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("sendPaymentReceiptEmail: send threw.", err);
+    return false;
+  }
+}

@@ -5,7 +5,7 @@ import { sendDocumentEmail } from "@/lib/email";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { checkPdfUpload } from "@/lib/send-email-rules";
 import { showsInvoiceFooter } from "@/lib/invoice-footer";
-import { recordActivation } from "@/lib/activation";
+import { markInvoiceShared } from "@/lib/mark-invoice-sent";
 
 function getAppUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -16,8 +16,8 @@ function getAppUrl(request: Request) {
 // email read from the database - never anything from the request - and an estimate that is still open
 // also carries its signature link.
 //
-// Sending does NOT change the document's status or anything else about it (status and posting rules
-// are a separate decision); a static test pins that this file never writes to `documents`.
+// Sending an INVOICE moves it from Draft to Sent (markInvoiceShared - never a downgrade, never an
+// estimate); that write lives in the helper, a static test pins that this file writes nothing itself.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -97,7 +97,8 @@ export async function POST(
     );
   }
 
-  if (doc.type === "invoice") await recordActivation(supabase, user.id, "first_invoice_sent_at");
+  // The email went out: a draft invoice becomes Sent (an estimate is left alone).
+  const { markedSent } = await markInvoiceShared(supabase, user.id, doc);
 
-  return NextResponse.json({ success: true, sent_to: client.email.trim() });
+  return NextResponse.json({ success: true, sent_to: client.email.trim(), marked_sent: markedSent });
 }

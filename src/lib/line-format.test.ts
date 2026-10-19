@@ -175,7 +175,7 @@ test("the PDF to email must be a real PDF, non-empty and not over the limit", ()
   assert.equal(checkPdfUpload(big)?.status, 413);
 });
 
-test("sending never changes the document: the email route does not write to documents", () => {
+test("the email route writes nothing itself (a shared draft invoice is marked Sent by markInvoiceShared)", () => {
   const src = readLf("src/app/api/documents/[id]/send-email/route.ts");
   assert.ok(!/\.update\(|\.insert\(|\.delete\(|\.upsert\(/.test(src));
   assert.ok(!/status:\s*["'`]/.test(src), "never sets a document status");
@@ -186,7 +186,7 @@ test("sending never changes the document: the email route does not write to docu
   assert.ok(src.includes('.eq("user_id", user.id)'));
 });
 
-test("the share-link route only creates a token, never a status", () => {
+test("the share-link route writes no status itself (the invoice is marked Sent by markInvoiceShared)", () => {
   const src = readLf("src/app/api/documents/[id]/share-link/route.ts");
   assert.ok(!/\.update\(/.test(src));
   const lib = readLf("src/lib/document-sign-link.ts");

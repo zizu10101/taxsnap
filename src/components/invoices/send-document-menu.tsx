@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { Download, Link2, Loader2, Mail, Send, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { buildDocumentPdf, downloadBlob, reportDocumentSent } from "@/components/invoices/share-document-button";
+import { MARKED_SENT_MESSAGE, buildDocumentPdf, downloadBlob, reportDocumentSent } from "@/components/invoices/share-document-button";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { PriorDraw } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
@@ -36,10 +37,17 @@ export function SendDocumentMenu({
   logoPath: string | null;
   priorDraws?: PriorDraw[];
 }) {
+  const router = useRouter();
   const canShare = useSyncExternalStore(noSubscription, canShareFiles, getServerFalse);
   const [busy, setBusy] = useState<SendAction | "share" | null>(null);
   const { options, note } = sendMenu({ clientEmail: document.client?.email });
   const shortId = formatDocumentNumber(document.type, document.document_number);
+
+  // A draft invoice that was just shared is now Sent: say so and refresh the page's status.
+  function announceMarkedSent() {
+    toast.success(MARKED_SENT_MESSAGE);
+    router.refresh();
+  }
 
   async function run(action: SendAction | "share") {
     setBusy(action);
@@ -55,6 +63,7 @@ export function SendDocumentMenu({
         toast.success(
           document.type === "estimate" ? "Signature link copied to clipboard" : "Invoice link copied to clipboard",
         );
+        if (data.marked_sent) announceMarkedSent();
       } else if (action === "email") {
         const pdf = await buildDocumentPdf(document, business, logoPath, priorDraws);
         const form = new FormData();
@@ -63,13 +72,14 @@ export function SendDocumentMenu({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Failed to send the email");
         toast.success(`Emailed to ${data.sent_to}`);
+        if (data.marked_sent) announceMarkedSent();
       } else {
         const pdf = await buildDocumentPdf(document, business, logoPath, priorDraws);
         await navigator.share({
           files: [new File([pdf], `${shortId}.pdf`, { type: "application/pdf" })],
           title: `${document.type === "invoice" ? "Invoice" : "Estimate"} ${shortId}`,
         });
-        reportDocumentSent(document.id);
+        if (await reportDocumentSent(document.id, true)) announceMarkedSent();
       }
     } catch (err) {
       // Closing the native share sheet throws AbortError - not a real failure.

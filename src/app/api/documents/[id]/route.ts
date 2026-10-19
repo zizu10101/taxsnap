@@ -17,6 +17,7 @@ import { parseNote } from "@/lib/document-notes";
 import { sampleBlockMessage } from "@/lib/sample-data";
 import { newJobCapMessage } from "@/lib/job-cap";
 import { recordActivation } from "@/lib/activation";
+import { draftBlockedMessage } from "@/lib/stripe-payment-lock";
 import { parseLineInputs, type ParsedLine } from "@/lib/line-format";
 
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
@@ -64,7 +65,7 @@ export async function PATCH(
 
   const { data: existing } = await supabase
     .from("documents")
-    .select("id, type, is_progress_draw, status, payments(id)")
+    .select("id, type, is_progress_draw, status, online_session_opened_at, payments(id)")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -74,6 +75,9 @@ export async function PATCH(
   }
 
   const body = await request.json();
+
+  const draftBlocked = draftBlockedMessage(body?.status, existing);
+  if (draftBlocked) return NextResponse.json({ error: draftBlocked }, { status: 400 });
 
   // 'partial' / 'paid' follow the recorded payments; they can't be set by hand.
   // Checked before the lock below so the answer is the clear 400, not a 403.

@@ -64,6 +64,12 @@ export interface Database {
           first_invoice_sent_at: string | null;
           first_receipt_saved_at: string | null;
           checklist_dismissed_at: string | null;
+          stripe_connect_account_id: string | null;
+          stripe_connect_status: string;
+          stripe_connect_charges_enabled: boolean;
+          stripe_connect_payouts_enabled: boolean;
+          stripe_connect_checked_at: string | null;
+          online_payments_terms_accepted_at: string | null;
           onboarding_goals: string[];
           business_number: string | null;
           hidden_nav_keys: string[];
@@ -97,6 +103,12 @@ export interface Database {
           first_invoice_sent_at?: string | null;
           first_receipt_saved_at?: string | null;
           checklist_dismissed_at?: string | null;
+          stripe_connect_account_id?: string | null;
+          stripe_connect_status?: string;
+          stripe_connect_charges_enabled?: boolean;
+          stripe_connect_payouts_enabled?: boolean;
+          stripe_connect_checked_at?: string | null;
+          online_payments_terms_accepted_at?: string | null;
           onboarding_goals?: string[];
           business_number?: string | null;
           hidden_nav_keys?: string[];
@@ -130,6 +142,12 @@ export interface Database {
           first_invoice_sent_at?: string | null;
           first_receipt_saved_at?: string | null;
           checklist_dismissed_at?: string | null;
+          stripe_connect_account_id?: string | null;
+          stripe_connect_status?: string;
+          stripe_connect_charges_enabled?: boolean;
+          stripe_connect_payouts_enabled?: boolean;
+          stripe_connect_checked_at?: string | null;
+          online_payments_terms_accepted_at?: string | null;
           onboarding_goals?: string[];
           business_number?: string | null;
           hidden_nav_keys?: string[];
@@ -285,6 +303,8 @@ export interface Database {
           total_amount: number;
           converted_from_id: string | null;
           excluded_from_hst: boolean;
+          requested_payment_amount: number | null;
+          online_session_opened_at: string | null;
           document_number: number;
           is_progress_draw: boolean;
           draw_number: number | null;
@@ -317,6 +337,8 @@ export interface Database {
           total_amount?: number;
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
+          requested_payment_amount?: number | null;
+          online_session_opened_at?: string | null;
           document_number: number;
           is_progress_draw?: boolean;
           draw_number?: number | null;
@@ -349,6 +371,8 @@ export interface Database {
           total_amount?: number;
           converted_from_id?: string | null;
           excluded_from_hst?: boolean;
+          requested_payment_amount?: number | null;
+          online_session_opened_at?: string | null;
           document_number?: number;
           is_progress_draw?: boolean;
           draw_number?: number | null;
@@ -380,6 +404,54 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      stripe_events: {
+        Row: {
+          id: string;
+          account_id: string | null;
+          type: string;
+          note: string | null;
+          received_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          account_id?: string | null;
+          type: string;
+          note?: string | null;
+          received_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          account_id?: string | null;
+          type?: string;
+          note?: string | null;
+          received_at?: string;
+          processed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      checkout_attempts: {
+        Row: {
+          id: string;
+          token_hash: string;
+          ip_hash: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          ip_hash: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          token_hash?: string;
+          ip_hash?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       document_items: {
         Row: {
@@ -435,6 +507,13 @@ export interface Database {
           method: string | null;
           note: string | null;
           bank_account_id: string | null;
+          source: string;
+          stripe_account_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          stripe_charge_id: string | null;
+          stripe_fee: number | null;
+          stripe_net: number | null;
           created_at: string;
         };
         Insert: {
@@ -445,6 +524,13 @@ export interface Database {
           method?: string | null;
           note?: string | null;
           bank_account_id?: string | null;
+          source?: string;
+          stripe_account_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_charge_id?: string | null;
+          stripe_fee?: number | null;
+          stripe_net?: number | null;
           created_at?: string;
         };
         Update: {
@@ -455,6 +541,13 @@ export interface Database {
           method?: string | null;
           note?: string | null;
           bank_account_id?: string | null;
+          source?: string;
+          stripe_account_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_charge_id?: string | null;
+          stripe_fee?: number | null;
+          stripe_net?: number | null;
           created_at?: string;
         };
         Relationships: [

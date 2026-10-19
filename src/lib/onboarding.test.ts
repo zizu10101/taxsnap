@@ -148,9 +148,12 @@ test("activation is written once: only the matching column, and only while it is
 });
 
 test("activation is recorded where an invoice is sent and a receipt is saved", () => {
-  assert.match(read("../app/api/documents/[id]/send-email/route.ts"), /first_invoice_sent_at/);
-  assert.match(read("../app/api/documents/[id]/share-link/route.ts"), /first_invoice_sent_at/);
-  assert.match(read("../app/api/documents/[id]/mark-sent/route.ts"), /first_invoice_sent_at/);
+  // Email, copy link and the share sheet all go through markInvoiceShared, which records the activation too.
+  assert.match(read("../app/api/documents/[id]/send-email/route.ts"), /markInvoiceShared\(/);
+  assert.match(read("../app/api/documents/[id]/share-link/route.ts"), /markInvoiceShared\(/);
+  assert.match(read("../app/api/documents/[id]/mark-sent/route.ts"), /markInvoiceShared\(/);
+  assert.match(read("../app/api/documents/[id]/mark-sent/route.ts"), /first_invoice_sent_at/, "a plain download still counts");
+  assert.match(read("./mark-invoice-sent.ts"), /first_invoice_sent_at/);
   assert.match(read("../app/api/documents/[id]/route.ts"), /first_invoice_sent_at/);
   assert.match(read("../app/api/receipts/route.ts"), /first_receipt_saved_at/);
 });

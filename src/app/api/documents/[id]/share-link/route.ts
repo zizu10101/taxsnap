@@ -6,7 +6,7 @@ import {
   EstimateNotFoundError,
   InvoiceNotFoundError,
 } from "@/lib/document-sign-link";
-import { recordActivation } from "@/lib/activation";
+import { markInvoiceShared } from "@/lib/mark-invoice-sent";
 
 function getAppUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -14,8 +14,8 @@ function getAppUrl(request: Request) {
 
 // The Send menu's "Copy link": the public page the client opens - /sign/[token] for an estimate (they
 // can review and sign), /invoice/[token] for an invoice (read-only). The token is created the first time
-// it is asked for and reused after, so re-sharing never breaks a link the client already opened. This
-// only ever writes the token column - never the document's status.
+// it is asked for and reused after, so re-sharing never breaks a link the client already opened. An
+// ESTIMATE is only given a token; an INVOICE that was a draft is also marked Sent (markInvoiceShared).
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -41,8 +41,9 @@ export async function POST(
       return NextResponse.json({ url: `${getAppUrl(request)}/sign/${token}` });
     }
     const token = await ensureViewToken(supabase, id, user.id);
-    await recordActivation(supabase, user.id, "first_invoice_sent_at");
-    return NextResponse.json({ url: `${getAppUrl(request)}/invoice/${token}` });
+    // Copying the invoice link counts as sending it: a draft becomes Sent.
+    const { markedSent } = await markInvoiceShared(supabase, user.id, doc);
+    return NextResponse.json({ url: `${getAppUrl(request)}/invoice/${token}`, marked_sent: markedSent });
   } catch (err) {
     if (err instanceof EstimateNotFoundError || err instanceof InvoiceNotFoundError) {
       return NextResponse.json({ error: err.message }, { status: 404 });

@@ -1,4 +1,5 @@
 import { BILLING_CHANGE_POLICY } from "@/lib/pricing-plans";
+import { FEE_AND_DISPUTE_WORDING } from "@/lib/online-payments-terms";
 
 export interface SiteFaqItem {
   question: string;
@@ -43,6 +44,10 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
     question: "How does billing and cancellation work?",
     answer: `Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to change your billing interval or cancel anytime, no need to contact support. ${BILLING_CHANGE_POLICY}`,
     home: true,
+  },
+  {
+    question: "Can clients dispute card payments?",
+    answer: `Yes. When a client pays an invoice by card, the money goes to your own Stripe account and you are the seller. ${FEE_AND_DISPUTE_WORDING} TaxSnap adds no fee.`,
   },
   {
     question: "What does “HST mapping” mean?",
