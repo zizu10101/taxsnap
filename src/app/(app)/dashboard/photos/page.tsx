@@ -28,7 +28,7 @@ export default async function PhotosPage() {
     .single();
   if (profile?.business_type === "salon") redirect("/dashboard");
 
-  const { data: jobs } = await supabase.from("jobs").select("name").order("name", { ascending: true });
+  const { data: jobs } = await supabase.from("jobs").select("name").eq("is_sample", false).order("name", { ascending: true });
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">

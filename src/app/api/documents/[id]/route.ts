@@ -14,6 +14,9 @@ import {
 } from "@/lib/plan-limits";
 import { parsePlaceText } from "@/lib/job-fields";
 import { parseNote } from "@/lib/document-notes";
+import { sampleBlockMessage } from "@/lib/sample-data";
+import { newJobCapMessage } from "@/lib/job-cap";
+import { recordActivation } from "@/lib/activation";
 import { parseLineInputs, type ParsedLine } from "@/lib/line-format";
 
 import type { DocumentStatus, DocumentType, DocumentUpdate } from "@/lib/database.types";
@@ -170,6 +173,8 @@ export async function PATCH(
     }
   }
 
+  const sampleMessage = await sampleBlockMessage(supabase, user.id, { clientId: body.client_id, jobId: body.job_id, jobName: body.job_name });
+  if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
   let clientId: string | undefined = body.client_id ?? undefined;
   // A FK alone proves the client exists, not that it is this owner's.
   if (body.client_id) {
@@ -239,6 +244,13 @@ export async function PATCH(
     if (existingJob) {
       jobId = existingJob.id;
     } else {
+      const jobCapMessage = await newJobCapMessage(supabase, user.id, name);
+      if (jobCapMessage) {
+        return NextResponse.json(
+          { error: jobCapMessage, code: "FREE_LIMIT_REACHED" },
+          { status: 403 },
+        );
+      }
       const { data: newJob, error: newJobError } = await supabase
         .from("jobs")
         .insert({ user_id: user.id, name })
@@ -307,6 +319,11 @@ export async function PATCH(
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  // Marking an invoice Sent by hand counts as the first invoice sent.
+  if (body.status === "sent" && document.type === "invoice") {
+    await recordActivation(supabase, user.id, "first_invoice_sent_at");
   }
 
   let items = null;

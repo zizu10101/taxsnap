@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/require-pro";
 import { validateWorkDateForApi } from "@/lib/work-date";
 import { findJobByName } from "@/lib/find-by-name";
 import { newJobCapMessage } from "@/lib/job-cap";
+import { sampleBlockMessage } from "@/lib/sample-data";
 
 export async function GET(request: Request) {
   const result = await requireUser();
@@ -79,6 +80,9 @@ export async function POST(request: Request) {
   if (employeeError || !employee) {
     return NextResponse.json({ error: "Employee not found." }, { status: 404 });
   }
+
+  const sampleMessage = await sampleBlockMessage(supabase, user.id, { jobId: jobIdInput, jobName: job_name });
+  if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
 
   let jobId: string | undefined = jobIdInput ?? undefined;
   if (!jobId && job_name?.trim()) {

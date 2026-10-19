@@ -27,7 +27,7 @@ export default async function HoursPage() {
       .select("*, employee:employees(*), job:jobs(*), session:time_sessions(id, clock_in_at, clock_out_at, closed_by, owner_edited_at, original_clock_in_at, original_clock_out_at)")
       .order("work_date", { ascending: false }),
     supabase.from("employees").select("*").order("name", { ascending: true }),
-    supabase.from("jobs").select("*").order("name", { ascending: true }),
+    supabase.from("jobs").select("*").eq("is_sample", false).order("name", { ascending: true }),
   ]);
 
   return (

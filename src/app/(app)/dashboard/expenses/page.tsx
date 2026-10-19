@@ -32,7 +32,7 @@ export default async function ExpensesPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, business_type, logo_url, business_name, business_email, business_phone, business_address",
+      "subscription_status, business_type, logo_url, business_name, business_email, business_phone, business_address, business_number",
     )
     .eq("id", user.id)
     .single();
@@ -46,7 +46,7 @@ export default async function ExpensesPage({
       .from("receipts")
       .select("*")
       .order("transaction_date", { ascending: false }),
-    supabase.from("jobs").select("name").order("name", { ascending: true }),
+    supabase.from("jobs").select("name").eq("is_sample", false).order("name", { ascending: true }),
     supabase
       .from("expense_templates")
       .select("*, job:jobs(name)")
@@ -81,6 +81,7 @@ export default async function ExpensesPage({
           email: profile?.business_email || user.email || "",
           phone: profile?.business_phone ?? null,
           address: profile?.business_address ?? null,
+          hstNumber: profile?.business_number ?? null,
         }}
         isPro={profile?.subscription_status === "pro"}
         logoPath={profile?.logo_url ?? null}

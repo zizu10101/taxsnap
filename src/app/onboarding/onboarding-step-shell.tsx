@@ -1,44 +1,54 @@
 "use client";
 
-// Shared chrome for every onboarding step: progress label, title, the
-// step's own content, and a uniform "Skip for now" - present on every step
-// per spec, even where a step also renders its own primary action (that
-// action is just part of `children`, placed above this footer link).
+import Image from "next/image";
+
+// Shared chrome for the two onboarding steps, in the app's dark sidebar look: a
+// dark page, the brand mark, a visible "Step X of Y" with a progress bar, and a
+// light card holding the step. Mobile first: the card is full width on a phone.
 export function OnboardingStepShell({
   stepNumber,
-  totalSteps = 5,
+  totalSteps,
   title,
   description,
   children,
-  onSkip,
 }: {
   stepNumber: number;
-  totalSteps?: number;
+  totalSteps: number;
   title: string;
   description?: string;
   children: React.ReactNode;
-  onSkip: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-1 items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-sm space-y-4">
-        <p className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Step {stepNumber} of {totalSteps}
-        </p>
-        <div className="text-center">
-          <h1 className="text-xl font-bold">{title}</h1>
-          {description && (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          )}
+    <main className="flex min-h-dvh flex-1 flex-col items-center bg-sidebar px-4 py-6 text-sidebar-foreground sm:justify-center">
+      <div className="w-full max-w-md space-y-5">
+        <div className="flex items-center justify-between">
+          <Image src="/logo-mark.png" alt="TaxSnap" width={36} height={36} className="h-9 w-9" priority />
+          <p className="text-sm font-medium text-sidebar-foreground/80">
+            Step {stepNumber} of {totalSteps}
+          </p>
         </div>
-        {children}
-        <button
-          type="button"
-          onClick={onSkip}
-          className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+        <div
+          className="flex gap-2"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+          aria-valuenow={stepNumber}
+          aria-label={`Step ${stepNumber} of ${totalSteps}`}
         >
-          Skip for now
-        </button>
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 flex-1 rounded-full ${i < stepNumber ? "bg-primary" : "bg-sidebar-foreground/20"}`}
+            />
+          ))}
+        </div>
+        <div className="rounded-2xl bg-card p-5 text-card-foreground shadow-lg sm:p-6">
+          <div className="mb-5">
+            <h1 className="text-2xl font-bold">{title}</h1>
+            {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+          </div>
+          {children}
+        </div>
       </div>
     </main>
   );

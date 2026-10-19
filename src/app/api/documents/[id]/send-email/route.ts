@@ -5,6 +5,7 @@ import { sendDocumentEmail } from "@/lib/email";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { checkPdfUpload } from "@/lib/send-email-rules";
 import { showsInvoiceFooter } from "@/lib/invoice-footer";
+import { recordActivation } from "@/lib/activation";
 
 function getAppUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -95,6 +96,8 @@ export async function POST(
       { status: 502 },
     );
   }
+
+  if (doc.type === "invoice") await recordActivation(supabase, user.id, "first_invoice_sent_at");
 
   return NextResponse.json({ success: true, sent_to: client.email.trim() });
 }

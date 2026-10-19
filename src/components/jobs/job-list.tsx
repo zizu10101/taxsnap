@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
 import { Briefcase, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
@@ -41,7 +42,7 @@ export function JobList({
     <div className="space-y-4">
       <UsageLimitBar
         tier={subscriptionStatus}
-        current={jobs.length}
+        current={jobs.filter((j) => !j.is_sample).length}
         limit={PLAN_LIMITS[subscriptionStatus].jobs}
         noun="job"
       />
@@ -89,7 +90,14 @@ export function JobList({
             >
               <CardContent className="flex items-center gap-3 py-4">
                 <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <p className="truncate font-medium">{job.name}</p>
+                <p className="truncate font-medium">
+                  {job.name}
+                  {job.is_sample && (
+                    <Badge variant="outline" className="ml-2 align-middle">
+                      Sample
+                    </Badge>
+                  )}
+                </p>
               </CardContent>
             </Card>
           ))}

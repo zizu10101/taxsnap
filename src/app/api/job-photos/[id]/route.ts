@@ -1,3 +1,4 @@
+import { sampleBlockMessage } from "@/lib/sample-data";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { isUuid, parseCaption, parseJobRef } from "@/lib/job-photos";
@@ -39,6 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         .eq("user_id", user.id)
         .maybeSingle();
       if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+      const sampleMessage = await sampleBlockMessage(supabase, user.id, { jobId: ref.jobId });
+      if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
     }
     update.job_id = ref.jobId;
   }

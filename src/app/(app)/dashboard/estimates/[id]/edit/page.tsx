@@ -23,7 +23,7 @@ export default async function EditEstimatePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("logo_url, business_name, business_address, business_phone, business_email")
+    .select("logo_url, business_name, business_address, business_number, business_phone, business_email")
     .eq("id", user.id)
     .single();
 
@@ -35,10 +35,11 @@ export default async function EditEstimatePage({
         .eq("id", id)
         .eq("type", "estimate")
         .single(),
-      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase.from("clients").select("*").eq("is_sample", false).order("name", { ascending: true }),
       supabase
         .from("jobs")
         .select("id, name, location, client_id, contract_value")
+        .eq("is_sample", false)
         .order("name", { ascending: true }),
       supabase.from("line_items").select("*").eq("is_active", true),
     ]);
@@ -66,6 +67,7 @@ export default async function EditEstimatePage({
         email: profile?.business_email || user.email || "",
         phone: profile?.business_phone ?? null,
         address: profile?.business_address ?? null,
+        hstNumber: profile?.business_number ?? null,
       }}
       logoPath={profile?.logo_url ?? null}
     />

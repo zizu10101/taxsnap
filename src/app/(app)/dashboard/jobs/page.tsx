@@ -43,7 +43,7 @@ export default async function JobsPage() {
         .from("documents")
         .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount)")
         .not("job_id", "is", null),
-      supabase.from("clients").select("id, name").order("name", { ascending: true }),
+      supabase.from("clients").select("id, name").eq("is_sample", false).order("name", { ascending: true }),
     ]);
 
   // Every job's cost/revenue rollup, computed once here so the lg+

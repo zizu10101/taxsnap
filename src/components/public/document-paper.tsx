@@ -61,7 +61,13 @@ export function PublicDocumentPaper({
   subtotal: number;
   hstAmount: number;
   totalAmount: number;
-  business: { name: string | null; email: string; phone: string | null; address: string | null };
+  business: {
+    name: string | null;
+    email: string;
+    phone: string | null;
+    address: string | null;
+    hstNumber?: string | null;
+  };
   client: { name: string; email: string | null; address: string | null } | null;
   placeOfWork?: string | null;
   /** Client-facing notes (documents.notes). Never the owner-only internal notes. */
@@ -98,6 +104,7 @@ export function PublicDocumentPaper({
             {business.name && <p>{business.email}</p>}
             {business.phone && <p>{business.phone}</p>}
             {business.address && <p>{business.address}</p>}
+            {business.hstNumber && <p>HST/BN: {business.hstNumber}</p>}
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase">Bill To</p>

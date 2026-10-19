@@ -54,8 +54,8 @@ export default async function ProgressBillingPage() {
 
   if (isPro) {
     const [{ data: jobs }, { data: clientRows }, { data: lineItemRows }] = await Promise.all([
-      supabase.from("jobs").select("*").order("name", { ascending: true }),
-      supabase.from("clients").select("*").order("name", { ascending: true }),
+      supabase.from("jobs").select("*").eq("is_sample", false).order("name", { ascending: true }),
+      supabase.from("clients").select("*").eq("is_sample", false).order("name", { ascending: true }),
       supabase
         .from("line_items")
         .select("*")

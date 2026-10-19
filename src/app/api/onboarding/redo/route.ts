@@ -3,14 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 
 // Manual re-entry point for the onboarding wizard (Settings -> "Redo
 // Setup"), so an account can revisit /onboarding without deleting and
-// recreating it. Works for both business types - /onboarding itself
-// branches to OnboardingFlow (salon) or GeneralOnboardingFlow (general).
-// Only flips onboarding_completed back to false - nothing else is reset,
-// so whatever's already set (Logo/PINs/Services/Stylists for salon;
-// Logo/Business info/Staff for general) stays exactly as it is; salon's
-// OnboardingFlow additionally skips its two PIN steps outright if already
-// set (see visibleSteps in onboarding-flow.tsx), since PinSetupFlow can't
-// otherwise display "already set" the way the other steps do.
+// recreating it. Only flips onboarding_completed back to false - nothing
+// else is reset (business name, province and goal are simply asked again).
 export async function POST() {
   const supabase = await createClient();
   const {

@@ -24,6 +24,7 @@ export type BusinessProfileFields = Pick<
   | "business_address"
   | "business_phone"
   | "business_email"
+  | "business_number"
   | "business_profile_skipped"
   | "logo_url"
 >;
@@ -47,6 +48,7 @@ export function BusinessProfileDialog({
   const [address, setAddress] = useState(profile.business_address ?? "");
   const [phone, setPhone] = useState(profile.business_phone ?? "");
   const [email, setEmail] = useState(profile.business_email ?? "");
+  const [businessNumber, setBusinessNumber] = useState(profile.business_number ?? "");
   const [saving, setSaving] = useState(false);
 
   async function patchProfile(body: Record<string, unknown>) {
@@ -68,6 +70,7 @@ export function BusinessProfileDialog({
         business_address: address,
         business_phone: phone,
         business_email: email,
+        business_number: businessNumber,
       });
       onSaved({ ...saved, logo_url: logoPath });
       toast.success("Business info saved");
@@ -147,6 +150,15 @@ export function BusinessProfileDialog({
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="biz-number">HST/BN number (optional)</Label>
+            <Input
+              id="biz-number"
+              placeholder="123456789 RT0001"
+              value={businessNumber}
+              onChange={(e) => setBusinessNumber(e.target.value)}
+            />
           </div>
         </div>
 

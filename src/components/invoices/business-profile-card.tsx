@@ -12,8 +12,11 @@ import { LogoImage } from "@/components/invoices/business-logo";
 
 export function BusinessProfileCard({
   initialProfile,
+  autoOpen = true,
 }: {
   initialProfile: BusinessProfileFields;
+  /** Pop the dialog open on a first visit with no business name. Settings turns this off. */
+  autoOpen?: boolean;
 }) {
   const [profile, setProfile] = useSyncedState(initialProfile);
   // Auto-open once on first visit: no business name yet and the user hasn't
@@ -21,7 +24,7 @@ export function BusinessProfileCard({
   // from props at mount instead of an effect, so there's nothing to
   // "reset" later and no synchronous setState-in-effect to worry about.
   const [dialogOpen, setDialogOpen] = useState(
-    () => !initialProfile.business_name && !initialProfile.business_profile_skipped,
+    () => autoOpen && !initialProfile.business_name && !initialProfile.business_profile_skipped,
   );
 
   const hasInfo = !!profile.business_name;

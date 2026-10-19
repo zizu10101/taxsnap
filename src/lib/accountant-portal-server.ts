@@ -14,6 +14,7 @@ export interface AccountantBusiness {
   email: string;
   phone: string | null;
   address: string | null;
+  hstNumber?: string | null;
 }
 
 export async function loadAccountantBusiness(
@@ -22,7 +23,7 @@ export async function loadAccountantBusiness(
 ): Promise<{ business: AccountantBusiness; logoPath: string | null }> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, logo_url")
+    .select("business_name, business_email, business_phone, business_address, business_number, logo_url")
     .eq("id", userId)
     .single();
   return {
@@ -31,6 +32,7 @@ export async function loadAccountantBusiness(
       email: profile?.business_email ?? "",
       phone: profile?.business_phone ?? null,
       address: profile?.business_address ?? null,
+      hstNumber: profile?.business_number ?? null,
     },
     logoPath: profile?.logo_url ?? null,
   };

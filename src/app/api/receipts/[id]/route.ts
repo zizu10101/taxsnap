@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
 import { newJobCapMessage } from "@/lib/job-cap";
+import { sampleBlockMessage } from "@/lib/sample-data";
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { loadCategoryRows } from "@/lib/statement-bank-charges";
@@ -56,6 +57,9 @@ export async function PATCH(
 
   // A new job name here would be created by the DB trigger (0009), which has
   // no idea about plan caps - so the cap is checked before the update.
+  const sampleMessage = await sampleBlockMessage(supabase, user.id, { jobName: job_name });
+  if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
+
   // At the cap, the receipt is still saved - just without a job link - and the
   // response says so, so the UI can show the upgrade prompt.
   const jobCapMessage = await newJobCapMessage(supabase, user.id, job_name);

@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { buildDocumentPdf, downloadBlob } from "@/components/invoices/share-document-button";
+import { buildDocumentPdf, downloadBlob, reportDocumentSent } from "@/components/invoices/share-document-button";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { PriorDraw } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
@@ -46,6 +46,7 @@ export function SendDocumentMenu({
     try {
       if (action === "download-pdf") {
         downloadBlob(`${shortId}.pdf`, await buildDocumentPdf(document, business, logoPath, priorDraws));
+        reportDocumentSent(document.id);
       } else if (action === "copy-link") {
         const res = await fetch(`/api/documents/${document.id}/share-link`, { method: "POST" });
         const data = await res.json();
@@ -68,6 +69,7 @@ export function SendDocumentMenu({
           files: [new File([pdf], `${shortId}.pdf`, { type: "application/pdf" })],
           title: `${document.type === "invoice" ? "Invoice" : "Estimate"} ${shortId}`,
         });
+        reportDocumentSent(document.id);
       }
     } catch (err) {
       // Closing the native share sheet throws AbortError - not a real failure.

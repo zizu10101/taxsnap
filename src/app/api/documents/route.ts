@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { validateManualStatus } from "@/lib/document-status";
 import { isProUser, PRO_REQUIRED_CODE, PRO_REQUIRED_MESSAGE, requireUser } from "@/lib/require-pro";
 import { newJobCapMessage } from "@/lib/job-cap";
+import { sampleBlockMessage } from "@/lib/sample-data";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import {
   findClientByName,
@@ -140,6 +141,8 @@ export async function POST(request: Request) {
       );
     }
   }
+  const sampleMessage = await sampleBlockMessage(supabase, user.id, { clientId: clientIdInput, jobId: jobIdInput, jobName: job_name });
+  if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
   const parsedLines = parseLineInputs(items);
   if ("error" in parsedLines) {
     return NextResponse.json({ error: parsedLines.error }, { status: 400 });

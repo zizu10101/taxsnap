@@ -39,6 +39,13 @@ export function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
+// Tells the server a PDF was downloaded or shared (it happens in the browser),
+// so the first-invoice-sent activation timestamp can be set. Fire-and-forget:
+// it must never get in the way of the send itself.
+export function reportDocumentSent(documentId: string) {
+  fetch(`/api/documents/${documentId}/mark-sent`, { method: "POST" }).catch(() => {});
+}
+
 export async function buildDocumentPdf(
   document: DocumentWithRelations,
   business: BusinessInfo,
@@ -105,6 +112,7 @@ export function ShareDocumentButton({
         files: [file],
         title: `${label} ${document.client?.name ? `for ${document.client.name}` : ""}`,
       });
+      reportDocumentSent(document.id);
     } catch (err) {
       // The user closing the native share sheet throws AbortError - not a real failure.
       if (err instanceof Error && err.name === "AbortError") return;
@@ -119,6 +127,7 @@ export function ShareDocumentButton({
     try {
       const pdfBlob = await buildDocumentPdf(document, business, logoPath, priorDraws);
       downloadBlob(`${shortId}.pdf`, pdfBlob);
+      reportDocumentSent(document.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     } finally {

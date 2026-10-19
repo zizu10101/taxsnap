@@ -24,7 +24,7 @@ export default async function InvoicesPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, business_type, logo_url, business_name, business_address, business_phone, business_email, business_profile_skipped",
+      "subscription_status, business_type, logo_url, business_name, business_address, business_number, business_phone, business_email, business_profile_skipped",
     )
     .eq("id", user.id)
     .single();
@@ -35,7 +35,7 @@ export default async function InvoicesPage() {
       .select("*, client:clients(*), job:jobs(*), payments(*), items:document_items(*)")
       .eq("type", "invoice")
       .order("issue_date", { ascending: false }),
-    supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase.from("clients").select("*").eq("is_sample", false).order("name", { ascending: true }),
   ]);
 
   return (
@@ -67,6 +67,7 @@ export default async function InvoicesPage() {
           business_address: profile?.business_address ?? null,
           business_phone: profile?.business_phone ?? null,
           business_email: profile?.business_email ?? null,
+          business_number: profile?.business_number ?? null,
           business_profile_skipped: profile?.business_profile_skipped ?? false,
         }}
       />

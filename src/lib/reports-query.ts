@@ -126,7 +126,7 @@ export async function getJobSummary(
       // The P&L's own revenue/expenses for this range - the unlinked row is
       // whatever is left after the jobs, so the footer ties to it exactly.
       getExpenseOverviewData(supabase, from, to),
-      supabase.from("jobs").select("id, name").order("name", { ascending: true }),
+      supabase.from("jobs").select("id, name").eq("is_sample", false).order("name", { ascending: true }),
       receiptsQuery,
       hoursQuery,
       supabase

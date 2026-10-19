@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
+import { GettingStarted } from "@/components/dashboard/getting-started";
+import type { ChecklistItem } from "@/lib/onboarding";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { HstSummaryCard } from "@/components/dashboard/hst-summary-card";
@@ -43,6 +45,7 @@ export function DashboardBody({
   initialJobNames,
   businessType,
   subscriptionStatus,
+  onboarding,
   business,
   logoPath,
 }: {
@@ -57,6 +60,7 @@ export function DashboardBody({
   // Threaded into HstSummaryCard to gate manual sales entry (a capped
   // monthly count on Free for general-business accounts; unrestricted for salon).
   subscriptionStatus: SubscriptionStatus;
+  onboarding?: { items: ChecklistItem[]; dismissedAt: string | null; sampleExists: boolean };
   // Passed straight through to ReceiptsList's accountant export bundle,
   // which needs it to render invoice PDFs the same way the invoice detail
   // page/PDF download already do - nothing on this page itself displays
@@ -184,6 +188,14 @@ export function DashboardBody({
           </>
         }
       />
+
+      {onboarding && (
+        <GettingStarted
+          items={onboarding.items}
+          dismissedAt={onboarding.dismissedAt}
+          sampleExists={onboarding.sampleExists}
+        />
+      )}
 
       {/* Quick actions - 4 equal tiles for a general account (Scan/
           Estimate/Invoice/Client), 2x2 on phone widths, 4-across from sm

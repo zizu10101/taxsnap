@@ -85,6 +85,8 @@ export interface BusinessInfo {
   email: string;
   phone: string | null;
   address: string | null;
+  /** The business's HST/BN number (profiles.business_number); printed on invoices when set. */
+  hstNumber?: string | null;
 }
 
 export function DocumentDetail({

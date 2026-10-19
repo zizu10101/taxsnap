@@ -668,6 +668,26 @@ Portal session, not a direct `subscriptions.update()`. `BILLING_CHANGE_POLICY` i
 is the one place this is worded for users (FAQ, `/billing`,
 `CurrentPlanCard`) - keep it in sync with this if either changes.
 
+## Onboarding and activation
+
+Migrations `0065_onboarding_rework.sql` and `0066_onboarding_goals_business_number.sql` (+ rollbacks; apply
+in order BEFORE the code ships). `/onboarding` is two steps for every account: (1) business name, province
+(CAD fixed), optional logo, phone, address and HST/BN number - saved through the same
+`PATCH /api/profile/business` and logo route Settings and the Invoices page use, so the first invoice
+shows them; (2) a multi-select of goals (`profiles.onboarding_goals`, a list; the first is mirrored into the
+old `onboarding_goal` column so rollback is easy). It always ends on the dashboard
+(`AFTER_ONBOARDING`), where the checklist (`checklistItems`, ordered by the picked goals) highlights the first
+open item as one big button the user presses - nothing is opened for them. All of that logic is pure and
+tested in `lib/onboarding.ts`. Only Ontario's 13% is calculated (`taxRateForProvince`); another province is
+stored but the UI says it is not supported yet - do not silently reuse 13%. The flow and checklist must show no
+upgrade prompt (a test scans `src/app/onboarding`). The HST/BN number (`profiles.business_number`) prints in
+the invoice PDF's From block and on the public invoice page (`BusinessInfo.hstNumber`). Activation:
+`profiles.first_invoice_sent_at` (email sent, link copied, PDF downloaded/shared, or status set to Sent) and
+`first_receipt_saved_at` are written once by `recordActivation()` (guarded `is null`). "Try with sample data"
+makes ONE demo client and ONE demo job (`is_sample`); `sampleBlockMessage()` makes documents, receipts, hours
+and photos refuse them, pickers and the usage bars skip them, they never count toward the client/job caps and
+are left out of reports, so they cannot reach a PDF, public page, portal, email, export or the HST totals.
+
 ## Local dev / testing this app on a phone
 
 **Local dev and production share one Supabase project** (verified

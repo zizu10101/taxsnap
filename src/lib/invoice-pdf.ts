@@ -342,6 +342,7 @@ export async function generateDocumentPdf(
     business.name ? business.email : null,
     business.phone,
     business.address,
+    business.hstNumber ? `HST/BN: ${business.hstNumber}` : null,
   ].filter((line): line is string => !!line);
   for (const line of fromLines) {
     pdf.text(line, marginX, fromY, { maxWidth: colWidth - 16 });

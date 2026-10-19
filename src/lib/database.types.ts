@@ -58,6 +58,14 @@ export interface Database {
           onboarding_completed: boolean;
           needs_business_type_prompt: boolean;
           theme_preference: ThemePreference;
+          province: string;
+          currency: string;
+          onboarding_goal: string | null;
+          first_invoice_sent_at: string | null;
+          first_receipt_saved_at: string | null;
+          checklist_dismissed_at: string | null;
+          onboarding_goals: string[];
+          business_number: string | null;
           hidden_nav_keys: string[];
           created_at: string;
         };
@@ -83,6 +91,14 @@ export interface Database {
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
           theme_preference?: ThemePreference;
+          province?: string;
+          currency?: string;
+          onboarding_goal?: string | null;
+          first_invoice_sent_at?: string | null;
+          first_receipt_saved_at?: string | null;
+          checklist_dismissed_at?: string | null;
+          onboarding_goals?: string[];
+          business_number?: string | null;
           hidden_nav_keys?: string[];
           created_at?: string;
         };
@@ -108,6 +124,14 @@ export interface Database {
           onboarding_completed?: boolean;
           needs_business_type_prompt?: boolean;
           theme_preference?: ThemePreference;
+          province?: string;
+          currency?: string;
+          onboarding_goal?: string | null;
+          first_invoice_sent_at?: string | null;
+          first_receipt_saved_at?: string | null;
+          checklist_dismissed_at?: string | null;
+          onboarding_goals?: string[];
+          business_number?: string | null;
           hidden_nav_keys?: string[];
           created_at?: string;
         };
@@ -214,6 +238,7 @@ export interface Database {
       };
       clients: {
         Row: {
+          is_sample: boolean;
           id: string;
           user_id: string;
           name: string;
@@ -222,6 +247,7 @@ export interface Database {
           created_at: string;
         };
         Insert: {
+          is_sample?: boolean;
           id?: string;
           user_id: string;
           name: string;
@@ -230,6 +256,7 @@ export interface Database {
           created_at?: string;
         };
         Update: {
+          is_sample?: boolean;
           id?: string;
           user_id?: string;
           name?: string;
@@ -506,6 +533,7 @@ export interface Database {
       };
       jobs: {
         Row: {
+          is_sample: boolean;
           id: string;
           user_id: string;
           name: string;
@@ -517,6 +545,7 @@ export interface Database {
           created_at: string;
         };
         Insert: {
+          is_sample?: boolean;
           id?: string;
           user_id: string;
           name: string;
@@ -528,6 +557,7 @@ export interface Database {
           created_at?: string;
         };
         Update: {
+          is_sample?: boolean;
           id?: string;
           user_id?: string;
           name?: string;

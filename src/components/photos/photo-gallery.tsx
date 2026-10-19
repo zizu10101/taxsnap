@@ -168,7 +168,11 @@ export function PhotoGallery({
       const res = await fetch("/api/jobs");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMoveJobs((data.jobs as { id: string; name: string }[]).map((j) => ({ id: j.id, name: j.name })));
+      setMoveJobs(
+        (data.jobs as { id: string; name: string; is_sample?: boolean }[])
+          .filter((j) => !j.is_sample)
+          .map((j) => ({ id: j.id, name: j.name })),
+      );
     } catch {
       toast.error("Couldn't load your jobs.");
       setMoveOpen(false);
@@ -510,7 +514,11 @@ function Viewer({
       const res = await fetch("/api/jobs");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setJobs((data.jobs as { id: string; name: string }[]).map((j) => ({ id: j.id, name: j.name })));
+      setJobs(
+        (data.jobs as { id: string; name: string; is_sample?: boolean }[])
+          .filter((j) => !j.is_sample)
+          .map((j) => ({ id: j.id, name: j.name })),
+      );
     } catch {
       toast.error("Couldn't load your jobs.");
       setMode("view");

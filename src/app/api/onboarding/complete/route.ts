@@ -1,31 +1,38 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/require-pro";
+import { AFTER_ONBOARDING, goalsFor, parseGoals } from "@/lib/onboarding";
 
-// Marks the salon onboarding flow (/onboarding) done for the current
-// account, whether every step was actually completed or skipped - either
-// way there's nothing left to show, and the account lands on the normal
-// dashboard from here on. Not Pro-gated (unlike /api/services, /api/stylists,
-// /api/profile/logo, which individual onboarding steps call directly) -
-// the flow itself must always be dismissible regardless of subscription
-// tier, even if some of its steps aren't usable on Free.
-export async function POST() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// Onboarding step 2: stores the chosen goals (a list, at least one) and marks
+// onboarding done. Not Pro-gated - the flow must always be finishable on any
+// plan. The goals are validated against what this account is offered. The first
+// goal is also written to the old single onboarding_goal column so a rollback of
+// 0066 loses nothing.
+export async function POST(request: Request) {
+  const result = await requireUser();
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  const { supabase, user } = result;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => null);
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_type")
+    .eq("id", user.id)
+    .single();
+
+  // A general account is offered three goals, a salon account four.
+  const offered = goalsFor(profile?.business_type ?? "general").map((g) => g.value);
+  const goals = parseGoals(body?.goals, offered);
+  if (!goals) {
+    return NextResponse.json({ error: "Pick at least one thing you want to do." }, { status: 400 });
   }
 
   const { error } = await supabase
     .from("profiles")
-    .update({ onboarding_completed: true })
+    .update({ onboarding_completed: true, onboarding_goals: goals, onboarding_goal: goals[0] })
     .eq("id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, next: AFTER_ONBOARDING });
 }

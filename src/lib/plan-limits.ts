@@ -222,10 +222,13 @@ export async function wouldExceedTotalLimit(
     return { exceeded: false, limit: null, current: 0, tier };
   }
 
-  const { count } = await supabase
+  let query = supabase
     .from(TOTAL_LIMIT_TABLE[resource])
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId);
+  // The one demo client / job from "Try with sample data" never uses a slot.
+  if (resource === "clients" || resource === "jobs") query = query.eq("is_sample" as never, false);
+  const { count } = await query;
 
   const current = count ?? 0;
   return { exceeded: current >= limit, limit, current, tier };

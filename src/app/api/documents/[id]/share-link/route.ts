@@ -6,6 +6,7 @@ import {
   EstimateNotFoundError,
   InvoiceNotFoundError,
 } from "@/lib/document-sign-link";
+import { recordActivation } from "@/lib/activation";
 
 function getAppUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -40,6 +41,7 @@ export async function POST(
       return NextResponse.json({ url: `${getAppUrl(request)}/sign/${token}` });
     }
     const token = await ensureViewToken(supabase, id, user.id);
+    await recordActivation(supabase, user.id, "first_invoice_sent_at");
     return NextResponse.json({ url: `${getAppUrl(request)}/invoice/${token}` });
   } catch (err) {
     if (err instanceof EstimateNotFoundError || err instanceof InvoiceNotFoundError) {

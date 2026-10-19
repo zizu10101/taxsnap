@@ -12,6 +12,7 @@ import {
   ExpenseCategoriesSettings,
 } from "@/components/settings/owner-lists-settings";
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
+import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
 import {
   NavigationSettings,
   type NavSettingsRow,
@@ -50,7 +51,7 @@ export default async function SettingsPage() {
     supabase
       .from("profiles")
       .select(
-        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at",
+        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at, logo_url, business_name, business_address, business_phone, business_email, business_number, business_profile_skipped",
       )
       .eq("id", user.id)
       .single(),
@@ -148,6 +149,21 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* The same card and dialog the Invoices page uses (logo, name, phone, address,
+            HST/BN number) - one editor, shown on every invoice and estimate. */}
+        <BusinessProfileCard
+          autoOpen={false}
+          initialProfile={{
+            logo_url: profile?.logo_url ?? null,
+            business_name: profile?.business_name ?? null,
+            business_address: profile?.business_address ?? null,
+            business_phone: profile?.business_phone ?? null,
+            business_email: profile?.business_email ?? null,
+            business_number: profile?.business_number ?? null,
+            business_profile_skipped: profile?.business_profile_skipped ?? false,
+          }}
+        />
+
         <ThemeSettings />
 
         {isGeneral && <NavigationSettings rows={navRows} initialHidden={hiddenNav} />}

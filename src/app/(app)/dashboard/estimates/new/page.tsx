@@ -17,17 +17,18 @@ export default async function NewEstimatePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("logo_url, business_name, business_address, business_phone, business_email")
+    .select("logo_url, business_name, business_address, business_number, business_phone, business_email")
     .eq("id", user.id)
     .single();
 
   const [{ data: clients }, { data: jobs }, { data: lineItems }] = await Promise.all([
-    supabase.from("clients").select("*").order("name", { ascending: true }),
+    supabase.from("clients").select("*").eq("is_sample", false).order("name", { ascending: true }),
     // Every job of the owner, with its customer and contract value. A progress-billed job is not
     // hidden: the builder shows it disabled for a plain invoice (lib/job-fields.ts jobPickerOptions).
     supabase
       .from("jobs")
       .select("id, name, location, client_id, contract_value")
+      .eq("is_sample", false)
       .order("name", { ascending: true }),
     supabase.from("line_items").select("*").eq("is_active", true),
   ]);
@@ -44,6 +45,7 @@ export default async function NewEstimatePage() {
         email: profile?.business_email || user.email || "",
         phone: profile?.business_phone ?? null,
         address: profile?.business_address ?? null,
+        hstNumber: profile?.business_number ?? null,
       }}
       logoPath={profile?.logo_url ?? null}
     />

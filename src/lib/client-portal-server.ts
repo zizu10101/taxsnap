@@ -17,6 +17,7 @@ export interface PortalBusiness {
   email: string;
   phone: string | null;
   address: string | null;
+  hstNumber?: string | null;
 }
 
 // Every query here filters on BOTH user_id and client_id taken from the
@@ -29,7 +30,7 @@ export async function loadPortalBusiness(
 ): Promise<{ business: PortalBusiness; logoUrl: string | null }> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, logo_url")
+    .select("business_name, business_email, business_phone, business_address, business_number, logo_url")
     .eq("id", session.userId)
     .single();
 
@@ -47,6 +48,7 @@ export async function loadPortalBusiness(
       email: profile?.business_email ?? "",
       phone: profile?.business_phone ?? null,
       address: profile?.business_address ?? null,
+      hstNumber: profile?.business_number ?? null,
     },
     logoUrl,
   };

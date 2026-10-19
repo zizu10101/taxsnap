@@ -1,3 +1,4 @@
+import { sampleBlockMessage } from "@/lib/sample-data";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { parseIdList, parseJobRef } from "@/lib/job-photos";
@@ -37,6 +38,8 @@ export async function POST(request: Request) {
         .eq("user_id", user.id)
         .maybeSingle();
       if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+      const sampleMessage = await sampleBlockMessage(supabase, user.id, { jobId: ref.jobId });
+      if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
     }
     try {
       return NextResponse.json(await movePhotos(supabase, user.id, list.ids, ref.jobId));

@@ -33,7 +33,7 @@ export default async function PublicInvoicePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, logo_url, subscription_status")
+    .select("business_name, business_email, business_phone, business_address, business_number, logo_url, subscription_status")
     .eq("id", invoice.user_id)
     .single();
 
@@ -50,6 +50,7 @@ export default async function PublicInvoicePage({
     email: profile?.business_email ?? "",
     phone: profile?.business_phone ?? null,
     address: profile?.business_address ?? null,
+    hstNumber: profile?.business_number ?? null,
   };
 
   return (

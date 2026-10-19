@@ -5,6 +5,8 @@ import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { isSha256Hex } from "@/lib/file-hash";
 import { newJobCapMessage } from "@/lib/job-cap";
+import { sampleBlockMessage } from "@/lib/sample-data";
+import { recordActivation } from "@/lib/activation";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
   if (!Array.isArray(items)) return [];
@@ -56,6 +58,9 @@ export async function POST(request: Request) {
 
   // A new job name here would be created by the DB trigger (0009), which has
   // no idea about plan caps - so the cap is checked before the insert.
+  const sampleMessage = await sampleBlockMessage(supabase, user.id, { jobName: job_name });
+  if (sampleMessage) return NextResponse.json({ error: sampleMessage }, { status: 400 });
+
   // At the cap, the receipt is still saved - just without a job link - and the
   // response says so, so the UI can show the upgrade prompt.
   const jobCapMessage = await newJobCapMessage(supabase, user.id, job_name);
@@ -109,6 +114,8 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await recordActivation(supabase, user.id, "first_receipt_saved_at");
 
   return NextResponse.json(
     { receipt: data, ...(jobNotLinked && { job_not_linked: true }) },

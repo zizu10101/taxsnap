@@ -55,7 +55,7 @@ export function ClientList({
     <div className="space-y-4">
       <UsageLimitBar
         tier={subscriptionStatus}
-        current={clients.length}
+        current={clients.filter((c) => !c.is_sample).length}
         limit={PLAN_LIMITS[subscriptionStatus].clients}
         noun="client"
       />
@@ -107,6 +107,11 @@ export function ClientList({
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 font-medium">
                           <span className="truncate">{client.name}</span>
+                          {client.is_sample && (
+                            <Badge variant="outline" className="shrink-0">
+                              Sample
+                            </Badge>
+                          )}
                           {portalClientIds.includes(client.id) && (
                             <Badge variant="secondary" className="shrink-0">
                               Portal

@@ -551,6 +551,7 @@ export function UploadReceipt({
                 variant="outline"
                 className="h-20 w-full flex-col gap-1.5 text-xs font-semibold"
                 disabled={parsing}
+                data-scan-receipt=""
               />
             ) : (
               <Button size="lg" className="font-semibold" disabled={parsing} />

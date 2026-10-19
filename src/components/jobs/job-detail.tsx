@@ -96,6 +96,11 @@ export function JobDetail({
   const laborMargin = totalLaborRevenue - totalLaborCost;
 
   const customer = job.client_id ? clients.find((c) => c.id === job.client_id) : undefined;
+  // Pickers never offer the demo client/job (they are refused on real records anyway). The edit
+  // dialog keeps the job's own customer so a sample job still shows who it belongs to.
+  const pickerClients = clients.filter((c) => !c.is_sample);
+  const pickerJobs = jobs.filter((j) => !j.is_sample);
+  const editDialogClients = clients.filter((c) => !c.is_sample || c.id === job.client_id);
   const { estimates, invoices, draws } = groupJobDocuments(linkedDocuments);
 
   const unlinkCounts = {
@@ -325,7 +330,7 @@ export function JobDetail({
         open={editOpen}
         onOpenChange={setEditOpen}
         job={job}
-        clients={clients}
+        clients={editDialogClients}
         onSaved={() => router.refresh()}
       />
 
@@ -356,8 +361,8 @@ export function JobDetail({
         open={invoiceBuilderOpen}
         onOpenChange={setInvoiceBuilderOpen}
         defaultType="invoice"
-        clients={clients}
-        jobs={jobs}
+        clients={pickerClients}
+        jobs={pickerJobs}
         savedLineItems={savedLineItems}
         presetJob={{ name: job.name }}
         onSaved={() => router.refresh()}
@@ -445,7 +450,7 @@ export function JobDetail({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         employees={employees}
-        jobs={jobs}
+        jobs={pickerJobs}
         defaultJobId={job.id}
         onSaved={upsertEntry}
       />

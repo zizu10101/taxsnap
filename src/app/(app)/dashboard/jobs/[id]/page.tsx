@@ -90,7 +90,7 @@ export default async function JobDetailPage({
         jobRevenue={jobRevenue}
       />
 
-      <JobPhotosSection job={{ id: job.id, name: job.name }} jobNames={(jobs ?? []).map((j) => j.name)} />
+      <JobPhotosSection job={{ id: job.id, name: job.name }} jobNames={(jobs ?? []).filter((j) => !j.is_sample).map((j) => j.name)} />
     </div>
   );
 }

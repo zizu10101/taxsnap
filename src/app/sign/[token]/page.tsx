@@ -33,7 +33,7 @@ export default async function SignEstimatePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, logo_url")
+    .select("business_name, business_email, business_phone, business_address, business_number, logo_url")
     .eq("id", estimate.user_id)
     .single();
 
@@ -50,6 +50,7 @@ export default async function SignEstimatePage({
     email: profile?.business_email ?? "",
     phone: profile?.business_phone ?? null,
     address: profile?.business_address ?? null,
+    hstNumber: profile?.business_number ?? null,
   };
 
   return (
