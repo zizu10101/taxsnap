@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
+import { newJobCapMessage } from "@/lib/job-cap";
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { loadCategoryRows } from "@/lib/statement-bank-charges";
@@ -52,6 +53,14 @@ export async function PATCH(
       { status: 400 },
     );
   }
+
+  // A new job name here would be created by the DB trigger (0009), which has
+  // no idea about plan caps - so the cap is checked before the update.
+  // At the cap, the receipt is still saved - just without a job link - and the
+  // response says so, so the UI can show the upgrade prompt.
+  const jobCapMessage = await newJobCapMessage(supabase, user.id, job_name);
+  const jobNotLinked = jobCapMessage !== null;
+  const savedJobName = jobNotLinked ? null : job_name?.trim() || null;
 
   const category = await resolveCategory(supabase, user.id, tax_category);
 
@@ -123,7 +132,7 @@ export async function PATCH(
       tax_amount: newTax,
       ...(taxCode ?? {}),
       tax_category: category,
-      job_name: job_name?.trim() || null,
+      job_name: savedJobName,
       ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
     })
@@ -145,7 +154,7 @@ export async function PATCH(
   }
   if (!data) return NextResponse.json({ error: "Receipt not found." }, { status: 404 });
 
-  return NextResponse.json({ receipt: data });
+  return NextResponse.json({ receipt: data, ...(jobNotLinked && { job_not_linked: true }) });
 }
 
 export async function DELETE(

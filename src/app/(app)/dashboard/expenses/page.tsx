@@ -82,6 +82,7 @@ export default async function ExpensesPage({
           phone: profile?.business_phone ?? null,
           address: profile?.business_address ?? null,
         }}
+        isPro={profile?.subscription_status === "pro"}
         logoPath={profile?.logo_url ?? null}
         lastSignInAt={user.last_sign_in_at ?? null}
         statementImportEnabled={statementImportEnabled}

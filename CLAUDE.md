@@ -239,7 +239,7 @@ check via a `select` against the table with the service-role key if
 unsure):
 
 - `profiles` - one row per auth user (trigger-created on signup),
-  `subscription_status` ('free'/'basic'/'pro') gates invoicing, `logo_url`
+  `subscription_status` ('free'/'pro'; the retired 'basic' reads as free via `normalizeTier`) gates invoicing, `logo_url`
   points at the business logo in the `logos` storage bucket. Also carries
   the onboarding business profile (`business_name`, `business_address`,
   `business_phone`, `business_email`, `business_profile_skipped`) shown as
@@ -620,9 +620,23 @@ Two independent gating mechanisms exist, don't conflate them:
   cost. The block returns `{ error, code: "FREE_LIMIT_REACHED" }` with a
   403; the client (`upload-receipt.tsx`) matches on that `code` to show an
   "Upgrade" action button (linking to `/billing`) instead of a dead-end
-  error toast. `basic` and `pro` users are exempt from this cap - Basic's
-  entire value proposition today *is* unlimited scans vs. Free's capped
-  ones, so don't let that cap silently regress to unenforced again.
+  error toast. `pro` users are exempt from this cap (anything that isn't `pro`
+  is counted), so don't let that cap silently regress to unenforced again.
+
+There are two plans, Free and Pro ($29/mo or $290/yr CAD, both **excluding HST**;
+Checkout uses Stripe Tax `automatic_tax`). The Basic/"Plus" plan was retired
+(migration `0064_retire_basic_plan.sql`; no paying subscribers). Env vars:
+`STRIPE_PRO_PRICE_ID` and `STRIPE_PRO_ANNUAL_PRICE_ID` (the older
+`STRIPE_PRO_YEARLY_PRICE_ID` name is still read as a fallback). Two shared
+upgrade prompts, use them instead of building a new one: `showUpgradePrompt()`
+(`lib/upgrade-prompt.ts`, the toast for a `FREE_LIMIT_REACHED`/`PRO_REQUIRED` answer)
+and `<UpgradeCard>` (`components/billing/upgrade-card.tsx`, a locked Pro page or
+section). Every cap and Pro-only feature is enforced in the API route
+(`wouldExceed*`, `requireProUser()`, `isProUser()`), the UI lock is only the
+explanation; any route that can create a job from a typed name goes through
+`newJobCapMessage()` (`lib/job-cap.ts`). Free invoices carry a "Created with
+TaxSnap" footer (`lib/invoice-footer.ts`: PDF, `/invoice/[token]`, emailed
+invoices; Pro and estimates don't) - `packaging.test.ts` pins all of this.
 
 `src/lib/pricing-plans.ts` (`FREE_PLAN`, `PRICING_PLANS`, `FREE_SCAN_LIMIT`)
 is the single source of truth for plan copy, shared between the public
@@ -630,37 +644,27 @@ landing page pricing section (`src/app/page.tsx#pricing`) and the
 authenticated `/billing` page's `PricingCards` - don't fork the plan
 name/price/feature list back into either page individually, or they'll
 drift. The landing page hardcodes a "Most Popular" badge onto whichever
-card has `plan.tier === "basic"` (it's Basic that's meant to be the target
-tier) - that condition lives in `page.tsx`, not in the shared plan data, so
-it won't follow if `PRICING_PLANS`' ordering or tiers ever change. Note `/billing` itself requires a logged-in user (it shows current
+card the page passes as `highlightTier` (Pro) - that lives in `page.tsx`, not
+in the shared plan data. Note `/billing` itself requires a logged-in user (it shows current
 plan + triggers real Stripe checkout), so it's not a valid target for a
 signed-out "See pricing" link - that's what the landing page's own
 `#pricing` section is for. Also note the price strings in
 `pricing-plans.ts` are purely display copy - the amount actually charged at
-checkout comes from whatever Stripe Price object `STRIPE_BASIC_PRICE_ID` /
-`STRIPE_PRO_PRICE_ID` points at, so if that copy ever changes, the Stripe
+checkout comes from whatever Stripe Price object `STRIPE_PRO_PRICE_ID` /
+`STRIPE_PRO_ANNUAL_PRICE_ID` points at, so if that copy ever changes, the Stripe
 Price objects need to be updated to match in the live "Edge Digital
 Business Solutions" account specifically (see the Stripe note at the top of
 this file) - updating the same-named Price in the "Taxsnap" sandbox account
 doesn't affect production at all.
 
-A downgrade through the Customer Portal - a cheaper plan (Plus<->Pro
-included) or a shorter/cheaper interval on the same plan - is deferred via
-a Stripe Subscription Schedule to the end of the current billing period;
-an upgrade (pricier plan, or a longer interval) is invoiced and charged
-immediately. Verified against real portal-driven sandbox tests (not direct
+With Pro as the only paid plan, the one change a subscriber can make is the
+billing interval. Through the Customer Portal, monthly -> annual is invoiced
+and charged immediately; annual -> monthly (`shortening_interval`) is deferred
+via a Stripe Subscription Schedule to the end of the current billing period.
+This was verified against real portal-driven sandbox tests (not direct
 Subscriptions API calls, which always apply immediately regardless of the
-portal config), for both a same-tier interval step-down and a cross-tier
-downgrade. An earlier version of this note claimed Plus<->Pro could never
-defer, reasoning from Stripe's documented "same Product only" restriction
-on the portal's `schedule_at_period_end` feature - a real test directly
-contradicted that (the `decreasing_item_amount`/`shortening_interval`
-conditions do defer a cross-product change too). Don't trust that doc
-claim over a real test again - if this behavior ever needs re-verifying,
-drive an actual Customer Portal session (e.g. via the Dashboard's
-Workbench Shell, `stripe billing_portal sessions create --customer ...`),
-not a direct `subscriptions.update()` call, which proves nothing about
-what the portal itself does. `BILLING_CHANGE_POLICY` in `pricing-plans.ts`
+portal config) - if it ever needs re-verifying, drive an actual Customer
+Portal session, not a direct `subscriptions.update()`. `BILLING_CHANGE_POLICY` in `pricing-plans.ts`
 is the one place this is worded for users (FAQ, `/billing`,
 `CurrentPlanCard`) - keep it in sync with this if either changes.
 
@@ -1232,7 +1236,7 @@ policies); one rollback in `supabase/rollbacks/`. Apply BOTH before the code shi
   size limits, no EXIF/XMP/IPTC/comment segment) and writes both files to `<user id>/<photo id>[_thumb].jpg`.
 - **Private bucket, signed URLs only** (15 min, `PHOTO_URL_EXPIRY_SECONDS`); the gallery refetches when one lapses.
   Storage policies are owner-folder-only (insert/select/delete), like `receipts`.
-- **Caps** are `PLAN_LIMITS.*.photos` (PLACEHOLDERS: Free 10, Basic 200, Pro 2000), counted from the database in the route
+- **Caps** are `PLAN_LIMITS.*.photos` (PLACEHOLDERS: Free 10, Pro 2000), counted from the database in the route
   (`wouldExceedTotalLimit(..., "photos")`), never from the client; at the cap the route answers 403 `FREE_LIMIT_REACHED`.
 - **Cleanup**: SQL cannot delete a storage object, so the routes do. `POST /api/job-photos/bulk` (action `delete`, one or many
   photos, each removed row-then-both-files one at a time, every outcome reported: deleted / filesLeft / failed) and

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PinSetupFlow } from "@/components/ui/pin-setup-flow";
 import { OnboardingStepShell } from "../onboarding-step-shell";
-import { ProLockCard } from "../pro-lock-card";
+import { UpgradeCard } from "@/components/billing/upgrade-card";
 
 // Shared body for both the Owner PIN and Staff PIN steps - same
 // PinSetupFlow component Settings uses, same set-owner-pin/set-staff-pin
@@ -75,7 +75,7 @@ export function PinStep({
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       ) : (
-        <ProLockCard message="Upgrade to Pro to unlock payouts and PIN protection." />
+        <UpgradeCard feature="Payouts and PIN protection" message="Upgrade to Pro to unlock them - you can always come back to this later." />
       )}
     </OnboardingStepShell>
   );

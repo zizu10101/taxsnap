@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { validateWorkDateForApi } from "@/lib/work-date";
 import { findJobByName } from "@/lib/find-by-name";
+import { newJobCapMessage } from "@/lib/job-cap";
 
 export async function GET(request: Request) {
   const result = await requireUser();
@@ -87,6 +88,13 @@ export async function POST(request: Request) {
     if (existingJob) {
       jobId = existingJob.id;
     } else {
+      const jobCapMessage = await newJobCapMessage(supabase, user.id, name);
+      if (jobCapMessage) {
+        return NextResponse.json(
+          { error: jobCapMessage, code: "FREE_LIMIT_REACHED" },
+          { status: 403 },
+        );
+      }
       const { data: newJob, error: newJobError } = await supabase
         .from("jobs")
         .insert({ user_id: user.id, name })

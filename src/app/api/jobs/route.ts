@@ -24,12 +24,10 @@ export async function GET() {
 // fly without duplicating a job that already exists (e.g. one auto-created
 // from a receipt's job_name via the DB trigger in 0009_jobs.sql).
 //
-// The job cap below is only enforced on this explicit create path - it
-// deliberately does NOT reach the DB trigger (sync_receipt_job in
-// 0009_jobs.sql) that auto-creates a job row when a receipt's job_name is
-// set to a new name. Blocking that path would mean failing a receipt save
-// over a job cap, which is a worse trade than letting a free account's
-// job count grow past 1 via that specific route.
+// The job cap below is also enforced, through lib/job-cap.ts, on every other
+// route that can create a job from a typed name (documents, hours, receipts) -
+// the DB trigger (sync_receipt_job in 0009_jobs.sql) can't know about plan
+// caps, so the receipts routes check before it runs.
 export async function POST(request: Request) {
   const result = await requireUser();
   if ("error" in result) {

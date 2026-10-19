@@ -10,9 +10,6 @@ function tierFromPriceId(priceId: string | undefined): SubscriptionStatus {
   if (priceId === STRIPE_PRICE_IDS.pro.monthly || priceId === STRIPE_PRICE_IDS.pro.yearly) {
     return "pro";
   }
-  if (priceId === STRIPE_PRICE_IDS.basic.monthly || priceId === STRIPE_PRICE_IDS.basic.yearly) {
-    return "basic";
-  }
   return "free";
 }
 
@@ -34,10 +31,10 @@ function intervalFromPrice(price: Stripe.Price | undefined): BillingInterval | n
 // schedule phase's item.price only ever comes back as a bare price ID
 // string, with nothing to expand.
 function intervalFromPriceId(priceId: string | undefined): BillingInterval | null {
-  if (priceId === STRIPE_PRICE_IDS.basic.monthly || priceId === STRIPE_PRICE_IDS.pro.monthly) {
+  if (priceId === STRIPE_PRICE_IDS.pro.monthly) {
     return "monthly";
   }
-  if (priceId === STRIPE_PRICE_IDS.basic.yearly || priceId === STRIPE_PRICE_IDS.pro.yearly) {
+  if (priceId === STRIPE_PRICE_IDS.pro.yearly) {
     return "yearly";
   }
   return null;

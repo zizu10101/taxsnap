@@ -4,7 +4,7 @@ import { hasLiveSubscription, logAdminAction } from "@/lib/admin-data";
 import { prepareAdminAction } from "@/lib/admin-route";
 import type { SubscriptionStatus } from "@/lib/database.types";
 
-const TIERS: SubscriptionStatus[] = ["free", "basic", "pro"];
+const TIERS: SubscriptionStatus[] = ["free", "pro"];
 
 // Manual tier override - writes profiles.subscription_status only. Blocked
 // outright for any account with a live (or unreadable) Stripe subscription:

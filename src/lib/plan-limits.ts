@@ -49,7 +49,7 @@ import { getPresetRange, rangeToUtcBounds } from "./date-range.ts";
 //   api/sales/route.ts's own business_type check, predating this cap and
 //   deliberately untouched by it).
 // - photos: site photos (job_photos rows, Unsorted ones included), a lifetime row count, so deleting a
-//   photo (or its job) frees a slot. PLACEHOLDER numbers (Free 10, Basic 200, Pro 2000) until real
+//   photo (or its job) frees a slot. PLACEHOLDER numbers (Free 10, Pro 2000) until real
 //   storage cost is known - not final pricing. Enforced on the server in api/job-photos.
 export const PLAN_LIMITS: Record<
   SubscriptionStatus,
@@ -86,22 +86,6 @@ export const PLAN_LIMITS: Record<
     statementImportsPerMonth: 1, // provisional
     photos: 10, // PLACEHOLDER
   },
-  basic: {
-    scansPerMonth: null,
-    invoicesPerMonth: 10,
-    clients: 10,
-    jobs: 5,
-    lineItems: 3,
-    expenseTemplates: 10,
-    employees: 5,
-    activeServices: 3,
-    activeStylists: 2,
-    activeProducts: 3,
-    activeRenters: 3,
-    manualSalesEntriesPerMonth: 15,
-    statementImportsPerMonth: 3, // provisional
-    photos: 200, // PLACEHOLDER
-  },
   pro: {
     scansPerMonth: null,
     invoicesPerMonth: null,
@@ -120,17 +104,6 @@ export const PLAN_LIMITS: Record<
   },
 };
 
-// The tier a user should be pointed at to raise a given limit - "basic"
-// for anyone currently on free (basic already raises every cap above
-// free's), "pro" for anyone already on basic (pro is the only tier left
-// with a higher/unlimited cap). Used to build tier-correct upgrade copy
-// instead of always saying "Upgrade to Pro" - a Plus user can now hit a
-// cap too (e.g. 10 clients), and telling them to upgrade to a plan they
-// already have would be wrong.
-export function nextTierFor(status: SubscriptionStatus): "basic" | "pro" {
-  return status === "free" ? "basic" : "pro";
-}
-
 // Shared "Unlimited" vs. number formatting for a raw PLAN_LIMITS value -
 // used by every UI surface that displays a cap (PlanCapsTable,
 // CurrentPlanCard, the homepage's feature-comparison table) so the exact
@@ -140,28 +113,29 @@ export function formatPlanCap(n: number | null, suffix = ""): string {
   return n === null ? "Unlimited" : `${n}${suffix}`;
 }
 
-const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Plus", pro: "Pro" };
-
-// Builds the FREE_LIMIT_REACHED error string every capped route returns,
-// naming whichever tier actually raises the limit for this user's current
-// tier (see nextTierFor) instead of hardcoding "Upgrade to Pro" - a Plus
-// user hitting a cap needs to be told to upgrade to Pro, not Plus.
+// Builds the FREE_LIMIT_REACHED error string every capped route returns. Free
+// and Pro are the only plans, so the only upgrade path is Free -> Pro.
 // `singularNoun` is pluralized automatically when the limit isn't 1 (e.g.
-// Plus's "3 active services" vs. Free's "1 active service") by appending
-// "s" - pass `pluralNoun` explicitly for a noun that doesn't pluralize
-// that way (e.g. "entry" -> "entries", not "entrys"). `period` (e.g.
-// "this month") is optional, for monthly caps like invoices.
+// "3 clients" vs. "1 job") by appending "s" - pass `pluralNoun` explicitly
+// for a noun that doesn't pluralize that way (e.g. "entry" -> "entries",
+// not "entrys"). `period` (e.g. "this month") is optional, for monthly caps
+// like invoices.
 export function limitReachedMessage(
   check: LimitCheck,
   singularNoun: string,
   period?: string,
   pluralNoun?: string,
 ): string {
-  const tierLabel = TIER_LABEL[nextTierFor(check.tier)];
-  const currentTierLabel = check.tier === "free" ? "Free" : "Plus";
   const noun = check.limit === 1 ? singularNoun : (pluralNoun ?? `${singularNoun}s`);
   const periodSuffix = period ? ` ${period}` : "";
-  return `${currentTierLabel} accounts can have ${check.limit} ${noun}${periodSuffix}. Upgrade to ${tierLabel} to add more.`;
+  return `Free accounts can have ${check.limit} ${noun}${periodSuffix}. Upgrade to Pro to add more.`;
+}
+
+// Any stored value other than "pro" is Free. A leftover 'basic' row (the
+// retired tier, before the cleanup SQL has run) must never index
+// PLAN_LIMITS with an unknown key, so every reader goes through this.
+export function normalizeTier(value: string | null | undefined): SubscriptionStatus {
+  return value === "pro" ? "pro" : "free";
 }
 
 async function getSubscriptionStatus(
@@ -173,7 +147,7 @@ async function getSubscriptionStatus(
     .select("subscription_status")
     .eq("id", userId)
     .single();
-  return profile?.subscription_status ?? "free";
+  return normalizeTier(profile?.subscription_status);
 }
 
 export interface LimitCheck {
@@ -278,8 +252,7 @@ const ACTIVE_LIMIT_KEY = {
 // Active-row caps (employees, services, stylists) - generalizes the old
 // wouldExceedFreeTierActiveLimit (free-tier-limits.ts, now deleted) to a
 // per-tier limit table instead of a single free-only constant, since
-// Plus now gets its own (higher, but still capped) active-row ceiling
-// too. Checked in two places for each table, same as before: creating a
+// Free and Pro each have their own active-row ceiling. Checked in two places for each table, same as before: creating a
 // new row (which always defaults to active) and reactivating an existing
 // inactive one via PATCH { is_active: true } - `excludeId` omits the row
 // being edited from its own count so a deactivate-then-reactivate cycle

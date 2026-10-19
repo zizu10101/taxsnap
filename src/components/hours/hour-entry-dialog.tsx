@@ -25,6 +25,7 @@ import Link from "next/link";
 import type { Employee, HourEntryWithRelations, Job } from "@/lib/database.types";
 import { validateWorkDateForDialog } from "@/lib/work-date";
 import { useRouter } from "next/navigation";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 const NEW_JOB = "__new_job__";
 
@@ -148,6 +149,10 @@ export function HourEntryDialog({
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      if (!res.ok && (data.code === "FREE_LIMIT_REACHED" || data.code === "PRO_REQUIRED")) {
+        showUpgradePrompt(data.error, router);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save");
 
       const saved = data.hourEntry as HourEntryWithRelations;

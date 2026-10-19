@@ -1,6 +1,7 @@
 import type { jsPDF } from "jspdf";
 import { createPaidStampDataUrl } from "@/lib/paid-stamp-image";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { INVOICE_FOOTER_TEXT, INVOICE_FOOTER_URL } from "@/lib/invoice-footer";
 import { calculateRemainingBalance } from "@/lib/progress-billing";
 import type {
   DocumentItem,
@@ -290,6 +291,10 @@ export interface DocumentPdfOptions {
   // contract value and billed-to-date, which is job data the client portal
   // deliberately never shows - it passes false.
   includeProgressSummary?: boolean;
+  // Default false. A Free account's invoice carries a small "Created with
+  // TaxSnap" credit linking to gettaxsnap.ca (see lib/invoice-footer.ts);
+  // the caller decides from the owner's plan, Pro passes false.
+  brandFooter?: boolean;
 }
 
 export async function generateDocumentPdf(
@@ -299,7 +304,7 @@ export async function generateDocumentPdf(
   priorDraws: PriorDraw[] = [],
   options: DocumentPdfOptions = {},
 ): Promise<Blob> {
-  const { includeProgressSummary = true } = options;
+  const { includeProgressSummary = true, brandFooter = false } = options;
   const { pdf, marginX, rightX } = await newPdf();
   let y = 56;
 
@@ -482,6 +487,21 @@ export async function generateDocumentPdf(
       pdf.setFontSize(10);
       pdf.text(doc.draw_description, marginX, y, { maxWidth: rightX - marginX });
     }
+  }
+
+  if (brandFooter && doc.type === "invoice") {
+    pdf.setPage(pdf.getNumberOfPages());
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    pdf.setFontSize(8);
+    pdf.setTextColor(150);
+    const textWidth = pdf.getTextWidth(INVOICE_FOOTER_TEXT);
+    pdf.textWithLink(
+      INVOICE_FOOTER_TEXT,
+      (pageWidth - textWidth) / 2,
+      pdf.internal.pageSize.getHeight() - 28,
+      { url: INVOICE_FOOTER_URL },
+    );
+    pdf.setTextColor(0);
   }
 
   return pdf.output("blob");

@@ -46,6 +46,7 @@ import type {
   DocumentWithRelations,
   LineItem,
 } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 const NEW_CLIENT = "__new__";
 
@@ -312,9 +313,7 @@ export function DocumentBuilder({
         // since the client-create and document-create checks share one
         // FREE_LIMIT_REACHED shape server-side.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

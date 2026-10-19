@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { nextTierFor } from "@/lib/plan-limits";
 import type { SubscriptionStatus } from "@/lib/database.types";
-
-const TIER_LABEL: Record<"basic" | "pro", string> = { basic: "Plus", pro: "Pro" };
 
 // Shared proactive usage indicator for every capped resource (invoices,
 // clients, jobs, active employees/services/stylists - see
@@ -38,7 +35,6 @@ export function UsageLimitBar({
 
   const atCap = current >= limit;
   const nounLabel = limit === 1 ? noun : (pluralNoun ?? `${noun}s`);
-  const nextTier = nextTierFor(tier);
 
   return (
     <div
@@ -60,7 +56,7 @@ export function UsageLimitBar({
           nativeButton={false}
           render={<Link href="/billing" />}
         >
-          Upgrade to {TIER_LABEL[nextTier]}
+          Upgrade to Pro
         </Button>
       )}
     </div>

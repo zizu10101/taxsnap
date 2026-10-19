@@ -13,7 +13,7 @@ import type {
 // (`head: true`) - no row content is ever selected.
 
 const PAGE_SIZE = 50;
-const TIERS: SubscriptionStatus[] = ["free", "basic", "pro"];
+const TIERS: SubscriptionStatus[] = ["free", "pro"];
 const BUSINESS_TYPES: BusinessType[] = ["general", "salon"];
 const SIGNUP_WINDOW_DAYS = 30;
 
@@ -160,9 +160,6 @@ export interface MismatchRow {
 function tierFromPriceId(priceId: string | undefined): SubscriptionStatus {
   if (priceId === STRIPE_PRICE_IDS.pro.monthly || priceId === STRIPE_PRICE_IDS.pro.yearly) {
     return "pro";
-  }
-  if (priceId === STRIPE_PRICE_IDS.basic.monthly || priceId === STRIPE_PRICE_IDS.basic.yearly) {
-    return "basic";
   }
   return "free";
 }

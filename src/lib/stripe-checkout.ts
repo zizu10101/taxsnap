@@ -44,6 +44,12 @@ export async function createCheckoutSessionUrl(
       customer: profile?.stripe_customer_id || undefined,
       customer_email: profile?.stripe_customer_id ? undefined : user.email,
       line_items: [{ price: priceId, quantity: 1 }],
+      // Prices are HST-exclusive; Stripe Tax adds the right tax from the
+      // customer's address at checkout. An existing customer has to allow
+      // Checkout to save the address it collects, or automatic tax fails.
+      automatic_tax: { enabled: true },
+      billing_address_collection: "required",
+      ...(profile?.stripe_customer_id ? { customer_update: { address: "auto" as const } } : {}),
       success_url: `${appUrl}/billing?success=1`,
       cancel_url: `${appUrl}/billing?canceled=1`,
       client_reference_id: user.id,

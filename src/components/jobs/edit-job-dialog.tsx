@@ -24,6 +24,7 @@ import {
 import type { Client, Job } from "@/lib/database.types";
 import { MAX_PLACE_LENGTH, validateJobPatch } from "@/lib/job-fields";
 import { useRouter } from "next/navigation";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 const NO_CUSTOMER = "__none__";
 
@@ -89,6 +90,10 @@ export function EditJobDialog({
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      if (!res.ok && (data.code === "FREE_LIMIT_REACHED" || data.code === "PRO_REQUIRED")) {
+        showUpgradePrompt(data.error, router);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save");
 
       onSaved(data.job as Job);

@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { isStatementImportEnabled } from "@/lib/statement-config";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { PLAN_LIMITS, normalizeTier } from "@/lib/plan-limits";
 import {
   bankChargesSuggestion,
   resolveBankCharges,
   statementCategoryOptions,
 } from "@/lib/statement-categories";
 import { loadCategoryRows } from "@/lib/statement-bank-charges";
-import type { Database, StatementImport, SubscriptionStatus } from "@/lib/database.types";
+import type { Database, StatementImport } from "@/lib/database.types";
 
 // Shared plumbing for every /api/statements route.
 //
@@ -101,6 +101,6 @@ export async function monthlyCapFor(ctx: StatementCtx): Promise<number | null> {
     .select("subscription_status")
     .eq("id", ctx.user.id)
     .single();
-  const tier: SubscriptionStatus = profile?.subscription_status ?? "free";
+  const tier = normalizeTier(profile?.subscription_status);
   return PLAN_LIMITS[tier].statementImportsPerMonth;
 }

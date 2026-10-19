@@ -17,7 +17,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ManageSubscriptionButton, openBillingPortal } from "@/components/billing/manage-subscription-button";
 import type { BillingInterval, BillingTier } from "@/lib/stripe";
 import type { SubscriptionStatus } from "@/lib/database.types";
-import { PRICING_PLANS, formatCadPrice, formatPerMonthEquivalent } from "@/lib/pricing-plans";
+import {
+  FREE_PLAN,
+  PLUS_HST_NOTE,
+  PRICING_PLANS,
+  formatCadPrice,
+  formatPerMonthEquivalent,
+} from "@/lib/pricing-plans";
 
 export function PricingCards({
   currentStatus,
@@ -38,7 +44,7 @@ export function PricingCards({
   const [billingInterval, setBillingInterval] = useState<BillingInterval>(
     currentInterval ?? "monthly",
   );
-  const hasActiveSubscription = currentStatus !== "free";
+  const hasActiveSubscription = currentStatus === "pro";
 
   async function handleCheckout(tier: BillingTier) {
     setLoadingTier(tier);
@@ -49,8 +55,8 @@ export function PricingCards({
     // subscriber changing tier or interval has to go through the Customer
     // Portal instead (see openBillingPortal), which handles the correct
     // timing itself - immediate + invoiced now for an upgrade, deferred to
-    // period end via a Subscription Schedule for a downgrade (Plus<->Pro
-    // included) - see BILLING_CHANGE_POLICY in pricing-plans.ts for the
+    // period end via a Subscription Schedule for a downgrade (annual
+    // -> monthly) - see BILLING_CHANGE_POLICY in pricing-plans.ts for the
     // user-facing wording and CLAUDE.md for how this was verified against
     // real portal sessions, not assumed.
     if (hasActiveSubscription) {
@@ -99,6 +105,26 @@ export function PricingCards({
       </Tabs>
 
       <div className="grid items-stretch gap-4 sm:grid-cols-2">
+        <Card className={`h-full ${currentStatus === "free" ? "border-primary shadow-sm" : ""}`}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>{FREE_PLAN.name}</CardTitle>
+              {currentStatus === "free" && <Badge>Current plan</Badge>}
+            </div>
+            <CardDescription>{FREE_PLAN.description}</CardDescription>
+            <p className="pt-2 text-3xl font-bold">{FREE_PLAN.price}</p>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <ul className="space-y-2 text-sm">
+              {FREE_PLAN.features.map((f) => (
+                <li key={f} className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
         {PRICING_PLANS.map((plan) => {
           const isCurrent =
             currentStatus === plan.tier && currentInterval === billingInterval;
@@ -121,11 +147,12 @@ export function PricingCards({
                 </div>
                 <CardDescription>{plan.description}</CardDescription>
                 <p className="pt-2 text-3xl font-bold">
-                  {formatCadPrice(price, billingInterval)}
+                  {formatCadPrice(price, billingInterval)}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">{PLUS_HST_NOTE}</span>
                 </p>
                 {billingInterval === "yearly" && (
                   <p className="-mt-2 text-xs text-muted-foreground">
-                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually
+                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually - 2 months free
                   </p>
                 )}
               </CardHeader>

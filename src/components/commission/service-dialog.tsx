@@ -18,6 +18,7 @@ import {
 import { SERVICE_COLOR_PALETTE } from "@/lib/service-colors";
 import { cn } from "@/lib/utils";
 import type { Service } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 export function ServiceDialog({
   open,
@@ -56,9 +57,7 @@ export function ServiceDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern already
         // used for the free receipt-scan cap in upload-receipt.tsx.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

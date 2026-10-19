@@ -252,7 +252,7 @@ export async function buildAndDownloadAccountantExport(
 // The owner's export: gathers the inputs with their own (RLS-scoped) browser
 // client, then builds the bundle. The invoices.csv/PDF section's documents are
 // fetched fresh in here rather than passed in - nothing else on the receipts
-// page needs the full invoice+items rows. A free/basic account (or one that
+// page needs the full invoice+items rows. A free account (or one that
 // has never issued an invoice) just gets an empty invoice section - RLS
 // returns zero rows either way, no separate tier check needed here.
 // invoicePayments is the one exception fetched by the caller: it's already

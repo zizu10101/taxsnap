@@ -16,6 +16,7 @@ import { StylistDialog } from "@/components/commission/stylist-dialog";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { StylistPublic, SubscriptionStatus } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 export function StylistList({
   initialStylists,
@@ -67,9 +68,7 @@ export function StylistList({
         // limit could be bypassed entirely via deactivate-then-reactivate
         // instead of ever using the "New stylist" flow twice.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to update");

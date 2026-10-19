@@ -35,6 +35,7 @@ import type {
   DocumentWithRelations,
   SubscriptionStatus,
 } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -151,9 +152,7 @@ export function DocumentList({
         // capped by the same monthly invoice limit as creating one
         // directly (see src/lib/plan-limits.ts).
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to convert");

@@ -92,75 +92,67 @@ const VIDEO_TABS: ShowcaseTab[] = availableHowToVideos()
 
 // Behind the homepage pricing section's "See all features" toggle - a flat
 // list (not QuickBooks' collapsible categories), matching this app's much
-// smaller feature surface. Every tier gets every feature under the
+// smaller feature surface. Both plans get every feature under the
 // capped-forever-freemium model (see src/lib/plan-limits.ts), so this is
 // no longer a has-it/doesn't-have-it matrix - a capped resource is one row
-// showing all three tiers' actual numbers (e.g. "3/mo, 10/mo, Unlimited")
+// showing both plans' actual numbers (e.g. "3/mo, Unlimited")
 // via ComparisonCell's string variant, pulled from PLAN_LIMITS so these
 // can't drift from what the API enforces (same source pricing-plans.ts
 // reads from). A feature with no numeric cap (it either exists or it
 // doesn't, at every tier alike, or - priority support - is a real Pro-only
 // perk) stays a plain boolean row.
 const COMPARISON_ROWS: ComparisonRow[] = [
-  { feature: "Receipt scanning & AI categorization", free: true, basic: true, pro: true },
+  { feature: "Receipt scanning & AI categorization", free: true, pro: true },
   {
     feature: "Receipt scans",
     free: formatPlanCap(PLAN_LIMITS.free.scansPerMonth, "/mo"),
-    basic: formatPlanCap(PLAN_LIMITS.basic.scansPerMonth, "/mo"),
     pro: formatPlanCap(PLAN_LIMITS.pro.scansPerMonth, "/mo"),
   },
-  { feature: "Ontario HST return estimate", free: true, basic: true, pro: true },
-  { feature: "Maps to CRA Lines 101, 103 & 106", free: true, basic: true, pro: true },
-  { feature: "CSV export for tax season", free: true, basic: true, pro: true },
-  { feature: "Client invoicing", free: true, basic: true, pro: true },
+  { feature: "Ontario HST return estimate", free: true, pro: true },
+  { feature: "Maps to CRA Lines 101, 103 & 106", free: true, pro: true },
+  { feature: "CSV export for tax season", free: true, pro: true },
+  { feature: "Client invoicing", free: true, pro: true },
   {
     feature: "Invoices",
     free: formatPlanCap(PLAN_LIMITS.free.invoicesPerMonth, "/mo"),
-    basic: formatPlanCap(PLAN_LIMITS.basic.invoicesPerMonth, "/mo"),
     pro: formatPlanCap(PLAN_LIMITS.pro.invoicesPerMonth, "/mo"),
   },
   {
     feature: "Estimates",
     free: formatPlanCap(null),
-    basic: formatPlanCap(null),
     pro: formatPlanCap(null),
   },
   {
     feature: "Clients",
     free: formatPlanCap(PLAN_LIMITS.free.clients),
-    basic: formatPlanCap(PLAN_LIMITS.basic.clients),
     pro: formatPlanCap(PLAN_LIMITS.pro.clients),
   },
   {
     feature: "Jobs",
     free: formatPlanCap(PLAN_LIMITS.free.jobs),
-    basic: formatPlanCap(PLAN_LIMITS.basic.jobs),
     pro: formatPlanCap(PLAN_LIMITS.pro.jobs),
   },
   {
     feature: "Employees",
     free: formatPlanCap(PLAN_LIMITS.free.employees),
-    basic: formatPlanCap(PLAN_LIMITS.basic.employees),
     pro: formatPlanCap(PLAN_LIMITS.pro.employees),
   },
   {
     feature: "Active services (salon)",
     free: formatPlanCap(PLAN_LIMITS.free.activeServices),
-    basic: formatPlanCap(PLAN_LIMITS.basic.activeServices),
     pro: formatPlanCap(PLAN_LIMITS.pro.activeServices),
   },
   {
     feature: "Active stylists (salon)",
     free: formatPlanCap(PLAN_LIMITS.free.activeStylists),
-    basic: formatPlanCap(PLAN_LIMITS.basic.activeStylists),
     pro: formatPlanCap(PLAN_LIMITS.pro.activeStylists),
   },
-  { feature: "Deposits & partial payments", free: true, basic: true, pro: true },
-  { feature: "Send via email, WhatsApp, or SMS", free: true, basic: true, pro: true },
-  { feature: "Job costing (materials + labor)", free: true, basic: true, pro: true },
-  { feature: "Job profitability (Est. Profit)", free: true, basic: true, pro: true },
-  { feature: "Reports: revenue, expenses by category or vendor, HST", free: false, basic: false, pro: true },
-  { feature: "Priority support", free: false, basic: false, pro: true },
+  { feature: "Deposits & partial payments", free: true, pro: true },
+  { feature: "Send via email, WhatsApp, or SMS", free: true, pro: true },
+  { feature: "Job costing (materials + labor)", free: true, pro: true },
+  { feature: "Job profitability (Est. Profit)", free: true, pro: true },
+  { feature: "Reports: revenue, expenses by category or vendor, HST", free: false, pro: true },
+  { feature: "Priority support", free: false, pro: true },
 ];
 
 const STEPS = [
@@ -400,7 +392,7 @@ export default function Home() {
       <ScreenShowcase tabs={[...SHOWCASE_TABS, ...VIDEO_TABS]} moreHref="/how-to" />
 
       <PricingSection
-        highlightTier="basic"
+        highlightTier="pro"
         tierTaglines={{
           pro: "See true profit per job — materials + labor, automatically.",
         }}

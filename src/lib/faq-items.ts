@@ -26,7 +26,7 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
   {
     question: "What happens after my free scans run out?",
     answer:
-      "The Free plan includes a monthly allowance of receipt scans at no cost. Once you hit it, upgrade to Plus for unlimited scans - or just wait, since the allowance resets automatically at the start of each month either way.",
+      "The Free plan includes a monthly allowance of receipt scans at no cost. Once you hit it, upgrade to Pro for unlimited scans - or just wait, since the allowance resets automatically at the start of each month either way.",
     home: true,
   },
   {
@@ -41,7 +41,7 @@ export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
   },
   {
     question: "How does billing and cancellation work?",
-    answer: `Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to switch plans or billing interval anytime, no need to contact support. ${BILLING_CHANGE_POLICY}`,
+    answer: `Plans are billed monthly or annually (2 months free) - your choice. Once you're subscribed, use Manage Subscription from Settings or Billing to change your billing interval or cancel anytime, no need to contact support. ${BILLING_CHANGE_POLICY}`,
     home: true,
   },
   {

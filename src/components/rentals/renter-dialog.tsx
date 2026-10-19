@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Renter, RateCadence } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 // "weekly"/"monthly" (the stored value) differ in case from their
 // displayed labels - needs an explicit items prop on Select, same
@@ -69,9 +70,7 @@ export function RenterDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern used for
         // services/products/employees.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

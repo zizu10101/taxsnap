@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Client } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 // Standalone counterpart to the "+ Add new client" fields embedded inline
 // in DocumentBuilder (invoices/document-builder.tsx) - same three fields,
@@ -60,9 +61,7 @@ export function NewClientDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern used for
         // jobs/employees/services/stylists.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to create");

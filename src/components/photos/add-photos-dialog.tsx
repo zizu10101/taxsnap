@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { preparePhoto } from "@/lib/photo-compress";
 import { MAX_CAPTION_LENGTH, MAX_PHOTOS_PER_BATCH } from "@/lib/photo-config";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 // "Add photos": capture first, file later. Take photo (phone camera) or Choose from gallery (also the
 // plain "upload" on a desktop), then pick a job, type a new job name, or leave them Unsorted. Each photo
@@ -266,9 +267,7 @@ function AddPhotosDialog({
           if (!res.ok) {
             if (data.code === "FREE_LIMIT_REACHED") {
               stopped = true;
-              toast.error(data.error ?? "You've reached your photo limit.", {
-                action: { label: "Upgrade", onClick: () => router.push("/billing") },
-              });
+              showUpgradePrompt(data.error ?? "You've reached your photo limit.", router);
               setError(data.error ?? "You've reached your photo limit.");
             } else {
               setError(data.error ?? "A photo couldn't be uploaded.");

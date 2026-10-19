@@ -18,6 +18,7 @@ import {
 import type { LineItem } from "@/lib/database.types";
 import { lineDescription, lineName } from "@/lib/line-format";
 import { UnitSelect } from "@/components/invoices/line-item-fields";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 export function LineItemDialog({
   open,
@@ -60,9 +61,7 @@ export function LineItemDialog({
         // Every tier is capped at some number of active saved items (see
         // lib/plan-limits.ts) - same upgrade-toast pattern as services.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

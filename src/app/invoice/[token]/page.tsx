@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { PublicDocumentPaper } from "@/components/public/document-paper";
+import { showsInvoiceFooter } from "@/lib/invoice-footer";
 
 export const metadata: Metadata = {
   title: "Invoice — TaxSnap",
@@ -32,7 +33,7 @@ export default async function PublicInvoicePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email, business_phone, business_address, logo_url")
+    .select("business_name, business_email, business_phone, business_address, logo_url, subscription_status")
     .eq("id", invoice.user_id)
     .single();
 
@@ -67,6 +68,7 @@ export default async function PublicInvoicePage({
         placeOfWork={invoice.place_of_work}
         notes={invoice.notes}
         jobName={invoice.job?.name ?? null}
+        showBrandFooter={showsInvoiceFooter(profile?.subscription_status, "invoice")}
         logoUrl={logoUrl}
       />
     </div>

@@ -55,8 +55,8 @@ export function AuthForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/dashboard";
   const urlError = searchParams.get("error");
-  // Set by a "Get Started Plus/Pro" click on the landing page's pricing
-  // section (?plan=basic|pro) - see lib/auth-redirect.ts's
+  // Set by a "Get Started" click on the landing page's pricing
+  // section (?plan=pro) - see lib/auth-redirect.ts's
   // PENDING_PLAN_COOKIE for why this has to travel through a cookie for
   // the Google/magic-link-click/password-signup paths (all round-trip
   // through Supabase's own domain via /auth/callback), and is read
@@ -192,7 +192,7 @@ export function AuthForm() {
     // straight off this same page's own query params. Best-effort: if
     // Checkout can't be created for some reason, fall through to the
     // normal redirect rather than stranding the user on this form.
-    if (plan === "basic" || plan === "pro") {
+    if (plan === "pro") {
       try {
         const res = await fetch("/api/stripe/checkout", {
           method: "POST",

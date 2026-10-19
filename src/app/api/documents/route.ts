@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateManualStatus } from "@/lib/document-status";
-import { requireUser } from "@/lib/require-pro";
+import { isProUser, PRO_REQUIRED_CODE, PRO_REQUIRED_MESSAGE, requireUser } from "@/lib/require-pro";
+import { newJobCapMessage } from "@/lib/job-cap";
 import { ONTARIO_HST_RATE } from "@/lib/hst";
 import {
   findClientByName,
@@ -108,6 +109,14 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  // Progress billing is a Pro feature (its page and nav are Pro-only), so a
+  // progress draw is refused for a Free account here, not just hidden.
+  if (is_progress_draw && !(await isProUser(supabase, user.id))) {
+    return NextResponse.json(
+      { error: PRO_REQUIRED_MESSAGE, code: PRO_REQUIRED_CODE },
+      { status: 403 },
+    );
+  }
   if (is_progress_draw && !jobIdInput && !job_name?.trim()) {
     return NextResponse.json(
       { error: "A progress draw requires a job." },
@@ -209,6 +218,13 @@ export async function POST(request: Request) {
     if (existingJob) {
       jobId = existingJob.id;
     } else {
+      const jobCapMessage = await newJobCapMessage(supabase, user.id, name);
+      if (jobCapMessage) {
+        return NextResponse.json(
+          { error: jobCapMessage, code: "FREE_LIMIT_REACHED" },
+          { status: 403 },
+        );
+      }
       const { data: newJob, error: newJobError } = await supabase
         .from("jobs")
         .insert({ user_id: user.id, name })

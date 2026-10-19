@@ -48,6 +48,7 @@ import {
 import { ReceiptImage } from "@/components/dashboard/receipt-image";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 const EMPTY_ITEM: ReceiptItem = { name: "", amount: 0 };
 
@@ -208,8 +209,15 @@ function ReceiptSummaryContent({
         }),
       });
       const data = await res.json();
+      if (!res.ok && (data.code === "FREE_LIMIT_REACHED" || data.code === "PRO_REQUIRED")) {
+        showUpgradePrompt(data.error, router);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save changes");
 
+      if (data.job_not_linked) {
+        showUpgradePrompt("Receipt saved. Upgrade to Pro to track more jobs", router);
+      }
       onUpdated(data.receipt as Receipt);
       toast.success("Receipt updated");
       router.refresh();

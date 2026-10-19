@@ -16,6 +16,7 @@ import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { LineItem, SubscriptionStatus } from "@/lib/database.types";
 import { lineDescription, lineName, normalizeUnit } from "@/lib/line-format";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 // "$5.00 / sq ft", or just the price when the item has no unit.
 function priceText(item: LineItem): string {
@@ -66,9 +67,7 @@ export function LineItemList({
       const data = await res.json();
       if (!res.ok) {
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to update");

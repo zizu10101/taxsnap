@@ -23,6 +23,7 @@ import { EmployeeSessionsDialog } from "@/components/employees/employee-sessions
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import type { Employee, SubscriptionStatus } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -127,9 +128,7 @@ export function EmployeeList({
         // limit could be bypassed via deactivate-then-reactivate instead
         // of ever using the "New employee" flow twice.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to update");

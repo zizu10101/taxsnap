@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CommissionOverview } from "@/components/commission/commission-overview";
 import { getCommissionOverviewData } from "@/lib/commission-overview-query";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
+import { UpgradeCard } from "@/components/billing/upgrade-card";
 
 export const metadata: Metadata = {
   title: "Register Overview — TaxSnap",
@@ -17,10 +18,10 @@ export const metadata: Metadata = {
 
 // All-or-nothing Pro gate, same shape as employees/page.tsx - unlike the
 // other four Commission tabs (which all have real free-tier content),
-// Overview is built entirely on payout/adjustment data a free or basic
+// Overview is built entirely on payout/adjustment data a free
 // account can never have, so there's no meaningful degraded view to show
 // them (no CommissionNav in the locked branch either, matching that same
-// precedent - a free/basic account can't reach this tab from the nav in
+// precedent - a free account can't reach this tab from the nav in
 // the first place, only by a direct URL/bookmark).
 export default async function CommissionOverviewPage() {
   const supabase = await createClient();
@@ -58,21 +59,7 @@ export default async function CommissionOverviewPage() {
       {isPro && initialRangeData ? (
         <CommissionOverview isPro={isPro} initialRangeData={initialRangeData} />
       ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="font-medium">Overview is a Pro feature</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              Upgrade to the Pro plan ($29/mo) to see shop-wide sales,
-              commission, and payout totals across every stylist.
-            </p>
-            <Button nativeButton={false} render={<Link href="/billing" />}>
-              Upgrade to Pro
-            </Button>
-          </CardContent>
-        </Card>
+        <UpgradeCard feature="Overview" message="Upgrade to Pro to see shop-wide sales, commission, and payout totals across every stylist." />
       )}
     </div>
   );

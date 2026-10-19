@@ -32,11 +32,11 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // A "Get Started Plus/Pro" click on the landing page carries its
+      // A "Get Started with Pro" click on the landing page carries its
       // plan choice this far via PENDING_PLAN_COOKIE - send a genuinely
       // free account straight into Checkout for it instead of the
       // dashboard. Skipped for anyone already on a paid tier (an existing
-      // Plus/Pro user re-authenticating through a stale cookie/link
+      // Pro user re-authenticating through a stale cookie/link
       // shouldn't get bounced into creating another subscription) - falls
       // through to the normal redirect below in that case.
       if (pendingPlan && data.user) {
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
           .eq("id", data.user.id)
           .single();
 
-        if (!profile || profile.subscription_status === "free") {
+        if (!profile || profile.subscription_status !== "pro") {
           const checkoutResult = await createCheckoutSessionUrl(
             supabase,
             data.user,

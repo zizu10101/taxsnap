@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Employee } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 export function EmployeeDialog({
   open,
@@ -61,9 +62,7 @@ export function EmployeeDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern used for
         // services/stylists/jobs.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

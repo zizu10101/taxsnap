@@ -54,8 +54,8 @@ export function DashboardBody({
   // nav-config.ts for the matching nav-item hide). Also threaded into
   // HstSummaryCard below to gate manual sales entry.
   businessType: BusinessType;
-  // Threaded into HstSummaryCard to gate manual sales entry (Plus-or-
-  // higher for general-business accounts; unrestricted for salon).
+  // Threaded into HstSummaryCard to gate manual sales entry (a capped
+  // monthly count on Free for general-business accounts; unrestricted for salon).
   subscriptionStatus: SubscriptionStatus;
   // Passed straight through to ReceiptsList's accountant export bundle,
   // which needs it to render invoice PDFs the same way the invoice detail
@@ -272,6 +272,7 @@ export function DashboardBody({
         onDeleted={handleDeleted}
         onSelect={setSelectedReceipt}
         exportFilenameBase={exportFilenameBase}
+        isPro={subscriptionStatus === "pro"}
         range={range}
         business={business}
         logoPath={logoPath}

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { generateDocumentPdf, type PriorDraw } from "@/lib/invoice-pdf";
 import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capability";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { showsInvoiceFooter } from "@/lib/invoice-footer";
 import type { DocumentWithRelations } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
@@ -44,16 +45,27 @@ export async function buildDocumentPdf(
   logoPath: string | null,
   priorDraws: PriorDraw[],
 ) {
+  const supabase = createClient();
   let logoDataUrl: string | null = null;
   if (logoPath) {
-    const supabase = createClient();
     const { data } = await supabase.storage.from("logos").createSignedUrl(logoPath, 60);
     if (data) {
       const resp = await fetch(data.signedUrl);
       logoDataUrl = await blobToDataUrl(await resp.blob());
     }
   }
-  return generateDocumentPdf(document, business, logoDataUrl, priorDraws);
+  // Free accounts' invoices carry the "Created with TaxSnap" credit; the
+  // owner's own plan decides, read here so every caller (Download, Share,
+  // Email) gets the same answer.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("subscription_status").eq("id", user.id).single()
+    : { data: null };
+  return generateDocumentPdf(document, business, logoDataUrl, priorDraws, {
+    brandFooter: showsInvoiceFooter(profile?.subscription_status, document.type),
+  });
 }
 
 export function ShareDocumentButton({

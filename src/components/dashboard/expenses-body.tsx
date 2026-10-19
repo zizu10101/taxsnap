@@ -53,6 +53,7 @@ export function ExpensesBody({
   initialJobNames,
   initialTemplates,
   business,
+  isPro,
   logoPath,
   lastSignInAt,
   statementImportEnabled = false,
@@ -63,6 +64,7 @@ export function ExpensesBody({
   initialJobNames: string[];
   initialTemplates: ExpenseTemplateWithJob[];
   business: BusinessInfo;
+  isPro: boolean;
   logoPath: string | null;
   // When the owner last signed in; receipts added since then that the current
   // filters hide are pinned in "Recently added".
@@ -304,6 +306,7 @@ export function ExpensesBody({
         onSelect={setSelectedReceipt}
         exportFilenameBase={`${exportFilenameBase}-job`}
         range={range}
+        isPro={isPro}
         business={business}
         logoPath={logoPath}
         selection={selection}
@@ -321,6 +324,7 @@ export function ExpensesBody({
         onSelect={setSelectedReceipt}
         exportFilenameBase={`${exportFilenameBase}-overhead`}
         range={range}
+        isPro={isPro}
         business={business}
         logoPath={logoPath}
         selection={selection}

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     interval: BillingInterval;
   };
 
-  if (tier !== "basic" && tier !== "pro") {
+  if (tier !== "pro") {
     return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
   }
   if (interval !== "monthly" && interval !== "yearly") {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .single();
 
-  if (profile && profile.subscription_status !== "free") {
+  if (profile && profile.subscription_status === "pro") {
     return NextResponse.json(
       {
         error:

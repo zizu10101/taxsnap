@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { StylistPublic } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 export function StylistDialog({
   open,
@@ -85,9 +86,7 @@ export function StylistDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern already
         // used for the free receipt-scan cap in upload-receipt.tsx.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { INVOICE_FOOTER_TEXT, INVOICE_FOOTER_URL } from "@/lib/invoice-footer";
 
 // No email-sending capability existed anywhere in this codebase before
 // this - the only prior SMTP mention was Supabase Auth's own relay for its
@@ -36,6 +37,13 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// The Free-plan credit under an emailed invoice (see lib/invoice-footer.ts).
+function brandFooterHtml(show: boolean): string {
+  return show
+    ? `<p style="font-size:12px;color:#888"><a href="${INVOICE_FOOTER_URL}" style="color:#888">${INVOICE_FOOTER_TEXT}</a></p>`
+    : "";
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 }
@@ -56,6 +64,7 @@ export async function sendInvoiceReadyEmail({
   documentNumber,
   totalAmount,
   viewUrl,
+  brandFooter = false,
 }: {
   to: string;
   businessName: string | null;
@@ -63,6 +72,8 @@ export async function sendInvoiceReadyEmail({
   documentNumber: number;
   totalAmount: number;
   viewUrl: string;
+  /** Free-plan invoice: append the "Created with TaxSnap" credit. */
+  brandFooter?: boolean;
 }): Promise<boolean> {
   const resend = getResendClient();
   if (!resend) {
@@ -84,6 +95,7 @@ export async function sendInvoiceReadyEmail({
         for <strong>${formatCurrency(totalAmount)}</strong> is ready to view:</p>
         <p><a href="${viewUrl}">${viewUrl}</a></p>
         <p>Sent via TaxSnap on behalf of ${escapeHtml(fromWho)}.</p>
+        ${brandFooterHtml(brandFooter)}
       `,
     });
 
@@ -114,6 +126,7 @@ export async function sendDocumentEmail({
   signUrl,
   pdf,
   filename,
+  brandFooter = false,
 }: {
   to: string;
   businessName: string | null;
@@ -125,6 +138,8 @@ export async function sendDocumentEmail({
   signUrl: string | null;
   pdf: Buffer;
   filename: string;
+  /** Free-plan invoice: append the "Created with TaxSnap" credit. */
+  brandFooter?: boolean;
 }): Promise<boolean> {
   const resend = getResendClient();
   if (!resend) {
@@ -152,6 +167,7 @@ export async function sendDocumentEmail({
             : ""
         }
         <p>Sent via TaxSnap on behalf of ${escapeHtml(fromWho)}.</p>
+        ${brandFooterHtml(brandFooter)}
       `,
       attachments: [{ filename, content: pdf }],
     });

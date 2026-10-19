@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ExpenseOverview } from "@/components/dashboard/expense-overview";
 import { getExpenseOverviewData } from "@/lib/expense-overview-query";
 import { getPresetRange } from "@/lib/date-range";
+import { UpgradeCard } from "@/components/billing/upgrade-card";
 
 export const metadata: Metadata = {
   title: "Overview — TaxSnap",
@@ -63,21 +64,7 @@ export default async function ExpenseOverviewPage() {
       {isPro && initialRangeData ? (
         <ExpenseOverview initialRangeData={initialRangeData} />
       ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="font-medium">Overview is a Pro feature</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              Upgrade to the Pro plan ($29/mo) to see expense and
-              write-off totals over time.
-            </p>
-            <Button nativeButton={false} render={<Link href="/billing" />}>
-              Upgrade to Pro
-            </Button>
-          </CardContent>
-        </Card>
+        <UpgradeCard feature="Overview" message="Upgrade to Pro to see expense and write-off totals over time." />
       )}
     </div>
   );

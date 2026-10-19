@@ -11,6 +11,7 @@ import { ProgressBillingList, type ProgressJobSummary } from "@/components/jobs/
 import { calculateJobRevenue } from "@/lib/job-revenue";
 import { calculateInvoicedToDate, calculateRemainingBalance } from "@/lib/progress-billing";
 import type { Client, Job, LineItem } from "@/lib/database.types";
+import { UpgradeCard } from "@/components/billing/upgrade-card";
 
 export const metadata: Metadata = {
   title: "Progress Billing — TaxSnap",
@@ -177,21 +178,7 @@ export default async function ProgressBillingPage() {
           lineItems={lineItems}
         />
       ) : (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="font-medium">Progress Billing is a Pro feature</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              Upgrade to the Pro plan ($29/mo) to track draws against a
-              contract value.
-            </p>
-            <Button nativeButton={false} render={<Link href="/billing" />}>
-              Upgrade to Pro
-            </Button>
-          </CardContent>
-        </Card>
+        <UpgradeCard feature="Progress Billing" message="Upgrade to Pro to track draws against a contract value." />
       )}
     </div>
   );

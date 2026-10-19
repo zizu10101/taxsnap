@@ -4,7 +4,6 @@ import type { SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
   free: "Free",
-  basic: "Plus",
   pro: "Pro",
 };
 
@@ -33,10 +32,10 @@ const ROWS: { label: string; key: keyof (typeof PLAN_LIMITS)["free"] }[] = [
 export function PlanCapsTable({
   currentTier,
 }: {
-  /** Highlights this tier's column - omit to show all three unhighlighted (e.g. a signed-out context). */
+  /** Highlights this tier's column - omit to show both unhighlighted (e.g. a signed-out context). */
   currentTier?: SubscriptionStatus;
 }) {
-  const tiers: SubscriptionStatus[] = ["free", "basic", "pro"];
+  const tiers: SubscriptionStatus[] = ["free", "pro"];
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">

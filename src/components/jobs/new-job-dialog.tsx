@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Client, Job } from "@/lib/database.types";
 import { MAX_PLACE_LENGTH } from "@/lib/job-fields";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 const NO_CUSTOMER = "__none__";
 
@@ -71,9 +72,7 @@ export function NewJobDialog({
         // lib/plan-limits.ts) - same upgrade-toast pattern used for
         // services/stylists.
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to create");

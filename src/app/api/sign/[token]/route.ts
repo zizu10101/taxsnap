@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendInvoiceReadyEmail } from "@/lib/email";
+import { showsInvoiceFooter } from "@/lib/invoice-footer";
 import {
   convertEstimateToInvoice,
   EstimateAlreadyConvertedError,
@@ -100,7 +101,7 @@ export async function POST(
     if (client?.email && invoice.view_token) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("business_name")
+        .select("business_name, subscription_status")
         .eq("id", estimate.user_id)
         .single();
 
@@ -111,6 +112,7 @@ export async function POST(
         documentNumber: invoice.document_number,
         totalAmount: invoice.total_amount,
         viewUrl: `${getAppUrl(request)}/invoice/${invoice.view_token}`,
+        brandFooter: showsInvoiceFooter(profile?.subscription_status, "invoice"),
       });
 
       if (sent) {

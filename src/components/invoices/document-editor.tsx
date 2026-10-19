@@ -45,6 +45,7 @@ import {
   type ClientPick,
 } from "@/lib/job-fields";
 import { ClientNotes } from "@/components/invoices/client-notes";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 // Full-page counterpart to DocumentBuilder (screens 4a/5a of the Invoice
 // Editor design handoff) - deliberately NOT a replacement for it.
@@ -277,9 +278,7 @@ export function DocumentEditor({
       const data = await res.json();
       if (!res.ok) {
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");

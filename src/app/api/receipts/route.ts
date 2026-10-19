@@ -4,6 +4,7 @@ import { resolveCategory } from "@/lib/expense-categories";
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { isSha256Hex } from "@/lib/file-hash";
+import { newJobCapMessage } from "@/lib/job-cap";
 
 function sanitizeItems(items: unknown): ReceiptItem[] {
   if (!Array.isArray(items)) return [];
@@ -53,6 +54,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "file_sha256 must be a SHA-256 hex string." }, { status: 400 });
   }
 
+  // A new job name here would be created by the DB trigger (0009), which has
+  // no idea about plan caps - so the cap is checked before the insert.
+  // At the cap, the receipt is still saved - just without a job link - and the
+  // response says so, so the UI can show the upgrade prompt.
+  const jobCapMessage = await newJobCapMessage(supabase, user.id, job_name);
+  const jobNotLinked = jobCapMessage !== null;
+  const savedJobName = jobNotLinked ? null : job_name?.trim() || null;
+
   const category = await resolveCategory(supabase, user.id, tax_category);
 
   // Optional "Paid with" (one of the caller's own accounts - bank or card).
@@ -88,7 +97,7 @@ export async function POST(request: Request) {
       total_amount: Number(total_amount) || 0,
       tax_amount: Number(tax_amount) || 0,
       tax_category: category,
-      job_name: job_name?.trim() || null,
+      job_name: savedJobName,
       source_template_id: templateId,
       ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
@@ -101,7 +110,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ receipt: data }, { status: 201 });
+  return NextResponse.json(
+    { receipt: data, ...(jobNotLinked && { job_not_linked: true }) },
+    { status: 201 },
+  );
 }
 
 export async function GET() {

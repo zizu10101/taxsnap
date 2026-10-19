@@ -184,7 +184,7 @@ test("photoPaths: both files go in the owner's folder, and nothing else counts a
 
 // ------------------------------------------------------------ caps
 
-function capDb(tier: "free" | "basic" | "pro", photos: number) {
+function capDb(tier: string, photos: number) {
   return {
     from(table: string) {
       if (table === "profiles") {
@@ -198,9 +198,8 @@ function capDb(tier: "free" | "basic" | "pro", photos: number) {
   } as never;
 }
 
-test("photo caps: placeholder numbers per tier (Free 10, Basic 200, Pro 2000)", () => {
+test("photo caps: placeholder numbers per tier (Free 10, Pro 2000)", () => {
   assert.equal(PLAN_LIMITS.free.photos, 10);
-  assert.equal(PLAN_LIMITS.basic.photos, 200);
   assert.equal(PLAN_LIMITS.pro.photos, 2000);
   assert.match(read("./plan-limits.ts"), /photos: 10, \/\/ PLACEHOLDER/);
   assert.match(read("./plan-limits.ts"), /PLACEHOLDER numbers/);
@@ -211,17 +210,16 @@ test("photo caps: counted from the database, blocked AT the cap, not before", as
   const atCap = await wouldExceedTotalLimit(capDb("free", 10), "u", "photos");
   assert.equal(atCap.exceeded, true);
   assert.equal(atCap.limit, 10);
-  assert.equal((await wouldExceedTotalLimit(capDb("basic", 199), "u", "photos")).exceeded, false);
-  assert.equal((await wouldExceedTotalLimit(capDb("basic", 200), "u", "photos")).exceeded, true);
+  // A leftover 'basic' row (the retired tier) is Free, never an unknown key.
+  assert.equal((await wouldExceedTotalLimit(capDb("basic", 9), "u", "photos")).exceeded, false);
+  assert.equal((await wouldExceedTotalLimit(capDb("basic", 10), "u", "photos")).exceeded, true);
   assert.equal((await wouldExceedTotalLimit(capDb("pro", 1999), "u", "photos")).exceeded, false);
   assert.equal((await wouldExceedTotalLimit(capDb("pro", 2000), "u", "photos")).exceeded, true);
 });
 
-test("photo caps: the upgrade message names the next tier", async () => {
+test("photo caps: the upgrade message points at Pro", async () => {
   const free = await wouldExceedTotalLimit(capDb("free", 10), "u", "photos");
-  assert.match(limitReachedMessage(free, "photo"), /Free accounts can have 10 photos\. Upgrade to Plus/);
-  const basic = await wouldExceedTotalLimit(capDb("basic", 200), "u", "photos");
-  assert.match(limitReachedMessage(basic, "photo"), /Upgrade to Pro/);
+  assert.match(limitReachedMessage(free, "photo"), /Free accounts can have 10 photos\. Upgrade to Pro/);
 });
 
 test("the POST route trusts nothing from the client: no count or limit field is read from the form", () => {

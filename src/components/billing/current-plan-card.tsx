@@ -9,11 +9,10 @@ import type { BillingInterval, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
   free: "Free",
-  basic: "Plus",
   pro: "Pro",
 };
 
-// Compact, single-tier counterpart to PlanCapsTable (the full three-column
+// Compact, single-tier counterpart to PlanCapsTable (the full two-column
 // comparison on /billing) - Settings only needs "what do I actually have
 // right now", not a plan-shopping comparison, so this shows just the
 // caller's own tier's numbers plus a link to /billing for the full picture

@@ -204,7 +204,6 @@ export function AccountActions({
               aria-label="Tier"
             >
               <option value="free">free</option>
-              <option value="basic">basic</option>
               <option value="pro">pro</option>
             </select>
             <Input

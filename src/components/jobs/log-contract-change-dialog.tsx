@@ -23,6 +23,7 @@ import { SavedItemPicker } from "@/components/invoices/saved-item-picker";
 import { insertLine, insertedLineIndex, lineFromSavedItem, type SavedItemLike } from "@/lib/saved-items";
 import { focusLineQuantity } from "@/lib/focus-line-quantity";
 import { lineText } from "@/lib/line-format";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 interface ChangeItemDraft {
   description: string;
@@ -164,6 +165,10 @@ export function LogContractChangeDialog({
         },
       );
       const data = await res.json();
+      if (!res.ok && (data.code === "FREE_LIMIT_REACHED" || data.code === "PRO_REQUIRED")) {
+        showUpgradePrompt(data.error, router);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save change order");
 
       const savedItems = await saveReusableItems(

@@ -14,20 +14,19 @@ export function getStripe(): Stripe {
   return stripeClient;
 }
 
-export type BillingTier = "basic" | "pro";
+// Pro is the only paid plan.
+export type BillingTier = "pro";
 export type { BillingInterval };
 
-// Nested per tier per interval - each tier now has a separate monthly and
-// yearly Stripe Price, not one flat price each. BillingTier can no longer
-// be derived via `keyof typeof STRIPE_PRICE_IDS` now that this nests, so
-// it's declared explicitly above instead.
+// Pro has a monthly and an annual Stripe Price ($29/mo, $290/yr CAD, both
+// excluding HST - Stripe Tax adds it at checkout). The annual env var is
+// STRIPE_PRO_ANNUAL_PRICE_ID; STRIPE_PRO_YEARLY_PRICE_ID is the name this
+// project used before, still read as a fallback so an existing deployment
+// keeps working until the variable is renamed.
 export const STRIPE_PRICE_IDS: Record<BillingTier, Record<BillingInterval, string>> = {
-  basic: {
-    monthly: process.env.STRIPE_BASIC_PRICE_ID ?? "",
-    yearly: process.env.STRIPE_BASIC_YEARLY_PRICE_ID ?? "",
-  },
   pro: {
     monthly: process.env.STRIPE_PRO_PRICE_ID ?? "",
-    yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID ?? "",
+    yearly:
+      process.env.STRIPE_PRO_ANNUAL_PRICE_ID ?? process.env.STRIPE_PRO_YEARLY_PRICE_ID ?? "",
   },
 };

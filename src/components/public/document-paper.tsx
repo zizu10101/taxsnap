@@ -6,6 +6,7 @@ import { dueDateLabel } from "@/lib/document-labels";
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 import { ClientNotes } from "@/components/invoices/client-notes";
+import { INVOICE_FOOTER_TEXT, INVOICE_FOOTER_URL } from "@/lib/invoice-footer";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -42,6 +43,7 @@ export function PublicDocumentPaper({
   placeOfWork = null,
   notes = null,
   jobName = null,
+  showBrandFooter = false,
   logoUrl,
 }: {
   type: DocumentType;
@@ -65,6 +67,8 @@ export function PublicDocumentPaper({
   /** Client-facing notes (documents.notes). Never the owner-only internal notes. */
   notes?: string | null;
   jobName?: string | null;
+  /** A Free account's invoice: show the small "Created with TaxSnap" credit (lib/invoice-footer.ts). */
+  showBrandFooter?: boolean;
   logoUrl: string | null;
 }) {
   const label = type === "invoice" ? "Invoice" : "Estimate";
@@ -178,6 +182,18 @@ export function PublicDocumentPaper({
         </div>
 
         <ClientNotes notes={notes} />
+        {showBrandFooter && (
+          <p className="pt-2 text-center text-xs text-muted-foreground">
+            <a
+              href={INVOICE_FOOTER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              {INVOICE_FOOTER_TEXT}
+            </a>
+          </p>
+        )}
       </CardContent>
     </Card>
   );

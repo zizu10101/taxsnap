@@ -18,7 +18,6 @@ import type { BusinessType, SubscriptionStatus } from "@/lib/database.types";
 
 const TIER_LABEL: Record<SubscriptionStatus, string> = {
   free: "Free",
-  basic: "Plus",
   pro: "Pro",
 };
 

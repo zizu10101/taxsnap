@@ -2,7 +2,7 @@
 // If you have the Supabase CLI, regenerate with:
 //   npx supabase gen types typescript --project-id <id> > src/lib/database.types.ts
 
-export type SubscriptionStatus = "free" | "basic" | "pro";
+export type SubscriptionStatus = "free" | "pro";
 export type BillingInterval = "monthly" | "yearly";
 export type BusinessType = "salon" | "general";
 export type DocumentType = "invoice" | "estimate";
@@ -45,7 +45,7 @@ export interface Database {
           billing_interval: BillingInterval | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
-          pending_tier: "basic" | "pro" | null;
+          pending_tier: "pro" | null;
           pending_billing_interval: BillingInterval | null;
           pending_change_effective_at: string | null;
           business_type: BusinessType;
@@ -70,7 +70,7 @@ export interface Database {
           billing_interval?: BillingInterval | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
-          pending_tier?: "basic" | "pro" | null;
+          pending_tier?: "pro" | null;
           pending_billing_interval?: BillingInterval | null;
           pending_change_effective_at?: string | null;
           business_type?: BusinessType;
@@ -95,7 +95,7 @@ export interface Database {
           billing_interval?: BillingInterval | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
-          pending_tier?: "basic" | "pro" | null;
+          pending_tier?: "pro" | null;
           pending_billing_interval?: BillingInterval | null;
           pending_change_effective_at?: string | null;
           business_type?: BusinessType;

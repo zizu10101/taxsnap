@@ -41,7 +41,7 @@ export default async function AdminPage({
               <p className="text-2xl font-bold tabular-nums">{metrics.total}</p>
             </CardContent>
           </Card>
-          {(["free", "basic", "pro"] as const).map((tier) => (
+          {(["free", "pro"] as const).map((tier) => (
             <Card key={tier}>
               <CardContent className="pt-4">
                 <p className="text-xs capitalize text-muted-foreground">{tier}</p>

@@ -6,21 +6,26 @@ import { Check, ChevronDown, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FREE_PLAN, PRICING_PLANS, formatCadPrice, formatPerMonthEquivalent } from "@/lib/pricing-plans";
+import {
+  FREE_PLAN,
+  PLUS_HST_NOTE,
+  PRICING_PLANS,
+  formatCadPrice,
+  formatPerMonthEquivalent,
+} from "@/lib/pricing-plans";
 import type { BillingInterval, BillingTier } from "@/lib/stripe";
 
 // A cell is either a plain yes/no (rendered as check/dash) or a value
 // string for a capped resource (e.g. "3/mo", "Unlimited") - every feature
-// is available at every tier under the capped-forever-freemium model (see
+// is available on both plans under the capped-forever-freemium model (see
 // src/lib/plan-limits.ts), so most rows differ only in how much, not
 // whether - a value string says that directly instead of forcing a
-// three-way cap into a single checkmark.
+// cap into a single checkmark.
 export type ComparisonCell = boolean | string;
 
 export interface ComparisonRow {
   feature: string;
   free: ComparisonCell;
-  basic: ComparisonCell;
   pro: ComparisonCell;
 }
 
@@ -58,13 +63,12 @@ export function PricingSection({
   extraAuthParams,
   comparisonRows,
 }: {
-  // Which paid tiers to show, in order - lets a page drop Plus (e.g.
-  // /salons, where it isn't relevant) without forking PRICING_PLANS
-  // itself. Defaults to all of them (the homepage's current set).
+  // Which paid tiers to show, in order. Pro is the only paid plan today;
+  // kept so a page can still opt out of a card without forking
+  // PRICING_PLANS. Defaults to all of them.
   tiers?: BillingTier[];
   // Which card (if any) gets the accent border + badge treatment - the
-  // homepage highlights Plus (its actual target tier); a page with
-  // Plus excluded gets to make its own call instead of inheriting that.
+  // homepage and /salons both highlight Pro.
   highlightTier?: BillingTier;
   badgeLabel?: string;
   // Overrides for the short one-liner under the plan name (normally
@@ -94,14 +98,12 @@ export function PricingSection({
   // table (not QuickBooks' collapsible-by-category layout), since this
   // app has a small enough feature set that categorizing it would be
   // over-structuring a short list. Optional: a vertical page can omit it
-  // rather than force one. Each row carries all three tiers' values even
-  // when a page only shows two cards (e.g. /salons has no Plus) - the
-  // Plus column is simply never rendered there since it's derived from
-  // `plans`, not from this data.
+  // rather than force one. Each row carries both plans' values; the Pro
+  // column is derived from `plans`, not from this data.
   comparisonRows?: ComparisonRow[];
 }) {
   const plans = tiers ? PRICING_PLANS.filter((p) => tiers.includes(p.tier)) : PRICING_PLANS;
-  const gridColsClass = plans.length <= 1 ? "sm:grid-cols-2" : "sm:grid-cols-3";
+  const gridColsClass = "sm:grid-cols-2";
   const [showComparison, setShowComparison] = useState(false);
   // Always starts on Monthly - there's no "current plan" concept for a
   // signed-out visitor to default from, unlike /billing's own toggle.
@@ -196,11 +198,12 @@ export function PricingSection({
                   {formatCadPrice(
                     billingInterval === "monthly" ? plan.monthlyPrice : plan.yearlyPrice,
                     billingInterval,
-                  )}
+                  )}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">{PLUS_HST_NOTE}</span>
                 </p>
                 {billingInterval === "yearly" && (
                   <p className="-mt-2 text-xs text-muted-foreground">
-                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually
+                    {formatPerMonthEquivalent(plan.yearlyPrice)} billed annually - 2 months free
                   </p>
                 )}
                 {tierTaglines?.[plan.tier] && (
@@ -212,15 +215,15 @@ export function PricingSection({
                   {(
                     tierFeatures?.[plan.tier] ??
                     plan.features.filter((f) => {
-                      // "Everything in Plus" only makes sense next to a
-                      // visible Plus card - a page that excludes it (e.g.
-                      // /salons) shouldn't reference a tier it never shows.
-                      // Only applies to the default (unoverridden) feature
-                      // list - an explicit tierFeatures override is
-                      // author-controlled and never auto-filtered.
+                      // "Everything in Free" always has a visible Free card
+                      // next to it. Only applies to the default
+                      // (unoverridden) feature list - an explicit
+                      // tierFeatures override is author-controlled and
+                      // never auto-filtered.
                       const referencedTier = f.match(/^Everything in (\w+)/)?.[1];
                       return (
                         !referencedTier ||
+                        referencedTier === FREE_PLAN.name ||
                         plans.some((p) => p.name === referencedTier) ||
                         tiers === undefined
                       );

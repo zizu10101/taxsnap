@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 import { ChevronDown, ChevronUp, Loader2, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,7 @@ function formatDate(dateStr: string) {
 // the itemized list underneath this are still fully real and functional,
 // only export/share are Pro-only.
 function LockedShareRow() {
+  const router = useRouter();
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
       <span className="flex items-center gap-2">
@@ -91,8 +93,7 @@ function LockedShareRow() {
       <Button
         size="sm"
         variant="outline"
-        nativeButton={false}
-        render={<Link href="/billing" />}
+        onClick={() => showUpgradePrompt("Export and share are Pro features.", router)}
       >
         Upgrade
       </Button>

@@ -4,6 +4,7 @@ import { ensureSignToken } from "@/lib/document-sign-link";
 import { sendDocumentEmail } from "@/lib/email";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { checkPdfUpload } from "@/lib/send-email-rules";
+import { showsInvoiceFooter } from "@/lib/invoice-footer";
 
 function getAppUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -70,7 +71,7 @@ export async function POST(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("business_name, business_email")
+    .select("business_name, business_email, subscription_status")
     .eq("id", user.id)
     .single();
 
@@ -85,6 +86,7 @@ export async function POST(
     signUrl,
     pdf: bytes,
     filename: `${formatDocumentNumber(doc.type, doc.document_number)}.pdf`,
+    brandFooter: showsInvoiceFooter(profile?.subscription_status, doc.type),
   });
 
   if (!sent) {

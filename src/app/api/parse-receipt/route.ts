@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.subscription_status === "free") {
+  if (!profile || profile.subscription_status !== "pro") {
     // Resets monthly, not a lifetime cap - "5 free receipt scans" is
     // advertised per month (see pricing-plans.ts), so only count scans
     // created since the start of the current calendar month. Uses the
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     if ((count ?? 0) >= FREE_SCAN_LIMIT) {
       return NextResponse.json(
         {
-          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans this month. Upgrade to Plus for unlimited scans.`,
+          error: `You've used all ${FREE_SCAN_LIMIT} free receipt scans this month. Upgrade to Pro for unlimited scans.`,
           code: "FREE_LIMIT_REACHED",
         },
         { status: 403 },

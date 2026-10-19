@@ -52,6 +52,7 @@ import {
   useDuplicateChecks,
 } from "@/components/dashboard/duplicate-warnings";
 import type { Receipt, ReceiptItem } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 interface ParsedDraft {
   merchant_name: string;
@@ -335,9 +336,7 @@ export function UploadReceipt({
 
       if (!res.ok) {
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           setPreviewImage(null);
           setPreviewIsPdf(false);
           return;
@@ -436,8 +435,15 @@ export function UploadReceipt({
         }),
       });
       const data = await res.json();
+      if (!res.ok && data.code === "FREE_LIMIT_REACHED") {
+        showUpgradePrompt(data.error, router);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save receipt");
 
+      if (data.job_not_linked) {
+        showUpgradePrompt("Receipt saved. Upgrade to Pro to track more jobs", router);
+      }
       onSaved(data.receipt as Receipt);
       toast.success("Receipt saved");
       router.refresh();

@@ -6,6 +6,7 @@ import {
   Download,
   FileArchive,
   Loader2,
+  Lock,
   Receipt as ReceiptIcon,
   Trash2,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import type { DateRange } from "@/lib/date-range";
 import type { Receipt } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { useRouter } from "next/navigation";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -97,6 +99,7 @@ export function ReceiptsList({
   logoPath,
   invoicePayments = [],
   selection,
+  isPro = false,
 }: {
   receipts: Receipt[];
   // Lets a caller render more than one list on the same page (e.g. the
@@ -125,6 +128,8 @@ export function ReceiptsList({
   // expense-only, since revenue doesn't split cleanly into job/overhead.
   invoicePayments?: QuickBooksInvoicePayment[];
   selection?: ReceiptSelection;
+  /** Free accounts see the accountant bundle locked (Pro). */
+  isPro?: boolean;
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -182,6 +187,11 @@ export function ReceiptsList({
   }
 
   async function handleExportBundle() {
+    // Pro-only: the bundle is built in the browser, so this is the UI lock.
+    if (!isPro) {
+      showUpgradePrompt("The accountant export bundle is a Pro feature.", router);
+      return;
+    }
     setExportingBundle(true);
     try {
       await downloadAccountantExport(
@@ -227,6 +237,8 @@ export function ReceiptsList({
           >
             {exportingBundle ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : !isPro ? (
+              <Lock className="h-4 w-4" />
             ) : (
               <FileArchive className="h-4 w-4" />
             )}

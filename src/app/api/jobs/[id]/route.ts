@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/require-pro";
+import { isProUser, PRO_REQUIRED_CODE, PRO_REQUIRED_MESSAGE, requireUser } from "@/lib/require-pro";
 import { getNextContractNumber } from "@/lib/contract-number";
 import type { JobUpdate } from "@/lib/database.types";
 import { findJobByName, duplicateJobMessage, isUniqueViolation } from "@/lib/find-by-name";
@@ -124,6 +124,18 @@ export async function PATCH(
       .eq("user_id", user.id)
       .maybeSingle();
     if (!client) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+  }
+
+  // Setting a contract value or retainage is what starts Progress Billing,
+  // a Pro feature. Clearing them (null) is always allowed.
+  if (
+    ((update.contract_value ?? null) !== null || (update.retainage_rate ?? null) !== null) &&
+    !(await isProUser(supabase, user.id))
+  ) {
+    return NextResponse.json(
+      { error: PRO_REQUIRED_MESSAGE, code: PRO_REQUIRED_CODE },
+      { status: 403 },
+    );
   }
 
   // Assigned exactly once, the moment a job becomes progress-billed

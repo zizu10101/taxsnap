@@ -37,6 +37,7 @@ import type {
   SalesPeriod,
   SubscriptionStatus,
 } from "@/lib/database.types";
+import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -167,9 +168,7 @@ function HstSummaryCardBody({
         // already-saved period never hits this, only starting a new one
         // does. Salon accounts never see this at all (unrestricted).
         if (data.code === "FREE_LIMIT_REACHED") {
-          toast.error(data.error, {
-            action: { label: "Upgrade", onClick: () => router.push("/billing") },
-          });
+          showUpgradePrompt(data.error, router);
           return;
         }
         throw new Error(data.error || "Failed to save");
@@ -384,7 +383,7 @@ export function HstSummaryCard({
     // Every tier can fetch this now - invoicing is capped, not Pro-only
     // (GET /api/documents uses requireUser(), see src/lib/plan-limits.ts) -
     // so a Free account's real invoiced revenue is included here same as
-    // Plus/Pro's, not just receipts-side ITCs.
+    // Pro's, not just receipts-side ITCs.
     fetch("/api/documents?type=invoice")
       .then((res) => (res.ok ? res.json() : { documents: [] }))
       .then((data) => {

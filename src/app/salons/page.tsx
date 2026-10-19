@@ -17,23 +17,20 @@ const PAIN_POINTS = [
   "Staff can't log a sale unless you're standing there?",
 ];
 
-// Behind this page's "See all features" toggle - Free/Pro only, no Plus
-// (this page's PricingSection call passes tiers={["pro"]}, so the Plus
-// column never renders regardless of the `basic` value here; it's set to
-// false throughout purely to satisfy ComparisonRow's shape).
+// Behind this page's "See all features" toggle.
 const COMPARISON_ROWS: ComparisonRow[] = [
-  { feature: "Commission logging (3-tap flow)", free: true, basic: false, pro: true },
-  { feature: "Receipt scanning & HST return estimate", free: true, basic: false, pro: true },
-  { feature: "5 free scans per month", free: true, basic: false, pro: false },
-  { feature: "Unlimited receipt scans", free: false, basic: false, pro: true },
-  { feature: "Unlimited services & stylists", free: false, basic: false, pro: true },
-  { feature: "Stylist payouts with PIN confirmation", free: false, basic: false, pro: true },
-  { feature: "Void, adjustments & full payout history", free: false, basic: false, pro: true },
-  { feature: "PDF commission reports", free: false, basic: false, pro: true },
-  { feature: "Payment method & tax tracking per sale", free: true, basic: false, pro: true },
-  { feature: "Client invoicing & estimates (capped)", free: true, basic: false, pro: true },
-  { feature: "Unlimited invoicing & payment tracking", free: false, basic: false, pro: true },
-  { feature: "Priority support", free: false, basic: false, pro: true },
+  { feature: "Commission logging (3-tap flow)", free: true, pro: true },
+  { feature: "Receipt scanning & HST return estimate", free: true, pro: true },
+  { feature: "5 free scans per month", free: true, pro: false },
+  { feature: "Unlimited receipt scans", free: false, pro: true },
+  { feature: "Unlimited services & stylists", free: false, pro: true },
+  { feature: "Stylist payouts with PIN confirmation", free: false, pro: true },
+  { feature: "Void, adjustments & full payout history", free: false, pro: true },
+  { feature: "PDF commission reports", free: false, pro: true },
+  { feature: "Payment method & tax tracking per sale", free: true, pro: true },
+  { feature: "Client invoicing & estimates (capped)", free: true, pro: true },
+  { feature: "Unlimited invoicing & payment tracking", free: false, pro: true },
+  { feature: "Priority support", free: false, pro: true },
 ];
 
 const FEATURES = [

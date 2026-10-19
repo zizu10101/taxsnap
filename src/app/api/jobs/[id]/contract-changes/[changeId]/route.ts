@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/require-pro";
+import { requireProUser } from "@/lib/require-pro";
 import { round2 } from "@/lib/payments";
 
 interface ItemInput {
@@ -17,9 +17,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; changeId: string }> },
 ) {
-  const result = await requireUser();
+  const result = await requireProUser();
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ error: result.error, ...("code" in result ? { code: result.code } : {}) }, { status: result.status });
   }
   const { supabase, user } = result;
   const { id: jobId, changeId } = await params;
@@ -154,9 +154,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string; changeId: string }> },
 ) {
-  const result = await requireUser();
+  const result = await requireProUser();
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ error: result.error, ...("code" in result ? { code: result.code } : {}) }, { status: result.status });
   }
   const { supabase, user } = result;
   const { id: jobId, changeId } = await params;

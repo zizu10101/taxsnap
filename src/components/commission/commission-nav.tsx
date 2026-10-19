@@ -10,7 +10,7 @@ export function CommissionNav({
   isPro,
 }: {
   active: "log" | "services" | "products" | "stylists" | "reports" | "overview" | "rentals";
-  // Overview is entirely built on payout/adjustment data free/basic
+  // Overview is entirely built on payout/adjustment data free
   // accounts can never have (unlike the other four tabs, which all have
   // real free-tier content) - hidden rather than shown-and-locked, same
   // convention DashboardHeader uses for Estimates/Invoices/Jobs.
