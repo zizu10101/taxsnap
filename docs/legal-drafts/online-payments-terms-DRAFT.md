@@ -48,8 +48,9 @@ indemnity wording here, and how it interacts with the general limitation of liab
 your invoice balances and your HST estimates reflect it. Stripe's processing fee is shown for information
 only and is not part of your HST totals. The records and estimates in TaxSnap are a planning aid, not tax
 advice and not a filing; you remain responsible for your own tax reporting. A refund or a lost dispute made
-in Stripe [is / is not] automatically reflected in TaxSnap. [Lawyer/owner: decide the final wording once
-the refund and dispute phase is built; today they are not reflected automatically.]
+in Stripe is mirrored in TaxSnap as a negative payment (the refund and dispute phase is built); an open dispute
+changes nothing in the books until it is lost, and a double payment is recorded only up to the balance, with the extra
+refunded automatically to the client's card.
 
 **7. Clients' information.** When your client pays, Stripe collects their payment details and, as a
 processor, handles them under Stripe's own privacy terms. TaxSnap does not receive card numbers. TaxSnap

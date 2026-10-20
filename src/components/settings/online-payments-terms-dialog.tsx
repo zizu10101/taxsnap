@@ -46,6 +46,18 @@ export function OnlinePaymentsTermsDialog({
           <DialogDescription>{ONLINE_PAYMENTS_DISCLOSURE}</DialogDescription>
         </DialogHeader>
 
+        <p className="text-xs text-muted-foreground">
+          Read the full{" "}
+          <a href="/terms#online-payments" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+            Privacy Policy
+          </a>
+          .
+        </p>
+
         <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm">
           <Checkbox
             checked={agreed}

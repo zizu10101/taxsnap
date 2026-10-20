@@ -427,6 +427,18 @@ export function AuthForm() {
           </TabsContent>
         </Tabs>
 
+        <p className="text-center text-xs text-muted-foreground">
+          By continuing you agree to the{" "}
+          <Link href="/terms" className="underline hover:text-foreground">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+
         {message && (
           <p className="mt-4 rounded-md bg-success/10 p-3 text-center text-sm text-success">
             {message}
