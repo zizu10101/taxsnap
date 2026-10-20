@@ -21,6 +21,7 @@ import { documentSearchFields } from "@/lib/list-search-fields";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import { invoiceDetailHref } from "@/lib/invoice-back";
+import { PAYMENT_DISPUTED_LABEL } from "@/lib/payment-kind";
 import {
   countInvoicesThisMonth,
   drawBadgeLabel,
@@ -300,6 +301,7 @@ export function DocumentList({
                         <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
                       )}
                       {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
+                      {doc.payment_disputed && <Badge variant="destructive">{PAYMENT_DISPUTED_LABEL}</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(doc.issue_date)}

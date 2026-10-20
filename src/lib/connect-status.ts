@@ -106,8 +106,11 @@ export function onlinePayableAmount(input: {
   connectStatus: string | null | undefined;
   chargesEnabled: boolean | null | undefined;
   hasAccount: boolean;
+  /** documents.payment_disputed: a dispute on this invoice is open. */
+  disputed: boolean;
 }): number | null {
   if (input.type !== "invoice") return null;
+  if (input.disputed) return null;
   if (input.status !== "sent" && input.status !== "partial") return null;
   if (!input.hasAccount || input.connectStatus !== "active" || !input.chargesEnabled) return null;
   const balance = round2(input.total - input.paid);

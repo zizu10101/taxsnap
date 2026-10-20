@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { INVOICE_FOOTER_TEXT, INVOICE_FOOTER_URL } from "@/lib/invoice-footer";
+import { disputeStripeUrl, paymentStripeUrl, type OwnerNotice } from "@/lib/online-refunds";
 
 // No email-sending capability existed anywhere in this codebase before
 // this - the only prior SMTP mention was Supabase Auth's own relay for its
@@ -244,6 +245,68 @@ export async function sendPaymentReceiptEmail({
     return true;
   } catch (err) {
     console.error("sendPaymentReceiptEmail: send threw.", err);
+    return false;
+  }
+}
+
+// Sent to the OWNER (never the client) about card-payment events they may need to act on: a dispute
+// opened on an invoice, or a double payment that was refunded automatically (or could not be).
+// Only the invoice number, the amount and a link into the owner's own Stripe Dashboard - no client
+// name, email or invoice contents. Same never-throws/returns-false contract as the senders above.
+export async function sendOwnerPaymentNoticeEmail({
+  to,
+  notice,
+}: {
+  to: string;
+  notice: OwnerNotice;
+}): Promise<boolean> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.error("sendOwnerPaymentNoticeEmail: RESEND_API_KEY is not set, skipping send.");
+    return false;
+  }
+
+  const label = formatDocumentNumber("invoice", notice.documentNumber);
+  const amount = formatCurrency(notice.amount);
+  let subject: string;
+  let body: string;
+  let link: string;
+  if (notice.kind === "dispute_opened") {
+    link = disputeStripeUrl(notice.disputeId, notice.livemode);
+    subject = `Payment disputed on invoice ${label}`;
+    body = `<p>A card payment of <strong>${amount}</strong> on invoice ${escapeHtml(label)} has been disputed.</p>
+      <p>Nothing has been taken off your books yet. If you lose the dispute, TaxSnap will reverse the payment on the invoice
+      (and in your HST figures). To respond with evidence, open the dispute in your Stripe Dashboard:</p>`;
+  } else if (notice.kind === "excess_refunded") {
+    link = paymentStripeUrl(notice.paymentIntentId, notice.livemode);
+    subject = `A double payment on invoice ${label} was refunded`;
+    body = `<p>Invoice ${escapeHtml(label)} was paid online more than once. TaxSnap recorded only what was owed and
+      refunded the extra <strong>${amount}</strong> to the payer automatically. Your books are unchanged by the refund.</p>
+      <p>You can see the refund in your Stripe Dashboard:</p>`;
+  } else {
+    link = paymentStripeUrl(notice.paymentIntentId, notice.livemode);
+    subject = `Action needed: double payment on invoice ${label}`;
+    body = `<p>Invoice ${escapeHtml(label)} was paid online more than once, and the automatic refund of the extra
+      <strong>${amount}</strong> did not go through. TaxSnap will keep retrying for a while; if it still has not been
+      refunded, please refund that amount to the payer from your Stripe Dashboard (the payment is here):</p>`;
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `TaxSnap <${FROM_ADDRESS}>`,
+      to,
+      subject,
+      html: `${body}
+        <p><a href="${link}">${link}</a></p>
+        <p style="font-size:12px;color:#888">Sent by TaxSnap about your online card payments.</p>`,
+    });
+    if (error) {
+      console.error("sendOwnerPaymentNoticeEmail: Resend returned an error.", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("sendOwnerPaymentNoticeEmail: send threw.", err);
     return false;
   }
 }

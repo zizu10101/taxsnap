@@ -722,8 +722,38 @@ Sent". The receipt email goes to the client's email on file, else to the email t
 (`customer_details.email`, used once and never saved onto the client). The connected account is prefilled with
 the business name and a product description (`connectedAccountParams`). A `stripe` payment can not be edited or deleted in the app, and an invoice with a Checkout Session ever opened
 (`documents.online_session_opened_at`) can not go back to draft. A second payment on an already covered
-invoice is NOT recorded and is logged as `overpaid:` in `stripe_events.note` for a human (auto-refund is a
-later phase).
+invoice is NOT recorded beyond the balance (see Phase 4 below: the excess is refunded automatically).
+
+**Phase 4 - refunds, disputes, double payment** (migration `0069_online_payments_refunds_disputes.sql` + rollback;
+apply BEFORE the code ships; the rollback refuses to run while refund/dispute rows exist). Refunds and disputes are
+handled by the contractor in THEIR Stripe Dashboard; TaxSnap only mirrors them (`lib/online-refunds.ts`) as
+**negative `payments` rows**, so invoice status, "Paid to date", revenue and HST (all signed sums, pro-rated per
+payment, counted in the period of the row's own `paid_date`) follow with no other change. A refund in a later
+period reduces that later period and never rewrites the earlier one. Webhook events added to
+`/api/stripe/connect-webhook`: `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`.
+- **Refund**: one `source='stripe_refund'` row per succeeded Stripe refund (`stripe_refund_id` unique, dated on the
+  refund). The event re-lists ALL refunds of the charge from Stripe, so several partial refunds each record and a
+  replay finds them already there. A refund can't take a payment below zero (`reversalCapacity`). A pending refund
+  is recorded when it succeeds (the event is retried). The old unique index on (payment intent, source) became
+  `payments_stripe_pi_uniq` on the original `source='stripe'` payment only, because refund rows carry the same payment intent.
+- **Dispute**: opening reverses NOTHING: `documents.payment_disputed` (banner on the invoice, badge in the list and
+  preview) plus one email to the owner (invoice number, amount, Stripe Dashboard link; no client details). **Lost** =
+  one `source='stripe_dispute'` negative row for the disputed amount dated on the Stripe event. **Won** = banner
+  cleared, books untouched. The dispute fee is stored (`stripe_disputes.fee`, `payments.stripe_fee`) for information
+  only. `syncDispute` serves BOTH events by re-reading the dispute, so closed-before-created ends in the same place.
+- **Double payment**: only up to the balance is recorded; the rest is refunded on the connected account through the
+  Stripe API (`refunds.create`, idempotency key `taxsnap-excess-<payment intent>`, metadata `taxsnap_excess_refund=1`,
+  after looking for an existing flagged refund since Stripe forgets keys after 24 h). **How that refund is told apart
+  from a normal one**: the metadata flag, and the refund id stored on `stripe_overpayments`. The excess was never
+  recorded, so the `charge.refunded` it triggers must NOT create a negative row - `processChargeRefunded` skips it.
+  A failed refund notifies the owner once and returns 500 so Stripe retries. A replayed checkout event for a payment
+  already settled as excess stays excess even if the balance has changed meanwhile. It is the ONLY Stripe write here.
+- **Out of order**: a refund/dispute whose payment isn't recorded yet throws `RetryLater` (500 -> Stripe retries) when the
+  charge carries our `document_id`; one for a payment that was never ours, or a pure excess, is ignored.
+- Stripe-source negative rows can't be edited or deleted in the app (`stripePaymentLockMessage`), like the card payments.
+  The QuickBooks CSV writes a refund in the Payment column as a labelled positive.
+- **Matching**: a refund/dispute finds our payment by the charge's `payment_intent` (`payments.stripe_payment_intent_id`); charge metadata is only the fallback that decides retry-vs-ignore when no payment row exists. "Pay now" is hidden while `documents.payment_disputed` (`onlinePayableAmount`, `disputed`).
+- **RLS (0070)**: owners may update/delete only `source = 'manual'` payments; Stripe-source rows are service role only. (Before 0070 `payments` had no update policy at all, so Edit payment could not work.) `payments-rls-db.test.ts` proves it against the real DB (`RUN_DB_ISOLATION_TEST=1`).
 
 ## Local dev / testing this app on a phone
 

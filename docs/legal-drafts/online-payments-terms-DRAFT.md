@@ -38,8 +38,8 @@ than fix the numbers.]
 
 **5. Disputes, chargebacks and refunds.** Cardholders can dispute a card payment (a chargeback). Stripe charges
 CA$15 when a dispute is received and another CA$15 if you contest it (refunded if you win). If you lose, the
-payment is taken back. You handle disputes and refunds in your Stripe Dashboard, and TaxSnap does not take part in
-them and is not responsible for them. Refunds are issued by you. You are solely responsible for responding to
+payment is taken back. You handle disputes and refunds in your Stripe Dashboard. TaxSnap records the outcome in your books
+but does not handle or contest disputes or refunds, and is not responsible for them. Refunds are issued by you. You are solely responsible for responding to
 disputes, for issuing refunds, and for any amounts, fees or losses that result. TaxSnap has no authority to decide
 a dispute or a refund and is not responsible for their outcome. [Lawyer: confirm the limitation of liability and
 indemnity wording here, and how it interacts with the general limitation of liability section.]
@@ -75,5 +75,5 @@ change. Ending it does not affect payments already made.
 > Stripe's fee is 2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. Cardholders can
 > dispute a card payment (a chargeback). Stripe charges CA$15 when a dispute is received and another CA$15 if you
 > contest it (refunded if you win). If you lose, the payment is taken back. You handle disputes and refunds in your
-> Stripe Dashboard, and TaxSnap does not take part in them and is not responsible for them. See Stripe's pricing
+> Stripe Dashboard. TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them. See Stripe's pricing
 > page for current fees.

@@ -26,7 +26,7 @@ import {
   readPaidSession,
   receiptRecipient,
   recordCheckoutAttempt,
-  type CheckoutDeps,
+  type ConnectEventDeps,
 } from "./online-payments.ts";
 import { DRAFT_AFTER_SESSION_MESSAGE, draftBlockedMessage, stripePaymentLockMessage } from "./stripe-payment-lock.ts";
 
@@ -125,6 +125,7 @@ const ok = {
   connectStatus: "active",
   chargesEnabled: true,
   hasAccount: true,
+  disputed: false,
 };
 
 test("Pay now: the full balance of a sent invoice on an active account", () => {
@@ -239,7 +240,8 @@ test("only a fully paid one-off CAD session with a document id is read", () => {
 // ------------------------------------------------------------------ recording (fake database)
 
 interface State {
-  doc: Record<string, unknown> & { payments: { amount: number; stripe_payment_intent_id: string | null }[] };
+  doc: Record<string, unknown> & { payments: { amount: number; source?: string; stripe_payment_intent_id: string | null }[] };
+  overpayments: Record<string, unknown>[];
   profile: Record<string, unknown> | null;
   inserted: Record<string, unknown>[];
   docUpdates: Record<string, unknown>[];
@@ -267,6 +269,7 @@ function makeState(over: Partial<State> = {}): State {
     doc: baseDoc(),
     profile: { stripe_connect_account_id: "acct_1", business_name: "Rivera Painting", subscription_status: "free" },
     inserted: [],
+    overpayments: [],
     docUpdates: [],
     profileUpdates: [],
     profileMatches: true,
@@ -311,10 +314,33 @@ function fakeAdmin(state: State) {
             state.inserted.push(row);
             state.doc.payments.push({
               amount: row.amount as number,
+              source: row.source as string,
               stripe_payment_intent_id: row.stripe_payment_intent_id as string,
             });
             return { error: null };
           },
+        };
+      }
+      if (table === "stripe_overpayments") {
+        return {
+          select: () => ({
+            eq: (_c: string, pi: string) => ({
+              maybeSingle: async () => ({ data: state.overpayments.find((r) => r.payment_intent_id === pi) ?? null }),
+            }),
+          }),
+          insert: async (row: Record<string, unknown>) => {
+            if (state.overpayments.some((r) => r.payment_intent_id === row.payment_intent_id)) {
+              return { error: { code: "23505", message: "dup" } };
+            }
+            state.overpayments.push({ refund_status: "pending", owner_notified_at: null, failure_notified_at: null, ...row });
+            return { error: null };
+          },
+          update: (patch: Record<string, unknown>) => ({
+            eq: async (_c: string, pi: string) => {
+              Object.assign(state.overpayments.find((r) => r.payment_intent_id === pi) ?? {}, patch);
+              return { error: null };
+            },
+          }),
         };
       }
       if (table === "stripe_events") {
@@ -332,25 +358,46 @@ function fakeAdmin(state: State) {
   } as never;
 }
 
-function deps(over: Partial<CheckoutDeps> = {}) {
+function deps(over: Partial<ConnectEventDeps> = {}) {
   const receipts: unknown[] = [];
-  const d: CheckoutDeps = {
+  const refunds: Record<string, unknown>[] = [];
+  const notices: Record<string, unknown>[] = [];
+  const d: ConnectEventDeps = {
     now: () => new Date("2026-10-20T15:00:00Z"),
     fetchFee: async () => ({ fee: 33.07, net: 1096.93, chargeId: "ch_1" }),
     sendReceipt: async (args) => {
       receipts.push(args);
       return true;
     },
+    findExcessRefund: async () => null,
+    refundExcess: async (args) => {
+      refunds.push(args);
+      return { id: "re_excess" };
+    },
+    notifyOwner: async (notice) => {
+      notices.push(notice);
+      return true;
+    },
+    retrieveAccount: async (id) => ({ id }),
+    retrieveCharge: async () => {
+      throw new Error("retrieveCharge not stubbed");
+    },
+    listRefunds: async () => {
+      throw new Error("listRefunds not stubbed");
+    },
+    retrieveDispute: async () => {
+      throw new Error("retrieveDispute not stubbed");
+    },
     ...over,
   };
-  return { d, receipts };
+  return { d, receipts, refunds, notices };
 }
 
 test("a paid session becomes a normal payment row: amount, date, status, fee for information only", async () => {
   const state = makeState();
   const { d, receipts } = deps();
   const result = await processCheckoutCompleted(fakeAdmin(state), "acct_1", session, d);
-  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: true });
+  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: true, excessRefunded: false });
   const row = state.inserted[0];
   assert.equal(row.document_id, "doc1");
   assert.equal(row.amount, 1130, "the HST sales figures use the gross amount, not the net");
@@ -415,12 +462,13 @@ test("a partly paid invoice records only what was paid and keeps a partial statu
 
 test("a second payment on an already covered invoice is flagged, not recorded", async () => {
   const state = makeState();
-  state.doc.payments.push({ amount: 1130, stripe_payment_intent_id: "pi_first" });
-  const { d, receipts } = deps();
+  state.doc.payments.push({ amount: 1130, source: "stripe", stripe_payment_intent_id: "pi_first" });
+  const { d, receipts, refunds } = deps();
   const result = await processCheckoutCompleted(fakeAdmin(state), "acct_1", session, d);
-  assert.deepEqual(result, { status: "skipped", overpaid: 1130 });
-  assert.equal(state.inserted.length, 0);
+  assert.deepEqual(result, { status: "skipped", overpaid: 1130, excessRefunded: true });
+  assert.equal(state.inserted.length, 0, "nothing recorded");
   assert.equal(receipts.length, 0);
+  assert.equal(refunds.length, 1, "the whole second payment is refunded automatically");
 });
 
 test("an event from the wrong connected account, or for an unknown invoice, is ignored", async () => {
@@ -467,7 +515,7 @@ test("a failed fee lookup or a failed receipt never blocks the payment", async (
     },
   });
   const result = await processCheckoutCompleted(fakeAdmin(state), "acct_1", session, d);
-  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false });
+  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false, excessRefunded: false });
   assert.equal(state.inserted[0].stripe_fee, null);
 });
 
@@ -540,24 +588,24 @@ test("account.application.deauthorized disconnects the account and turns Pay now
   await handleConnectEvent(
     fakeAdmin(state),
     { type: "account.application.deauthorized", account: "acct_1", data: { object: {} } },
-    { ...d, retrieveAccount: async (id) => ({ id }) },
+    d,
   );
   assert.equal(state.profileUpdates[0].stripe_connect_status, "disconnected");
   assert.equal(state.profileUpdates[0].stripe_connect_charges_enabled, false);
   assert.equal(state.profileUpdates[0].stripe_connect_payouts_enabled, false);
 });
 
-test("checkout.session.completed returns an overpaid note for a human; other events are not handled", async () => {
+test("checkout.session.completed returns an overpaid note once the excess is refunded; other events are not handled", async () => {
   const state = makeState();
-  state.doc.payments.push({ amount: 1130, stripe_payment_intent_id: "pi_first" });
+  state.doc.payments.push({ amount: 1130, source: "stripe", stripe_payment_intent_id: "pi_first" });
   const { d } = deps();
   const event = { type: "checkout.session.completed", account: "acct_1", data: { object: session as unknown as Record<string, unknown> } };
-  const note = await handleConnectEvent(fakeAdmin(state), event, { ...d, retrieveAccount: async (id) => ({ id }) });
-  assert.equal(note, "overpaid:1130.00");
+  const note = await handleConnectEvent(fakeAdmin(state), event, d);
+  assert.equal(note, "overpaid:1130.00:refunded");
   const other = await handleConnectEvent(
     fakeAdmin(makeState()),
-    { type: "charge.refunded", account: "acct_1", data: { object: {} } },
-    { ...d, retrieveAccount: async (id) => ({ id }) },
+    { type: "customer.created", account: "acct_1", data: { object: {} } },
+    d,
   );
   assert.equal(other, null);
 });
@@ -803,11 +851,11 @@ test("Pay now follows the stored columns: pending capabilities keep charges_enab
   assert.equal(ready.stripe_connect_charges_enabled, true);
   // ...and the stored flag is what the Pay now rule reads.
   assert.equal(
-    onlinePayableAmount({ type: "invoice", status: "sent", total: 100, paid: 0, connectStatus: pending.stripe_connect_status, chargesEnabled: pending.stripe_connect_charges_enabled, hasAccount: true }),
+    onlinePayableAmount({ type: "invoice", status: "sent", total: 100, paid: 0, connectStatus: pending.stripe_connect_status, chargesEnabled: pending.stripe_connect_charges_enabled, hasAccount: true, disputed: false }),
     null,
   );
   assert.equal(
-    onlinePayableAmount({ type: "invoice", status: "sent", total: 100, paid: 0, connectStatus: ready.stripe_connect_status, chargesEnabled: ready.stripe_connect_charges_enabled, hasAccount: true }),
+    onlinePayableAmount({ type: "invoice", status: "sent", total: 100, paid: 0, connectStatus: ready.stripe_connect_status, chargesEnabled: ready.stripe_connect_charges_enabled, hasAccount: true, disputed: false }),
     100,
   );
 });
@@ -979,7 +1027,7 @@ test("no client email: the receipt goes to the email entered in Checkout, and th
     { ...session, customer_details: { email: "payer@example.com" } },
     d,
   );
-  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: true });
+  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: true, excessRefunded: false });
   assert.equal((receipts[0] as { to: string }).to, "payer@example.com");
   assert.equal(state.inserted.length, 1);
   assert.deepEqual(state.doc.client, { name: "Ana", email: null });
@@ -1004,7 +1052,7 @@ test("no usable email anywhere: payment recorded, receipt skipped, one log line 
   } finally {
     warn.restore();
   }
-  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false });
+  assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false, excessRefunded: false });
   assert.equal(receipts.length, 0);
   assert.equal(warn.lines.length, 1);
   assert.match(warn.lines[0], /^\[receipt\] skipped document=doc1/);
@@ -1029,7 +1077,7 @@ test("a receipt that fails to send logs one line without the address, and the pa
     } finally {
       warn.restore();
     }
-    assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false });
+    assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false, excessRefunded: false });
     assert.equal(state.inserted.length, 1);
     assert.equal(warn.lines.length, 1);
     assert.match(warn.lines[0], /^\[receipt\] failed document=doc1 \(sent to the checkout email\)$/);

@@ -18,7 +18,7 @@ const FEE_WORDING =
   "Stripe's fee is 2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. " +
   "Cardholders can dispute a card payment (a chargeback). Stripe charges CA$15 when a dispute is received and another CA$15 if you contest it (refunded if you win). " +
   "If you lose, the payment is taken back. " +
-  "You handle disputes and refunds in your Stripe Dashboard, and TaxSnap does not take part in them and is not responsible for them. " +
+  "You handle disputes and refunds in your Stripe Dashboard. TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them. " +
   "See Stripe's pricing page for current fees.";
 const SELLER = "You are the seller. Card payments go to your own Stripe account, and Stripe is your payment processor.";
 const EXPECTED = `${SELLER} ${FEE_WORDING}`;
@@ -70,7 +70,7 @@ test("the short wording on the card keeps every point: seller, fee, chargeback, 
     /CA\$15 when a dispute is received and another CA\$15 if you contest it \(refunded if you win\)/,
     /If you lose, the payment is taken back/,
     /Stripe Dashboard/,
-    /does not take part in them and is not responsible for them/,
+    /TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them/,
     /See Stripe's pricing page for current fees/,
   ]) {
     assert.match(short, point);

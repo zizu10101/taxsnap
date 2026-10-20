@@ -3,6 +3,14 @@ import type { Database } from "./database.types.ts";
 import { connectColumns, DISCONNECTED_COLUMNS, isRateLimited, RATE_LIMIT, type AccountLike } from "./connect-status.ts";
 import { round2, statusFromPaid } from "./payments.ts";
 import { torontoToday } from "./work-date.ts";
+import {
+  processChargeRefunded,
+  settleExcess,
+  syncDispute,
+  type DisputeDeps,
+  type ExcessDeps,
+  type RefundDeps,
+} from "./online-refunds.ts";
 
 type Admin = SupabaseClient<Database>;
 
@@ -70,8 +78,8 @@ export type StripePaymentPlan =
 
 // How much of a paid Checkout Session becomes a payment row. Normally all of it.
 // A second session paid for an invoice that is already covered (the double-pay
-// case) is capped at what is still owed and the rest is reported as `overpaid` -
-// the automatic refund for that is a later phase, so it is flagged for a human.
+// case) is capped at what is still owed and the rest is reported as `overpaid`;
+// processCheckoutCompleted then refunds that excess automatically (settleExcess).
 export function planStripePayment(input: {
   total: number;
   existingPaid: number;
@@ -143,8 +151,10 @@ export interface ReceiptArgs {
   brandFooter: boolean;
 }
 
-export interface CheckoutDeps {
+export interface CheckoutDeps extends ExcessDeps {
   now: () => Date;
+  /** Whether the Stripe event came from live mode (only used for the Dashboard links in owner emails). */
+  livemode?: boolean;
   /** Stripe's processing fee for the payment (information only); null when it can not be read. */
   fetchFee: (paymentIntentId: string, accountId: string) => Promise<{ fee: number; net: number; chargeId: string | null } | null>;
   sendReceipt: (args: ReceiptArgs) => Promise<boolean>;
@@ -153,8 +163,8 @@ export interface CheckoutDeps {
 export type CheckoutResult =
   | { status: "ignored"; reason: string }
   | { status: "duplicate" }
-  | { status: "recorded"; amount: number; overpaid: number; receiptSent: boolean }
-  | { status: "skipped"; overpaid: number };
+  | { status: "recorded"; amount: number; overpaid: number; receiptSent: boolean; excessRefunded: boolean }
+  | { status: "skipped"; overpaid: number; excessRefunded: boolean };
 
 export async function processCheckoutCompleted(
   admin: Admin,
@@ -169,7 +179,7 @@ export async function processCheckoutCompleted(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, user_id, type, status, total_amount, document_number, view_token, client:clients(name, email), payments(amount, stripe_payment_intent_id)",
+      "id, user_id, type, status, total_amount, document_number, view_token, client:clients(name, email), payments(amount, source, stripe_payment_intent_id)",
     )
     .eq("id", paid.documentId)
     .maybeSingle();
@@ -185,16 +195,42 @@ export async function processCheckoutCompleted(
     return { status: "ignored", reason: "account_mismatch" };
   }
 
-  const payments = (doc.payments ?? []) as { amount: number; stripe_payment_intent_id: string | null }[];
+  const payments = (doc.payments ?? []) as { amount: number; source: string; stripe_payment_intent_id: string | null }[];
   const existingPaid = round2(payments.reduce((sum, p) => sum + p.amount, 0));
-  const plan = planStripePayment({
-    total: doc.total_amount,
-    existingPaid,
+  // Only the original payment counts as "recorded": refund rows carry the payment intent too.
+  const original = payments.find((p) => p.source === "stripe" && p.stripe_payment_intent_id === paid.paymentIntentId);
+  // A payment already settled as pure excess (refunded, never recorded) stays that way on a replay,
+  // even if the balance has changed since (e.g. the first payment was refunded meanwhile).
+  const { data: settled } = original
+    ? { data: null }
+    : await admin
+        .from("stripe_overpayments")
+        .select("payment_intent_id")
+        .eq("payment_intent_id", paid.paymentIntentId)
+        .maybeSingle();
+  const plan: StripePaymentPlan = settled
+    ? { action: "skip", overpaid: paid.amount }
+    : planStripePayment({
+        total: doc.total_amount,
+        existingPaid,
+        amountPaid: paid.amount,
+        alreadyRecorded: Boolean(original),
+      });
+  const excessInput = (recorded: number) => ({
+    documentId: doc.id,
+    userId: doc.user_id,
+    documentNumber: doc.document_number,
+    accountId: eventAccount,
+    paymentIntentId: paid.paymentIntentId,
     amountPaid: paid.amount,
-    alreadyRecorded: payments.some((p) => p.stripe_payment_intent_id === paid.paymentIntentId),
+    amountRecorded: recorded,
+    livemode: deps.livemode ?? false,
   });
 
-  if (plan.action === "skip") return { status: "skipped", overpaid: plan.overpaid };
+  if (plan.action === "skip") {
+    const settledExcess = await settleExcess(admin, excessInput(0), deps);
+    return { status: "skipped", overpaid: plan.overpaid, excessRefunded: settledExcess.refunded };
+  }
 
   let recordedAmount = 0;
   let overpaid = 0;
@@ -231,7 +267,11 @@ export async function processCheckoutCompleted(
     .eq("id", doc.id);
   if (statusError) throw new Error(statusError.message);
 
-  if (plan.action === "duplicate") return { status: "duplicate" };
+  if (plan.action === "duplicate") {
+    // A replay: also finish a refund of the excess that did not complete the first time.
+    await settleExcess(admin, excessInput(original?.amount ?? 0), deps);
+    return { status: "duplicate" };
+  }
 
   const client = doc.client as { name: string; email: string | null } | null;
   const recipient = receiptRecipient(client?.email, session.customer_details?.email);
@@ -255,7 +295,9 @@ export async function processCheckoutCompleted(
       console.warn(`[receipt] failed document=${doc.id} (sent to the ${recipient.source} email)`);
     }
   }
-  return { status: "recorded", amount: recordedAmount, overpaid, receiptSent };
+  // Last, so a refund that fails (thrown, retried by Stripe) never costs the client their receipt.
+  const settledExcess = await settleExcess(admin, excessInput(recordedAmount), deps);
+  return { status: "recorded", amount: recordedAmount, overpaid, receiptSent, excessRefunded: settledExcess.refunded };
 }
 
 // ------------------------------------------------------------------ event dispatch
@@ -263,15 +305,18 @@ export async function processCheckoutCompleted(
 export interface ConnectEventLike {
   type: string;
   account?: string | null;
+  /** Unix seconds when Stripe created the event. */
+  created?: number;
+  livemode?: boolean;
   data: { object: Record<string, unknown> };
 }
 
-export interface ConnectEventDeps extends CheckoutDeps {
+export interface ConnectEventDeps extends CheckoutDeps, RefundDeps, DisputeDeps {
   retrieveAccount: (accountId: string) => Promise<AccountLike & { id: string }>;
 }
 
-// Returns a short note for stripe_events when something needs a human (a
-// double-paid invoice); null otherwise.
+// Returns a short note for stripe_events (ignored events, a refunded double
+// payment); null otherwise. Throws when Stripe should deliver the event again.
 export async function handleConnectEvent(
   admin: Admin,
   event: ConnectEventLike,
@@ -299,11 +344,38 @@ export async function handleConnectEvent(
         admin,
         event.account ?? null,
         event.data.object as CheckoutSessionLike,
+        { ...deps, livemode: event.livemode ?? false },
+      );
+      if (result.status === "ignored") return `ignored:${result.reason}`;
+      // An excess is always refunded automatically (a failed refund throws instead of returning).
+      if (result.status === "skipped") return `overpaid:${result.overpaid.toFixed(2)}:refunded`;
+      if (result.status === "recorded" && result.overpaid > 0) return `overpaid:${result.overpaid.toFixed(2)}:refunded`;
+      return null;
+    }
+    case "charge.refunded": {
+      const result = await processChargeRefunded(
+        admin,
+        event.account ?? null,
+        event.data.object as { id?: string; object?: string },
         deps,
       );
       if (result.status === "ignored") return `ignored:${result.reason}`;
-      if (result.status === "skipped") return `overpaid:${result.overpaid.toFixed(2)}`;
-      if (result.status === "recorded" && result.overpaid > 0) return `overpaid:${result.overpaid.toFixed(2)}`;
+      return result.skippedExcess > 0 ? "excess_refund_not_recorded" : null;
+    }
+    case "charge.dispute.created":
+    case "charge.dispute.closed": {
+      const result = await syncDispute(
+        admin,
+        event.account ?? null,
+        event.data.object as { id?: string; object?: string },
+        {
+          eventCreated: event.created,
+          livemode: event.livemode ?? false,
+          notifyOnOpen: event.type === "charge.dispute.created",
+        },
+        deps,
+      );
+      if (result.status === "ignored") return `ignored:${result.reason}`;
       return null;
     }
     default:

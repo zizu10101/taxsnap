@@ -144,15 +144,21 @@ export function receiptsToQuickBooksCsv(
     };
   });
 
-  const revenueRows = invoicePayments.map((p) => ({
-    date: p.paidDate,
-    row: [
-      toQuickBooksDate(p.paidDate),
-      `Invoice ${formatDocumentNumber("invoice", p.documentNumber)} - ${p.clientName}`,
-      "",
-      p.amount.toFixed(2),
-    ],
-  }));
+  // A refund or lost dispute is a NEGATIVE payment: it goes in the Payment column as a positive,
+  // labelled, never as a negative deposit (same convention as an expense refund above).
+  const revenueRows = invoicePayments.map((p) => {
+    const isReversal = p.amount < 0;
+    const amount = Math.abs(p.amount).toFixed(2);
+    return {
+      date: p.paidDate,
+      row: [
+        toQuickBooksDate(p.paidDate),
+        `${isReversal ? "Refund - " : ""}Invoice ${formatDocumentNumber("invoice", p.documentNumber)} - ${p.clientName}`,
+        isReversal ? amount : "",
+        isReversal ? "" : amount,
+      ],
+    };
+  });
 
   const rows = [...expenseRows, ...revenueRows]
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))

@@ -3,16 +3,44 @@ import type Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/server";
 import { eventMatchesKeyMode } from "@/lib/connect-guard";
 import { claimEvent, completeEvent, handleConnectEvent } from "@/lib/online-payments";
-import { sendPaymentReceiptEmail } from "@/lib/email";
+import { sendOwnerPaymentNoticeEmail, sendPaymentReceiptEmail } from "@/lib/email";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
-import { fetchPaymentFee, getConnectStripe } from "@/lib/stripe-connect";
+import {
+  createConnectExcessRefund,
+  fetchPaymentFee,
+  findConnectExcessRefund,
+  getConnectStripe,
+  listConnectRefunds,
+  retrieveConnectCharge,
+  retrieveConnectDispute,
+} from "@/lib/stripe-connect";
+import type { OwnerNotice } from "@/lib/online-refunds";
 
 export const runtime = "nodejs";
 
 // Events from CONNECTED ACCOUNTS (the endpoint's scope must be "Connected accounts"),
 // signed with its own secret. The platform's own subscription events keep going to
 // /api/stripe/webhook. Subscribed events: account.updated,
-// account.application.deauthorized, checkout.session.completed.
+// account.application.deauthorized, checkout.session.completed, charge.refunded,
+// charge.dispute.created, charge.dispute.closed.
+// Runs a Stripe read/write, logging the failure (no secrets) before it propagates as a 500 + retry.
+async function logged<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    logStripeError(label, err);
+    throw err;
+  }
+}
+
+// The owner's login email, looked up by user id; the notice itself carries no client details.
+async function notifyOwner(admin: ReturnType<typeof createAdminClient>, notice: OwnerNotice): Promise<boolean> {
+  const { data } = await admin.auth.admin.getUserById(notice.userId);
+  const to = data.user?.email;
+  if (!to) return false;
+  return sendOwnerPaymentNoticeEmail({ to, notice });
+}
+
 export async function POST(request: Request) {
   const connect = getConnectStripe();
   if ("error" in connect) return NextResponse.json({ error: connect.error }, { status: 500 });
@@ -48,7 +76,7 @@ export async function POST(request: Request) {
 
     const note = await handleConnectEvent(
       admin,
-      { type: event.type, account: event.account ?? null, data: { object: event.data.object as unknown as Record<string, unknown> } },
+      { type: event.type, account: event.account ?? null, created: event.created, livemode: event.livemode, data: { object: event.data.object as unknown as Record<string, unknown> } },
       {
         now: () => new Date(),
         retrieveAccount: async (accountId) => {
@@ -67,14 +95,21 @@ export async function POST(request: Request) {
             throw err;
           }
         },
+        retrieveCharge: (chargeId, accountId) =>
+          logged("connect-webhook charges.retrieve", () => retrieveConnectCharge(stripe, chargeId, accountId)),
+        listRefunds: (chargeId, accountId) =>
+          logged("connect-webhook refunds.list", () => listConnectRefunds(stripe, chargeId, accountId)),
+        retrieveDispute: (disputeId, accountId) =>
+          logged("connect-webhook disputes.retrieve", () => retrieveConnectDispute(stripe, disputeId, accountId)),
+        findExcessRefund: (paymentIntentId, accountId) =>
+          logged("connect-webhook excess-refund lookup", () => findConnectExcessRefund(stripe, paymentIntentId, accountId)),
+        refundExcess: (args) =>
+          logged("connect-webhook excess refund", () => createConnectExcessRefund(stripe, args)),
+        notifyOwner: (notice) => notifyOwner(admin, notice).catch(() => false),
         sendReceipt: (args) => sendPaymentReceiptEmail({ ...args, appUrl: process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin }),
       },
     );
     await completeEvent(admin, event.id, note);
-    if (note?.startsWith("overpaid:")) {
-      // Not auto-refunded yet (later phase): leave a loud, PII-free line for a human.
-      console.error(`[connect-webhook] ${note} event=${event.id} account=${event.account ?? "?"}`);
-    }
     return NextResponse.json({ received: true });
   } catch (err) {
     // The event stays unprocessed, so Stripe's retry will run it again.

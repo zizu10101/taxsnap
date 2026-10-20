@@ -305,6 +305,7 @@ export interface Database {
           excluded_from_hst: boolean;
           requested_payment_amount: number | null;
           online_session_opened_at: string | null;
+          payment_disputed: boolean;
           document_number: number;
           is_progress_draw: boolean;
           draw_number: number | null;
@@ -339,6 +340,7 @@ export interface Database {
           excluded_from_hst?: boolean;
           requested_payment_amount?: number | null;
           online_session_opened_at?: string | null;
+          payment_disputed?: boolean;
           document_number: number;
           is_progress_draw?: boolean;
           draw_number?: number | null;
@@ -373,6 +375,7 @@ export interface Database {
           excluded_from_hst?: boolean;
           requested_payment_amount?: number | null;
           online_session_opened_at?: string | null;
+          payment_disputed?: boolean;
           document_number?: number;
           is_progress_draw?: boolean;
           draw_number?: number | null;
@@ -429,6 +432,90 @@ export interface Database {
           note?: string | null;
           received_at?: string;
           processed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      stripe_disputes: {
+        Row: {
+          id: string;
+          account_id: string;
+          document_id: string;
+          payment_intent_id: string | null;
+          charge_id: string | null;
+          amount: number;
+          status: string;
+          fee: number | null;
+          opened_at: string;
+          closed_at: string | null;
+          owner_notified_at: string | null;
+        };
+        Insert: {
+          id: string;
+          account_id: string;
+          document_id: string;
+          payment_intent_id?: string | null;
+          charge_id?: string | null;
+          amount: number;
+          status: string;
+          fee?: number | null;
+          opened_at?: string;
+          closed_at?: string | null;
+          owner_notified_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          account_id?: string;
+          document_id?: string;
+          payment_intent_id?: string | null;
+          charge_id?: string | null;
+          amount?: number;
+          status?: string;
+          fee?: number | null;
+          opened_at?: string;
+          closed_at?: string | null;
+          owner_notified_at?: string | null;
+        };
+        Relationships: [];
+      };
+      stripe_overpayments: {
+        Row: {
+          payment_intent_id: string;
+          account_id: string;
+          document_id: string;
+          amount_paid: number;
+          amount_recorded: number;
+          amount_excess: number;
+          refund_status: string;
+          refund_id: string | null;
+          created_at: string;
+          owner_notified_at: string | null;
+          failure_notified_at: string | null;
+        };
+        Insert: {
+          payment_intent_id: string;
+          account_id: string;
+          document_id: string;
+          amount_paid: number;
+          amount_recorded: number;
+          amount_excess: number;
+          refund_status?: string;
+          refund_id?: string | null;
+          created_at?: string;
+          owner_notified_at?: string | null;
+          failure_notified_at?: string | null;
+        };
+        Update: {
+          payment_intent_id?: string;
+          account_id?: string;
+          document_id?: string;
+          amount_paid?: number;
+          amount_recorded?: number;
+          amount_excess?: number;
+          refund_status?: string;
+          refund_id?: string | null;
+          created_at?: string;
+          owner_notified_at?: string | null;
+          failure_notified_at?: string | null;
         };
         Relationships: [];
       };
@@ -514,6 +601,8 @@ export interface Database {
           stripe_charge_id: string | null;
           stripe_fee: number | null;
           stripe_net: number | null;
+          stripe_refund_id: string | null;
+          stripe_dispute_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -531,6 +620,8 @@ export interface Database {
           stripe_charge_id?: string | null;
           stripe_fee?: number | null;
           stripe_net?: number | null;
+          stripe_refund_id?: string | null;
+          stripe_dispute_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -548,6 +639,8 @@ export interface Database {
           stripe_charge_id?: string | null;
           stripe_fee?: number | null;
           stripe_net?: number | null;
+          stripe_refund_id?: string | null;
+          stripe_dispute_id?: string | null;
           created_at?: string;
         };
         Relationships: [

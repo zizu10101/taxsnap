@@ -23,7 +23,7 @@ export const DISPUTE_SENTENCES =
   `and another ${STRIPE_FEES.disputeContested} if you contest it (refunded if you win). If you lose, the payment is taken back.`;
 
 export const RESPONSIBILITY_SENTENCE =
-  "You handle disputes and refunds in your Stripe Dashboard, and TaxSnap does not take part in them and is not responsible for them.";
+  "You handle disputes and refunds in your Stripe Dashboard. TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them.";
 
 export const PRICING_SENTENCE = "See Stripe's pricing page for current fees.";
 

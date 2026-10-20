@@ -48,7 +48,7 @@ export async function POST(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, user_id, type, status, document_number, total_amount, hst_amount, online_session_opened_at, client:clients(email), payments(amount)",
+      "id, user_id, type, status, document_number, total_amount, hst_amount, online_session_opened_at, payment_disputed, client:clients(email), payments(amount)",
     )
     .eq("view_token", token)
     .eq("type", "invoice")
@@ -71,6 +71,7 @@ export async function POST(
     connectStatus: profile.stripe_connect_status,
     chargesEnabled: profile.stripe_connect_charges_enabled,
     hasAccount: Boolean(profile.stripe_connect_account_id),
+    disputed: doc.payment_disputed,
   });
   if (amount === null || !profile.stripe_connect_account_id) return notPayable();
 

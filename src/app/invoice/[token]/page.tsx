@@ -29,7 +29,7 @@ export default async function PublicInvoicePage({
   const { data: invoice } = await supabase
     .from("documents")
     // Explicit columns, never "*": this page is public, and documents carries owner-only fields.
-    .select("user_id, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, payments(amount), items:document_items(*), client:clients(*), job:jobs(name)")
+    .select("user_id, status, payment_disputed, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, payments(amount), items:document_items(*), client:clients(*), job:jobs(name)")
     .eq("view_token", token)
     .eq("type", "invoice")
     .maybeSingle();
@@ -61,6 +61,7 @@ export default async function PublicInvoicePage({
     connectStatus: profile?.stripe_connect_status,
     chargesEnabled: profile?.stripe_connect_charges_enabled,
     hasAccount: Boolean(profile?.stripe_connect_account_id),
+    disputed: invoice.payment_disputed,
   });
   const fullyPaid = invoice.status === "paid";
 

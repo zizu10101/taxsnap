@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRightLeft,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PAYMENT_DISPUTED_LABEL, paymentKindLabel } from "@/lib/payment-kind";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -442,6 +444,20 @@ export function DocumentDetail({
         </div>
       )}
 
+      {doc.payment_disputed && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive print:hidden"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <span className="font-medium">{PAYMENT_DISPUTED_LABEL}.</span> The client&apos;s bank has disputed a card
+            payment on this invoice. Nothing has changed in your books yet; if you lose the dispute the payment is
+            reversed here. Respond to it in your Stripe Dashboard.
+          </p>
+        </div>
+      )}
+
       {/* Two-column layout matching the mockup - paper on the left, a
           sticky rail (progress-billing summary + payment history) on the
           right at lg+; both just stack in source order below that. */}
@@ -685,7 +701,10 @@ export function DocumentDetail({
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="font-medium tabular-nums">
+                        <p
+                          className={`font-medium tabular-nums ${payment.amount < 0 ? "text-destructive" : ""}`}
+                        >
+                          {paymentKindLabel(payment) && `${paymentKindLabel(payment)} `}
                           {formatCurrency(payment.amount)}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
@@ -698,6 +717,11 @@ export function DocumentDetail({
                             }`}
                           {payment.note && ` · ${payment.note}`}
                         </p>
+                        {payment.source === "stripe_dispute" && payment.stripe_fee !== null && (
+                          <p className="text-xs text-muted-foreground">
+                            Stripe dispute fee {formatCurrency(payment.stripe_fee)} (information only, not in your HST totals)
+                          </p>
+                        )}
                         {payment.source === "stripe" && payment.stripe_fee !== null && (
                           <p className="text-xs text-muted-foreground">
                             Stripe fee {formatCurrency(payment.stripe_fee)}
@@ -732,7 +756,9 @@ export function DocumentDetail({
                         </Button>
                       </div>
                       ) : (
-                        <span className="shrink-0 text-xs text-muted-foreground">Paid online</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {payment.source === "stripe" ? "Paid online" : "From Stripe"}
+                        </span>
                       )}
                     </div>
                   ))}

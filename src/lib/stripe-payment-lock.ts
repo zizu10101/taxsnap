@@ -4,6 +4,9 @@ import type { Database } from "./database.types.ts";
 export const STRIPE_PAYMENT_LOCKED_MESSAGE =
   "This payment was made online by card, so it can't be edited or deleted here. Refunds are made in your Stripe Dashboard.";
 
+export const STRIPE_REVERSAL_LOCKED_MESSAGE =
+  "This entry mirrors a refund or lost dispute from Stripe, so it can't be edited or deleted here. Refunds and disputes are handled in your Stripe Dashboard.";
+
 export const DRAFT_AFTER_SESSION_MESSAGE =
   "This invoice has been opened for online payment, so it can't go back to draft.";
 
@@ -22,7 +25,10 @@ export async function stripePaymentLockMessage(
     .eq("id", paymentId)
     .eq("document_id", documentId)
     .maybeSingle();
-  return data && data.source !== "manual" ? STRIPE_PAYMENT_LOCKED_MESSAGE : null;
+  if (!data || data.source === "manual") return null;
+  return data.source === "stripe_refund" || data.source === "stripe_dispute"
+    ? STRIPE_REVERSAL_LOCKED_MESSAGE
+    : STRIPE_PAYMENT_LOCKED_MESSAGE;
 }
 
 // Once a Checkout Session was opened for an invoice it must stay "sent" or later:

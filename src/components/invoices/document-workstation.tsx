@@ -15,6 +15,7 @@ import type { BusinessInfo } from "@/components/invoices/document-detail";
 import type { DocumentStatus, DocumentType, DocumentWithRelations } from "@/lib/database.types";
 import { documentLabel } from "@/lib/document-label";
 import { drawBadgeLabel } from "@/lib/document-filter";
+import { PAYMENT_DISPUTED_LABEL } from "@/lib/payment-kind";
 import { RecordPaymentDialog } from "@/components/invoices/record-payment-dialog";
 import type { UpdatedDocument } from "@/components/invoices/payment-form";
 import { canRecordPayment, COLLECT_BALANCE_LABEL, mergeUpdatedDocument } from "@/lib/payment-form";
@@ -143,6 +144,7 @@ export function DocumentWorkstation({
                       <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
                     )}
                     {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
+                    {doc.payment_disputed && <Badge variant="destructive">{PAYMENT_DISPUTED_LABEL}</Badge>}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
                     {formatDocumentNumber(doc.type, doc.document_number)} ·{" "}
@@ -226,6 +228,7 @@ function DocumentPreviewPanel({
             </Badge>
           )}
           {drawBadgeLabel(doc) && <Badge variant="outline">{drawBadgeLabel(doc)}</Badge>}
+          {doc.payment_disputed && <Badge variant="destructive">{PAYMENT_DISPUTED_LABEL}</Badge>}
           </div>
         </div>
 
