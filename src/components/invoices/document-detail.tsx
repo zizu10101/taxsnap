@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -37,6 +37,7 @@ import { calculateRemainingBalance } from "@/lib/progress-billing";
 import { documentLabel } from "@/lib/document-label";
 import type { PriorDraw } from "@/lib/invoice-pdf";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { useOnlinePaymentWatch } from "@/lib/use-online-payment-watch";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { dueDateLabel } from "@/lib/document-labels";
 import { PaymentForm } from "@/components/invoices/payment-form";
@@ -102,6 +103,7 @@ export function DocumentDetail({
   basePath,
   backLink,
   convertedToInvoiceId = null,
+  onlinePaymentsActive = false,
 }: {
   document: DocumentWithRelations;
   clients: Client[];
@@ -117,9 +119,14 @@ export function DocumentDetail({
   /** Where Back goes when the page knows where the user came from (invoices: ?from=). */
   backLink?: { href: string; label: string };
   convertedToInvoiceId?: string | null;
+  /** Online payments is switched on for this owner (drives the Send menu's link wording). */
+  onlinePaymentsActive?: boolean;
 }) {
   const router = useRouter();
   const [doc, setDoc] = useSyncedState(document);
+  // After a client pays online the webhook records it on the server: re-read this page while that's expected.
+  const watched = useMemo(() => [doc], [doc]);
+  useOnlinePaymentWatch(watched);
   const [allClients, setAllClients] = useSyncedState(clients);
   const [editorOpen, setEditorOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
@@ -388,6 +395,7 @@ export function DocumentDetail({
               business={business}
               logoPath={logoPath}
               priorDraws={priorDraws}
+              onlinePaymentsActive={onlinePaymentsActive}
             />
             <Button
               variant="outline"

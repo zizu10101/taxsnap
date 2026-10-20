@@ -67,7 +67,7 @@ export function OnlinePaymentsCard({
   }
 
   return (
-    <Card>
+    <Card id="online-payments" className="scroll-mt-20">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2">

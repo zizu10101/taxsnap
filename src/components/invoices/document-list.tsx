@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
+import { useOnlinePaymentWatch } from "@/lib/use-online-payment-watch";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, CheckCircle2, FileText, Plus } from "lucide-react";
@@ -98,6 +99,8 @@ export function DocumentList({
   // this list in place, so this can just read the server-fetched value
   // directly rather than needing its own state.
   const documents = initialDocuments;
+  // A client paying online lands by webhook: keep the list current while an online session is fresh.
+  useOnlinePaymentWatch(documents);
   // `?? NO_CONVERSIONS`, not a `= {}` default in the props: useSyncedState re-seeds
   // whenever the value it is given is a different object, and a default written in
   // the parameter list is a NEW {} on every render. The Invoices page doesn't pass

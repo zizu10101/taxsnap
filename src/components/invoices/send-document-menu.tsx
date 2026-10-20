@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { Download, Link2, Loader2, Mail, Send, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -18,6 +19,14 @@ import { canShareFiles, getServerFalse, noSubscription } from "@/lib/share-capab
 import { formatDocumentNumber } from "@/lib/document-number";
 import { sendMenu, type SendAction } from "@/lib/line-format";
 import type { DocumentWithRelations } from "@/lib/database.types";
+import {
+  ENABLE_ONLINE_PAYMENTS_HINT,
+  ONLINE_PAYMENTS_SETTINGS_HREF,
+  PAY_LINK_LINE,
+  copyLinkToast,
+  payLinkState,
+} from "@/lib/payment-link-wording";
+import { paidToDate } from "@/lib/payment-form";
 
 // The one Send menu on the estimate and invoice detail pages (it replaced separate "Email" and
 // "Email Signature Link" buttons): Email to client (PDF attached, via Resend, with the signature link
@@ -31,16 +40,25 @@ export function SendDocumentMenu({
   business,
   logoPath,
   priorDraws = [],
+  onlinePaymentsActive = false,
 }: {
   document: DocumentWithRelations;
   business: BusinessInfo;
   logoPath: string | null;
   priorDraws?: PriorDraw[];
+  /** Online payments is switched on for this owner (Stripe account active). */
+  onlinePaymentsActive?: boolean;
 }) {
   const router = useRouter();
   const canShare = useSyncExternalStore(noSubscription, canShareFiles, getServerFalse);
   const [busy, setBusy] = useState<SendAction | "share" | null>(null);
-  const { options, note } = sendMenu({ clientEmail: document.client?.email });
+  const payLink = payLinkState({
+    type: document.type,
+    onlinePaymentsActive,
+    total: document.total_amount,
+    paid: paidToDate(document.payments ?? []),
+  });
+  const { options, note } = sendMenu({ clientEmail: document.client?.email, payLink });
   const shortId = formatDocumentNumber(document.type, document.document_number);
 
   // A draft invoice that was just shared is now Sent: say so and refresh the page's status.
@@ -60,9 +78,7 @@ export function SendDocumentMenu({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to create the link");
         await navigator.clipboard.writeText(data.url);
-        toast.success(
-          document.type === "estimate" ? "Signature link copied to clipboard" : "Invoice link copied to clipboard",
-        );
+        toast.success(copyLinkToast(document.type, payLink));
         if (data.marked_sent) announceMarkedSent();
       } else if (action === "email") {
         const pdf = await buildDocumentPdf(document, business, logoPath, priorDraws);
@@ -118,6 +134,14 @@ export function SendDocumentMenu({
           </DropdownMenuItem>
         )}
         {note && <p className="px-1.5 py-1 text-xs text-muted-foreground">{note}</p>}
+        {payLink === "active" && <p className="px-1.5 py-1 text-xs text-muted-foreground">{PAY_LINK_LINE}</p>}
+        {payLink === "inactive" && (
+          <p className="px-1.5 py-1 text-xs text-muted-foreground">
+            <Link href={ONLINE_PAYMENTS_SETTINGS_HREF} className="underline hover:text-foreground">
+              {ENABLE_ONLINE_PAYMENTS_HINT}
+            </Link>
+          </p>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

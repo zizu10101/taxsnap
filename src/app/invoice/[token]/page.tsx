@@ -5,6 +5,8 @@ import { PublicDocumentPaper } from "@/components/public/document-paper";
 import { showsInvoiceFooter } from "@/lib/invoice-footer";
 import { PayNowButton } from "@/components/public/pay-now-button";
 import { onlinePayableAmount } from "@/lib/connect-status";
+import { PaymentConfirmation } from "@/components/public/payment-confirmation";
+import { showPayNow } from "@/lib/online-payment-watch";
 
 export const metadata: Metadata = {
   title: "Invoice — TaxSnap",
@@ -93,17 +95,14 @@ export default async function PublicInvoicePage({
         logoUrl={logoUrl}
       />
 
-      {justPaid && (
-        <div className="rounded-lg border border-success/40 bg-success/10 p-4 text-center text-sm text-success">
-          Thank you - your payment is being confirmed. You will get a receipt by email shortly.
-        </div>
-      )}
+      {/* Back from Stripe: wait for the webhook to record the payment (re-reads every 2 s, up to 30 s). */}
+      {justPaid && <PaymentConfirmation settled={fullyPaid} />}
       {fullyPaid && !justPaid && (
         <div className="rounded-lg border border-success/40 bg-success/10 p-4 text-center text-sm text-success">
           This invoice has been paid in full.
         </div>
       )}
-      {payable !== null && (
+      {showPayNow({ payable: payable !== null, justPaid: Boolean(justPaid), settled: fullyPaid }) && payable !== null && (
         <PayNowButton
           token={token}
           amountLabel={new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(payable)}

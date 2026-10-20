@@ -1,3 +1,4 @@
+import { copyLinkLabel, type PayLinkState } from "./payment-link-wording.ts";
 // Pure helpers for how a document line (and a saved item) is labelled: a short NAME (shown bold), an
 // optional longer DESCRIPTION under it, and an optional UNIT of measure next to the quantity.
 //
@@ -149,14 +150,14 @@ export const NO_CLIENT_EMAIL_NOTE = "Email to client is hidden: this client has 
  * why (so the missing option isn't a mystery). Sending never changes the document's status - that is a
  * separate decision - so nothing here carries one.
  */
-export function sendMenu(opts: { clientEmail: string | null | undefined }): {
+export function sendMenu(opts: { clientEmail: string | null | undefined; payLink?: PayLinkState }): {
   options: SendOption[];
   note: string | null;
 } {
   const hasEmail = !!opts.clientEmail?.trim();
   const options: SendOption[] = [
     ...(hasEmail ? [{ action: "email" as const, label: "Email to client" }] : []),
-    { action: "copy-link", label: "Copy link" },
+    { action: "copy-link", label: copyLinkLabel(opts.payLink ?? null) },
     { action: "download-pdf", label: "Download PDF" },
   ];
   return { options, note: hasEmail ? null : NO_CLIENT_EMAIL_NOTE };

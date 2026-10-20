@@ -30,7 +30,7 @@ export default async function InvoiceDetailPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, business_type, logo_url, business_name, business_address, business_number, business_phone, business_email",
+      "subscription_status, business_type, logo_url, business_name, business_address, business_number, business_phone, business_email, stripe_connect_status, stripe_connect_charges_enabled",
     )
     .eq("id", user.id)
     .single();
@@ -90,6 +90,7 @@ export default async function InvoiceDetailPage({
       logoPath={profile?.logo_url ?? null}
       basePath="/dashboard/invoices"
       backLink={back}
+      onlinePaymentsActive={profile?.stripe_connect_status === "active" && Boolean(profile?.stripe_connect_charges_enabled)}
     />
   );
 }
