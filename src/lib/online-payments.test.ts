@@ -504,6 +504,27 @@ test("an event from the wrong connected account, or for an unknown invoice, is i
   );
 });
 
+test("a session that is not paid yet (delayed payment method) records nothing", async () => {
+  for (const payment_status of ["unpaid", "no_payment_required"]) {
+    const state = makeState();
+    const { d } = deps();
+    const res = await processCheckoutCompleted(fakeAdmin(state), "acct_1", { ...session, payment_status }, d);
+    assert.equal(res.status, "ignored", payment_status);
+    assert.equal(state.inserted.length, 0, `${payment_status}: no payment row`);
+    assert.equal(state.overpayments.length, 0, `${payment_status}: no overpayment row`);
+  }
+});
+
+test("the Connect Checkout Session is card only: payment_method_types is exactly ['card']", () => {
+  const src = read("../app/api/public/invoice/[token]/checkout/route.ts");
+  assert.match(src, /payment_method_types: \["card"\]/);
+  assert.equal((src.match(/payment_method_types/g) ?? []).length, 1);
+  // The only Checkout Session created on a connected account is this route's.
+  const create = src.slice(src.indexOf("checkout.sessions.create("));
+  assert.ok(create.indexOf('payment_method_types: ["card"]') < create.indexOf("stripeAccount:"), "set in the session params");
+  assert.doesNotMatch(src, /affirm|klarna|link|afterpay|us_bank_account|acss_debit/i);
+});
+
 test("a failed fee lookup or a failed receipt never blocks the payment", async () => {
   const state = makeState();
   const { d } = deps({

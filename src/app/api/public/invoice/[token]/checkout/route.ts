@@ -94,6 +94,9 @@ export async function POST(
     const session = await connect.stripe.checkout.sessions.create(
       {
         mode: "payment",
+        // Cards only (Apple Pay / Google Pay come through card): the fee text, refund and dispute
+        // handling and the terms cover cards, and a delayed method would complete unpaid.
+        payment_method_types: ["card"],
         client_reference_id: doc.id,
         metadata: { document_id: doc.id },
         ...(clientEmail ? { customer_email: clientEmail } : {}),
