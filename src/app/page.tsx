@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
+import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection } from "@/components/landing/faq-section";
@@ -415,6 +416,7 @@ export default function Home() {
             </a>
           </p>
           <FooterFaqLink />
+          <FooterLegalLinks />
           <p className="mx-auto max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
             TaxSnap is a division of Edge Digital Business Solutions.
             TaxSnap is an independent expense-tracking and bookkeeping

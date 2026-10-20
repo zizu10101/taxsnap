@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { DemoVideo } from "@/components/landing/demo-video";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
+import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PhoneFrame } from "@/components/landing/phone-frame";
 import { featurePageForVideo } from "@/lib/feature-pages";
@@ -131,6 +132,7 @@ export default async function HowToVideoPage({
             </a>
           </p>
           <FooterFaqLink />
+          <FooterLegalLinks />
           <p className="pt-2 text-muted-foreground/80">
             © {new Date().getFullYear()} TaxSnap. All rights reserved.
           </p>

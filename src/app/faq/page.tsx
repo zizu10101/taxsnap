@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { FaqSection } from "@/components/landing/faq-section";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
+import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { SITE_FAQ_ITEMS } from "@/lib/faq-items";
 import { withVideoLinks } from "@/lib/how-to-videos-server";
@@ -47,6 +48,7 @@ export default function FaqPage() {
             </a>
           </p>
           <FooterFaqLink />
+          <FooterLegalLinks />
           <p className="pt-2 text-muted-foreground/80">
             © {new Date().getFullYear()} TaxSnap. All rights reserved.
           </p>
