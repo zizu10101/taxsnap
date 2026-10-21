@@ -423,6 +423,7 @@ function disputeDeps(d: DisputeLike, over: { charge?: ChargeLike; now?: string }
         notices.push(n);
         return true;
       },
+      recordFeeExpense: async () => ({ status: "no_fee" as const }), // the fee expense has its own tests (stripe-fee-expense.test.ts)
     },
   };
 }
@@ -659,7 +660,9 @@ function fullDeps(db: Db, refundsFor: () => RefundLike[], extra: Partial<Connect
   const d: ConnectEventDeps = {
     now: () => new Date("2026-10-20T15:00:00Z"),
     fetchFee: async () => null,
+    sleep: async () => {},
     sendReceipt: async (a) => (receipts.push(a), true),
+    recordFeeExpense: async () => ({ status: "no_fee" as const }),
     retrieveAccount: async (id) => ({ id }),
     retrieveCharge: async (id) => ({ id, currency: "cad", payment_intent: id === "ch_2" ? "pi_2" : "pi_1", metadata: { document_id: "doc1" } }),
     listRefunds: async () => refundsFor(),

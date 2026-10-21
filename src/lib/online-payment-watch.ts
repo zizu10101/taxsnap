@@ -52,6 +52,39 @@ export function shouldWatchOnlinePayment(
   return Math.round((doc.total_amount - paid) * 100) / 100 > 0;
 }
 
+// WHY THIS EXISTS: the owner often has the invoice open BEFORE the client taps "Pay now", so the page was drawn with
+// online_session_opened_at = null. The old hook decided whether to watch only from those props, so it never started an
+// interval or a focus listener, and nothing re-read the page when the payment landed (no GET /dashboard/invoices/<id>
+// in the dev log until a manual reload). Now any sent / partly paid invoice with a balance is watched: quickly (every
+// 5 s) while a session is fresh, slowly (every 15 s) otherwise, and always once when the owner comes back to the tab.
+export const OWNER_IDLE_POLL_MS = 15000;
+export const OWNER_IDLE_WINDOW_MS = 30 * 60 * 1000;
+
+type WatchedDoc = Parameters<typeof shouldWatchOnlinePayment>[0];
+
+/** Time-free: an issued invoice that still owes a balance could receive a payment at any moment. */
+export function awaitsPayment(doc: WatchedDoc): boolean {
+  if (doc.type !== "invoice" || (doc.status !== "sent" && doc.status !== "partial")) return false;
+  const paid = (doc.payments ?? []).reduce((sum, p) => sum + p.amount, 0);
+  return Math.round((doc.total_amount - paid) * 100) / 100 > 0;
+}
+
+/**
+ * Should the owner's page re-read the server now? (checked on a 5 s timer while the tab is visible)
+ *  - fresh online session (shouldWatchOnlinePayment): every OWNER_POLL_MS
+ *  - otherwise an invoice awaiting payment: every OWNER_IDLE_POLL_MS, for 30 minutes after the page was last
+ *    "armed" (opened or the owner came back to the tab), so an abandoned tab does not poll forever
+ */
+export function shouldRefreshOwnerView(
+  docs: WatchedDoc[],
+  t: { now: number; armedAt: number; lastRefreshAt: number },
+): boolean {
+  const since = t.now - t.lastRefreshAt;
+  if (docs.some((d) => shouldWatchOnlinePayment(d, t.now))) return since >= OWNER_POLL_MS;
+  if (docs.some(awaitsPayment)) return t.now - t.armedAt <= OWNER_IDLE_WINDOW_MS && since >= OWNER_IDLE_POLL_MS;
+  return false;
+}
+
 /** The time-free half of the rule (no clock read, so it can run while rendering): could this invoice still need watching? */
 export function mayWatchOnlinePayment(doc: Parameters<typeof shouldWatchOnlinePayment>[0]): boolean {
   const opened = doc.online_session_opened_at ? Date.parse(doc.online_session_opened_at) : NaN;

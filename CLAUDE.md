@@ -755,6 +755,26 @@ period reduces that later period and never rewrites the earlier one. Webhook eve
 - **Matching**: a refund/dispute finds our payment by the charge's `payment_intent` (`payments.stripe_payment_intent_id`); charge metadata is only the fallback that decides retry-vs-ignore when no payment row exists. "Pay now" is hidden while `documents.payment_disputed` (`onlinePayableAmount`, `disputed`).
 - **RLS (0070)**: owners may update/delete only `source = 'manual'` payments; Stripe-source rows are service role only. (Before 0070 `payments` had no update policy at all, so Edit payment could not work.) `payments-rls-db.test.ts` proves it against the real DB (`RUN_DB_ISOLATION_TEST=1`).
 
+**Stripe fees as expenses** (migration `0071_stripe_fee_expenses.sql` + rollback; apply BEFORE the code ships). A Stripe
+processing fee carries no HST (owner's accountant), so the webhook records it as an ordinary expense: vendor "Stripe", the
+owner's keyed "Bank charges" category (`ensureBankChargesCategory`; "Other" if they removed it), the payment's date, tax 0, no
+tax code, note "Stripe fee on INV-xxxx (recorded automatically)" in `items`. A dispute's fee does the same from
+`stripe_disputes.fee` (Stripe's own figure, dated `dispute.created`). A refund creates nothing (Stripe keeps its fee). Rules in
+`lib/stripe-fee-expense.ts`; the only writer is the service-role SQL function `record_stripe_fee_expense()`, which locks the
+payment/dispute row, inserts the expense and stores `fee_expense_outcome` ('recorded' | 'off') in ONE transaction. The outcome is
+never cleared, so deleting the expense does not let a retry recreate it; `receipts.stripe_payment_id` / `stripe_dispute_id` are
+unique. `receipts.origin = 'stripe'` labels the row ("Automatic (Stripe)" badge, `AutoExpenseBadge`) and keeps it out of the
+Free scan count (`parse-receipt` counts `origin is null`); a trigger stops a browser setting `origin`/the links. Switch:
+`profiles.record_stripe_fee_expenses` (default true) in the Online payments card; off = nothing created and the payment is marked
+'off' so turning it on later never backfills. Tests: `stripe-fee-expense.test.ts` (+ `stripe-fee-expense-db.test.ts`, real DB).
+**The fee is not there yet when the payment completes:** Stripe attaches a charge's balance transaction ~3 s AFTER it succeeds
+(measured in the sandbox), so the first read finds `latest_charge.balance_transaction` null - which is not an error, so it used to
+be saved silently with no fee. Now (`online-payments.ts`): the payment row is saved first, then `readFeeWithRetry` (6 reads, 1 s apart,
+real Stripe errors logged as `[stripe-error] where=checkout.fee-read ...`) stores fee/net/charge id and records the expense in the SAME
+delivery; if it is still missing, `charge.updated` (Stripe sends it when the fee appears - the Connect endpoint must be subscribed to
+it) or any replay of `checkout.session.completed` fills it in. All paths end in `record_stripe_fee_expense()`, so the expense is
+created once, ever. The read itself is `fetchPaymentFee` (`stripe-fee.ts`): connected-account PaymentIntent, expanded, cents/100.
+
 ## Local dev / testing this app on a phone
 
 **Local dev and production share one Supabase project** (verified

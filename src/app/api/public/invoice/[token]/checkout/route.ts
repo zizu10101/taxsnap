@@ -125,14 +125,11 @@ export async function POST(
     );
     if (!session.url) throw new Error("no checkout url");
 
-    // From now on the invoice can not go back to draft (see PATCH /api/documents/[id]).
-    if (!doc.online_session_opened_at) {
-      await admin
-        .from("documents")
-        .update({ online_session_opened_at: now.toISOString() })
-        .eq("id", doc.id)
-        .is("online_session_opened_at", null);
-    }
+    // From now on the invoice can not go back to draft (see PATCH /api/documents/[id]; that rule only asks
+    // "was a session ever opened"). Stamped on EVERY new session, not just the first: the owner's page
+    // watches for a payment for 30 minutes after the latest one (use-online-payment-watch.ts), and a second
+    // attempt hours after the first used to fall outside the window of the first.
+    await admin.from("documents").update({ online_session_opened_at: now.toISOString() }).eq("id", doc.id);
 
     return NextResponse.json({ url: session.url });
   } catch (err) {

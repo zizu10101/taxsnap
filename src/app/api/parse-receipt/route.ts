@@ -87,6 +87,8 @@ export async function POST(request: Request) {
       .from("receipts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
+      // Expenses TaxSnap created from Stripe data (origin 'stripe') are not scans: they never use the allowance.
+      .is("origin", null)
       .gte("created_at", from!);
 
     if ((count ?? 0) >= FREE_SCAN_LIMIT) {

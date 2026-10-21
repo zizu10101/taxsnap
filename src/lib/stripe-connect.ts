@@ -46,24 +46,8 @@ export function createOnboardingLink(stripe: Stripe, accountId: string, appUrl: 
   });
 }
 
-// Stripe's processing fee for a payment, from the charge's balance transaction -
-// shown for information only, never used in any total.
-export async function fetchPaymentFee(
-  stripe: Stripe,
-  paymentIntentId: string,
-  accountId: string,
-): Promise<{ fee: number; net: number; chargeId: string | null } | null> {
-  const pi = await stripe.paymentIntents.retrieve(
-    paymentIntentId,
-    { expand: ["latest_charge.balance_transaction"] },
-    { stripeAccount: accountId },
-  );
-  const charge = pi.latest_charge;
-  if (!charge || typeof charge === "string") return null;
-  const bt = charge.balance_transaction;
-  if (!bt || typeof bt === "string") return null;
-  return { fee: bt.fee / 100, net: bt.net / 100, chargeId: charge.id };
-}
+// Stripe's processing fee for a payment: see stripe-fee.ts (kept there so it is unit-testable).
+export { fetchPaymentFee } from "@/lib/stripe-fee";
 
 // ---- phase 4: reads used to re-fetch refunds and disputes (never trust the webhook payload) ----
 
@@ -103,6 +87,7 @@ export async function retrieveConnectDispute(stripe: Stripe, disputeId: string, 
     amount: dispute.amount,
     currency: dispute.currency,
     status: dispute.status as string,
+    created: dispute.created,
     balance_transactions: dispute.balance_transactions.map((bt) => ({ fee: bt.fee })),
   };
 }

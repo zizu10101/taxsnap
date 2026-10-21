@@ -1,38 +1,52 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { OWNER_POLL_MS, mayWatchOnlinePayment, shouldWatchOnlinePayment } from "./online-payment-watch";
+import { OWNER_POLL_MS, awaitsPayment, shouldRefreshOwnerView, shouldWatchOnlinePayment } from "./online-payment-watch";
 
 type Watched = Parameters<typeof shouldWatchOnlinePayment>[0];
 
 // Keeps the owner's invoice page / list current after a client pays online: the webhook writes the
-// payment on the server, so the page re-reads it (router.refresh) every 5 s - only while some
-// invoice had an online session opened in the last 30 minutes and still owes a balance - and once
-// more whenever the window regains focus. It stops by itself when every invoice is paid or the
-// window is over. (No realtime channel: the app does not use one.)
+// payment on the server, so the page re-reads it (router.refresh).
+//  - every 5 s while an online Checkout Session was opened in the last 30 minutes (fast),
+//  - every 15 s for any other sent / partly paid invoice with a balance (the owner usually has the page open
+//    BEFORE the client taps "Pay now", so the props can not say yet that a session exists),
+//  - and immediately whenever the owner comes back to the tab / window (focus or visibilitychange).
+// Only while the tab is visible; it stops by itself once nothing is awaiting payment, and the slow poll
+// gives up 30 minutes after the page was last opened or returned to. (No realtime channel: the app has none.)
 export function useOnlinePaymentWatch(documents: Watched[]) {
   const router = useRouter();
-  // Time-free check while rendering; the 30-minute window itself is checked on every tick.
-  const watching = documents.some(mayWatchOnlinePayment);
+  // Time-free check while rendering; the clock-based rules run on every tick (shouldRefreshOwnerView).
+  const watching = documents.some(awaitsPayment);
+  // Survive re-renders: each router.refresh() hands down new props, which re-runs the effect.
+  const armedAt = useRef(0);
+  const lastRefreshAt = useRef(0);
 
   useEffect(() => {
     if (!watching) return;
-    const tick = () => {
-      if (document.visibilityState === "visible") router.refresh();
+    if (armedAt.current === 0) armedAt.current = Date.now();
+    const refresh = () => {
+      lastRefreshAt.current = Date.now();
+      router.refresh();
     };
-    // The window can run out between renders; re-check on each tick via the same rule.
+    // Back on the tab: read now, and give the slow poll a fresh 30 minutes.
+    const comeBack = () => {
+      if (document.visibilityState !== "visible") return;
+      armedAt.current = Date.now();
+      refresh();
+    };
     const timer = window.setInterval(() => {
-      if (!documents.some((d) => shouldWatchOnlinePayment(d, Date.now()))) {
-        window.clearInterval(timer);
-        return;
+      if (document.visibilityState !== "visible") return;
+      if (shouldRefreshOwnerView(documents, { now: Date.now(), armedAt: armedAt.current, lastRefreshAt: lastRefreshAt.current })) {
+        refresh();
       }
-      tick();
     }, OWNER_POLL_MS);
-    window.addEventListener("focus", tick);
+    window.addEventListener("focus", comeBack);
+    document.addEventListener("visibilitychange", comeBack);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", tick);
+      window.removeEventListener("focus", comeBack);
+      document.removeEventListener("visibilitychange", comeBack);
     };
   }, [watching, documents, router]);
 }

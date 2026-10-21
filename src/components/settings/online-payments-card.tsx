@@ -5,6 +5,7 @@ import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CONNECT_STATUS_LABEL, type ConnectStatus } from "@/lib/connect-status";
 import { ONLINE_PAYMENTS_DISCLOSURE_SHORT } from "@/lib/online-payments-terms";
@@ -34,6 +35,7 @@ export function OnlinePaymentsCard({
   returnFlag,
   returnCode = null,
   termsAcceptedAt = null,
+  recordFeeExpenses = true,
 }: {
   status: ConnectStatus;
   /** ?stripe=... from the Stripe return/refresh redirect, shown once as a message. */
@@ -42,8 +44,12 @@ export function OnlinePaymentsCard({
   returnCode?: string | null;
   /** When the owner accepted the disclosure; null = the dialog must be ticked before Stripe opens. */
   termsAcceptedAt?: string | null;
+  /** profiles.record_stripe_fee_expenses: Stripe fees become an expense automatically. */
+  recordFeeExpenses?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const [recordFees, setRecordFees] = useState(recordFeeExpenses);
+  const [savingFees, setSavingFees] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // `acceptTerms` is true only when the owner just ticked the box in the dialog.
@@ -63,6 +69,26 @@ export function OnlinePaymentsCard({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setBusy(false);
+    }
+  }
+
+  // Only affects the NEXT fee: expenses that already exist are never changed by this switch.
+  async function changeRecordFees(next: boolean) {
+    setRecordFees(next);
+    setSavingFees(true);
+    try {
+      const res = await fetch("/api/profile/stripe-fee-expenses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not save that setting.");
+    } catch (err) {
+      setRecordFees(!next);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingFees(false);
     }
   }
 
@@ -107,6 +133,18 @@ export function OnlinePaymentsCard({
           <li>Payouts to your bank follow your Stripe account settings.</li>
           <li>Card payments are recorded on the invoice like any other payment, so your HST figures stay right.</li>
         </ul>
+
+        <label className="flex items-start justify-between gap-3 rounded-md border p-3">
+          <span className="text-sm">
+            Record Stripe fees as expenses automatically. Turn this off if you already log them from your bank.
+          </span>
+          <Switch
+            aria-label="Record Stripe fees as expenses automatically"
+            checked={recordFees}
+            disabled={savingFees}
+            onCheckedChange={changeRecordFees}
+          />
+        </label>
       </CardContent>
       <OnlinePaymentsTermsDialog
         open={dialogOpen}

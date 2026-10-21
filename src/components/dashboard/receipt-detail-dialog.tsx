@@ -21,6 +21,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { AutoExpenseBadge } from "@/components/dashboard/auto-expense-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -537,6 +538,7 @@ function ReceiptSummaryContent({
             {receipt.job_name}
           </div>
         )}
+        <AutoExpenseBadge receipt={receipt} className="mt-1.5" />
         {receipt.paid_with_account_id && (
           <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
             <CreditCard className="h-3.5 w-3.5" />

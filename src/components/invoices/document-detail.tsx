@@ -727,14 +727,14 @@ export function DocumentDetail({
                         </p>
                         {payment.source === "stripe_dispute" && payment.stripe_fee !== null && (
                           <p className="text-xs text-muted-foreground">
-                            Stripe dispute fee {formatCurrency(payment.stripe_fee)} (information only, not in your HST totals)
+                            Stripe dispute fee {formatCurrency(payment.stripe_fee)} (not part of your HST totals)
                           </p>
                         )}
                         {payment.source === "stripe" && payment.stripe_fee !== null && (
                           <p className="text-xs text-muted-foreground">
                             Stripe fee {formatCurrency(payment.stripe_fee)}
                             {payment.stripe_net !== null && ` · you receive ${formatCurrency(payment.stripe_net)}`}
-                            {" "}(information only, not in your HST totals)
+                            {" "}(not part of your HST totals)
                           </p>
                         )}
                       </div>

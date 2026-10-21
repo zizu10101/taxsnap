@@ -166,7 +166,12 @@ export function AccountantExpensesView({
                         {formatDate(r.transaction_date)}
                       </button>
                     </td>
-                    <td className="px-3 py-2">{r.merchant_name}</td>
+                    <td className="px-3 py-2">
+                      {r.merchant_name}
+                      {r.origin === "stripe" && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">auto (Stripe)</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{r.tax_category}</td>
                     <td className="px-3 py-2 text-muted-foreground">{r.job_name ?? "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">

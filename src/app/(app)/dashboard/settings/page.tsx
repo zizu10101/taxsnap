@@ -58,7 +58,7 @@ export default async function SettingsPage({
     supabase
       .from("profiles")
       .select(
-        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at, stripe_connect_status, online_payments_terms_accepted_at, logo_url, business_name, business_address, business_phone, business_email, business_number, business_profile_skipped",
+        "business_type, subscription_status, stripe_customer_id, billing_interval, current_period_end, cancel_at_period_end, pending_tier, pending_change_effective_at, stripe_connect_status, online_payments_terms_accepted_at, record_stripe_fee_expenses, logo_url, business_name, business_address, business_phone, business_email, business_number, business_profile_skipped",
       )
       .eq("id", user.id)
       .single(),
@@ -190,6 +190,7 @@ export default async function SettingsPage({
             returnFlag={stripeFlag ?? null}
             returnCode={stripeCode ? stripeCode.slice(0, 60) : null}
             termsAcceptedAt={profile?.online_payments_terms_accepted_at ?? null}
+            recordFeeExpenses={profile?.record_stripe_fee_expenses ?? true}
           />
         )}
 

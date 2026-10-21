@@ -70,6 +70,7 @@ export interface Database {
           stripe_connect_payouts_enabled: boolean;
           stripe_connect_checked_at: string | null;
           online_payments_terms_accepted_at: string | null;
+          record_stripe_fee_expenses: boolean;
           onboarding_goals: string[];
           business_number: string | null;
           hidden_nav_keys: string[];
@@ -109,6 +110,7 @@ export interface Database {
           stripe_connect_payouts_enabled?: boolean;
           stripe_connect_checked_at?: string | null;
           online_payments_terms_accepted_at?: string | null;
+          record_stripe_fee_expenses?: boolean;
           onboarding_goals?: string[];
           business_number?: string | null;
           hidden_nav_keys?: string[];
@@ -148,6 +150,7 @@ export interface Database {
           stripe_connect_payouts_enabled?: boolean;
           stripe_connect_checked_at?: string | null;
           online_payments_terms_accepted_at?: string | null;
+          record_stripe_fee_expenses?: boolean;
           onboarding_goals?: string[];
           business_number?: string | null;
           hidden_nav_keys?: string[];
@@ -184,6 +187,10 @@ export interface Database {
           itc_pct?: number | null;
           deductible_pct?: number | null;
           tax_source?: TaxSourceName | null;
+          // 0071: 'stripe' = created automatically from Stripe data (a payment's or dispute's fee).
+          origin?: "stripe" | null;
+          stripe_payment_id?: string | null;
+          stripe_dispute_id?: string | null;
         };
         Insert: {
           id?: string;
@@ -210,6 +217,10 @@ export interface Database {
           itc_pct?: number | null;
           deductible_pct?: number | null;
           tax_source?: TaxSourceName | null;
+          // 0071: 'stripe' = created automatically from Stripe data (a payment's or dispute's fee).
+          origin?: "stripe" | null;
+          stripe_payment_id?: string | null;
+          stripe_dispute_id?: string | null;
         };
         Update: {
           id?: string;
@@ -236,6 +247,10 @@ export interface Database {
           itc_pct?: number | null;
           deductible_pct?: number | null;
           tax_source?: TaxSourceName | null;
+          // 0071: 'stripe' = created automatically from Stripe data (a payment's or dispute's fee).
+          origin?: "stripe" | null;
+          stripe_payment_id?: string | null;
+          stripe_dispute_id?: string | null;
         };
         Relationships: [
           {
@@ -448,6 +463,7 @@ export interface Database {
           opened_at: string;
           closed_at: string | null;
           owner_notified_at: string | null;
+          fee_expense_outcome: string | null;
         };
         Insert: {
           id: string;
@@ -461,6 +477,7 @@ export interface Database {
           opened_at?: string;
           closed_at?: string | null;
           owner_notified_at?: string | null;
+          fee_expense_outcome?: string | null;
         };
         Update: {
           id?: string;
@@ -474,6 +491,7 @@ export interface Database {
           opened_at?: string;
           closed_at?: string | null;
           owner_notified_at?: string | null;
+          fee_expense_outcome?: string | null;
         };
         Relationships: [];
       };
@@ -601,6 +619,7 @@ export interface Database {
           stripe_charge_id: string | null;
           stripe_fee: number | null;
           stripe_net: number | null;
+          fee_expense_outcome: string | null;
           stripe_refund_id: string | null;
           stripe_dispute_id: string | null;
           created_at: string;
@@ -620,6 +639,7 @@ export interface Database {
           stripe_charge_id?: string | null;
           stripe_fee?: number | null;
           stripe_net?: number | null;
+          fee_expense_outcome?: string | null;
           stripe_refund_id?: string | null;
           stripe_dispute_id?: string | null;
           created_at?: string;
@@ -639,6 +659,7 @@ export interface Database {
           stripe_charge_id?: string | null;
           stripe_fee?: number | null;
           stripe_net?: number | null;
+          fee_expense_outcome?: string | null;
           stripe_refund_id?: string | null;
           stripe_dispute_id?: string | null;
           created_at?: string;
@@ -1920,6 +1941,19 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      record_stripe_fee_expense: {
+        Args: {
+          p_user_id: string;
+          p_payment_id: string | null;
+          p_dispute_id: string | null;
+          p_merchant: string;
+          p_date: string;
+          p_amount: number;
+          p_category: string;
+          p_items: Json;
+        };
+        Returns: string | null;
+      };
       start_statement_import: {
         Args: {
           p_user_id: string;

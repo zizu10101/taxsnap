@@ -15,8 +15,18 @@ export const STRIPE_FEES = {
 const SELLER_SENTENCES =
   "You are the seller. Card payments go to your own Stripe account, and Stripe is your payment processor.";
 
+// What TaxSnap does with the fee: an expense with no tax (a Stripe fee has no HST, so there is no input
+// tax credit). Sits right after the fee numbers wherever they are shown.
+export const FEE_RECORDING_SENTENCE =
+  "Fees are recorded as an expense without tax. Check your Stripe statement if tax is shown.";
+
+// The Terms page's "Records and taxes" sentence about the fee (replaces "shown for information only").
+export const FEE_EXPENSE_HST_SENTENCE =
+  "Stripe's processing fee is recorded as an expense with no tax and is not part of your HST totals.";
+
 export const FEE_SENTENCE =
-  `Stripe's fee is ${STRIPE_FEES.domesticCard} per domestic card payment, plus ${STRIPE_FEES.internationalExtra} for international cards.`;
+  `Stripe's fee is ${STRIPE_FEES.domesticCard} per domestic card payment, plus ${STRIPE_FEES.internationalExtra} for international cards. ` +
+  FEE_RECORDING_SENTENCE;
 
 export const DISPUTE_SENTENCES =
   `Cardholders can dispute a card payment (a chargeback). Stripe charges ${STRIPE_FEES.disputeReceived} when a dispute is received ` +

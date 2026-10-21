@@ -16,6 +16,7 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8"
 // The fee and dispute wording as the owner supplied it - any edit has to be deliberate.
 const FEE_WORDING =
   "Stripe's fee is 2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. " +
+  "Fees are recorded as an expense without tax. Check your Stripe statement if tax is shown. " +
   "Cardholders can dispute a card payment (a chargeback). Stripe charges CA$15 when a dispute is received and another CA$15 if you contest it (refunded if you win). " +
   "If you lose, the payment is taken back. " +
   "You handle disputes and refunds in your Stripe Dashboard. TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them. " +

@@ -31,7 +31,8 @@ payment, and TaxSnap has no control over those decisions. [Lawyer: confirm the c
 names for Canadian connected accounts.]
 
 **4. Fees.** Stripe charges you its processing fees on each payment. At the date of writing, Stripe's fee is
-2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. See Stripe's pricing page for current
+2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. Fees are recorded as an expense without tax. Check your Stripe statement if tax
+is shown. See Stripe's pricing page for current
 fees. TaxSnap does not add a fee to Online payments. [Lawyer: if a TaxSnap platform fee is ever added, this clause
 must change first; Stripe's fees are Stripe's to change, so the text should point to Stripe's pricing page rather
 than fix the numbers.]
@@ -45,8 +46,8 @@ a dispute or a refund and is not responsible for their outcome. [Lawyer: confirm
 indemnity wording here, and how it interacts with the general limitation of liability section.]
 
 **6. Records and taxes.** TaxSnap records a successful online payment on the invoice as a payment, so that
-your invoice balances and your HST estimates reflect it. Stripe's processing fee is shown for information
-only and is not part of your HST totals. The records and estimates in TaxSnap are a planning aid, not tax
+your invoice balances and your HST estimates reflect it. Stripe's processing fee is recorded as an expense
+with no tax and is not part of your HST totals. The records and estimates in TaxSnap are a planning aid, not tax
 advice and not a filing; you remain responsible for your own tax reporting. A refund or a lost dispute made
 in Stripe is mirrored in TaxSnap as a negative payment (the refund and dispute phase is built); an open dispute
 changes nothing in the books until it is lost, and a double payment is recorded only up to the balance, with the extra
@@ -73,7 +74,8 @@ change. Ending it does not affect payments already made.
 ### The summary shown in the app (for reference - this is the text users tick)
 
 > You are the seller. Card payments go to your own Stripe account, and Stripe is your payment processor.
-> Stripe's fee is 2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. Cardholders can
+> Stripe's fee is 2.9% + CA$0.30 per domestic card payment, plus 0.8% for international cards. Fees are recorded
+> as an expense without tax. Check your Stripe statement if tax is shown. Cardholders can
 > dispute a card payment (a chargeback). Stripe charges CA$15 when a dispute is received and another CA$15 if you
 > contest it (refunded if you win). If you lose, the payment is taken back. You handle disputes and refunds in your
 > Stripe Dashboard. TaxSnap records the outcome in your books but does not handle or contest disputes or refunds, and is not responsible for them. See Stripe's pricing

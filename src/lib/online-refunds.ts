@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types.ts";
 import { round2, statusFromPaid } from "./payments.ts";
 import { torontoToday } from "./work-date.ts";
+import type { FeeExpenseInput, FeeExpenseResult } from "./stripe-fee-expense.ts";
 
 type Admin = SupabaseClient<Database>;
 
@@ -17,7 +18,8 @@ type Admin = SupabaseClient<Database>;
 //   source 'stripe_dispute'  one row for a LOST dispute (unique stripe_dispute_id), dated on the loss
 //
 // A dispute that is merely OPEN reverses nothing: it flags the invoice (documents.payment_disputed)
-// and emails the owner. Won = flag cleared, books untouched. The dispute FEE is information only.
+// and emails the owner. Won = flag cleared, books untouched. The dispute FEE is recorded once as a
+// no-tax expense (stripe-fee-expense.ts) when it is first known; a refund creates no expense at all.
 //
 // Everything is re-read from Stripe by id (never trusted from the payload), so out-of-order and
 // replayed events converge on the same ledger. When the row a refund or dispute belongs to is not
@@ -61,7 +63,9 @@ export interface DisputeLike {
   amount: number; // cents
   currency?: string | null;
   status: string;
-  /** Stripe's dispute fee shows up here (information only). */
+  /** Unix seconds when the dispute was received: the date of its fee expense. */
+  created?: number | null;
+  /** Stripe's dispute fee shows up here (summed into stripe_disputes.fee, then recorded as an expense). */
   balance_transactions?: { fee?: number | null }[] | null;
 }
 
@@ -82,6 +86,8 @@ export interface DisputeDeps {
   retrieveDispute: (disputeId: string, accountId: string) => Promise<DisputeLike>;
   /** Emails the owner; false when it could not be sent. Never throws. */
   notifyOwner: (notice: OwnerNotice) => Promise<boolean>;
+  /** Records the dispute fee as an expense (once; a no-op when the owner's switch is off). Throws on a failure so Stripe retries. */
+  recordFeeExpense: (input: FeeExpenseInput) => Promise<FeeExpenseResult>;
 }
 
 export interface ExcessDeps {
@@ -441,6 +447,19 @@ export async function syncDispute(
     } else {
       console.warn(`[dispute] owner email failed document=${ledger.doc.id}`);
     }
+  }
+
+  // The dispute fee, from the fee stored on the dispute row above (Stripe's own figure, never a constant).
+  // Last, so a failure throws after everything else is right and the retry only has this left to do.
+  if (fee) {
+    const received = dispute.created ? new Date(dispute.created * 1000) : options.eventCreated ? new Date(options.eventCreated * 1000) : now;
+    await deps.recordFeeExpense({
+      userId: ledger.doc.user_id,
+      source: { kind: "dispute", id: dispute.id },
+      fee,
+      date: torontoToday(received),
+      documentNumber: ledger.doc.document_number,
+    });
   }
 
   return { status: "synced", disputeStatus: dispute.status, reversed, notified };

@@ -319,6 +319,12 @@ function fakeAdmin(state: State) {
             });
             return { error: null };
           },
+          update: (patch: Record<string, unknown>) => ({
+            eq: async (_c: string, id: string) => {
+              Object.assign(state.inserted.find((r) => r.id === id) ?? {}, patch);
+              return { error: null };
+            },
+          }),
         };
       }
       if (table === "stripe_overpayments") {
@@ -365,10 +371,12 @@ function deps(over: Partial<ConnectEventDeps> = {}) {
   const d: ConnectEventDeps = {
     now: () => new Date("2026-10-20T15:00:00Z"),
     fetchFee: async () => ({ fee: 33.07, net: 1096.93, chargeId: "ch_1" }),
+    sleep: async () => {},
     sendReceipt: async (args) => {
       receipts.push(args);
       return true;
     },
+    recordFeeExpense: async () => ({ status: "no_fee" as const }), // the fee expense has its own tests (stripe-fee-expense.test.ts)
     findExcessRefund: async () => null,
     refundExcess: async (args) => {
       refunds.push(args);
@@ -537,7 +545,7 @@ test("a failed fee lookup or a failed receipt never blocks the payment", async (
   });
   const result = await processCheckoutCompleted(fakeAdmin(state), "acct_1", session, d);
   assert.deepEqual(result, { status: "recorded", amount: 1130, overpaid: 0, receiptSent: false, excessRefunded: false });
-  assert.equal(state.inserted[0].stripe_fee, null);
+  assert.equal(state.inserted[0].stripe_fee ?? null, null, "no fee stored, and the error was logged, not swallowed");
 });
 
 test("a client with no email gets no receipt but the payment is recorded", async () => {

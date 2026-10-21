@@ -15,13 +15,14 @@ import {
   retrieveConnectDispute,
 } from "@/lib/stripe-connect";
 import type { OwnerNotice } from "@/lib/online-refunds";
+import { recordStripeFeeExpense } from "@/lib/stripe-fee-expense";
 
 export const runtime = "nodejs";
 
 // Events from CONNECTED ACCOUNTS (the endpoint's scope must be "Connected accounts"),
 // signed with its own secret. The platform's own subscription events keep going to
 // /api/stripe/webhook. Subscribed events: account.updated,
-// account.application.deauthorized, checkout.session.completed, charge.refunded,
+// account.application.deauthorized, checkout.session.completed, charge.updated (the fee arrives), charge.refunded,
 // charge.dispute.created, charge.dispute.closed.
 // Runs a Stripe read/write, logging the failure (no secrets) before it propagates as a 500 + retry.
 async function logged<T>(label: string, run: () => Promise<T>): Promise<T> {
@@ -87,14 +88,8 @@ export async function POST(request: Request) {
             throw err;
           }
         },
-        fetchFee: async (paymentIntentId, accountId) => {
-          try {
-            return await fetchPaymentFee(stripe, paymentIntentId, accountId);
-          } catch (err) {
-            logStripeError("connect-webhook fetch-fee", err);
-            throw err;
-          }
-        },
+        // Errors are logged (where=...) by the callers in online-payments.ts, which also retry a not-yet-attached fee.
+        fetchFee: (paymentIntentId, accountId) => fetchPaymentFee(stripe, paymentIntentId, accountId),
         retrieveCharge: (chargeId, accountId) =>
           logged("connect-webhook charges.retrieve", () => retrieveConnectCharge(stripe, chargeId, accountId)),
         listRefunds: (chargeId, accountId) =>
@@ -106,6 +101,7 @@ export async function POST(request: Request) {
         refundExcess: (args) =>
           logged("connect-webhook excess refund", () => createConnectExcessRefund(stripe, args)),
         notifyOwner: (notice) => notifyOwner(admin, notice).catch(() => false),
+        recordFeeExpense: (input) => logged("connect-webhook fee expense", () => recordStripeFeeExpense(admin, input)),
         sendReceipt: (args) => sendPaymentReceiptEmail({ ...args, appUrl: process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin }),
       },
     );

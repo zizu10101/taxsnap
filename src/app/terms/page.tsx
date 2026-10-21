@@ -5,6 +5,7 @@ import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, TERMS_LAST_UPDATED, TERMS_VERSION }
 import { BILLING_CHANGE_POLICY, PRICING_PLANS, formatCadPrice } from "@/lib/pricing-plans";
 import {
   DISPUTE_SENTENCES,
+  FEE_EXPENSE_HST_SENTENCE,
   FEE_SENTENCE,
   PRICING_SENTENCE,
   RESPONSIBILITY_SENTENCE,
@@ -166,9 +167,8 @@ export default function TermsPage() {
         <p>
           <strong>Records and taxes.</strong> TaxSnap records a successful online payment on the invoice as a payment, and
           mirrors refunds and lost disputes that you handle in Stripe as negative payments, so that your invoice balances and
-          HST estimates follow. Stripe{"’"}s processing fee is shown for information only and is not part of your HST
-          totals. The records and estimates in TaxSnap are a planning aid, not tax advice and not a filing; you remain
-          responsible for your own tax reporting.
+          HST estimates follow. {FEE_EXPENSE_HST_SENTENCE} The records and estimates in TaxSnap are a planning aid, not tax
+          advice and not a filing; you remain responsible for your own tax reporting.
         </p>
         <p>
           <strong>Your clients{"’"} information.</strong> When your client pays, Stripe collects their payment details and

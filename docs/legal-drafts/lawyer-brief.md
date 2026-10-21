@@ -14,7 +14,9 @@ The Online payments section reuses `docs/legal-drafts/online-payments-terms-DRAF
 4. Owners can give employees, clients and their accountant limited read/clock-in access through their own link and PIN.
 5. Optionally a contractor connects their own Stripe account so clients can pay an invoice by card; TaxSnap only records the result.
 
-## Decisions made by the owner (draft 2, version 2026-10-draft-2)
+## Decisions made by the owner (draft 3, version 2026-10-draft-3)
+
+- **Terms section 11 changed in draft 3 (Stripe fees).** The sentence "Stripe's processing fee is shown for information only and is not part of your HST totals" now reads "Stripe's processing fee is recorded as an expense with no tax and is not part of your HST totals", and the fee wording (also shown in the Online payments card and the confirmation dialog) gained "Fees are recorded as an expense without tax. Check your Stripe statement if tax is shown." Reason: TaxSnap now records each Stripe processing fee and dispute fee as an expense automatically, with no tax and so no input tax credit (the owner's accountant's instruction); the owner can switch this off in Settings. Please confirm the wording.
 
 - **Retention:** records are kept while the account is open. On a deletion request we delete within 30 days, except billing records we must keep by law; users are told to export first. Provider backups and logs may keep data for a limited time. Please confirm the 30-day promise and that the exception is worded correctly.
 - **Gemini:** wording unchanged ("We have not set any option about how Google may use submitted content"). **The owner is verifying which Google tier / terms apply to the Gemini API key.** Update the wording once known.
@@ -65,7 +67,7 @@ The Online payments section reuses `docs/legal-drafts/online-payments-terms-DRAF
 | Online payments: card payments only; contractor's own Stripe account; direct charge; no TaxSnap fee; CAD; Canada | `src/app/api/public/invoice/[token]/checkout/route.ts` (`payment_method_types: ["card"]`), `src/lib/stripe-connect.ts`, CLAUDE.md "Online invoice payments" |
 | Fee, dispute and responsibility sentences | `src/lib/online-payments-terms.ts` (imported) |
 | Successful payments recorded; refunds and lost disputes mirrored as negative payments; open dispute changes nothing | `src/lib/online-payments.ts`, `src/lib/online-refunds.ts`, CLAUDE.md "Phase 4" |
-| Stripe fee shown for information only, not in HST totals | `src/lib/online-payments.ts` (`stripe_fee`) |
+| Stripe processing fee and dispute fee recorded as an expense with no tax, not in HST totals; owner can switch it off (section 11) | `src/lib/stripe-fee-expense.ts`, `src/lib/online-payments.ts` (`stripe_fee`), migration 0071 |
 | Double payment: only the balance is recorded, the excess is refunded automatically | `src/lib/online-refunds.ts` (`settleExcess`), `src/lib/stripe-connect.ts` (`createConnectExcessRefund`) |
 | Client email at checkout used only to email a receipt | `src/lib/online-payments.ts`, `src/lib/email.ts` (`sendPaymentReceiptEmail`) |
 | TaxSnap records the time the owner accepted the online payments terms | `src/app/api/stripe/connect/start/route.ts`, migration 0068 |
