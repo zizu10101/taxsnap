@@ -16,6 +16,7 @@ The Online payments section reuses `docs/legal-drafts/online-payments-terms-DRAF
 
 ## Decisions made by the owner (draft 3, version 2026-10-draft-3)
 
+- **Terms section 4 changed in draft 3 (subscription price).** "Canadian dollars, plus HST" now reads "Canadian dollars, plus applicable taxes", because Stripe Tax adds whichever tax applies to the customer's address. The same words replace "plus HST" next to the price on the pricing section and the billing page.
 - **Terms section 11 changed in draft 3 (Stripe fees).** The sentence "Stripe's processing fee is shown for information only and is not part of your HST totals" now reads "Stripe's processing fee is recorded as an expense with no tax and is not part of your HST totals", and the fee wording (also shown in the Online payments card and the confirmation dialog) gained "Fees are recorded as an expense without tax. Check your Stripe statement if tax is shown." Reason: TaxSnap now records each Stripe processing fee and dispute fee as an expense automatically, with no tax and so no input tax credit (the owner's accountant's instruction); the owner can switch this off in Settings. Please confirm the wording.
 
 - **Retention:** records are kept while the account is open. On a deletion request we delete within 30 days, except billing records we must keep by law; users are told to export first. Provider backups and logs may keep data for a limited time. Please confirm the 30-day promise and that the exception is worded correctly.
@@ -38,7 +39,7 @@ The Online payments section reuses `docs/legal-drafts/online-payments-terms-DRAF
 6. **Automatic refund of a double payment:** the only Stripe write TaxSnap makes on a contractor's account. The Terms present it as the one exception to "TaxSnap does not handle refunds". Confirm wording and liability.
 7. **Liability cap:** enforceability in Ontario of the CA$100 floor, and any consumer/business distinction.
 8. **Subscription refund wording:** the "first annual purchase" 14-day refund and the "cancel at end of period" text (`BILLING_CHANGE_POLICY`). The code does not enforce the 14-day window; refunds are given by hand via the admin refund tool.
-9. **HST wording:** prices are CAD plus HST, Stripe Tax adds it at checkout. Confirm the entity's HST registration and how to state it.
+9. **Tax wording:** prices are CAD plus applicable taxes; Stripe Tax works out and adds the tax at checkout from the customer's address (draft 3 changed Terms section 4 from "plus HST"). Confirm the entity's HST registration and how to state it.
 10. **Privacy officer / postal address:** none named; PIPEDA expects an accountable person.
 11. **Third-party personal data:** owners enter clients' and employees' personal information; TaxSnap is framed as the owner's service provider. Is a data-processing clause needed?
 12. **Estimate e-signature:** stores typed name, time and IP (`signer_ip`). Should the Terms say anything about a signature's effect?
@@ -58,7 +59,7 @@ The Online payments section reuses `docs/legal-drafts/online-payments-terms-DRAF
 ### Terms
 | Claim | Source |
 |---|---|
-| Free and Pro plans; Pro CAD $29/mo or $290/yr; plus HST; billed through Stripe | `src/lib/pricing-plans.ts`; CLAUDE.md "Plan gating & pricing"; `src/lib/stripe-checkout.ts` |
+| Free and Pro plans; Pro CAD $29/mo or $290/yr; plus applicable taxes; billed through Stripe | `src/lib/pricing-plans.ts`; CLAUDE.md "Plan gating & pricing"; `src/lib/stripe-checkout.ts` |
 | Free plan has usage limits that can change | `src/lib/plan-limits.ts` |
 | "Created with TaxSnap" credit on Free invoices (PDF, online invoice page, emailed invoices), not on Pro or estimates | `src/lib/invoice-footer.ts` |
 | Cancel/interval changes: monthly to annual immediate, otherwise end of period | `BILLING_CHANGE_POLICY` in `src/lib/pricing-plans.ts` |

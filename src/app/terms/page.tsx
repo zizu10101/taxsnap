@@ -68,7 +68,7 @@ export default function TermsPage() {
         </p>
         <p>
           Pro costs {formatCadPrice(pro.monthlyPrice, "monthly")} or {formatCadPrice(pro.yearlyPrice, "yearly")}, in
-          Canadian dollars, plus HST. Subscriptions are billed through Stripe and renew each period until cancelled.
+          Canadian dollars, plus applicable taxes. Subscriptions are billed through Stripe and renew each period until cancelled.
           You can change your billing interval or cancel at any time from the billing page. {BILLING_CHANGE_POLICY}
         </p>
         <p>

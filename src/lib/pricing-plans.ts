@@ -10,9 +10,10 @@ export function formatCadPrice(amount: number, interval: BillingInterval): strin
   return `$${amount} CAD${suffix}`;
 }
 
-// Every price is HST-exclusive; Stripe Tax adds it at checkout. Shown next
-// to each price so nobody is surprised by the total on the payment page.
-export const PLUS_HST_NOTE = "plus HST";
+// Every price excludes tax; Stripe Tax adds whatever applies at checkout. Shown next
+// to each price so nobody is surprised by the total on the payment page. Deliberately
+// not "plus HST": which tax applies depends on the customer's address (a test pins this).
+export const PLUS_TAXES_NOTE = "plus applicable taxes";
 
 // The per-month equivalent of a yearly price, e.g. 120 -> "$10.00/mo",
 // 290 -> "$24.17/mo" - shown next to the annual price so "2 months free"

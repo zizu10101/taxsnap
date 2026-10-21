@@ -19,7 +19,7 @@ import type { BillingInterval, BillingTier } from "@/lib/stripe";
 import type { SubscriptionStatus } from "@/lib/database.types";
 import {
   FREE_PLAN,
-  PLUS_HST_NOTE,
+  PLUS_TAXES_NOTE,
   PRICING_PLANS,
   formatCadPrice,
   formatPerMonthEquivalent,
@@ -148,7 +148,7 @@ export function PricingCards({
                 <CardDescription>{plan.description}</CardDescription>
                 <p className="pt-2 text-3xl font-bold">
                   {formatCadPrice(price, billingInterval)}{" "}
-                  <span className="text-sm font-normal text-muted-foreground">{PLUS_HST_NOTE}</span>
+                  <span className="text-sm font-normal text-muted-foreground">{PLUS_TAXES_NOTE}</span>
                 </p>
                 {billingInterval === "yearly" && (
                   <p className="-mt-2 text-xs text-muted-foreground">

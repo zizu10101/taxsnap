@@ -45,7 +45,7 @@ test("the terms cover the required topics", () => {
     /AI can be wrong/,
     /Free and Pro plans/,
     /Created with TaxSnap/,
-    /plus HST/,
+    /plus applicable taxes/,
     /Limitation of liability/,
     /Termination/,
     /Changes to these terms/,
