@@ -18,6 +18,9 @@ import type { OwnerNotice } from "@/lib/online-refunds";
 import { recordStripeFeeExpense } from "@/lib/stripe-fee-expense";
 
 export const runtime = "nodejs";
+// After saving a payment this route can wait up to ~7 s for Stripe to attach the fee (readFeeWithRetry in
+// online-payments.ts), plus the receipt email and Stripe reads. Well inside 30 s.
+export const maxDuration = 30;
 
 // Events from CONNECTED ACCOUNTS (the endpoint's scope must be "Connected accounts"),
 // signed with its own secret. The platform's own subscription events keep going to
