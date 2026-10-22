@@ -31,7 +31,7 @@ export default async function PublicInvoicePage({
   const { data: invoice } = await supabase
     .from("documents")
     // Explicit columns, never "*": this page is public, and documents carries owner-only fields.
-    .select("user_id, status, payment_disputed, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, payments(amount), items:document_items(*), client:clients(*), job:jobs(name)")
+    .select("user_id, status, payment_disputed, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, payments(amount), items:document_items(*), client:clients(name, email, address), job:jobs(name)")
     .eq("view_token", token)
     .eq("type", "invoice")
     .maybeSingle();

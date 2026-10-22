@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { normalizePhone } from "@/lib/client-phone";
 import { wouldExceedTotalLimit, limitReachedMessage } from "@/lib/plan-limits";
 import {
   findClientByName,
@@ -30,10 +31,14 @@ export async function POST(request: Request) {
   const { supabase, user } = result;
 
   const body = await request.json();
-  const { name, email, address } = body ?? {};
+  const { name, email, address, phone } = body ?? {};
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Client name is required." }, { status: 400 });
+  }
+  const phoneResult = normalizePhone(phone);
+  if (!phoneResult.ok) {
+    return NextResponse.json({ error: phoneResult.error }, { status: 400 });
   }
 
   if (await findClientByName(supabase, user.id, name)) {
@@ -56,6 +61,7 @@ export async function POST(request: Request) {
       name: name.trim(),
       email: email?.trim() || null,
       address: address?.trim() || null,
+      phone: phoneResult.value,
     })
     .select()
     .single();

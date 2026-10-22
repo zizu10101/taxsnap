@@ -10,7 +10,7 @@ export function clientSearchFields(c: {
   name: string;
   email?: string | null;
   address?: string | null;
-  phone?: string | null; // not a column today; searched if one is added
+  phone?: string | null;
 }): SearchField[] {
   return [c.name, c.email, c.phone, c.address];
 }

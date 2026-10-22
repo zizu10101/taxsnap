@@ -277,6 +277,8 @@ export interface Database {
           name: string;
           email: string | null;
           address: string | null;
+          // Migration 0072. Internal contact info: never on a document, PDF, public page, portal, email or export.
+          phone: string | null;
           created_at: string;
         };
         Insert: {
@@ -286,6 +288,7 @@ export interface Database {
           name: string;
           email?: string | null;
           address?: string | null;
+          phone?: string | null;
           created_at?: string;
         };
         Update: {
@@ -295,6 +298,7 @@ export interface Database {
           name?: string;
           email?: string | null;
           address?: string | null;
+          phone?: string | null;
           created_at?: string;
         };
         Relationships: [];

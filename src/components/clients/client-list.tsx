@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Users } from "lucide-react";
+import { Pencil, Plus, Upload, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
+import { ImportClientsDialog } from "@/components/clients/import-clients-dialog";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
 import {
   ClientWorkstation,
@@ -46,6 +47,7 @@ export function ClientList({
   const router = useRouter();
   const [clients, setClients] = useSyncedState(initialClients);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   // Search text is its own state (never a prop default), and filters rows already loaded.
   const [query, setQuery] = useState("");
@@ -72,6 +74,10 @@ export function ClientList({
         <Button className="w-full" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           New client
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => setImportOpen(true)}>
+          <Upload className="h-4 w-4" />
+          Import clients
         </Button>
 
         {clients.length === 0 ? (
@@ -154,10 +160,16 @@ export function ClientList({
       </div>
 
       <div className="hidden lg:block">
-        <Button className="mb-3 w-full max-w-xs" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New client
-        </Button>
+        <div className="mb-3 flex max-w-md gap-2">
+          <Button className="flex-1" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New client
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Import clients
+          </Button>
+        </div>
         {clients.length > 0 && visibleClients.length === 0 ? (
           <NoSearchResults query={query} onClear={() => setQuery("")} />
         ) : (
@@ -178,6 +190,8 @@ export function ClientList({
             if (!open) setEditingClient(null);
           }}
           client={editingClient}
+          hasPortalLogin={portalClientIds.includes(editingClient.id)}
+          onDeleted={(id) => setClients((prev) => prev.filter((c) => c.id !== id))}
           onSaved={(saved) =>
             setClients((prev) =>
               prev.map((c) => (c.id === saved.id ? saved : c)).sort((a, b) => a.name.localeCompare(b.name)),
@@ -185,6 +199,14 @@ export function ClientList({
           }
         />
       )}
+
+      <ImportClientsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={(added) =>
+          setClients((prev) => [...prev, ...added].sort((a, b) => a.name.localeCompare(b.name)))
+        }
+      />
 
       <NewClientDialog
         open={dialogOpen}

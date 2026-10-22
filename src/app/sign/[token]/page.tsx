@@ -24,7 +24,7 @@ export default async function SignEstimatePage({
   const { data: estimate } = await supabase
     .from("documents")
     // Explicit columns, never "*": this page is public, and documents carries owner-only fields.
-    .select("user_id, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, signed_at, items:document_items(*), client:clients(*), job:jobs(name)")
+    .select("user_id, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, place_of_work, notes, signed_at, items:document_items(*), client:clients(name, email, address), job:jobs(name)")
     .eq("sign_token", token)
     .eq("type", "estimate")
     .maybeSingle();

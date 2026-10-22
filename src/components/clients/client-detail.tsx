@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
-import { Mail, MapPin, Pencil, Receipt } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, MapPin, Pencil, Phone, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
 import { ClientPortalAccess } from "@/components/clients/client-portal-access";
 import { formatDocumentNumber } from "@/lib/document-number";
+import { telHref } from "@/lib/client-phone";
 import type { Client, DocumentStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
 
@@ -65,6 +67,7 @@ export function ClientDetail({
 }) {
   const [client, setClient] = useSyncedState(initialClient);
   const [editOpen, setEditOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="space-y-4">
@@ -84,6 +87,14 @@ export function ClientDetail({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">No email on file.</p>
+            )}
+            {client.phone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="h-4 w-4 shrink-0" />
+                <a href={telHref(client.phone)} className="truncate hover:text-foreground hover:underline">
+                  {client.phone}
+                </a>
+              </div>
             )}
             {client.address && (
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -190,6 +201,8 @@ export function ClientDetail({
         onOpenChange={setEditOpen}
         client={client}
         onSaved={setClient}
+        hasPortalLogin={portalLinkToken !== null}
+        onDeleted={() => router.push("/dashboard/clients")}
       />
     </div>
   );

@@ -13,6 +13,7 @@ import { getEmptyClientSummary } from "@/lib/client-summary";
 import type { Client, DocumentStatus } from "@/lib/database.types";
 import type { ClientSummary } from "@/lib/client-summary";
 import { LineLabel } from "@/components/invoices/line-label";
+import { telHref } from "@/lib/client-phone";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 
 function formatCurrency(amount: number) {
@@ -186,6 +187,11 @@ function ClientPreviewPanel({
             <p className="truncate text-xs text-muted-foreground">
               {[client.email, client.address].filter(Boolean).join(" · ")}
             </p>
+          )}
+          {client.phone && (
+            <a href={telHref(client.phone)} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+              {client.phone}
+            </a>
           )}
         </div>
 

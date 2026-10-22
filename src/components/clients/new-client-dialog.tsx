@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Client } from "@/lib/database.types";
 import { showUpgradePrompt } from "@/lib/upgrade-prompt";
+import { CLIENT_PHONE_MAX_LENGTH } from "@/lib/client-phone";
 
 // Standalone counterpart to the "+ Add new client" fields embedded inline
 // in DocumentBuilder (invoices/document-builder.tsx) - same three fields,
@@ -38,6 +39,7 @@ export function NewClientDialog({
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -53,7 +55,7 @@ export function NewClientDialog({
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, address }),
+        body: JSON.stringify({ name, email, phone, address }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -72,6 +74,7 @@ export function NewClientDialog({
       router.refresh();
       setName("");
       setEmail("");
+      setPhone("");
       setAddress("");
       onOpenChange(false);
     } catch (err) {
@@ -105,6 +108,16 @@ export function NewClientDialog({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-client-phone">Phone (optional)</Label>
+            <Input
+              id="new-client-phone"
+              type="tel"
+              maxLength={CLIENT_PHONE_MAX_LENGTH}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">

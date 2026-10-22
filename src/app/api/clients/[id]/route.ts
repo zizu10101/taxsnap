@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
+import { normalizePhone } from "@/lib/client-phone";
+import { handleClientDelete } from "@/lib/client-delete-server";
 import type { ClientUpdate } from "@/lib/database.types";
 import {
   findClientByName,
@@ -7,10 +9,7 @@ import {
   isUniqueViolation,
 } from "@/lib/find-by-name";
 
-// Editing a client's contact info - no delete route exists, same
-// no-delete-UI choice already made for jobs/employees (client_id on
-// documents is "on delete set null" so a delete would be schema-safe, but
-// there's no product need for it yet, matching the rest of the app).
+// Editing a client's contact info. Delete is below (only for a client with no records).
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -23,7 +22,7 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json();
-  const { name, email, address } = body ?? {};
+  const { name, email, address, phone } = body ?? {};
 
   const update: ClientUpdate = {};
   if (name !== undefined) {
@@ -37,6 +36,13 @@ export async function PATCH(
   }
   if (email !== undefined) update.email = email?.trim() || null;
   if (address !== undefined) update.address = address?.trim() || null;
+  if (phone !== undefined) {
+    const phoneResult = normalizePhone(phone);
+    if (!phoneResult.ok) {
+      return NextResponse.json({ error: phoneResult.error }, { status: 400 });
+    }
+    update.phone = phoneResult.value;
+  }
 
   const { data, error } = await supabase
     .from("clients")
@@ -51,4 +57,20 @@ export async function PATCH(
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ client: data });
+}
+
+// Deletes a client that nothing points at. A client with invoices, estimates or jobs answers 409 with the
+// counts (rules and reasons in lib/client-delete-server.ts).
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await requireUser();
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  const { id } = await params;
+
+  const { status, body } = await handleClientDelete(result.supabase, result.user.id, id);
+  return NextResponse.json(body, { status });
 }
