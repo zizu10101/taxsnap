@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isOnlinePaymentsEnabled } from "@/lib/online-payments-config";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
 import { connectAppUrl, createOnboardingLink, getConnectStripe } from "@/lib/stripe-connect";
 
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     NextResponse.redirect(
       new URL(`/dashboard/settings?stripe=${flag}${code ? `&code=${encodeURIComponent(code)}` : ""}`, appUrl),
     );
+
+  if (!isOnlinePaymentsEnabled(user.email)) return settings("error");
 
   const connect = getConnectStripe();
   if ("error" in connect) return settings("error");

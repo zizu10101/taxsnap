@@ -14,6 +14,7 @@ import {
 import { RedoSetupButton } from "@/components/settings/redo-setup-button";
 import { BusinessProfileCard } from "@/components/invoices/business-profile-card";
 import { OnlinePaymentsCard } from "@/components/settings/online-payments-card";
+import { isOnlinePaymentsEnabled } from "@/lib/online-payments-config";
 import type { ConnectStatus } from "@/lib/connect-status";
 import {
   NavigationSettings,
@@ -184,7 +185,7 @@ export default async function SettingsPage({
           pendingChangeEffectiveAt={profile?.pending_change_effective_at ?? null}
         />
 
-        {isGeneral && (
+        {isGeneral && isOnlinePaymentsEnabled(user.email) && (
           <OnlinePaymentsCard
             status={(profile?.stripe_connect_status ?? "not_connected") as ConnectStatus}
             returnFlag={stripeFlag ?? null}

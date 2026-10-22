@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/require-pro";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
+import {
+  isOnlinePaymentsEnabled,
+  ONLINE_PAYMENTS_UNAVAILABLE_CODE,
+  ONLINE_PAYMENTS_UNAVAILABLE_MESSAGE,
+} from "@/lib/online-payments-config";
 import { TERMS_REQUIRED_CODE, TERMS_REQUIRED_MESSAGE, termsDecision } from "@/lib/online-payments-terms";
 import { connectAppUrl, createConnectedAccount, createOnboardingLink, getConnectStripe } from "@/lib/stripe-connect";
 
@@ -16,6 +21,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
   const { supabase, user } = result;
+
+  if (!isOnlinePaymentsEnabled(user.email)) {
+    return NextResponse.json(
+      { error: ONLINE_PAYMENTS_UNAVAILABLE_MESSAGE, code: ONLINE_PAYMENTS_UNAVAILABLE_CODE },
+      { status: 403 },
+    );
+  }
 
   const body = await request.json().catch(() => null);
 
