@@ -166,6 +166,20 @@ function scrubException(exception: unknown): unknown {
   };
 }
 
+// contexts are scrubbed like any other free-form data EXCEPT the trace context: its trace_id is 32
+// hex characters, which the long-token rule would turn into "[token]" - an invalid id that Sentry's
+// ingest can refuse, so the whole event is lost. Its ids are kept; only its data is cut down.
+function scrubContexts(contexts: unknown): unknown {
+  if (!contexts || typeof contexts !== "object") return contexts;
+  const { trace, ...rest } = contexts as Obj;
+  const out = scrubValue(rest) as Obj;
+  if (trace && typeof trace === "object") {
+    const t = trace as Obj;
+    out.trace = { ...t, data: scrubSpanData(t.data), description: undefined };
+  }
+  return out;
+}
+
 // beforeSend for error events. Returns null to drop the event.
 export function scrubEvent<T extends object>(input: T, hint?: unknown): T | null {
   const event = input as unknown as Obj;
@@ -191,7 +205,7 @@ export function scrubEvent<T extends object>(input: T, hint?: unknown): T | null
       .filter((b): b is Obj => b !== null);
   }
   if (event.extra) event.extra = scrubValue(event.extra);
-  if (event.contexts) event.contexts = scrubValue(event.contexts);
+  if (event.contexts) event.contexts = scrubContexts(event.contexts);
 
   delete event.server_name;
   delete event.modules;
@@ -315,6 +329,9 @@ export function buildSentryOptions(env: SentryEnv): Obj | null {
     release: config.release,
     sendDefaultPii: false,
     tracesSampleRate: TRACES_SAMPLE_RATE,
+    // v11 streams spans by default and then IGNORES beforeSendTransaction, which would send span
+    // data unscrubbed. 'static' sends whole transactions, so scrubTransaction really runs.
+    traceLifecycle: "static",
     // no profiling, no session replay: neither profilesSampleRate nor replayIntegration is set
     ignoreErrors: IGNORE_ERRORS,
     maxBreadcrumbs: 30,

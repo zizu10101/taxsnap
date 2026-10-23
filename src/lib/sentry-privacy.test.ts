@@ -139,6 +139,24 @@ test("scrubEvent strips request data, user details, breadcrumb bodies and PII st
   }
 });
 
+test("the trace context keeps its ids (a mangled trace_id loses the whole event) but loses its data", () => {
+  const traceId = "4e295bb56e5f44bd96247a765f10066b";
+  const e = scrubEvent({
+    message: "x",
+    contexts: {
+      trace: { trace_id: traceId, span_id: "b67ca39ff0e55909", op: "http.server", data: { "url.full": "https://x/?a=b@c.co", "sentry.op": "http.server" } },
+      runtime: { name: "node", version: "v25.7.0" },
+    },
+  }) as Obj;
+  assert.equal(e.contexts.trace.trace_id, traceId);
+  assert.equal(e.contexts.trace.span_id, "b67ca39ff0e55909");
+  assert.deepEqual(e.contexts.trace.data, { "sentry.op": "http.server" });
+  assert.deepEqual(e.contexts.runtime, { name: "node", version: "v25.7.0" });
+  // an ordinary long token elsewhere in contexts is still scrubbed
+  const o = scrubEvent({ contexts: { custom: { id: "Zk3nQ8vL2mXp9RtY4wBc7HdA1234567890" } } }) as Obj;
+  assert.equal(o.contexts.custom.id, "[token]");
+});
+
 test("scrubEvent attaches no user when there is no id", () => {
   const e = scrubEvent({ user: { email: "a@b.co", username: "x" } })!;
   assert.equal((e as Obj).user, undefined);
@@ -193,6 +211,23 @@ test("a Stripe webhook failure is never dropped, even with a 4xx status", () => 
   assert.equal(shouldDropEvent({ tags: { stripe_webhook: "failed" }, contexts: { response: { status_code: 400 } } }), false);
 });
 
+test("the exact failed-signature event survives the scrubber intact", () => {
+  const out = scrubEvent(
+    {
+      exception: { values: [{ type: "Error", value: "/api/stripe/connect-webhook: Stripe webhook signature check failed" }] },
+      level: "error",
+      tags: { route: "/api/stripe/connect-webhook", stripe_webhook: "failed", webhook_stage: "signature", stripe_event_type: "unverified", stripe_event_id: "unverified" },
+      contexts: { trace: { trace_id: "4e295bb56e5f44bd96247a765f10066b", span_id: "b67ca39ff0e55909" } },
+      request: { method: "POST", url: "http://127.0.0.1:3111/api/stripe/connect-webhook" },
+    },
+    { originalException: new Error("/api/stripe/connect-webhook: Stripe webhook signature check failed") },
+  ) as Obj;
+  assert.ok(out, "not dropped");
+  assert.equal(out.exception.values[0].value, "/api/stripe/connect-webhook: Stripe webhook signature check failed");
+  assert.equal(out.tags.stripe_webhook, "failed");
+  assert.equal(out.contexts.trace.trace_id, "4e295bb56e5f44bd96247a765f10066b");
+});
+
 // ------------------------------------------------------------------ configuration
 
 test("no DSN means Sentry does nothing at all", () => {
@@ -221,6 +256,7 @@ test("production options: no PII, no replay, no profiling, 5% tracing, scrubbers
   const options = buildSentryOptions({ dsn: DSN, vercelEnv: "production", release: "sha1" })!;
   assert.equal(options.sendDefaultPii, false);
   assert.equal(options.tracesSampleRate, TRACES_SAMPLE_RATE);
+  assert.equal(options.traceLifecycle, "static", "otherwise beforeSendTransaction is ignored and spans go out unscrubbed");
   assert.equal(TRACES_SAMPLE_RATE, 0.05);
   assert.equal(options.environment, "production");
   assert.equal(options.release, "sha1");
