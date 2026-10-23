@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { LegalList, LegalPage, LegalSection } from "@/components/legal/legal-page";
 import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, PRIVACY_LAST_UPDATED, PRIVACY_VERSION } from "@/lib/legal-versions";
 
-// Reviewed and approved by counsel. Indexed and in the sitemap (a test pins both).
+// Counsel reviewed this page on 2026-10-22, except the Sentry and Gemini paragraphs (section 3), which
+// await review. Indexed and in the sitemap (a test pins both).
 export const metadata: Metadata = {
   title: "Privacy Policy — TaxSnap",
   description: "How TaxSnap handles your information.",
@@ -55,11 +56,15 @@ export default function PrivacyPage() {
           items={[
             <span key="s"><strong>Supabase</strong> (database, sign-in, file storage): holds all of the account data above, including receipt images, logos and site photos, in private storage.</span>,
             <span key="v"><strong>Vercel</strong> (hosting): runs the app and handles requests, so it processes everything you send to TaxSnap in transit, and keeps server logs.</span>,
-            <span key="g"><strong>Google (Gemini AI)</strong>: when you scan a receipt, the receipt image is sent to Google{"’"}s Gemini service to read it, and the extracted fields come back. We do not send your name or account details with the image. We have not set any option about how Google may use submitted content; see Google{"’"}s terms for the Gemini API.</span>,
+            <span key="g"><strong>Google (Gemini AI)</strong>: when you scan a receipt, the receipt image is sent to Google{"’"}s Gemini service to read it, and the extracted fields come back. We do not send your name or account details with the image. When you scan a receipt, the image is sent to Google{"’"}s Gemini API under Google{"’"}s paid service terms. Under those terms, Google does not use submitted content to improve its products. Google may keep request logs for a limited period to detect abuse and meet legal requirements, and may process data in any country where it operates.</span>,
             <span key="st"><strong>Stripe</strong>: processes TaxSnap subscription payments (your billing details are with Stripe) and, if you use Online payments, your clients{"’"} card payments to your own Stripe account. Stripe has its own privacy policy.</span>,
+            <span key="sn"><strong>Sentry</strong> (error monitoring): receives technical error reports, as described in the paragraph below.</span>,
             <span key="r"><strong>Resend</strong> (email): delivers emails TaxSnap sends: invoices and estimates to your clients, payment receipts, and notices to you. It sees the recipient, subject and content of those emails.</span>,
           ]}
         />
+        <p>
+          We use Sentry (data stored in the United States) to detect and fix errors in the app. Error reports are limited to technical details and are filtered to remove request contents, cookies and recognizable personal identifiers such as email addresses and phone numbers. Rarely, other text that appears in an error message could remain in a report.
+        </p>
         <p>
           Beyond these providers, we share information only where you direct it (for example, when you send an invoice, share a
           link, or give an employee, client or accountant access), where required by law, or in a sale or reorganisation of

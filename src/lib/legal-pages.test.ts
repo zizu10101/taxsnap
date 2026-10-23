@@ -65,10 +65,25 @@ test("the terms cover the required topics", () => {
 });
 
 test("the privacy policy names the real providers, PIPEDA, and says what the code supports", () => {
-  for (const t of [/Supabase/, /Vercel/, /Gemini/, /Stripe/, /Resend/, /PIPEDA/, /under 18/, /Commissioner/]) {
+  for (const t of [/Supabase/, /Vercel/, /Gemini/, /Stripe/, /Resend/, /Sentry/, /PIPEDA/, /under 18/, /Commissioner/]) {
     assert.match(privacy, t);
   }
   assert.match(privacy, /do not use advertising or analytics cookies/);
+});
+
+test("the privacy policy describes Sentry error monitoring and the Gemini paid-terms wording", () => {
+  const flat = privacy.replace(/\s+/g, " ");
+  const has = (text: string) => assert.ok(flat.includes(text), "missing: " + text);
+  has("<strong>Sentry</strong> (error monitoring)");
+  has("We use Sentry (data stored in the United States) to detect and fix errors in the app.");
+  has("filtered to remove request contents, cookies and recognizable personal identifiers such as email addresses and phone numbers.");
+  has("Rarely, other text that appears in an error message could remain in a report.");
+  has('When you scan a receipt, the image is sent to Google{"’"}s Gemini API under Google{"’"}s paid service terms.');
+  has("Google does not use submitted content to improve its products.");
+  has("and may process data in any country where it operates.");
+  assert.ok(!flat.includes("We have not set any option about how Google may use submitted content"));
+  // the claim about trackers stays limited to advertising and analytics
+  has("We do not use advertising or analytics cookies or trackers in the app.");
 });
 
 test("statement import is not described yet (re-add at launch)", () => {
