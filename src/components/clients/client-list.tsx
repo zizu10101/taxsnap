@@ -7,6 +7,7 @@ import { Pencil, Plus, Upload, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OpenRowLink } from "@/components/ui/open-row-link";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { ImportClientsDialog } from "@/components/clients/import-clients-dialog";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
@@ -150,6 +151,13 @@ export function ClientList({
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Button>
+                      <OpenRowLink
+                        href={`/dashboard/clients/${client.id}`}
+                        kind="client"
+                        name={client.name}
+                        iconOnly
+                        className="px-1"
+                      />
                     </div>
                   </CardContent>
                 </Card>

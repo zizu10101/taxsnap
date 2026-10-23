@@ -7,6 +7,7 @@ import { Briefcase, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { OpenRowLink } from "@/components/ui/open-row-link";
 import { NewJobDialog } from "@/components/jobs/new-job-dialog";
 import { JobWorkstation } from "@/components/jobs/job-workstation";
 import { EditJobDialog } from "@/components/jobs/edit-job-dialog";
@@ -98,6 +99,13 @@ export function JobList({
                     </Badge>
                   )}
                 </p>
+                <OpenRowLink
+                  href={`/dashboard/jobs/${job.id}`}
+                  kind="job"
+                  name={job.name}
+                  iconOnly
+                  className="ml-auto px-1"
+                />
               </CardContent>
             </Card>
           ))}

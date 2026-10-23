@@ -21,6 +21,7 @@ import type { UpdatedDocument } from "@/components/invoices/payment-form";
 import { canRecordPayment, COLLECT_BALANCE_LABEL, mergeUpdatedDocument } from "@/lib/payment-form";
 import { useSyncedState } from "@/lib/use-synced-state";
 import { invoiceDetailHref } from "@/lib/invoice-back";
+import { OpenRowLink } from "@/components/ui/open-row-link";
 import { LineLabel } from "@/components/invoices/line-label";
 import { formatQuantity, lineDescription, lineName } from "@/lib/line-format";
 import { ClientNotes } from "@/components/invoices/client-notes";
@@ -151,15 +152,22 @@ export function DocumentWorkstation({
                     {formatDate(doc.issue_date)}
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <span className="block text-sm font-semibold tabular-nums">
-                    {formatCurrency(doc.total_amount)}
-                  </span>
-                  {doc.status === "partial" && (
-                    <span className="block text-[11px] text-muted-foreground tabular-nums">
-                      {formatCurrency(balanceDue)} due
+                <div className="flex shrink-0 items-center gap-1">
+                  <div className="text-right">
+                    <span className="block text-sm font-semibold tabular-nums">
+                      {formatCurrency(doc.total_amount)}
                     </span>
-                  )}
+                    {doc.status === "partial" && (
+                      <span className="block text-[11px] text-muted-foreground tabular-nums">
+                        {formatCurrency(balanceDue)} due
+                      </span>
+                    )}
+                  </div>
+                  <OpenRowLink
+                    href={doc.type === "invoice" ? invoiceDetailHref(doc.id, "invoices") : `${basePath}/${doc.id}`}
+                    kind={doc.type}
+                    name={formatDocumentNumber(doc.type, doc.document_number)}
+                  />
                 </div>
               </CardContent>
             </Card>

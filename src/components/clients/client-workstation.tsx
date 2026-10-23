@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OpenRowLink } from "@/components/ui/open-row-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatDocumentNumber } from "@/lib/document-number";
@@ -122,9 +123,12 @@ export function ClientWorkstation({
                     </p>
                   </div>
                 </div>
-                <span className="shrink-0 text-sm font-semibold text-success tabular-nums">
-                  {formatCurrency(summary.totalRevenue)}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-sm font-semibold text-success tabular-nums">
+                    {formatCurrency(summary.totalRevenue)}
+                  </span>
+                  <OpenRowLink href={`/dashboard/clients/${client.id}`} kind="client" name={client.name} />
+                </div>
               </CardContent>
             </Card>
           );

@@ -22,6 +22,8 @@ import { documentSearchFields } from "@/lib/list-search-fields";
 import { getPresetRange, rangeToUtcBounds } from "@/lib/date-range";
 import type { BusinessProfileFields } from "@/components/invoices/business-profile-dialog";
 import { invoiceDetailHref } from "@/lib/invoice-back";
+import { OpenRowLink } from "@/components/ui/open-row-link";
+import { formatDocumentNumber } from "@/lib/document-number";
 import { PAYMENT_DISPUTED_LABEL } from "@/lib/payment-kind";
 import {
   countInvoicesThisMonth,
@@ -352,6 +354,13 @@ export function DocumentList({
                           <ArrowRightLeft className="h-4 w-4" />
                         </Button>
                       ))}
+                    <OpenRowLink
+                      href={detailHref(doc.id)}
+                      kind={doc.type}
+                      name={formatDocumentNumber(doc.type, doc.document_number)}
+                      iconOnly
+                      className="px-1"
+                    />
                   </div>
                 </CardContent>
               </Card>

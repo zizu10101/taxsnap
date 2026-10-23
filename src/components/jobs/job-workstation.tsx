@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Briefcase, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OpenRowLink } from "@/components/ui/open-row-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -89,9 +90,12 @@ export function JobWorkstation({
                   <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <p className="truncate text-sm font-medium">{job.name}</p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatCurrency(summary.totalJobCost)}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-sm font-semibold tabular-nums">
+                    {formatCurrency(summary.totalJobCost)}
+                  </span>
+                  <OpenRowLink href={`/dashboard/jobs/${job.id}`} kind="job" name={job.name} />
+                </div>
               </CardContent>
             </Card>
           );
