@@ -5,6 +5,7 @@ import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressBillingList, type ProgressJobSummary } from "@/components/jobs/progress-billing-list";
@@ -167,6 +168,8 @@ export default async function ProgressBillingPage() {
         title="Progress Billing"
         subtitle="Track draws against a job's contract value."
       />
+
+      {isPro && <HowThisWorks tab="progress-billing" userId={user.id} empty={summaries.length === 0} />}
 
       {isPro ? (
         <ProgressBillingList

@@ -4,9 +4,26 @@
 // Deliberately no plan names, prices or usage limits (they change), and nothing about the card
 // statement import or the accountant tools (not available to everyone).
 
-export type HowToTab = "invoices" | "estimates" | "jobs" | "clients" | "expenses" | "reports";
+export type HowToTab =
+  | "invoices"
+  | "estimates"
+  | "jobs"
+  | "clients"
+  | "expenses"
+  | "reports"
+  | "employees"
+  | "progress-billing";
 
-export const HOW_TO_TABS: readonly HowToTab[] = ["invoices", "estimates", "jobs", "clients", "expenses", "reports"];
+export const HOW_TO_TABS: readonly HowToTab[] = [
+  "invoices",
+  "estimates",
+  "jobs",
+  "clients",
+  "expenses",
+  "reports",
+  "employees",
+  "progress-billing",
+];
 
 export const HOW_TO_STEPS: Record<HowToTab, readonly string[]> = {
   invoices: [
@@ -43,6 +60,18 @@ export const HOW_TO_STEPS: Record<HowToTab, readonly string[]> = {
     "Use P&L for your profit and Job Summary to see how each job did.",
     "Open Expenses to see spending by category, then tap Export CSV to save it.",
     "Open Revenue to see the payments you received in that range.",
+  ],
+  employees: [
+    "Tap New employee, enter a Name and Default pay rate, then tap Add employee.",
+    "Want them to clock in themselves? Tap Set PIN on their row.",
+    "Copy the Shared sign-in link and send it to your team.",
+    "Open Hours to see logged time. Use Close session if someone forgets to clock out.",
+  ],
+  "progress-billing": [
+    "Tap Start Progress Billing, pick the Job, enter the Contract value, then tap Start.",
+    "When a stage is done, tap New Draw, describe the work and tap Create invoice.",
+    "Tap Summary on a job to see Invoiced to Date and Remaining Balance.",
+    "When a draw is paid, open it and tap Record Payment.",
   ],
 };
 

@@ -19,7 +19,7 @@ beforeEach(() => resetChoiceMemoryForTests());
 
 test("every tab has 3 or 4 short steps, and the list of tabs is the list in the content file", () => {
   assert.deepEqual([...HOW_TO_TABS].sort(), Object.keys(HOW_TO_STEPS).sort());
-  assert.deepEqual([...HOW_TO_TABS], ["invoices", "estimates", "jobs", "clients", "expenses", "reports"]);
+  assert.deepEqual([...HOW_TO_TABS], ["invoices", "estimates", "jobs", "clients", "expenses", "reports", "employees", "progress-billing"]);
   for (const tab of HOW_TO_TABS) {
     const steps = HOW_TO_STEPS[tab];
     assert.ok(steps.length >= 3 && steps.length <= 4, `${tab} has ${steps.length} steps`);
@@ -53,6 +53,14 @@ test("steps use the button labels the screens really have", () => {
     "../components/dashboard/upload-receipt.tsx", // Upload Receipt, Review extracted data, Approve & Save
     "../components/dashboard/expenses-body.tsx", // Add Expense, From Template
     "../components/reports/reports-view.tsx", // P&L, Job Summary, Export CSV
+    "../components/employees/employee-list.tsx", // New employee
+    "../components/employees/employee-dialog.tsx", // Name, Default pay rate, Add employee
+    "../components/employees/employee-access-row.tsx", // Set PIN, Close session
+    "../components/employees/employee-login-link-card.tsx", // Shared sign-in link
+    "../components/employees/employees-nav.tsx", // Hours
+    "../components/jobs/progress-billing-list.tsx", // Start Progress Billing, New Draw, Summary, Invoiced to Date, Remaining Balance
+    "../components/jobs/start-progress-billing-dialog.tsx", // Job, Contract value, Start
+    "../components/invoices/document-builder.tsx", // New Progress Draw, What was completed for this draw
   ]
     .map(read)
     .join("\n");
@@ -72,12 +80,29 @@ test("steps use the button labels the screens really have", () => {
     "Job Summary",
     "Export CSV",
     "P&L",
+    "New employee",
+    "Default pay rate",
+    "Add employee",
+    "Set PIN",
+    "Shared sign-in link",
+    "Close session",
+    "Hours",
+    "Start Progress Billing",
+    "Contract value",
+    "New Draw",
+    "Summary",
+    "Invoiced to Date",
+    "Remaining Balance",
+    "What was completed for this draw",
   ]) {
     assert.ok(sources.includes(label), `no screen has "${label}"`);
   }
   assert.match(sources, /New \{label\}/);
   assert.match(sources, /Create \$\{?label\}?|`Create \$\{label\}`/);
   assert.match(sources, /Revenue/);
+  assert.ok(sources.includes('Create ${type === "invoice" ? "invoice" : "estimate"}'), "a draw is an invoice: Create invoice");
+  assert.ok(sources.includes('<Label htmlFor="progress-job">Job</Label>'));
+  assert.ok(sources.includes("Name</Label>"));
 });
 
 // ------------------------------------------------------------------ open-by-default rule
@@ -157,6 +182,8 @@ test("it is on the six tabs, and not on Settings, Admin or anything allowlisted"
     ["clients/page.tsx", "clients"],
     ["expenses/page.tsx", "expenses"],
     ["reports/page.tsx", "reports"],
+    ["employees/page.tsx", "employees"],
+    ["progress-billing/page.tsx", "progress-billing"],
   ]) {
     assert.match(read(dash + file), new RegExp(`<HowThisWorks tab="${tab}" userId=\\{user\\.id\\}`), file);
   }
@@ -176,4 +203,6 @@ test("it is on the six tabs, and not on Settings, Admin or anything allowlisted"
   }
   // Reports shows it only with the real report, not on the locked page
   assert.match(read(dash + "reports/page.tsx"), /isPro && initialData && initialJobs && <HowThisWorks/);
+  // Progress Billing likewise: never on the locked upgrade screen
+  assert.match(read(dash + "progress-billing/page.tsx"), /{isPro && <HowThisWorks tab="progress-billing"/);
 });

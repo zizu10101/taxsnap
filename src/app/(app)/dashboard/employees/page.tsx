@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
 import { EmployeeList } from "@/components/employees/employee-list";
 import { EmployeeLoginLinkCard } from "@/components/employees/employee-login-link-card";
 
@@ -66,6 +67,8 @@ export default async function EmployeesPage() {
         title="Employees"
         subtitle="Manage your team and their default hourly rates."
       />
+
+      <HowThisWorks tab="employees" userId={user.id} empty={(employees ?? []).length === 0} />
 
       {showLoginLink && (
         <EmployeeLoginLinkCard initialToken={loginSettings?.employee_login_token ?? null} />
