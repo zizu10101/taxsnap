@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
+
 import { ClientList } from "@/components/clients/client-list";
 import { buildClientSummaries } from "@/lib/client-summary";
 import type { ClientHistoryDoc } from "@/components/clients/client-workstation";
@@ -78,6 +80,8 @@ export default async function ClientsPage() {
         title="Clients"
         subtitle="Every client's invoice history in one place."
       />
+
+      <HowThisWorks tab="clients" userId={user.id} empty={(clients ?? []).length === 0} />
 
       <ClientList
         initialClients={clients ?? []}

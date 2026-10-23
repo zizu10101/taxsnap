@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
+
 import { ExpensesBody } from "@/components/dashboard/expenses-body";
 import { isStatementImportEnabled } from "@/lib/statement-config";
 
@@ -71,6 +73,8 @@ export default async function ExpensesPage({
         title="Expenses"
         subtitle="Every scanned receipt, filtered by date range."
       />
+
+      <HowThisWorks tab="expenses" userId={user.id} empty={(receipts ?? []).length === 0} />
 
       <ExpensesBody
         initialReceipts={receipts ?? []}

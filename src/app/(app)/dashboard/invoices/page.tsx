@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
+
 import { DocumentList } from "@/components/invoices/document-list";
 
 export const metadata: Metadata = {
@@ -53,6 +55,8 @@ export default async function InvoicesPage() {
           </Link>
         }
       />
+
+      <HowThisWorks tab="invoices" userId={user.id} empty={(documents ?? []).length === 0} />
 
       <DocumentList
         type="invoice"

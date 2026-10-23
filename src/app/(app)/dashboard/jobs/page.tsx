@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
+
 import { JobList } from "@/components/jobs/job-list";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
 
@@ -73,6 +75,8 @@ export default async function JobsPage() {
           </Link>
         }
       />
+
+      <HowThisWorks tab="jobs" userId={user.id} empty={(jobs ?? []).length === 0} />
 
       <JobList
         initialJobs={jobs ?? []}

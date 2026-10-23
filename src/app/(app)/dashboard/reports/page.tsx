@@ -5,6 +5,8 @@ import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BackToDashboardLink } from "@/components/dashboard/back-to-dashboard-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HowThisWorks } from "@/components/ui/how-this-works";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReportsView } from "@/components/reports/reports-view";
@@ -57,6 +59,8 @@ export default async function ReportsPage() {
         title="Reports"
         subtitle="Profit & loss, job summary, expenses by category, vendor and revenue."
       />
+
+      {isPro && initialData && initialJobs && <HowThisWorks tab="reports" userId={user.id} empty={false} />}
 
       {isPro && initialData && initialJobs ? (
         <ReportsView initialData={initialData} initialJobs={initialJobs} />
