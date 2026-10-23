@@ -515,7 +515,7 @@ test("the fee wording and Terms section 11", () => {
   const page = read("../app/terms/page.tsx");
   assert.match(page, /FEE_EXPENSE_HST_SENTENCE/);
   assert.doesNotMatch(page, /shown for information only/);
-  assert.equal(read("./legal-versions.ts").match(/TERMS_VERSION = "([^"]+)"/)?.[1], "2026-10-draft-3");
+  assert.equal(read("./legal-versions.ts").match(/TERMS_VERSION = "([^"]+)"/)?.[1], "2026-10-22");
   assert.match(read("../../docs/legal-drafts/lawyer-brief.md"), /Terms section 11 changed in draft 3/);
 });
 

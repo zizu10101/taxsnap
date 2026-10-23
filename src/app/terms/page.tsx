@@ -11,12 +11,10 @@ import {
   RESPONSIBILITY_SENTENCE,
 } from "@/lib/online-payments-terms";
 
-// DRAFT for a lawyer to review. Not indexed and not in the sitemap until that sign-off
-// (a test pins both). Facts come from the code; open questions are in docs/legal-drafts/lawyer-brief.md.
+// Reviewed and approved by counsel. Indexed and in the sitemap (a test pins both).
 export const metadata: Metadata = {
   title: "Terms of Service — TaxSnap",
   description: "The terms for using TaxSnap.",
-  robots: { index: false },
 };
 
 const pro = PRICING_PLANS[0];
@@ -115,7 +113,7 @@ export default function TermsPage() {
           consequential losses, lost profits or revenue, lost data, or penalties, interest or reassessments from any tax
           authority arising from your use of TaxSnap, and our total liability to you for any claim is limited to the
           greater of the amount you paid us for TaxSnap in the 12 months before the claim and CA$100. Nothing here limits liability that cannot be
-          limited by law. [Lawyer: confirm the cap and exclusions.]
+          limited by law.
         </p>
       </LegalSection>
 
@@ -193,7 +191,7 @@ export default function TermsPage() {
       <LegalSection title="12. Governing law">
         <p>
           These terms are governed by the laws of the Province of Ontario and the federal laws of Canada that apply there.
-          Disputes are for the courts of Ontario. [Lawyer: confirm forum wording.]
+          Disputes are for the courts of Ontario.
         </p>
       </LegalSection>
 

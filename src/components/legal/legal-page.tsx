@@ -23,9 +23,6 @@ export function LegalPage({
           <p>
             Last updated: {updated} (version {version})
           </p>
-          <p className="rounded-md border border-border bg-muted/40 p-3 text-xs">
-            Draft. This page is being reviewed and may change before it takes effect. It is not legal advice.
-          </p>
         </header>
         {children}
       </article>

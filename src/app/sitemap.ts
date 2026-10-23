@@ -20,6 +20,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/features`, lastModified: now },
     { url: `${BASE_URL}/faq`, lastModified: now },
     { url: `${BASE_URL}/how-to`, lastModified: now },
+    { url: `${BASE_URL}/terms`, lastModified: now },
+    { url: `${BASE_URL}/privacy`, lastModified: now },
     ...availableHowToVideos().map((video) => ({
       url: `${BASE_URL}/how-to/${video.slug}`,
       lastModified: now,

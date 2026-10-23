@@ -14,10 +14,18 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8"
 const terms = read("../app/terms/page.tsx");
 const privacy = read("../app/privacy/page.tsx");
 
-test("both legal pages are drafts: noindex, and not in the sitemap", () => {
-  for (const src of [terms, privacy]) assert.match(src, /robots: \{ index: false \}/);
+test("both legal pages are final: indexable, in the sitemap, and carry no draft or lawyer markers", () => {
+  for (const src of [terms, privacy]) assert.doesNotMatch(src, /robots:|index: false/);
   const sitemap = read("../app/sitemap.ts");
-  assert.doesNotMatch(sitemap, /\/terms|\/privacy/);
+  assert.match(sitemap, /\/terms`/);
+  assert.match(sitemap, /\/privacy`/);
+  for (const src of [terms, privacy, read("../components/legal/legal-page.tsx"), read("./online-payments-terms.ts")]) {
+    assert.doesNotMatch(src, /\[Lawyer|Draft\.|being reviewed|to be confirmed/i);
+  }
+  assert.match(TERMS_VERSION + PRIVACY_VERSION, /^2026-10-222026-10-22$/);
+  assert.doesNotMatch(TERMS_VERSION + PRIVACY_VERSION, /draft/i);
+  assert.equal(TERMS_LAST_UPDATED, "October 22, 2026");
+  assert.equal(PRIVACY_LAST_UPDATED, "October 22, 2026");
 });
 
 test("versions and dates exist and the pages show them", () => {

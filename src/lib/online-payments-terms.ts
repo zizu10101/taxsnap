@@ -1,7 +1,7 @@
 // The online-payments disclosure, in ONE place so the confirmation dialog, the Settings card,
 // the FAQ and the tests can not drift apart. Import-free so it can be unit-tested with
 // `node --test`. The wording is the owner's own; it is not legal advice - the Terms of Service
-// text that goes with it is a draft for a lawyer (docs/legal-drafts/).
+// text that goes with it (section 11) has been reviewed by counsel; internal working files are in docs/legal-drafts/.
 
 // The Stripe fee numbers, kept in one place. Stripe can change them: when it does, change them
 // here and re-check the draft terms (a test fails if the draft and these drift apart).

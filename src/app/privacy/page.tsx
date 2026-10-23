@@ -2,13 +2,10 @@ import type { Metadata } from "next";
 import { LegalList, LegalPage, LegalSection } from "@/components/legal/legal-page";
 import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, PRIVACY_LAST_UPDATED, PRIVACY_VERSION } from "@/lib/legal-versions";
 
-// DRAFT for a lawyer to review. Not indexed and not in the sitemap until that sign-off
-// (a test pins both). Every statement is based on the code; the file each came from and the
-// open questions are in docs/legal-drafts/lawyer-brief.md.
+// Reviewed and approved by counsel. Indexed and in the sitemap (a test pins both).
 export const metadata: Metadata = {
   title: "Privacy Policy — TaxSnap",
   description: "How TaxSnap handles your information.",
-  robots: { index: false },
 };
 
 const mail = (
