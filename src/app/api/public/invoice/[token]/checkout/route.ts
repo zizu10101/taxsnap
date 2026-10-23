@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   CHECKOUT_EXPIRES_SECONDS,
@@ -134,6 +135,7 @@ export async function POST(
     return NextResponse.json({ url: session.url });
   } catch (err) {
     logStripeError("public checkout create-session", err);
+    await captureRouteError("/api/public/invoice/[token]/checkout", err);
     return NextResponse.json(
       { error: "Could not start the payment. Please try again.", code: stripeErrorCode(err) },
       { status: 502 },

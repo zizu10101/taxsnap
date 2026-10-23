@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { createClient } from "@/lib/supabase/server";
 import { parseReceiptImage } from "@/lib/gemini";
 import { FREE_SCAN_LIMIT } from "@/lib/pricing-plans";
@@ -157,6 +158,7 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
+    await captureRouteError("/api/parse-receipt", uploadError, { step: "storage-upload" });
     return NextResponse.json(
       { error: `Failed to upload image: ${uploadError.message}` },
       { status: 500 },
@@ -193,6 +195,8 @@ export async function POST(request: Request) {
     await supabase.storage.from("receipts").remove([storagePath]);
 
     const { message, status } = describeParseFailure(err);
+    // Only the failure is reported (scrubbed); the receipt image and its fields never leave this route.
+    if (status >= 500) await captureRouteError("/api/parse-receipt", err);
     return NextResponse.json({ error: message }, { status });
   }
 }

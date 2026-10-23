@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { requireUser } from "@/lib/require-pro";
 import { limitReachedMessage, wouldExceedTotalLimit } from "@/lib/plan-limits";
 import {
@@ -64,7 +65,10 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
       .range(from, from + EXISTING_PAGE - 1);
-    if (error) return NextResponse.json({ error: SERVER_ERROR }, { status: 500 });
+    if (error) {
+      await captureRouteError("/api/clients/import", error, { step: "load-existing" });
+      return NextResponse.json({ error: SERVER_ERROR }, { status: 500 });
+    }
     existing.push(...(data ?? []));
     if ((data ?? []).length < EXISTING_PAGE) break;
   }
@@ -89,6 +93,7 @@ export async function POST(request: Request) {
           { status: 409 },
         );
       }
+      await captureRouteError("/api/clients/import", error, { step: "insert" });
       return NextResponse.json({ error: SERVER_ERROR }, { status: 500 });
     }
     clients = data ?? [];

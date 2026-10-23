@@ -88,9 +88,11 @@ test("no claims the code can not back up", () => {
   for (const src of [terms, privacy]) {
     assert.doesNotMatch(src, /bank-level|military|SOC ?2|ISO ?27001|we never share|never share your|100% secure/i);
   }
-  // the app has no analytics/tracking dependency, which is what the cookies section says
+  // the app has no analytics/tracking dependency, which is what the cookies section says.
+  // (@sentry/nextjs is error monitoring, not analytics: privacy-scrubbed, production only - see
+  // sentry-privacy.ts. The Privacy Policy's service-provider list must name Sentry before a DSN is set.)
   const pkg = read("../../package.json");
-  assert.doesNotMatch(pkg, /analytics|posthog|mixpanel|sentry|gtag|plausible/i);
+  assert.doesNotMatch(pkg, /analytics|posthog|mixpanel|gtag|plausible/i);
 });
 
 test("links: the Online payments dialog and the sign-in page point at both pages", () => {

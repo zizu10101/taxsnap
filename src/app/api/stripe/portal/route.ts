@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
     // letting the exception reach the client as an empty response body
     // (which showed up as "Unexpected end of JSON input" - a fetch()
     // caller doing res.json() on a body-less crash response).
+    await captureRouteError("/api/stripe/portal", err);
     const message = err instanceof Error ? err.message : "Failed to open billing portal";
     return NextResponse.json({ error: message }, { status: 502 });
   }

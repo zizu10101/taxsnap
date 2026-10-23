@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { createClient } from "@/lib/supabase/server";
 import { connectColumns } from "@/lib/connect-status";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
     return settings(columns.stripe_connect_status);
   } catch (err) {
     logStripeError("connect/return accounts.retrieve", err);
+    await captureRouteError("/api/stripe/connect/return", err);
     return settings("error", stripeErrorCode(err));
   }
 }

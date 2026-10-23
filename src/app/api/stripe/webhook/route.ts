@@ -3,6 +3,10 @@ import type Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getStripe, STRIPE_PRICE_IDS } from "@/lib/stripe";
 import type { BillingInterval, SubscriptionStatus } from "@/lib/database.types";
+import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
+import { captureStripeWebhookFailure } from "@/lib/sentry-capture";
+
+const ROUTE = "/api/stripe/webhook";
 
 export const runtime = "nodejs";
 
@@ -53,6 +57,7 @@ const NO_PENDING_CHANGE = {
 export async function POST(request: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "config", err: new Error("STRIPE_WEBHOOK_SECRET is not set") });
     return NextResponse.json(
       { error: "STRIPE_WEBHOOK_SECRET is not set" },
       { status: 500 },
@@ -67,12 +72,14 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, signature!, webhookSecret);
   } catch (err) {
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "signature", err });
     const message = err instanceof Error ? err.message : "Invalid signature";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const supabase = createAdminClient();
 
+  try {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -209,6 +216,12 @@ export async function POST(request: Request) {
 
     default:
       break;
+  }
+  } catch (err) {
+    // Stripe retries on a 500, as it did when this threw. Only the event's type and id are reported.
+    logStripeError(`webhook ${event.type} ${event.id}`, err);
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "processing", err, eventType: event.type, eventId: event.id });
+    return NextResponse.json({ error: "Processing failed", code: stripeErrorCode(err) }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

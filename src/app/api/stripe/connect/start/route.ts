@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { requireUser } from "@/lib/require-pro";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
 import {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: link.url });
   } catch (err) {
     logStripeError(`connect/start ${step}`, err);
+    await captureRouteError("/api/stripe/connect/start", err, { step });
     // Same generic text as always; the Stripe error CODE (no message) rides along so it shows in the Network tab.
     return NextResponse.json(
       { error: "Could not reach Stripe. Please try again.", code: stripeErrorCode(err) },

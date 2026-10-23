@@ -16,6 +16,9 @@ import {
 } from "@/lib/stripe-connect";
 import type { OwnerNotice } from "@/lib/online-refunds";
 import { recordStripeFeeExpense } from "@/lib/stripe-fee-expense";
+import { captureStripeWebhookFailure } from "@/lib/sentry-capture";
+
+const ROUTE = "/api/stripe/connect-webhook";
 
 export const runtime = "nodejs";
 // After saving a payment this route can wait up to ~7 s for Stripe to attach the fee (readFeeWithRetry in
@@ -47,17 +50,24 @@ async function notifyOwner(admin: ReturnType<typeof createAdminClient>, notice: 
 
 export async function POST(request: Request) {
   const connect = getConnectStripe();
-  if ("error" in connect) return NextResponse.json({ error: connect.error }, { status: 500 });
+  if ("error" in connect) {
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "config", err: new Error(connect.error) });
+    return NextResponse.json({ error: connect.error }, { status: 500 });
+  }
   const { stripe } = connect;
 
   const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
   if (!secret) {
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "config", err: new Error("STRIPE_CONNECT_WEBHOOK_SECRET is not set") });
     return NextResponse.json({ error: "STRIPE_CONNECT_WEBHOOK_SECRET is not set" }, { status: 500 });
   }
 
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
-  if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+  if (!signature) {
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "signature", err: new Error("Missing signature") });
+    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+  }
 
   let event: Stripe.Event;
   try {
@@ -65,6 +75,7 @@ export async function POST(request: Request) {
   } catch (err) {
     // The message names what was wrong with the signature header; it never contains the secret.
     logStripeError("connect-webhook constructEvent", err);
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "signature", err });
     return NextResponse.json({ error: "Invalid signature", code: stripeErrorCode(err) }, { status: 400 });
   }
 
@@ -113,6 +124,7 @@ export async function POST(request: Request) {
   } catch (err) {
     // The event stays unprocessed, so Stripe's retry will run it again.
     logStripeError(`connect-webhook ${event.type} ${event.id}`, err);
+    await captureStripeWebhookFailure({ route: ROUTE, stage: "processing", err, eventType: event.type, eventId: event.id });
     return NextResponse.json({ error: "Processing failed", code: stripeErrorCode(err) }, { status: 500 });
   }
 }

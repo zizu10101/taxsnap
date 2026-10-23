@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureRouteError } from "@/lib/sentry-capture";
 import { createClient } from "@/lib/supabase/server";
 import { isOnlinePaymentsEnabled } from "@/lib/online-payments-config";
 import { logStripeError, stripeErrorCode } from "@/lib/stripe-error";
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(link.url);
   } catch (err) {
     logStripeError("connect/refresh create-onboarding-link", err);
+    await captureRouteError("/api/stripe/connect/refresh", err);
     return settings("error", stripeErrorCode(err));
   }
 }
