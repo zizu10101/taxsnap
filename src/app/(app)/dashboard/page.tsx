@@ -75,6 +75,7 @@ export default async function DashboardPage() {
 
   const goals = storedGoals(profile?.onboarding_goals, profile?.onboarding_goal);
   const onboarding = {
+    userId: user.id,
     items: checklistItems(goals, {
       hasClient: (realClients ?? 0) > 0,
       invoiceSent: !!profile?.first_invoice_sent_at,

@@ -1,24 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Circle, Loader2, X } from "lucide-react";
+import { Check, ChevronRight, Circle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { checklistVisible, nextChecklistItem, type ChecklistItem } from "@/lib/onboarding";
+import { cn } from "@/lib/utils";
+import { nextChecklistItem, type ChecklistItem } from "@/lib/onboarding";
+import { readChoice, subscribeChoice, writeChoice } from "@/lib/how-this-works";
+import {
+  checklistStorageKey,
+  checklistSummary,
+  checklistView,
+  resolveChecklistExpanded,
+} from "@/lib/checklist-view";
 
-// The dashboard's "Get started" checklist plus the sample-data controls. The
-// checklist is dismissible and disappears once every item is done; the sample
+// Before hydration the server never reads storage, so the card renders collapsed (the same
+// rule as the "How this works" rows) and then settles on the remembered choice.
+const SERVER = "server" as const;
+
+// The dashboard's "Getting started" checklist plus the sample-data controls. The
+// checklist collapses to one line (remembered per user in the browser); once every
+// item is done it reads "You're all set" with a Dismiss button, which hides it for
+// good (profiles.checklist_dismissed_at, the same flag the old X set); the sample
 // banner stays for as long as sample rows exist, so they can always be removed.
 // No upgrade prompt belongs here - the first minutes are for getting a first
 // invoice or receipt done.
 export function GettingStarted({
+  userId,
   items,
   dismissedAt,
   sampleExists,
 }: {
+  userId: string;
   items: ChecklistItem[];
   dismissedAt: string | null;
   sampleExists: boolean;
@@ -27,8 +43,19 @@ export function GettingStarted({
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState<"dismiss" | "add-sample" | "remove-sample" | null>(null);
 
-  const showChecklist = !hidden && checklistVisible(items, dismissedAt);
   const doneCount = items.filter((i) => i.done).length;
+  const storageKey = checklistStorageKey(userId);
+  const stored = useSyncExternalStore(
+    subscribeChoice,
+    () => readChoice(storageKey) ?? "none",
+    () => SERVER,
+  );
+  const expanded = stored === SERVER ? false : resolveChecklistExpanded(stored === "none" ? null : stored);
+  const view = hidden
+    ? "hidden"
+    : checklistView({ total: items.length, done: doneCount, dismissedAt, expanded });
+  const showChecklist = view !== "hidden";
+  const panelId = `${useId()}-checklist`;
   const next = nextChecklistItem(items);
 
   async function dismiss() {
@@ -90,24 +117,46 @@ export function GettingStarted({
 
       {showChecklist && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-base">
-              Get started{" "}
-              <span className="text-sm font-normal text-muted-foreground tabular-nums">
-                {doneCount} of {items.length}
-              </span>
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Close checklist"
-              disabled={busy !== null}
-              onClick={dismiss}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+          <CardHeader className="pb-2">
+            {view === "all-set" ? (
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Check className="h-5 w-5 text-success" />
+                  You&apos;re all set
+                </CardTitle>
+                <Button size="sm" disabled={busy !== null} onClick={dismiss}>
+                  {busy === "dismiss" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Dismiss
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-expanded={view === "expanded"}
+                aria-controls={panelId}
+                onClick={() => writeChoice(storageKey, view === "expanded" ? "closed" : "open")}
+                className="flex min-h-10 w-full items-center justify-between gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <CardTitle className="text-base">
+                  {view === "collapsed" ? (
+                    <span className="tabular-nums">{checklistSummary(doneCount, items.length)}</span>
+                  ) : (
+                    <>
+                      Getting started{" "}
+                      <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                        {doneCount} of {items.length}
+                      </span>
+                    </>
+                  )}
+                </CardTitle>
+                <ChevronRight
+                  className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", view === "expanded" && "rotate-90")}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent id={panelId} className="space-y-3" hidden={view !== "expanded"}>
             {/* The first thing left to do, as one large button. Nothing is started for
                 them: an invoice opens only when this is pressed. */}
             {next && (

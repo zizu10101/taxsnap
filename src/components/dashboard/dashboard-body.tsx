@@ -60,7 +60,7 @@ export function DashboardBody({
   // Threaded into HstSummaryCard to gate manual sales entry (a capped
   // monthly count on Free for general-business accounts; unrestricted for salon).
   subscriptionStatus: SubscriptionStatus;
-  onboarding?: { items: ChecklistItem[]; dismissedAt: string | null; sampleExists: boolean };
+  onboarding?: { userId: string; items: ChecklistItem[]; dismissedAt: string | null; sampleExists: boolean };
   // Passed straight through to ReceiptsList's accountant export bundle,
   // which needs it to render invoice PDFs the same way the invoice detail
   // page/PDF download already do - nothing on this page itself displays
@@ -191,6 +191,7 @@ export function DashboardBody({
 
       {onboarding && (
         <GettingStarted
+          userId={onboarding.userId}
           items={onboarding.items}
           dismissedAt={onboarding.dismissedAt}
           sampleExists={onboarding.sampleExists}

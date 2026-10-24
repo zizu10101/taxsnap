@@ -136,9 +136,10 @@ export function checklistItems(goals: readonly OnboardingGoal[], state: Checklis
   return keys.map((key) => ({ key, ...LABELS[key], done: done[key] }));
 }
 
-// Shown until the owner dismisses it or every item is done.
+// Shown until the owner dismisses it. When every item is done it stays, as "all set"
+// with a Dismiss button; an account that closed it with the old X stays dismissed.
 export function checklistVisible(items: ChecklistItem[], dismissedAt: string | null): boolean {
-  return !dismissedAt && items.some((i) => !i.done);
+  return !dismissedAt && items.length > 0;
 }
 
 // The item the dashboard highlights with one big button: the first not done.

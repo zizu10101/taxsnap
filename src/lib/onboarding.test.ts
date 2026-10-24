@@ -93,7 +93,8 @@ test("progress, the highlighted next item, and when the card hides", () => {
   assert.equal(checklistVisible(partial, "2026-10-20T00:00:00Z"), false);
   const finished = checklistItems(["invoices", "expenses"], { hasClient: true, invoiceSent: true, receiptSaved: true });
   assert.equal(nextChecklistItem(finished), null);
-  assert.equal(checklistVisible(finished, null), false);
+  assert.equal(checklistVisible(finished, null), true); // "all set" until dismissed
+  assert.equal(checklistVisible(finished, "2026-10-20T00:00:00Z"), false);
   assert.equal(checklistItems(["job_profit"], { ...none, hasJob: true })[0].done, true);
 });
 
