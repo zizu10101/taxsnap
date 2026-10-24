@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { CircleHelp, Lock, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +79,9 @@ export function DashboardTopBar({
                 Upgrade
               </Button>
             )}
+            <Button variant="outline" size="icon-sm" title="Help" aria-label="Help" nativeButton={false} render={<Link href="/dashboard/help" />}>
+              <CircleHelp className="h-4 w-4" />
+            </Button>
             <Button variant="outline" size="icon-sm" title="Settings" nativeButton={false} render={<Link href="/dashboard/settings" />}>
               <Settings className="h-4 w-4" />
             </Button>

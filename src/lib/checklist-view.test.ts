@@ -4,6 +4,7 @@ import {
   checklistStorageKey,
   checklistSummary,
   checklistView,
+  reopenChecklistChoice,
   resolveChecklistExpanded,
 } from "./checklist-view.ts";
 import { readChoice, resetChoiceMemoryForTests, writeChoice } from "./how-this-works.ts";
@@ -67,4 +68,18 @@ test("the choice is remembered per user and survives a broken storage", () => {
   };
   writeChoice(checklistStorageKey("u3"), "closed", broken);
   assert.equal(readChoice(checklistStorageKey("u3"), broken), "closed");
+});
+
+test("reopening the setup guide resets a collapsed choice to expanded", () => {
+  resetChoiceMemoryForTests();
+  const data = new Map<string, string>();
+  const storage = {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+  };
+  writeChoice(checklistStorageKey("u9"), "closed", storage);
+  assert.equal(resolveChecklistExpanded(readChoice(checklistStorageKey("u9"), storage)), false);
+  reopenChecklistChoice("u9", storage);
+  assert.equal(readChoice(checklistStorageKey("u9"), storage), "open");
+  assert.equal(resolveChecklistExpanded(readChoice(checklistStorageKey("u9"), storage)), true);
 });

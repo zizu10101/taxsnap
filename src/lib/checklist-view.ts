@@ -3,7 +3,7 @@
 // The permanent "dismissed" flag is separate and still lives on the profile
 // (checklist_dismissed_at). Import-light so it can be unit-tested with `node --test`.
 
-import type { StoredChoice } from "./how-this-works.ts";
+import { writeChoice, type StoredChoice } from "./how-this-works.ts";
 
 export function checklistStorageKey(userId: string): string {
   return `taxsnap:getting-started:${userId}`;
@@ -29,6 +29,12 @@ export function checklistView(args: {
   if (args.total === 0) return "hidden";
   if (args.done >= args.total) return "all-set";
   return args.expanded ? "expanded" : "collapsed";
+}
+
+// Help -> "Reopen setup guide": the card comes back expanded, not in whatever state the
+// person last left it.
+export function reopenChecklistChoice(userId: string, storage?: Parameters<typeof writeChoice>[2]): void {
+  writeChoice(checklistStorageKey(userId), "open", storage);
 }
 
 export function checklistSummary(done: number, total: number): string {

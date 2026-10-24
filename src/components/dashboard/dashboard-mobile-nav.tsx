@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Ellipsis, Lock, LogOut, Moon, Settings, SlidersHorizontal, Sun } from "lucide-react";
+import { CircleHelp, Ellipsis, Lock, LogOut, Moon, Settings, SlidersHorizontal, Sun } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -255,6 +255,18 @@ export function DashboardMobileBottomNav({
               carry them regardless of staff mode (this sheet is hidden
               entirely in staff mode), so duplicating them here would just
               be the same three controls reachable two ways. */}
+          <Button
+            variant="ghost"
+            nativeButton={false}
+            render={<Link href="/dashboard/help" />}
+            onClick={() => setMoreOpen(false)}
+            className={`h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-sidebar-foreground hover:bg-sidebar-accent ${
+              pathname.startsWith("/dashboard/help") ? "bg-sidebar-accent" : ""
+            }`}
+          >
+            <CircleHelp className="h-4 w-4" strokeWidth={1.6} />
+            Help
+          </Button>
           <form action={signOut}>
             <Button
               variant="ghost"
