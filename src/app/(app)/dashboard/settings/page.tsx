@@ -18,10 +18,9 @@ import { isOnlinePaymentsEnabled } from "@/lib/online-payments-config";
 import type { ConnectStatus } from "@/lib/connect-status";
 import {
   NavigationSettings,
-  type NavSettingsRow,
 } from "@/components/settings/navigation-settings";
+import type { MenuRecordCounts } from "@/components/dashboard/customize-menu";
 import {
-  getNavItems,
   sanitizeHiddenNavKeys,
   type HideableNavKey,
 } from "@/components/dashboard/nav-config";
@@ -99,7 +98,7 @@ export default async function SettingsPage({
   // Reports are views over other data and have none of their own. Salons have
   // nothing to hide (their menu is Dashboard + Register).
   const isPro = profile?.subscription_status === "pro";
-  let navRows: NavSettingsRow[] = [];
+  let navCounts: MenuRecordCounts = {};
   let hiddenNav: HideableNavKey[] = [];
   if (isGeneral) {
     const head = { count: "exact" as const, head: true };
@@ -116,29 +115,15 @@ export default async function SettingsPage({
       ]);
     hiddenNav = sanitizeHiddenNavKeys(navPrefs?.hidden_nav_keys);
 
-    const labels = new Map(
-      getNavItems({ businessType: "general", isPro: true }).map((i) => [i.key, i.label]),
-    );
-    const defs: [HideableNavKey, number, string][] = [
-      ["estimates", estimates.count ?? 0, "estimates"],
-      ["invoices", invoices.count ?? 0, "invoices"],
-      ["jobs", jobs.count ?? 0, "jobs"],
-      ["employees", employees.count ?? 0, "employees"],
-      ["clients", clients.count ?? 0, "clients"],
-      ["expenses", expenses.count ?? 0, "expenses"],
-      ["progress-billing", progressJobs.count ?? 0, "progress-billed jobs"],
-      ["overview", 0, ""],
-      ["reports", 0, ""],
-    ];
-    navRows = defs
-      // Pro-only tabs are only listed for accounts that actually see them.
-      .filter(([key]) => isPro || !["progress-billing", "overview", "reports"].includes(key))
-      .map(([key, recordCount, recordNoun]) => ({
-        key,
-        label: labels.get(key) ?? key,
-        recordCount,
-        recordNoun,
-      }));
+    navCounts = {
+      estimates: { count: estimates.count ?? 0, noun: "estimates" },
+      invoices: { count: invoices.count ?? 0, noun: "invoices" },
+      jobs: { count: jobs.count ?? 0, noun: "jobs" },
+      employees: { count: employees.count ?? 0, noun: "employees" },
+      clients: { count: clients.count ?? 0, noun: "clients" },
+      expenses: { count: expenses.count ?? 0, noun: "expenses" },
+      "progress-billing": { count: progressJobs.count ?? 0, noun: "progress-billed jobs" },
+    };
   }
 
   return (
@@ -174,7 +159,7 @@ export default async function SettingsPage({
 
         <ThemeSettings />
 
-        {isGeneral && <NavigationSettings rows={navRows} initialHidden={hiddenNav} />}
+        {isGeneral && <NavigationSettings isPro={isPro} hiddenNavKeys={hiddenNav} recordCounts={navCounts} />}
 
         <CurrentPlanCard
           tier={profile?.subscription_status ?? "free"}

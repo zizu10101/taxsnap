@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Ellipsis, Lock, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { Ellipsis, Lock, LogOut, Moon, Settings, SlidersHorizontal, Sun } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { LogoImage } from "@/components/invoices/business-logo";
+import { CustomizeMenuSheet } from "@/components/dashboard/customize-menu";
 import { NavItemButton } from "@/components/dashboard/nav-item";
 import { ModeToggle } from "@/components/dashboard/mode-toggle";
 import { getActiveNavKey, getNavItems, splitMobileNav } from "@/components/dashboard/nav-config";
@@ -147,6 +148,10 @@ export function DashboardMobileBottomNav({
   const { role } = useAppLock();
   const isStaffMode = role === "staff";
   const [moreOpen, setMoreOpen] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  // "Customize" closes the More sheet first and opens its dialog once the sheet has
+  // finished leaving, so two modals never fight over focus.
+  const customizeAfterClose = useRef(false);
 
   if (isStaffMode) return null;
 
@@ -176,7 +181,16 @@ export function DashboardMobileBottomNav({
           badge={item.key === "photos" ? unsortedPhotoCount : 0}
         />
       ))}
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+      <Sheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        onOpenChangeComplete={(open) => {
+          if (!open && customizeAfterClose.current) {
+            customizeAfterClose.current = false;
+            setCustomizeOpen(true);
+          }
+        }}
+      >
         <SheetTrigger
           render={
             <Button
@@ -196,7 +210,25 @@ export function DashboardMobileBottomNav({
           <span className={`text-[10px] leading-tight ${overflowActive ? "font-semibold" : "font-medium"}`}>More</span>
         </SheetTrigger>
         <SheetContent>
-          <SheetTitle>More</SheetTitle>
+          <div className="flex items-center justify-between gap-2">
+            <SheetTitle>More</SheetTitle>
+            {/* A salon's menu is fixed, so it has nothing to customize. */}
+            {businessType !== "salon" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                aria-label="Customize menu"
+                onClick={() => {
+                  customizeAfterClose.current = true;
+                  setMoreOpen(false);
+                }}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Customize
+              </Button>
+            )}
+          </div>
           {overflow.map((item) => (
             <Button
               key={item.key}
@@ -235,6 +267,12 @@ export function DashboardMobileBottomNav({
           </form>
         </SheetContent>
       </Sheet>
+      <CustomizeMenuSheet
+        open={customizeOpen}
+        onOpenChange={setCustomizeOpen}
+        isPro={subscriptionStatus === "pro"}
+        hiddenNavKeys={hiddenNavKeys}
+      />
     </nav>
   );
 }

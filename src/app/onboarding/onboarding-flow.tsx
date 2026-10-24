@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Check, FileText, Loader2, Receipt, Scissors } from "lucide-react";
+import { Briefcase, FileText, Loader2, Receipt, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ChoiceCard } from "@/components/ui/choice-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BusinessLogoUpload } from "@/components/invoices/business-logo";
+import {
+  CUSTOMIZE_MENU_DESCRIPTION,
+  CUSTOMIZE_MENU_TITLE,
+  CustomizeMenuFooter,
+  CustomizeMenuPanel,
+} from "@/components/dashboard/customize-menu";
 import { OnboardingStepShell } from "./onboarding-step-shell";
 import {
   AFTER_ONBOARDING,
@@ -17,6 +24,7 @@ import {
   taxRateForProvince,
   type OnboardingGoal,
 } from "@/lib/onboarding";
+import { hiddenFromVisible, visibleKeysForGoals, type MenuTabKey } from "@/lib/menu-customize";
 
 const GOAL_ICONS: Record<OnboardingGoal, typeof FileText> = {
   invoices: FileText,
@@ -44,9 +52,11 @@ async function patchJson(url: string, method: string, body: unknown) {
 // prompt: nothing here is gated, and it must stay that way.
 export function OnboardingFlow({
   businessType,
+  isPro,
   initial,
 }: {
   businessType: "general" | "salon";
+  isPro: boolean;
   initial: {
     name: string | null;
     province: string;
@@ -58,7 +68,7 @@ export function OnboardingFlow({
   };
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState(initial.name ?? "");
   const [province, setProvince] = useState(initial.province);
   const [phone, setPhone] = useState(initial.phone ?? "");
@@ -66,10 +76,13 @@ export function OnboardingFlow({
   const [businessNumber, setBusinessNumber] = useState(initial.businessNumber ?? "");
   const [logoPath, setLogoPath] = useState(initial.logoPath);
   const [goals, setGoals] = useState<OnboardingGoal[]>(initial.goals);
+  const [visibleTabs, setVisibleTabs] = useState<MenuTabKey[]>([]);
   const [saving, setSaving] = useState(false);
 
   const taxRate = taxRateForProvince(province);
   const offered = goalsFor(businessType);
+  // A salon's menu is fixed (Dashboard + Register), so it has no menu step.
+  const totalSteps = businessType === "salon" ? 2 : 3;
 
   async function saveBusiness() {
     if (!name.trim()) {
@@ -97,13 +110,30 @@ export function OnboardingFlow({
     setGoals((prev) => (prev.includes(goal) ? prev.filter((g) => g !== goal) : [...prev, goal]));
   }
 
-  async function finish() {
+  // From the goals step: a salon finishes here, everyone else gets the menu step,
+  // prefilled from the goals just picked.
+  function afterGoals() {
+    if (goals.length === 0) return;
+    if (businessType === "salon") {
+      void finish(false);
+      return;
+    }
+    setVisibleTabs(visibleKeysForGoals(goals, isPro));
+    setStep(3);
+  }
+
+  // `saveMenu` false (Skip, salon) sends no menu choice at all: every tab stays shown.
+  async function finish(saveMenu: boolean) {
     if (goals.length === 0) return;
     setSaving(true);
     try {
       // Always the dashboard: the checklist there has the first step as a button
       // the person presses - nothing is opened for them.
-      await patchJson("/api/onboarding/complete", "POST", { goals });
+      await patchJson(
+        "/api/onboarding/complete",
+        "POST",
+        saveMenu ? { goals, hidden_nav_keys: hiddenFromVisible(visibleTabs, isPro) } : { goals },
+      );
       router.push(AFTER_ONBOARDING);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -115,7 +145,7 @@ export function OnboardingFlow({
     return (
       <OnboardingStepShell
         stepNumber={1}
-        totalSteps={2}
+        totalSteps={totalSteps}
         title="Tell us about your business"
         description="This is what your clients see on every invoice. It takes about a minute."
       >
@@ -213,50 +243,25 @@ export function OnboardingFlow({
     );
   }
 
-  return (
+  if (step === 2) return (
     <OnboardingStepShell
       stepNumber={2}
-      totalSteps={2}
+      totalSteps={totalSteps}
       title="What do you want to do with TaxSnap?"
       description="Pick all that apply. We'll build your checklist around it."
     >
       <div className="space-y-3" role="group" aria-label="What you want to do">
-        {offered.map((g) => {
-          const Icon = GOAL_ICONS[g.value];
-          const selected = goals.includes(g.value);
-          return (
-            <button
-              key={g.value}
-              type="button"
-              role="checkbox"
-              aria-checked={selected}
-              disabled={saving}
-              onClick={() => toggleGoal(g.value)}
-              className={`flex min-h-20 w-full items-center gap-4 rounded-xl border-2 p-4 text-left transition-colors disabled:opacity-60 ${
-                selected ? "border-primary bg-primary/10" : "border-border bg-background hover:border-primary/50"
-              }`}
-            >
-              <span
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
-                  selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-6 w-6" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{g.label}</span>
-                <span className="block text-sm text-muted-foreground">{g.hint}</span>
-              </span>
-              <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${
-                  selected ? "border-primary bg-primary text-primary-foreground" : "border-border"
-                }`}
-              >
-                {selected && <Check className="h-4 w-4" />}
-              </span>
-            </button>
-          );
-        })}
+        {offered.map((g) => (
+          <ChoiceCard
+            key={g.value}
+            icon={GOAL_ICONS[g.value]}
+            title={g.label}
+            description={g.hint}
+            selected={goals.includes(g.value)}
+            disabled={saving}
+            onToggle={() => toggleGoal(g.value)}
+          />
+        ))}
 
         <div className="flex gap-3 pt-2">
           <Button
@@ -269,7 +274,7 @@ export function OnboardingFlow({
           </Button>
           <Button
             className="h-12 flex-[2] text-base"
-            onClick={finish}
+            onClick={afterGoals}
             disabled={saving || goals.length === 0}
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -279,6 +284,27 @@ export function OnboardingFlow({
         {goals.length === 0 && (
           <p className="text-center text-xs text-muted-foreground">Pick at least one to continue.</p>
         )}
+      </div>
+    </OnboardingStepShell>
+  );
+
+  return (
+    <OnboardingStepShell
+      stepNumber={3}
+      totalSteps={totalSteps}
+      title={CUSTOMIZE_MENU_TITLE}
+      description={CUSTOMIZE_MENU_DESCRIPTION}
+    >
+      <div className="flex max-h-[calc(100dvh-17rem)] min-h-72 flex-col gap-4">
+        <CustomizeMenuPanel isPro={isPro} visible={visibleTabs} onChange={setVisibleTabs} disabled={saving} />
+        <CustomizeMenuFooter
+          secondaryLabel="Back"
+          onSecondary={() => setStep(2)}
+          primaryLabel="Continue"
+          onPrimary={() => finish(true)}
+          onSkip={() => finish(false)}
+          busy={saving}
+        />
       </div>
     </OnboardingStepShell>
   );

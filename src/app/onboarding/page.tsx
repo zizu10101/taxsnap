@@ -26,7 +26,7 @@ export default async function OnboardingPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "business_type, onboarding_completed, business_name, province, business_phone, business_address, business_number, logo_url, onboarding_goals, onboarding_goal",
+      "business_type, subscription_status, onboarding_completed, business_name, province, business_phone, business_address, business_number, logo_url, onboarding_goals, onboarding_goal",
     )
     .eq("id", user.id)
     .single();
@@ -38,6 +38,7 @@ export default async function OnboardingPage() {
   return (
     <OnboardingFlow
       businessType={profile.business_type}
+      isPro={profile.subscription_status === "pro"}
       initial={{
         name: profile.business_name,
         province: profile.province,
