@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import Link from "next/link";
@@ -8,9 +9,12 @@ import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { FEATURE_PAGES } from "@/lib/feature-pages";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "TaxSnap Features — Expenses, Invoicing, Job Costing & HST",
-};
+  description:
+    "Everything TaxSnap does for contractors and the self-employed: receipt scanning, invoicing and estimates, job costing, site photos, reports and Ontario HST.",
+  path: "/features",
+});
 
 export default function FeaturesPage() {
   return (

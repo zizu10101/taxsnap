@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { LegalList, LegalPage, LegalSection } from "@/components/legal/legal-page";
 import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, PRIVACY_LAST_UPDATED, PRIVACY_VERSION } from "@/lib/legal-versions";
 
 // Counsel reviewed this page on 2026-10-22, except the Sentry and Gemini paragraphs (section 3), which
 // await review. Indexed and in the sitemap (a test pins both).
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy — TaxSnap",
   description: "How TaxSnap handles your information.",
-};
+  path: "/privacy",
+});
 
 const mail = (
   <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>

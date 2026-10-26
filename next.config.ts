@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
   },
   // Read by instrumentation-client.ts: Sentry only runs in the browser of the production
   // deployment, and reports which commit it is. Local builds have no VERCEL_ENV -> "development".
+  // Token pages are public by design but must never be indexed. `noindex` also lives in
+  // each page's metadata; this header covers the response itself. Not disallowed in
+  // robots.txt on purpose, or crawlers could not read the tag (see lib/seo.ts).
+  async headers() {
+    return ["/invoice/:path*", "/sign/:path*"].map((source) => ({
+      source,
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+    }));
+  },
   env: {
     NEXT_PUBLIC_SENTRY_ENV: process.env.VERCEL_ENV ?? "development",
     NEXT_PUBLIC_SENTRY_RELEASE: process.env.VERCEL_GIT_COMMIT_SHA ?? "",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { FileText } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
@@ -6,15 +7,11 @@ import { PricingNote } from "@/components/landing/pricing-note";
 const DESCRIPTION =
   "Build a professional estimate, get it approved with a client e-signature, convert it to an invoice with one click, and log payments as they come in.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Invoicing & Estimates — TaxSnap",
   description: DESCRIPTION,
-  openGraph: {
-    title: "Invoicing & Estimates — TaxSnap",
-    description: DESCRIPTION,
-    type: "website",
-  },
-};
+  path: "/features/invoicing",
+});
 
 export default function InvoicingPage() {
   return (

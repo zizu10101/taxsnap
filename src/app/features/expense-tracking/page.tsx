@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Receipt } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
@@ -6,15 +7,11 @@ import { PricingNote } from "@/components/landing/pricing-note";
 const DESCRIPTION =
   "Snap a photo of any receipt or vendor invoice and let AI fill in the merchant, total, tax, and write-off category automatically — no manual entry, no lost paper.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Automated Expense Tracking — TaxSnap",
   description: DESCRIPTION,
-  openGraph: {
-    title: "Automated Expense Tracking — TaxSnap",
-    description: DESCRIPTION,
-    type: "website",
-  },
-};
+  path: "/features/expense-tracking",
+});
 
 export default function ExpenseTrackingPage() {
   return (

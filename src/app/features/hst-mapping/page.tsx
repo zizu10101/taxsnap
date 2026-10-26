@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Landmark } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "HST-Ready, Automatically — TaxSnap",
-};
+  path: "/features/hst-mapping",
+});
 
 export default function HstMappingPage() {
   return (

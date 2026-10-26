@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Images } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 
 const DESCRIPTION =
   "Snap before and after photos on the job and keep them with it. Organized per job, in one Photos page, and private to you — never shown to clients.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Site Photos on Every Job — TaxSnap",
   description: DESCRIPTION,
-  alternates: { canonical: "/features/site-photos" },
-  openGraph: {
-    title: "Site Photos on Every Job — TaxSnap",
-    description: DESCRIPTION,
-    url: "/features/site-photos",
-    type: "website",
-  },
-};
+  path: "/features/site-photos",
+});
 
 export default function SitePhotosPage() {
   return (

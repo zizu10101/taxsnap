@@ -6,34 +6,21 @@ import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { SITE_FAQ_ITEMS } from "@/lib/faq-items";
 import { withVideoLinks } from "@/lib/how-to-videos-server";
+import { pageMetadata, faqPageJsonLd } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "TaxSnap FAQ — Receipts, Invoicing, Jobs & HST",
   description:
     "Answers about receipt scanning, invoices and estimates, jobs, site photos, reports and HST.",
-};
-
-const FAQ_JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: SITE_FAQ_ITEMS.map((item) => ({
-    "@type": "Question",
-    name: item.question,
-    acceptedAnswer: { "@type": "Answer", text: item.answer },
-  })),
-};
+  path: "/faq",
+});
 
 export default function FaqPage() {
   return (
     <main className="flex flex-1 flex-col bg-background">
       <LandingHeader />
-      <script
-        type="application/ld+json"
-        // Escape "<" so an answer can never close the script tag.
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(FAQ_JSON_LD).replace(/</g, "\\u003c"),
-        }}
-      />
+      <JsonLd data={faqPageJsonLd(SITE_FAQ_ITEMS)} />
       <FaqSection items={withVideoLinks(SITE_FAQ_ITEMS)} />
       <FinalCta />
       <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">

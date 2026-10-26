@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { LegalList, LegalPage, LegalSection } from "@/components/legal/legal-page";
 import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, TERMS_LAST_UPDATED, TERMS_VERSION } from "@/lib/legal-versions";
@@ -12,10 +13,11 @@ import {
 } from "@/lib/online-payments-terms";
 
 // Reviewed and approved by counsel. Indexed and in the sitemap (a test pins both).
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms of Service — TaxSnap",
   description: "The terms for using TaxSnap.",
-};
+  path: "/terms",
+});
 
 const pro = PRICING_PLANS[0];
 

@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { AppLockProvider } from "@/components/app-lock/app-lock-provider";
 import { ThemeSync } from "@/components/theme-sync";
 import { APP_SETTINGS_PUBLIC_COLUMNS } from "@/lib/app-settings-columns";
+
+// Everything signed-in (dashboard, billing) stays out of search results.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // A route group (no "(app)" segment in the actual URL) so /dashboard/** and
 // /billing/** - two separate top-level folders, not nested under each other

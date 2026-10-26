@@ -10,6 +10,7 @@ import { showPayNow } from "@/lib/online-payment-watch";
 
 export const metadata: Metadata = {
   title: "Invoice — TaxSnap",
+  robots: { index: false, follow: false },
 };
 
 // Public, unauthenticated, read-only page - the link the client's

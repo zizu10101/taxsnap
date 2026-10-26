@@ -6,6 +6,7 @@ import { EstimateSignForm, SignedConfirmation } from "@/components/public/estima
 
 export const metadata: Metadata = {
   title: "Sign Estimate — TaxSnap",
+  robots: { index: false, follow: false },
 };
 
 // Public, unauthenticated page - no session exists here at all, so every

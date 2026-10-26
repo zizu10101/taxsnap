@@ -16,7 +16,7 @@ const privacy = read("../app/privacy/page.tsx");
 
 test("both legal pages are final: indexable, in the sitemap, and carry no draft or lawyer markers", () => {
   for (const src of [terms, privacy]) assert.doesNotMatch(src, /robots:|index: false/);
-  const sitemap = read("../app/sitemap.ts");
+  const sitemap = read("./seo.ts");
   assert.match(sitemap, /\/terms`/);
   assert.match(sitemap, /\/privacy`/);
   for (const src of [terms, privacy, read("../components/legal/legal-page.tsx"), read("./online-payments-terms.ts")]) {

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { FileArchive } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "One-Click Accountant Export — TaxSnap",
-};
+  path: "/features/accountant-export",
+});
 
 export default function AccountantExportPage() {
   return (

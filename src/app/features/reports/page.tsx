@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { BarChart3 } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
@@ -6,17 +7,11 @@ import { PricingNote } from "@/components/landing/pricing-note";
 const DESCRIPTION =
   "Revenue by client, expenses by category or vendor, and your HST position for any date range. Export your data when tax time comes.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Reports — TaxSnap",
   description: DESCRIPTION,
-  alternates: { canonical: "/features/reports" },
-  openGraph: {
-    title: "Reports — TaxSnap",
-    description: DESCRIPTION,
-    url: "/features/reports",
-    type: "website",
-  },
-};
+  path: "/features/reports",
+});
 
 export default function ReportsPage() {
   return (

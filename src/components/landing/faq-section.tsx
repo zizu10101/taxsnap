@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
@@ -12,42 +9,28 @@ export interface FaqItem {
 }
 
 // Independent open/closed state per item (not a single-open-at-a-time
-// accordion) - same "plain conditional render + chevron flip, no
-// animation library" pattern hst-summary-card.tsx already uses for its own
-// collapsible card, just one instance per question instead of one for the
-// whole card.
+// accordion). A native <details> keeps every answer in the server-rendered HTML
+// - crawlers and AI engines read it without running JavaScript - while it still
+// collapses for visitors. The question is the heading inside <summary>.
 function FaqAccordionItem({ item }: { item: FaqItem }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="border-b border-border py-4 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-4 text-left"
-      >
-        <span className="font-heading text-base font-bold">{item.question}</span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-      {open && (
-        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>{item.answer}</p>
-          {item.link && (
-            <Link
-              href={item.link.href}
-              className="inline-block font-medium text-primary underline-offset-4 hover:underline"
-            >
-              {item.link.label}
-            </Link>
-          )}
-        </div>
-      )}
-    </div>
+    <details className="group border-b border-border py-4 last:border-b-0">
+      <summary className="flex w-full cursor-pointer list-none items-center justify-between gap-4 text-left [&::-webkit-details-marker]:hidden">
+        <h3 className="font-heading text-base font-bold">{item.question}</h3>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+        <p>{item.answer}</p>
+        {item.link && (
+          <Link
+            href={item.link.href}
+            className="inline-block font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {item.link.label}
+          </Link>
+        )}
+      </div>
+    </details>
   );
 }
 

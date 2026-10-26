@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Barlow_Semi_Condensed, IBM_Plex_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { RegisterServiceWorker } from "@/components/register-sw";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, siteUrl } from "@/lib/seo";
 import "./globals.css";
 
 // Resolves and applies the theme class before hydration, so there's no
@@ -40,13 +41,20 @@ const numberMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://gettaxsnap.ca"),
+  metadataBase: new URL(siteUrl()),
   title: {
-    default: "TaxSnap — Snap receipts, sort your tax write-offs",
+    default: SITE_TITLE,
     template: "%s",
   },
-  description:
-    "TaxSnap helps self-employed contractors, owner-operators, and freelancers snap photos of receipts, auto-categorize tax write-offs with AI, and export clean data for tax season.",
+  description: SITE_DESCRIPTION,
+  // A page that sets its own openGraph replaces this whole object; those pages
+  // go through pageMetadata() (lib/seo.ts) so siteName/type/locale survive.
+  openGraph: {
+    siteName: SITE_NAME,
+    type: "website",
+    locale: "en_CA",
+  },
+  twitter: { card: "summary_large_image" },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -65,7 +73,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   themeColor: "#211D18",
 };
 

@@ -4,6 +4,7 @@ import { AuthForm } from "./auth-form";
 
 export const metadata: Metadata = {
   title: "Sign in — TaxSnap",
+  robots: { index: false, follow: false },
 };
 
 export default function AuthPage() {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Layers } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
@@ -6,15 +7,11 @@ import { PricingNote } from "@/components/landing/pricing-note";
 const DESCRIPTION =
   "Bill large jobs in draws against a contract value, log change orders, track retainage, and keep a running received/remaining ledger — no spreadsheets.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Progress Billing — TaxSnap",
   description: DESCRIPTION,
-  openGraph: {
-    title: "Progress Billing — TaxSnap",
-    description: DESCRIPTION,
-    type: "website",
-  },
-};
+  path: "/features/progress-billing",
+});
 
 export default function ProgressBillingPage() {
   return (

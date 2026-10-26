@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Briefcase } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Job Costing — TaxSnap",
-};
+  path: "/features/job-costing",
+});
 
 export default function JobCostingPage() {
   return (

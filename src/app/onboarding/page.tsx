@@ -6,6 +6,7 @@ import { OnboardingFlow } from "./onboarding-flow";
 
 export const metadata: Metadata = {
   title: "Welcome to TaxSnap",
+  robots: { index: false, follow: false },
 };
 
 // Not under the (app) route group - no AppLockProvider here, deliberately

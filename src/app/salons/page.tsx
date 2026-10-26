@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import Link from "next/link";
@@ -8,9 +9,12 @@ import { InstallPromptCards } from "@/components/install-prompt-cards";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "TaxSnap for Salons — Commission Tracking & Payouts",
-};
+  description:
+    "Log every service in seconds, track each stylist's commission and pay them out with confirmation built in. Built for salons and barbershops.",
+  path: "/salons",
+});
 
 const PAIN_POINTS = [
   "Still tracking commissions on paper or in your head?",

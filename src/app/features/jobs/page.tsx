@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { MapPin } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 
 const DESCRIPTION =
   "Pick a client once and it follows the job. Add the job site. Private internal notes on every estimate and invoice never reach the client.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Jobs with Client and Location, Plus Private Notes — TaxSnap",
   description: DESCRIPTION,
-  alternates: { canonical: "/features/jobs" },
-  openGraph: {
-    title: "Jobs with Client and Location, Plus Private Notes — TaxSnap",
-    description: DESCRIPTION,
-    url: "/features/jobs",
-    type: "website",
-  },
-};
+  path: "/features/jobs",
+});
 
 export default function JobsPage() {
   return (

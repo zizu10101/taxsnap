@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
@@ -6,11 +7,11 @@ import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { availableHowToVideos } from "@/lib/how-to-videos-server";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "TaxSnap How-to Videos — Estimates, Invoices & Job Photos",
   description: "Short screen recordings of TaxSnap doing the everyday jobs, on a phone.",
-  alternates: { canonical: "/how-to" },
-};
+  path: "/how-to",
+});
 
 // An index only: posters, no video elements, nothing that autoplays.
 export default function HowToPage() {

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { Clock } from "lucide-react";
 import { FeatureDetail } from "@/components/landing/feature-detail";
 import { PricingNote } from "@/components/landing/pricing-note";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Employee Clock-In — TaxSnap",
-};
+  path: "/features/employee-clock-in",
+});
 
 export default function EmployeeClockInPage() {
   return (

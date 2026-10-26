@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +29,23 @@ import { HOME_FAQ_ITEMS } from "@/lib/faq-items";
 import { availableHowToVideos, withVideoLinks } from "@/lib/how-to-videos-server";
 import { PLAN_LIMITS, formatPlanCap } from "@/lib/plan-limits";
 import { ScreenShowcase, type ShowcaseTab } from "@/components/landing/screen-showcase";
+import { JsonLd } from "@/components/seo/json-ld";
+import {
+  SITE_DESCRIPTION,
+  SITE_TITLE,
+  faqPageJsonLd,
+  organizationJsonLd,
+  pageMetadata,
+  siteUrl,
+  softwareApplicationJsonLd,
+  websiteJsonLd,
+} from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  path: "/",
+});
 
 // Phone screens live in public/screens/<id>.png. Until those exist, a tab
 // falls back to a matching old screenshot (`fallback`); the png wins as soon as
@@ -254,6 +272,10 @@ export default function Home() {
   return (
     <main className="flex flex-1 flex-col bg-background">
       <LandingHeader />
+      <JsonLd data={organizationJsonLd(siteUrl())} />
+      <JsonLd data={websiteJsonLd(siteUrl())} />
+      <JsonLd data={softwareApplicationJsonLd(siteUrl())} />
+      <JsonLd data={faqPageJsonLd(HOME_FAQ_ITEMS)} />
 
       <section className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-10 px-4 py-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-16">
         <div className="flex flex-col items-start gap-6">
