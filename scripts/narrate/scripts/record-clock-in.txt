@@ -1,0 +1,16 @@
+# One scene = "== name | startSec-endSec" (seconds of public/videos/record-clock-in.mp4, about 67.3 s),
+# then the narration. Parsed by scripts/narrate/script.ts.
+== Add your employee | 7.0-21.6
+From More, open Employees and tap New employee. Enter their name and their pay rate, which is what you pay them per hour. Add a billable rate too, if you bill their time to clients. Then set a four-digit PIN for them, and they're ready to go.
+
+== Clock in with a PIN | 21.6-37.5
+You share one link with your whole team. Your worker opens it, picks their name from the list, enters their four-digit PIN, and chooses the job they're working on. No login needed. Each person has their own PIN, so hours are always tracked under the right name.
+
+== Clock out | 37.5-60.2
+Once they clock in, the timer starts, so they can see how long they've been on the job. They keep working, and the timer keeps counting. There's nothing for them to add up or write down. When the work is done, they tap Clock out. To switch jobs, clock out first, then clock in to the new one. Their finished session appears right away under recent hours, so they know it was recorded.
+
+== Hours on the job | 60.2-66.8
+Back in your account, the hours land on the right job at the rates you set, and the labor cost is tracked for you.
+
+== Close | 66.8-67.3
+Snap it. Sort it. Write it off. TaxSnap.
