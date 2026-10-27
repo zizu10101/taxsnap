@@ -1,0 +1,16 @@
+# One scene = "== name | startSec-endSec" (seconds of public/videos/record-reports.mp4, 45.2 s),
+# then the narration. Parsed by scripts/narrate/script.ts.
+== Pick your dates | 7.4-19.3
+Open Reports and pick your dates: this month, this quarter, or any custom range. Your profit and loss updates right away, with money received, expenses, and an estimated net profit.
+
+== Revenue by client | 19.3-27.2
+See revenue by client: what you invoiced, what's been paid, and what's still outstanding, job by job.
+
+== Expenses | 27.2-35.3
+Switch to expenses and group them by category or by vendor, to see where the money is going.
+
+== HST helper | 35.3-44.7
+The HST helper shows tax collected, your input tax credits and net tax payable. It's a planning estimate, so confirm it with your accountant.
+
+== Close | 44.7-45.2
+Snap it. Sort it. Write it off. TaxSnap.

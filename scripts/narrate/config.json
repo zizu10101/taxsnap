@@ -1,0 +1,15 @@
+{
+  "model": "gemini-3.8-flash-tts",
+  "voice": "Achird",
+  "style": "calm, clear, friendly tutorial narrator",
+  "granularity": "paragraph",
+  "paragraphGapSec": 0.35,
+  "sentenceGapSec": 0.15,
+  "tailSec": 0.5,
+  "caption": { "fontSize": 50, "lineChars": 24, "maxLines": 3 },
+  "videos": {
+    "record-receipt-scan": { "input": "public/videos/record-receipt-scan.mp4" },
+    "estimate-to-invoice": { "input": "public/videos/estimate-to-invoice.mp4" },
+    "record-reports": { "input": "public/videos/record-reports.mp4" }
+  }
+}

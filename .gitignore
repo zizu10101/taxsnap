@@ -46,3 +46,10 @@ next-env.d.ts
 # demo recordings
 /scripts/record-demo/out/
 /scripts/record-demo/assets/
+
+# narrated how-to videos (generated audio/video, never committed)
+/scripts/narrate/out/
+scripts/narrate/**/*.wav
+scripts/narrate/**/*.srt
+scripts/narrate/**/*.mp4
+scripts/narrate/**/*.pcm

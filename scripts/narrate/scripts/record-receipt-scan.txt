@@ -1,0 +1,16 @@
+# One scene = "== name | startSec-endSec" (seconds of public/videos/record-receipt-scan.mp4, 35.0 s),
+# then the narration. Parsed by scripts/narrate/script.ts.
+== Open the scanner | 7.0-13.0
+From your dashboard, tap Scan Receipt, then snap a photo or upload one you already have.
+
+== AI reads it | 13.0-20.7
+TaxSnap reads the receipt for you. There's nothing to type.
+
+== Review | 20.7-28.7
+It fills in the merchant, date, tax and total, and suggests a category. Check it, fix anything that's off, then save.
+
+== Saved | 28.7-34.5
+Saved. The tax is counted in your HST helper, so at filing time you already know your numbers.
+
+== Close | 34.5-35.0
+Snap it. Sort it. Write it off. TaxSnap.

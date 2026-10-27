@@ -1,0 +1,16 @@
+# One scene = "== name | startSec-endSec" (seconds of public/videos/estimate-to-invoice.mp4, 45.5 s),
+# then the narration. Parsed by scripts/narrate/script.ts.
+== Start the estimate | 7.3-15.0
+From the dashboard, start a new estimate and choose your client, or add a new one right there.
+
+== Add the work | 15.0-36.0
+Add the work with a quantity and a price. Here it's two days of interior painting at four hundred fifty dollars a day. Add materials as another line. You can save any line to reuse next time, and the tax and total update as you type.
+
+== Convert | 36.0-42.6
+Save the estimate. When your client says yes, tap Convert to Invoice, and everything carries over.
+
+== Invoice | 42.6-45.0
+That's your invoice, ready to send.
+
+== Close | 45.0-45.5
+Snap it. Sort it. Write it off. TaxSnap.
