@@ -3,6 +3,7 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
+import { SUPPORT_EMAIL, supportMailto } from "@/lib/support";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { SITE_FAQ_ITEMS } from "@/lib/faq-items";
 import { withVideoLinks } from "@/lib/how-to-videos-server";
@@ -28,10 +29,10 @@ export default function FaqPage() {
           <p>
             Have questions? Reach us anytime at{" "}
             <a
-              href="mailto:info@gettaxsnap.ca"
+              href={supportMailto()}
               className="font-medium text-foreground underline hover:text-primary"
             >
-              info@gettaxsnap.ca
+              {SUPPORT_EMAIL}
             </a>
           </p>
           <FooterFaqLink />

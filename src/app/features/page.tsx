@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
+import { SUPPORT_EMAIL, supportMailto } from "@/lib/support";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -88,10 +89,10 @@ export default function FeaturesPage() {
           <p>
             Have questions? Reach us anytime at{" "}
             <a
-              href="mailto:info@gettaxsnap.ca"
+              href={supportMailto()}
               className="font-medium text-foreground underline hover:text-primary"
             >
-              info@gettaxsnap.ca
+              {SUPPORT_EMAIL}
             </a>
           </p>
           <FooterFaqLink />

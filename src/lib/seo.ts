@@ -1,5 +1,7 @@
 import type { Metadata, MetadataRoute } from "next";
 import { PRIVACY_LAST_UPDATED, TERMS_LAST_UPDATED } from "./legal-versions.ts";
+import { SUPPORT_EMAIL } from "./support.ts";
+import { SOCIAL_LINKS } from "./social.ts";
 
 // Everything search engines and AI crawlers read from us that is not page copy:
 // robots.txt, the sitemap, per-page social metadata and the JSON-LD blocks.
@@ -134,7 +136,8 @@ export function organizationJsonLd(base: string) {
     name: SITE_NAME,
     url: base,
     logo: `${base}/logo-mark.png`,
-    email: "info@gettaxsnap.ca",
+    email: SUPPORT_EMAIL,
+    sameAs: SOCIAL_LINKS.map((link) => link.href),
   };
 }
 

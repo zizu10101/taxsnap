@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { FinalCta } from "@/components/landing/final-cta";
 import { FooterFaqLink } from "@/components/landing/footer-faq-link";
 import { FooterLegalLinks } from "@/components/landing/footer-legal-links";
+import { SUPPORT_EMAIL, supportMailto } from "@/lib/support";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { PricingSection, type ComparisonRow } from "@/components/landing/pricing-section";
 import { FaqSection } from "@/components/landing/faq-section";
@@ -431,10 +432,10 @@ export default function Home() {
           <p>
             Have questions? Reach us anytime at{" "}
             <a
-              href="mailto:info@gettaxsnap.ca"
+              href={supportMailto()}
               className="font-medium text-foreground underline hover:text-primary"
             >
-              info@gettaxsnap.ca
+              {SUPPORT_EMAIL}
             </a>
           </p>
           <FooterFaqLink />
