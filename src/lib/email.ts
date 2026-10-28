@@ -310,3 +310,61 @@ export async function sendOwnerPaymentNoticeEmail({
     return false;
   }
 }
+
+// In-app "Send feedback", delivered to support. Plain text only (no HTML, so nothing the user typed
+// is ever interpreted); reply-to is the sender so support can answer. Same never-throws/returns-false
+// contract as above, and it logs only the error's type: the message is the user's own words and must
+// not land in logs.
+export async function sendFeedbackEmail({
+  to,
+  replyTo,
+  message,
+  tryingToDo,
+  pagePath,
+  userId,
+  userEmail,
+  sentAt,
+}: {
+  to: string;
+  replyTo: string | null;
+  message: string;
+  tryingToDo: string | null;
+  pagePath: string | null;
+  userId: string;
+  userEmail: string | null;
+  sentAt: Date;
+}): Promise<boolean> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.error("sendFeedbackEmail: RESEND_API_KEY is not set, skipping send.");
+    return false;
+  }
+
+  const lines = [
+    message,
+    "",
+    ...(tryingToDo ? [`Trying to do: ${tryingToDo}`] : []),
+    `Page: ${pagePath ?? "(not given)"}`,
+    `User id: ${userId}`,
+    `User email: ${userEmail ?? "(none)"}`,
+    `Time: ${sentAt.toISOString()}`,
+  ];
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `TaxSnap <${FROM_ADDRESS}>`,
+      to,
+      ...(replyTo ? { replyTo } : {}),
+      subject: "TaxSnap feedback",
+      text: lines.join("\n"),
+    });
+    if (error) {
+      console.error("sendFeedbackEmail: Resend returned an error.", error.name);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("sendFeedbackEmail: send threw.", err instanceof Error ? err.name : typeof err);
+    return false;
+  }
+}

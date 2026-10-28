@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReopenSetupGuideButton } from "@/components/help/reopen-setup-guide-button";
+import { SendFeedbackButton } from "@/components/help/send-feedback-button";
 import { availableHowToVideos } from "@/lib/how-to-videos-server";
 import { HELP_GUIDE_LINKS, HELP_LEGAL_LINKS, HOW_TO_INDEX_HREF, howToHref } from "@/lib/help-links";
 import { SUPPORT_EMAIL, supportMailto } from "@/lib/support";
@@ -96,6 +97,16 @@ export default async function HelpPage() {
               {SUPPORT_EMAIL}
             </a>
             .
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Send feedback</CardTitle>
+            <CardDescription>Tell us what is working and what is not.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SendFeedbackButton />
           </CardContent>
         </Card>
 
