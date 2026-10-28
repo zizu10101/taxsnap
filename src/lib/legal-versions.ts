@@ -6,7 +6,7 @@ export const PRIVACY_VERSION = "2026-10-22";
 
 // Shown as "Last updated" on both pages.
 export const TERMS_LAST_UPDATED = "October 22, 2026";
-export const PRIVACY_LAST_UPDATED = "October 22, 2026";
+export const PRIVACY_LAST_UPDATED = "October 27, 2026";
 
 export const LEGAL_COMPANY = "Edge Digital Business Solutions";
 // Placeholder: set the real address here, once; both pages read it.

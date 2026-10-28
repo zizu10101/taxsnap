@@ -25,7 +25,7 @@ test("both legal pages are final: indexable, in the sitemap, and carry no draft 
   assert.match(TERMS_VERSION + PRIVACY_VERSION, /^2026-10-222026-10-22$/);
   assert.doesNotMatch(TERMS_VERSION + PRIVACY_VERSION, /draft/i);
   assert.equal(TERMS_LAST_UPDATED, "October 22, 2026");
-  assert.equal(PRIVACY_LAST_UPDATED, "October 22, 2026");
+  assert.equal(PRIVACY_LAST_UPDATED, "October 27, 2026");
 });
 
 test("versions and dates exist and the pages show them", () => {

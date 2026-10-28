@@ -47,7 +47,7 @@ export default function PrivacyPage() {
             <span key="g"><strong>Payments:</strong> payments you record, and, if you use Online payments, the payment details Stripe reports to us (amount, date, status, Stripe{"’"}s fee, refund and dispute outcomes). We do not receive card numbers. When a client pays an invoice online, we also receive the payer{"’"}s name and email entered at checkout, used only to send a receipt.</span>,
             <span key="h"><strong>Estimate signatures:</strong> when a client signs an estimate online we store the name they typed, the time and their IP address.</span>,
             <span key="i"><strong>Technical data:</strong> sign-in sessions, and IP addresses used for security and rate limiting (for example sign-in attempts, checkout attempts, which are stored hashed). Our hosting provider also keeps standard server logs.</span>,
-            <span key="j"><strong>Messages:</strong> if you email us, we keep what you send.</span>,
+            <span key="j"><strong>Messages:</strong> if you email us, we keep what you send. If you send us feedback or contact support, we use your message and your account email to reply and to improve the product.</span>,
           ]}
         />
       </LegalSection>
