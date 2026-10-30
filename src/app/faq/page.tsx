@@ -22,6 +22,11 @@ export default function FaqPage() {
     <main className="flex flex-1 flex-col bg-background">
       <LandingHeader />
       <JsonLd data={faqPageJsonLd(SITE_FAQ_ITEMS)} />
+      <section className="mx-auto w-full max-w-5xl px-4 pt-8 sm:px-8 lg:pt-16">
+        <h1 className="max-w-2xl font-heading text-4xl leading-[0.95] font-extrabold tracking-tight sm:text-5xl">
+          TaxSnap <span className="text-primary">FAQ</span>
+        </h1>
+      </section>
       <FaqSection items={withVideoLinks(SITE_FAQ_ITEMS)} />
       <FinalCta />
       <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">

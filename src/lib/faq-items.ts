@@ -18,6 +18,12 @@ export interface SiteFaqItem {
 // the pricing section is the one place they live.
 export const SITE_FAQ_ITEMS: SiteFaqItem[] = [
   {
+    question: "What is TaxSnap?",
+    answer:
+      "TaxSnap is a receipt scanning, expense, invoicing and HST tracking app for Canadian contractors and small businesses. It shows your HST numbers; it does not file your return.",
+    home: true,
+  },
+  {
     question: "How does the AI scanning work?",
     answer:
       "Snap or upload a photo of a receipt and TaxSnap's AI reads it automatically - merchant, date, total, tax, and a suggested write-off category are filled in for you to review before saving. No manual data entry.",

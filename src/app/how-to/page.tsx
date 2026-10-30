@@ -48,7 +48,7 @@ export default function HowToPage() {
                       // eslint-disable-next-line @next/next/no-img-element -- fixed marketing asset, lazy-loaded
                       <img
                         src={video.poster}
-                        alt=""
+                        alt={`Phone screen from the video: ${video.title}`}
                         loading="lazy"
                         decoding="async"
                         className="h-full w-full object-cover"

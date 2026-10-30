@@ -10,7 +10,7 @@ import { SOCIAL_LINKS } from "./social.ts";
 export const SITE_NAME = "TaxSnap";
 export const SITE_TITLE = "TaxSnap — Snap receipts, sort your tax write-offs";
 export const SITE_DESCRIPTION =
-  "TaxSnap helps self-employed contractors, owner-operators, and freelancers snap photos of receipts, auto-categorize tax write-offs with AI, and export clean data for tax season.";
+  "Scan receipts, send invoices and see your HST numbers. Built for Canadian contractors and small businesses. It doesn't file your return.";
 
 // The public origin every canonical, og:url, sitemap URL, robots Sitemap line and
 // JSON-LD block uses: the www host, because the bare domain redirects to it. A
