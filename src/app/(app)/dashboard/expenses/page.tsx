@@ -7,6 +7,7 @@ import { HowThisWorks } from "@/components/ui/how-this-works";
 
 import { ExpensesBody } from "@/components/dashboard/expenses-body";
 import { isStatementImportEnabled } from "@/lib/statement-config";
+import { selectAll } from "@/lib/select-all";
 
 export const metadata: Metadata = {
   title: "Expenses — TaxSnap",
@@ -43,11 +44,16 @@ export default async function ExpensesPage({
     redirect("/dashboard");
   }
 
-  const [{ data: receipts }, { data: jobs }, { data: templates }] = await Promise.all([
-    supabase
-      .from("receipts")
-      .select("*")
-      .order("transaction_date", { ascending: false }),
+  // EVERY expense, not just the first 1000 the API returns per request (selectAll pages through; the order
+  // ends in id so pages never repeat or skip a row). `truncated` only past 20,000.
+  const [{ rows: receipts, truncated: receiptsTruncated }, { data: jobs }, { data: templates }] = await Promise.all([
+    selectAll(() =>
+      supabase
+        .from("receipts")
+        .select("*")
+        .order("transaction_date", { ascending: false })
+        .order("id", { ascending: true }),
+    ),
     supabase.from("jobs").select("name").eq("is_sample", false).order("name", { ascending: true }),
     supabase
       .from("expense_templates")
@@ -74,10 +80,11 @@ export default async function ExpensesPage({
         subtitle="Every scanned receipt, filtered by date range."
       />
 
-      <HowThisWorks tab="expenses" userId={user.id} empty={(receipts ?? []).length === 0} />
+      <HowThisWorks tab="expenses" userId={user.id} empty={receipts.length === 0} />
 
       <ExpensesBody
-        initialReceipts={receipts ?? []}
+        initialReceipts={receipts}
+        receiptsTruncated={receiptsTruncated}
         initialJobNames={(jobs ?? []).map((j) => j.name)}
         initialTemplates={templates ?? []}
         business={{

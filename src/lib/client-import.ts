@@ -111,6 +111,20 @@ export function parseDelimited(text: string): ParsedTable {
   return { delimiter, headers, rows };
 }
 
+// The 1-based line numbers of rows that hold MORE values than the heading row has columns. parseDelimited
+// keeps only as many cells as there are headings, so the extra ones vanish without a trace; for money
+// that is dangerous (an unquoted decimal comma in "12,50" shifts the cells and the amount would be read
+// as 12). The expense import turns those rows into errors. Same splitting as parseDelimited.
+export function rowsWithExtraValues(text: string): Set<number> {
+  const records = splitRecords(text, detectDelimiter(text)).filter((r) => r.cells.some((c) => c.trim() !== ""));
+  const columns = records[0]?.cells.length ?? 0;
+  const lines = new Set<number>();
+  for (const r of records.slice(1)) {
+    if (r.cells.slice(columns).some((c) => c.trim() !== "")) lines.add(r.line);
+  }
+  return lines;
+}
+
 // ------------------------------------------------------------------ column mapping
 
 export type ImportTarget = "name" | "email" | "phone" | "address" | "ignore";
@@ -123,7 +137,8 @@ export const IMPORT_TARGET_LABELS: Record<ImportTarget, string> = {
   ignore: "Ignore",
 };
 
-function normalizeHeader(header: string): string {
+// Shared with the expense import (expense-import.ts): one rule for what counts as "the same heading".
+export function normalizeHeader(header: string): string {
   return header
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -166,12 +181,25 @@ export function unstoredColumnLabel(header: string): string | null {
 
 // One target per column; a field is claimed by the first column that looks like it.
 export function guessMapping(headers: string[]): ImportTarget[] {
-  const taken = new Set<ImportTarget>();
-  return headers.map((h) => {
-    const t = guessTarget(h);
-    if (t === "ignore" || taken.has(t)) return "ignore";
-    taken.add(t);
-    return t;
+  return guessMappingWith(headers, HEADER_SYNONYMS);
+}
+
+// The same exact-match, first-column-wins rule for ANY target set: `synonyms` maps each target to the
+// (already normalised) headings that mean it. The client import's own mapping above is this with its
+// four targets; the expense import passes its own. Headings that match nothing, and a second column
+// for a target that is already claimed, come back as "ignore".
+export function guessMappingWith<T extends string>(
+  headers: string[],
+  synonyms: Record<T, string[]>,
+): (T | "ignore")[] {
+  const targets = Object.keys(synonyms) as T[];
+  const taken = new Set<T>();
+  return headers.map((header) => {
+    const h = normalizeHeader(header);
+    const target = targets.find((t) => synonyms[t].includes(h));
+    if (target === undefined || taken.has(target)) return "ignore";
+    taken.add(target);
+    return target;
   });
 }
 

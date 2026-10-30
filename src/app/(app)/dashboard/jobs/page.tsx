@@ -7,6 +7,7 @@ import { HowThisWorks } from "@/components/ui/how-this-works";
 
 import { JobList } from "@/components/jobs/job-list";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
+import { selectAll } from "@/lib/select-all";
 
 export const metadata: Metadata = {
   title: "Jobs — TaxSnap",
@@ -30,21 +31,32 @@ export default async function JobsPage() {
     .eq("id", user.id)
     .single();
 
-  const [{ data: jobs }, { data: receipts }, { data: hourEntries }, { data: documents }, { data: clients }] =
+  // Job costing adds up EVERY job-linked expense, hours entry and invoice: all pages of each (the API's own
+  // 1000-row page would understate every job's cost once an owner has more than that).
+  const [{ data: jobs }, { rows: receipts }, { rows: hourEntries }, { rows: documents }, { data: clients }] =
     await Promise.all([
       supabase.from("jobs").select("*").order("name", { ascending: true }),
-      supabase
-        .from("receipts")
-        .select("job_id, total_amount")
-        .not("job_id", "is", null),
-      supabase
-        .from("hour_entries")
-        .select("job_id, labor_cost, labor_revenue")
-        .not("job_id", "is", null),
-      supabase
-        .from("documents")
-        .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount)")
-        .not("job_id", "is", null),
+      selectAll(() =>
+        supabase
+          .from("receipts")
+          .select("job_id, total_amount")
+          .not("job_id", "is", null)
+          .order("id", { ascending: true }),
+      ),
+      selectAll(() =>
+        supabase
+          .from("hour_entries")
+          .select("job_id, labor_cost, labor_revenue")
+          .not("job_id", "is", null)
+          .order("id", { ascending: true }),
+      ),
+      selectAll(() =>
+        supabase
+          .from("documents")
+          .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount)")
+          .not("job_id", "is", null)
+          .order("id", { ascending: true }),
+      ),
       supabase.from("clients").select("id, name").eq("is_sample", false).order("name", { ascending: true }),
     ]);
 
@@ -53,9 +65,9 @@ export default async function JobsPage() {
   // jobs instantly instead of fetching per click.
   const costSummaries = buildJobCostSummaries(
     (jobs ?? []).map((j) => j.id),
-    receipts ?? [],
-    hourEntries ?? [],
-    documents ?? [],
+    receipts,
+    hourEntries,
+    documents,
     // Same revenue rule as the P&L, Overview and the HST helper.
     { honorExcludedFromHst: true },
   );

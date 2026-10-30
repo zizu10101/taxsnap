@@ -2,20 +2,8 @@ import type { ReadDb } from "@/lib/scoped-reader";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { computeExpenseSummary, type ExpenseSummary } from "@/lib/expense-summary";
 import { deductiblePct } from "@/lib/tax-codes";
-
-// What the Overview reads off each expense.
-interface OverviewReceiptRow {
-  transaction_date: string;
-  total_amount: number;
-  tax_amount: number;
-  tax_category: string;
-  job_id: string | null;
-  from_statement?: boolean | null;
-  no_receipt?: boolean | null;
-  tax_rate?: number | null;
-  itc_pct?: number | null;
-  deductible_pct?: number | null;
-}
+import { loadOverviewReceipts, type LoadedOverviewReceipts } from "@/lib/overview-rows";
+import { selectAll } from "@/lib/select-all";
 
 export interface ExpenseTrendPoint {
   transactionDate: string; // YYYY-MM-DD
@@ -42,6 +30,11 @@ export interface ExpenseOverviewData extends ExpenseSummary {
   overheadExpenses: ExpenseSummary;
   trendPoints: ExpenseTrendPoint[];
   salesTrendPoints: SalesTrendPoint[];
+  /**
+   * More than 20,000 expenses (or invoices) were involved: only the first 20,000 were read, so some
+   * totals may be incomplete. Always false below that - every row is read, not just the first 1000.
+   */
+  truncated: boolean;
 }
 
 function round2(n: number): number {
@@ -71,21 +64,20 @@ function round2(n: number): number {
 // plain `date` columns with no time component, so converting them through
 // a UTC instant first would risk the exact off-by-one-day bug date-range.
 // ts's own comments warn about, for no benefit here.
+//
+// `loaded` is the range's expense rows when the caller already has them (the Reports page loads them once
+// and hands the SAME rows to this function and to its own tables, so the P&L and the category tables are
+// built from one row set and always agree). Without it the rows are loaded here.
 export async function getExpenseOverviewData(
   supabase: ReadDb,
   from: string | null,
   to: string | null,
+  loaded?: LoadedOverviewReceipts,
 ): Promise<ExpenseOverviewData> {
-  // Besides the figures, the columns that say whether an expense's tax is CALCULATED (a card-statement
-  // expense with no receipt) or confirmed, and the tax code it carries (0057).
-  let receiptsQuery = supabase
-    .from("receipts")
-    .select(
-      "transaction_date, total_amount, tax_amount, tax_category, job_id, from_statement, no_receipt, tax_rate, itc_pct, deductible_pct",
-    )
-    .order("transaction_date", { ascending: true });
-  if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
-  if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
+  // Every expense in the range, not just the first 1000 (see lib/select-all.ts). The rows carry the columns
+  // that say whether an expense's tax is CALCULATED (a card-statement expense with no receipt) or
+  // confirmed, and the tax code it carries (0057).
+  const receiptsLoad = loaded ?? (await loadOverviewReceipts(supabase, from, to));
 
   // Total Sales deliberately only covers paid invoices, not manual cash-
   // sales entries (the `sales` table) - see expense-overview-query.ts's
@@ -94,14 +86,17 @@ export async function getExpenseOverviewData(
   // can't be reliably scoped to an arbitrary day/week/custom range the way
   // payments.paid_date can. No toggle for this - it's a fixed, understood
   // scope, not a partial result masquerading as complete.
-  const documentsQuery = supabase
-    .from("documents")
-    .select("subtotal, total_amount, excluded_from_hst, payments(amount, paid_date)")
-    .eq("type", "invoice");
+  // Every invoice (no date range here: a payment in the range can belong to an older invoice), all pages.
+  const documentsLoad = await selectAll(() =>
+    supabase
+      .from("documents")
+      .select("subtotal, total_amount, excluded_from_hst, payments(amount, paid_date)")
+      .eq("type", "invoice")
+      .order("id", { ascending: true }),
+  );
+  const documents = documentsLoad.rows;
 
-  const [{ data: receipts }, { data: documents }] = await Promise.all([receiptsQuery, documentsQuery]);
-
-  const receiptRows = (receipts ?? []) as unknown as OverviewReceiptRow[];
+  const receiptRows = receiptsLoad.rows;
 
   // Revenue recognition (pro-rated per payment, by received date, honoring
   // excluded_from_hst) lives in lib/payment-revenue.ts so the Reports page
@@ -132,5 +127,6 @@ export async function getExpenseOverviewData(
       deductibleAmount: r.total_amount * deductiblePct(r),
     })),
     salesTrendPoints,
+    truncated: receiptsLoad.truncated || documentsLoad.truncated,
   };
 }

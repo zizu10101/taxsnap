@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Calculator, Loader2, Tag, Undo2, X } from "lucide-react";
+import { Calculator, Loader2, Tag, Trash2, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +63,7 @@ export function BulkCategoryControls({
   onRestored,
   onTaxCodeSet,
   onTaxCodeRestored,
+  onDelete,
 }: {
   selectedIds: string[];
   visibleCount: number;
@@ -74,6 +75,8 @@ export function BulkCategoryControls({
   onTaxCodeSet: (move: BulkTaxMove) => void;
   /** Its undo: the previous code and tax of each restored expense. */
   onTaxCodeRestored: (rows: { id: string; tax: TaxPatch }[]) => void;
+  /** "Delete..." was pressed: the page opens the confirmation for these ids. */
+  onDelete: (ids: string[]) => void;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<{ key: number; ids: string[] } | null>(null);
@@ -196,6 +199,10 @@ export function BulkCategoryControls({
             >
               <Calculator className="h-4 w-4" />
               Set tax code...
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onDelete(selectedIds)}>
+              <Trash2 className="h-4 w-4" />
+              Delete...
             </Button>
             <Button size="sm" variant="outline" onClick={onClear}>
               Clear

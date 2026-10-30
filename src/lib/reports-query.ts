@@ -1,5 +1,7 @@
 import type { ReadDb } from "@/lib/scoped-reader";
 import { getExpenseOverviewData } from "@/lib/expense-overview-query";
+import { loadOverviewReceipts } from "@/lib/overview-rows";
+import { selectAll } from "@/lib/select-all";
 import { recognizePayments } from "@/lib/payment-revenue";
 import { buildJobCostSummaries } from "@/lib/job-revenue";
 import {
@@ -39,6 +41,8 @@ export interface ReportsData {
   // Tracked spending per "Paid with" account (incl. a "Not specified" row) -
   // adds up to the P&L's expenses. Not an account balance.
   accounts: AccountSpendData;
+  /** More than 20,000 records were involved: only the first 20,000 were counted. */
+  truncated: boolean;
 }
 
 export interface JobSummaryRow {
@@ -55,6 +59,8 @@ export interface JobSummaryRow {
 
 export interface JobSummaryData {
   jobs: JobSummaryRow[];
+  /** More than 20,000 records were involved: only the first 20,000 were counted. */
+  truncated: boolean;
   // Payments and receipts with no job, so the rows add up to the P&L's
   // revenue and expenses exactly. null when there's nothing unlinked.
   unlinked: JobSummaryRow | null;
@@ -70,15 +76,11 @@ export async function getReportsData(
   from: string | null,
   to: string | null,
 ): Promise<ReportsData> {
-  let receiptsQuery = supabase
-    .from("receipts")
-    .select("total_amount, tax_amount, tax_category, paid_with_account_id");
-  if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
-  if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
-
-  const [overview, { data: receipts }, { data: accountRows }] = await Promise.all([
-    getExpenseOverviewData(supabase, from, to),
-    receiptsQuery,
+  // ONE load of the range's expenses (every row, all pages), handed to the overview totals AND used for the
+  // By Account table below: the P&L and the table are built from the very same rows, so they always agree.
+  const loaded = await loadOverviewReceipts(supabase, from, to);
+  const [overview, { data: accountRows }] = await Promise.all([
+    getExpenseOverviewData(supabase, from, to, loaded),
     supabase.from("bank_accounts").select("id, name, account_type, is_active"),
   ]);
 
@@ -88,9 +90,17 @@ export async function getReportsData(
     netProfit: overview.estProfit,
   };
 
-  const accounts = groupSpendingByAccount(receipts ?? [], accountRows ?? []);
+  const accounts = groupSpendingByAccount(
+    loaded.rows.map((r) => ({
+      total_amount: r.total_amount,
+      tax_amount: r.tax_amount,
+      tax_category: r.tax_category,
+      paid_with_account_id: r.paid_with_account_id ?? null,
+    })),
+    accountRows ?? [],
+  );
 
-  return { pnl, accounts };
+  return { pnl, accounts, truncated: overview.truncated };
 }
 
 // Same normalization the grouping above uses, shared with the drill-down so a
@@ -112,29 +122,36 @@ export async function getJobSummary(
 ): Promise<JobSummaryData> {
   const ranged = !!(from || to);
 
-  let receiptsQuery = supabase.from("receipts").select("job_id, total_amount");
-  if (from) receiptsQuery = receiptsQuery.gte("transaction_date", from);
-  if (to) receiptsQuery = receiptsQuery.lte("transaction_date", to);
+  // The range's expenses, loaded once and shared with the overview totals below (same rows as Reports).
+  const loaded = await loadOverviewReceipts(supabase, from, to);
 
-  let hoursQuery = supabase
-    .from("hour_entries")
-    .select("job_id, labor_cost, labor_revenue");
-  if (from) hoursQuery = hoursQuery.gte("work_date", from);
-  if (to) hoursQuery = hoursQuery.lte("work_date", to);
+  // Every hours entry and every job-linked invoice, all pages.
+  const hoursLoad = selectAll(() => {
+    let query = supabase.from("hour_entries").select("job_id, labor_cost, labor_revenue");
+    if (from) query = query.gte("work_date", from);
+    if (to) query = query.lte("work_date", to);
+    return query.order("work_date", { ascending: true }).order("id", { ascending: true });
+  });
+  const documentsLoad = selectAll(() =>
+    supabase
+      .from("documents")
+      .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount, paid_date)")
+      .not("job_id", "is", null)
+      .order("id", { ascending: true }),
+  );
 
-  const [overview, { data: jobs }, { data: receipts }, { data: hourEntries }, { data: documents }] =
+  const [overview, { data: jobs }, hours, documentRows] =
     await Promise.all([
       // The P&L's own revenue/expenses for this range - the unlinked row is
       // whatever is left after the jobs, so the footer ties to it exactly.
-      getExpenseOverviewData(supabase, from, to),
+      getExpenseOverviewData(supabase, from, to, loaded),
       supabase.from("jobs").select("id, name").eq("is_sample", false).order("name", { ascending: true }),
-      receiptsQuery,
-      hoursQuery,
-      supabase
-        .from("documents")
-        .select("job_id, type, subtotal, total_amount, excluded_from_hst, payments(amount, paid_date)")
-        .not("job_id", "is", null),
+      hoursLoad,
+      documentsLoad,
     ]);
+  const receipts = loaded.rows;
+  const hourEntries = hours.rows;
+  const documents = documentRows.rows;
 
   // Only payments received in the range count toward a job's revenue; the
   // invoice stays linked (and counted) either way.
@@ -192,7 +209,7 @@ export async function getJobSummary(
     ? allRows.filter((r) => r.revenue !== 0 || r.expenses !== 0 || r.labor !== 0)
     : allRows;
 
-  return { jobs: rows, unlinked };
+  return { jobs: rows, unlinked, truncated: overview.truncated || hours.truncated || documentRows.truncated };
 }
 
 export interface RevenueDetailRow {
@@ -225,21 +242,24 @@ export async function getRevenueDetail(
   from: string | null,
   to: string | null,
 ): Promise<{ rows: RevenueDetailRow[]; total: number }> {
-  const [{ data: documents, error: documentsError }, { data: bankAccounts }] = await Promise.all([
-    supabase
-      .from("documents")
-      .select(
-        "id, document_number, subtotal, total_amount, excluded_from_hst, client:clients(name), payments(id, amount, paid_date, bank_account_id)",
-      )
-      .eq("type", "invoice"),
+  // Every invoice, all pages. A failed page throws (selectAll never turns an error into "no rows"): the
+  // route turns a throw into a 500 and the panel shows "Couldn't load these rows", and an error must not
+  // read as "no payments in this range".
+  const [{ rows: documents }, { data: bankAccounts }] = await Promise.all([
+    selectAll(() =>
+      supabase
+        .from("documents")
+        .select(
+          "id, document_number, subtotal, total_amount, excluded_from_hst, client:clients(name), payments(id, amount, paid_date, bank_account_id)",
+        )
+        .eq("type", "invoice")
+        .order("id", { ascending: true }),
+    ),
     supabase.from("bank_accounts").select("id, name"),
   ]);
-  // An error must not read as "no payments in this range" - the route turns a
-  // throw into a 500 and the panel shows "Couldn't load these rows".
-  if (documentsError) throw new Error(documentsError.message);
   const bankNames = new Map((bankAccounts ?? []).map((a) => [a.id, a.name]));
 
-  const { totalSales, payments } = recognizePayments(documents ?? [], from, to);
+  const { totalSales, payments } = recognizePayments(documents, from, to);
   const rows = payments
     .map((p) => ({
       paymentId: p.payment.id,
@@ -272,23 +292,23 @@ export async function getExpenseDetail(
   // A vendor key from the Expenses report (vendorKey of the merchant name).
   vendor?: string,
 ): Promise<{ rows: ExpenseDetailRow[]; total: number }> {
-  let query = supabase
-    .from("receipts")
-    .select(
-      "id, transaction_date, merchant_name, tax_category, job_name, total_amount, paid_with_account_id",
-    )
-    .order("transaction_date", { ascending: false });
-  if (from) query = query.gte("transaction_date", from);
-  if (to) query = query.lte("transaction_date", to);
-
-  const [{ data, error }, { data: accounts }] = await Promise.all([
-    query,
+  // Every expense in the range, all pages (a drill-down must list the rows its total counted).
+  const [{ rows: data }, { data: accounts }] = await Promise.all([
+    selectAll(() => {
+      let query = supabase
+        .from("receipts")
+        .select(
+          "id, transaction_date, merchant_name, tax_category, job_name, total_amount, paid_with_account_id",
+        );
+      if (from) query = query.gte("transaction_date", from);
+      if (to) query = query.lte("transaction_date", to);
+      return query.order("transaction_date", { ascending: false }).order("id", { ascending: true });
+    }),
     supabase.from("bank_accounts").select("id, name"),
   ]);
-  if (error) throw new Error(error.message);
   const accountNames = new Map((accounts ?? []).map((a) => [a.id, a.name]));
   const wanted = category !== undefined ? categoryKey(category) : null;
-  const rows = (data ?? [])
+  const rows = data
     .filter((r) => wanted === null || categoryKey(r.tax_category) === wanted)
     .filter((r) => account === undefined || matchesAccountFilter(r.paid_with_account_id, account))
     .filter((r) => vendor === undefined || (vendorKey(r.merchant_name) ?? NO_VENDOR_KEY) === vendor)
@@ -317,20 +337,21 @@ export async function getExpensesReport(
   to: string | null,
   filters: ExpensesReportFilters = {},
 ): Promise<ExpensesReport> {
-  let query = supabase
-    .from("receipts")
-    .select("id, merchant_name, transaction_date, tax_category, total_amount, tax_amount")
-    .eq("user_id", userId);
-  if (from) query = query.gte("transaction_date", from);
-  if (to) query = query.lte("transaction_date", to);
-
-  const [{ data, error }, { data: customCategories }] = await Promise.all([
-    query,
+  // Every expense in the range, all pages.
+  const [{ rows: data }, { data: customCategories }] = await Promise.all([
+    selectAll(() => {
+      let query = supabase
+        .from("receipts")
+        .select("id, merchant_name, transaction_date, tax_category, total_amount, tax_amount")
+        .eq("user_id", userId);
+      if (from) query = query.gte("transaction_date", from);
+      if (to) query = query.lte("transaction_date", to);
+      return query.order("transaction_date", { ascending: false }).order("id", { ascending: true });
+    }),
     supabase.from("expense_categories").select("name").eq("user_id", userId),
   ]);
-  if (error) throw new Error(error.message);
   return buildExpensesReport(
-    data ?? [],
+    data,
     filters,
     (customCategories ?? []).map((c) => c.name),
   );
@@ -345,13 +366,16 @@ export async function getRevenueReport(
   from: string | null,
   to: string | null,
 ): Promise<RevenueReport> {
-  const { data, error } = await supabase
-    .from("documents")
-    .select(
-      "id, document_number, status, issue_date, subtotal, total_amount, excluded_from_hst, client_id, job_id, client:clients(name), job:jobs(name), payments(id, amount, paid_date)",
-    )
-    .eq("type", "invoice")
-    .eq("user_id", userId);
-  if (error) throw new Error(error.message);
-  return buildRevenueReport(data ?? [], from, to);
+  // Every invoice, all pages (a failed page throws).
+  const { rows } = await selectAll(() =>
+    supabase
+      .from("documents")
+      .select(
+        "id, document_number, status, issue_date, subtotal, total_amount, excluded_from_hst, client_id, job_id, client:clients(name), job:jobs(name), payments(id, amount, paid_date)",
+      )
+      .eq("type", "invoice")
+      .eq("user_id", userId)
+      .order("id", { ascending: true }),
+  );
+  return buildRevenueReport(rows, from, to);
 }

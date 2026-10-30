@@ -18,6 +18,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { TruncationNotice } from "@/components/dashboard/truncation-notice";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { UsageLimitBar } from "@/components/dashboard/usage-limit-bar";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
@@ -356,12 +357,17 @@ export function HstSummaryCard({
   receipts,
   businessType,
   subscriptionStatus,
+  receiptsTruncated = false,
 }: {
   receipts: Receipt[];
   businessType: BusinessType;
   subscriptionStatus: SubscriptionStatus;
+  /** The page's expense list hit the 20,000-row ceiling. */
+  receiptsTruncated?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(true);
+  // The invoice list the card fetches can hit the same ceiling (GET /api/documents says so).
+  const [invoicesTruncated, setInvoicesTruncated] = useState(false);
   const [salesRecords, setSalesRecords] = useState<SalesPeriod[]>([]);
   const [invoiceDocs, setInvoiceDocs] = useState<DocumentWithClient[]>([]);
   const [preset, setPreset] = useState<RangePreset>("this-quarter");
@@ -388,6 +394,7 @@ export function HstSummaryCard({
       .then((res) => (res.ok ? res.json() : { documents: [] }))
       .then((data) => {
         if (Array.isArray(data.documents)) setInvoiceDocs(data.documents);
+        if (data.truncated === true) setInvoicesTruncated(true);
       })
       .catch(() => {
         // Non-fatal: same as above.
@@ -514,6 +521,11 @@ export function HstSummaryCard({
           <ChevronUp className="h-4 w-4 text-sidebar-foreground/60" />
         )}
       </CardHeader>
+      {(receiptsTruncated || invoicesTruncated) && (
+        <div className="border-b bg-card px-4 py-2">
+          <TruncationNotice />
+        </div>
+      )}
       {!collapsed && (
         // The editable/interactive parts of this card (date picker, Gross
         // Sales/Cash Deposits inputs, usage bar, per-payment checklist)

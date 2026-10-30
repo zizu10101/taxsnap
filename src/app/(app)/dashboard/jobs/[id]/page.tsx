@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { JobDetail } from "@/components/jobs/job-detail";
 import { JobPhotosSection } from "@/components/photos/job-photos-section";
 import { calculateJobRevenue } from "@/lib/job-revenue";
+import { selectAll } from "@/lib/select-all";
 import type { DocumentWithClient, HourEntryWithRelations } from "@/lib/database.types";
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export default async function JobDetailPage({
 
   const [
     { data: job },
-    { data: receipts },
+    { rows: receipts },
     { data: hourEntries },
     { data: employees },
     { data: jobs },
@@ -35,11 +36,15 @@ export default async function JobDetailPage({
     { data: lineItems },
   ] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", id).single(),
-    supabase
-      .from("receipts")
-      .select("id, merchant_name, transaction_date, total_amount, tax_category")
-      .eq("job_id", id)
-      .order("transaction_date", { ascending: false }),
+    // All of this job's expenses, all pages.
+    selectAll(() =>
+      supabase
+        .from("receipts")
+        .select("id, merchant_name, transaction_date, total_amount, tax_category")
+        .eq("job_id", id)
+        .order("transaction_date", { ascending: false })
+        .order("id", { ascending: true }),
+    ),
     supabase
       .from("hour_entries")
       .select("*, employee:employees(*), job:jobs(*)")
@@ -79,7 +84,7 @@ export default async function JobDetailPage({
 
       <JobDetail
         job={job}
-        initialReceipts={receipts ?? []}
+        initialReceipts={receipts}
         initialHourEntries={(hourEntries ?? []) as HourEntryWithRelations[]}
         employees={employees ?? []}
         jobs={jobs ?? []}

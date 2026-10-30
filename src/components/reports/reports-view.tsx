@@ -20,6 +20,7 @@ import { RevenueTab } from "@/components/reports/revenue-tab";
 import { VendorFilter } from "@/components/reports/vendor-filter";
 import { downloadCsv, expensesByCategoryToCsv, expensesByVendorToCsv } from "@/lib/csv";
 import type { CategoryRow, ExpensesReport } from "@/lib/expenses-report";
+import { TruncationNotice } from "@/components/dashboard/truncation-notice";
 import type {
   ExpenseDetailRow,
   JobSummaryData,
@@ -84,9 +85,10 @@ function rangeParams(range: DateRange) {
 const EMPTY_DATA: ReportsData = {
   pnl: { revenue: 0, expenses: 0, netProfit: 0 },
   accounts: { rows: [], total: 0 },
+  truncated: false,
 };
 
-const EMPTY_JOBS: JobSummaryData = { jobs: [], unlinked: null };
+const EMPTY_JOBS: JobSummaryData = { jobs: [], unlinked: null, truncated: false };
 
 type ReportTab = "pnl" | "jobs" | "expenses" | "accounts" | "revenue";
 
@@ -543,6 +545,7 @@ function ReportsViewInner({
             <CardTitle className="text-base">Profit &amp; Loss</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            <TruncationNotice show={data.truncated} />
             <ExpandableLine
               label="Revenue (payments received, before HST)"
               value={data.pnl.revenue}

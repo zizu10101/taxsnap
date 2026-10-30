@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardBody } from "@/components/dashboard/dashboard-body";
 import { checklistItems, storedGoals } from "@/lib/onboarding";
+import { selectAll } from "@/lib/select-all";
 
 export const metadata: Metadata = {
   title: "Dashboard — TaxSnap",
@@ -49,7 +50,7 @@ export default async function DashboardPage() {
   }
 
   const [
-    { data: receipts },
+    { rows: receipts, truncated: receiptsTruncated },
     { data: jobs },
     { count: realClients },
     { count: sampleClients },
@@ -57,10 +58,14 @@ export default async function DashboardPage() {
     { count: services },
     { count: stylists },
   ] = await Promise.all([
-    supabase
-      .from("receipts")
-      .select("*")
-      .order("transaction_date", { ascending: false }),
+    // Every expense, not just the first 1000 per request (see lib/select-all.ts).
+    selectAll(() =>
+      supabase
+        .from("receipts")
+        .select("*")
+        .order("transaction_date", { ascending: false })
+        .order("id", { ascending: true }),
+    ),
     // Job names for the receipt job picker - not Pro-gated (job tagging on
     // receipts is available on every tier), so this reads the jobs table
     // directly rather than going through the Pro-only /api/jobs route.
@@ -90,7 +95,8 @@ export default async function DashboardPage() {
 
   return (
     <DashboardBody
-      initialReceipts={receipts ?? []}
+      initialReceipts={receipts}
+      receiptsTruncated={receiptsTruncated}
       initialJobNames={(jobs ?? []).map((j) => j.name)}
       businessType={profile?.business_type ?? "general"}
       subscriptionStatus={profile?.subscription_status ?? "free"}

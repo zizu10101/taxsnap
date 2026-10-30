@@ -183,6 +183,8 @@ export interface Database {
           file_sha256?: string | null;
           // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
           invoice_number?: string | null;
+          // 0074: the id of the CSV import that created this expense (null for every other expense). Optional until applied.
+          import_batch_id?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;
@@ -215,6 +217,8 @@ export interface Database {
           file_sha256?: string | null;
           // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
           invoice_number?: string | null;
+          // 0074: the id of the CSV import that created this expense (null for every other expense). Optional until applied.
+          import_batch_id?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;
@@ -247,6 +251,8 @@ export interface Database {
           file_sha256?: string | null;
           // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
           invoice_number?: string | null;
+          // 0074: the id of the CSV import that created this expense (null for every other expense). Optional until applied.
+          import_batch_id?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;

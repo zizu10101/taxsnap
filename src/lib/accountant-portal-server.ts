@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Receipt } from "@/lib/database.types";
 import type { ReadDb } from "@/lib/scoped-reader";
+import { selectAll } from "@/lib/select-all";
 import type { PdfDocument } from "@/lib/invoice-pdf";
 
 // Read-only loaders for the accountant portal. Every one takes a ReadDb built
@@ -38,12 +39,24 @@ export async function loadAccountantBusiness(
   };
 }
 
+// Every expense (all pages: the database returns at most 1000 rows per request, see lib/select-all.ts).
+// With `range` the date filter is part of the QUERY, so the row ceiling can never cut a requested range
+// short; without it, every expense up to the 20,000-row ceiling (`truncated` says if that was hit).
+export async function loadAccountantExpenses(
+  db: ReadDb,
+  range?: { from: string | null; to: string | null },
+): Promise<{ rows: Receipt[]; truncated: boolean }> {
+  const { rows, truncated } = await selectAll(() => {
+    let query = db.from("receipts").select("*");
+    if (range?.from) query = query.gte("transaction_date", range.from);
+    if (range?.to) query = query.lte("transaction_date", range.to);
+    return query.order("transaction_date", { ascending: false }).order("id", { ascending: true });
+  });
+  return { rows: rows as Receipt[], truncated };
+}
+
 export async function listAccountantExpenses(db: ReadDb): Promise<Receipt[]> {
-  const { data } = await db
-    .from("receipts")
-    .select("*")
-    .order("transaction_date", { ascending: false });
-  return (data ?? []) as Receipt[];
+  return (await loadAccountantExpenses(db)).rows;
 }
 
 export async function listAccountantBankAccounts(
@@ -76,13 +89,16 @@ function round2(n: number): number {
 
 // Every invoice and estimate, drafts included (the status column says which).
 export async function listAccountantDocuments(db: ReadDb): Promise<AccountantDocumentRow[]> {
-  const { data } = await db
-    .from("documents")
-    .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, client:clients(name), job:jobs(name), payments(amount)",
-    )
-    .order("issue_date", { ascending: false })
-    .order("document_number", { ascending: false });
+  const { rows: data } = await selectAll(() =>
+    db
+      .from("documents")
+      .select(
+        "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, client:clients(name), job:jobs(name), payments(amount)",
+      )
+      .order("issue_date", { ascending: false })
+      .order("document_number", { ascending: false })
+      .order("id", { ascending: true }),
+  );
 
   type Raw = Omit<AccountantDocumentRow, "client_name" | "job_name" | "paid"> & {
     client: { name: string } | null;
@@ -230,10 +246,13 @@ export interface AccountantHourRow {
 // Hours and what they cost. Employee names and rates only - PINs live in
 // employee_pins, which the reader cannot open at all.
 export async function listAccountantHours(db: ReadDb): Promise<AccountantHourRow[]> {
-  const { data } = await db
-    .from("hour_entries")
-    .select("id, work_date, hours, rate, labor_cost, employee:employees(name), job:jobs(name)")
-    .order("work_date", { ascending: false });
+  const { rows: data } = await selectAll(() =>
+    db
+      .from("hour_entries")
+      .select("id, work_date, hours, rate, labor_cost, employee:employees(name), job:jobs(name)")
+      .order("work_date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
 
   type Raw = {
     id: string;

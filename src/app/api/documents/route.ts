@@ -19,6 +19,7 @@ import { parsePlaceText, placeOfWorkForNew } from "@/lib/job-fields";
 import { parseNote } from "@/lib/document-notes";
 import type { DocumentType } from "@/lib/database.types";
 import { parseLineInputs } from "@/lib/line-format";
+import { selectAll } from "@/lib/select-all";
 
 
 const DOCUMENT_TYPES: DocumentType[] = ["invoice", "estimate"];
@@ -36,19 +37,22 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
 
-  let query = result.supabase
-    .from("documents")
-    .select("*, client:clients(*), job:jobs(*), payments(*)")
-    .order("issue_date", { ascending: false });
-
-  if (type && DOCUMENT_TYPES.includes(type as DocumentType)) {
-    query = query.eq("type", type as DocumentType);
+  // Every document, all pages (the HST helper's Line 101/103 and the dashboard's export are built from this
+  // list; the API's own 1000-row page would silently leave invoices out). `truncated` only past 20,000.
+  try {
+    const { rows, truncated } = await selectAll(() => {
+      let query = result.supabase
+        .from("documents")
+        .select("*, client:clients(*), job:jobs(*), payments(*)");
+      if (type && DOCUMENT_TYPES.includes(type as DocumentType)) {
+        query = query.eq("type", type as DocumentType);
+      }
+      return query.order("issue_date", { ascending: false }).order("id", { ascending: true });
+    });
+    return NextResponse.json({ documents: rows, truncated });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Could not load documents." }, { status: 500 });
   }
-
-  const { data, error } = await query;
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ documents: data });
 }
 
 

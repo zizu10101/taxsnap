@@ -42,6 +42,7 @@ function slugify(label: string): string {
 
 export function DashboardBody({
   initialReceipts,
+  receiptsTruncated = false,
   initialJobNames,
   businessType,
   subscriptionStatus,
@@ -50,6 +51,8 @@ export function DashboardBody({
   logoPath,
 }: {
   initialReceipts: Receipt[];
+  /** The receipts query hit the 20,000-row ceiling. */
+  receiptsTruncated?: boolean;
   initialJobNames: string[];
   // Hides the "New Estimate" quick-action tile below for salon accounts -
   // Estimates doesn't apply to that business type (see
@@ -272,9 +275,10 @@ export function DashboardBody({
         <JobFilter jobs={existingJobs} value={jobFilter} onChange={setJobFilter} />
       </div>
 
-      <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
+      <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} truncated={receiptsTruncated} />
 
       <HstSummaryCard
+        receiptsTruncated={receiptsTruncated}
         receipts={receipts}
         businessType={businessType}
         subscriptionStatus={subscriptionStatus}

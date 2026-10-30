@@ -10,6 +10,7 @@ import {
 } from "@/lib/csv";
 import { computeExpenseSummary } from "@/lib/expense-summary";
 import { generateDocumentPdf } from "@/lib/invoice-pdf";
+import { selectAll } from "@/lib/select-all";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 
 // Signed URLs only need to live long enough to fetch the image bytes
@@ -268,26 +269,32 @@ export async function downloadAccountantExport(
 ): Promise<void> {
   const { data: bankAccountRows } = await supabase.from("bank_accounts").select("id, name");
 
-  let invoiceQuery = supabase
-    .from("documents")
-    .select("*, client:clients(*), payments(*), items:document_items(*)")
-    .eq("type", "invoice")
-    .order("issue_date", { ascending: true });
-  if (range.start) invoiceQuery = invoiceQuery.gte("issue_date", range.start);
-  if (range.end) invoiceQuery = invoiceQuery.lte("issue_date", range.end);
-  const { data: invoiceRows } = await invoiceQuery;
+  // Every invoice in the range, and every invoice's payments (a payment in the range can belong to an older
+  // invoice): all pages, so the database's 1000-row page can't leave invoices out of the bundle.
+  const { rows: invoiceRows } = await selectAll(() => {
+    let query = supabase
+      .from("documents")
+      .select("*, client:clients(*), payments(*), items:document_items(*)")
+      .eq("type", "invoice");
+    if (range.start) query = query.gte("issue_date", range.start);
+    if (range.end) query = query.lte("issue_date", range.end);
+    return query.order("issue_date", { ascending: true }).order("id", { ascending: true });
+  });
 
-  const { data: paymentDocs } = await supabase
-    .from("documents")
-    .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
-    .eq("type", "invoice");
+  const { rows: paymentDocs } = await selectAll(() =>
+    supabase
+      .from("documents")
+      .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
+      .eq("type", "invoice")
+      .order("id", { ascending: true }),
+  );
 
   await buildAndDownloadAccountantExport(
     {
       receipts,
       bankAccounts: bankAccountRows ?? [],
-      invoices: (invoiceRows ?? []) as unknown as DocumentWithRelations[],
-      paymentDocs: (paymentDocs ?? []) as unknown as PaymentDoc[],
+      invoices: invoiceRows as unknown as DocumentWithRelations[],
+      paymentDocs: paymentDocs as unknown as PaymentDoc[],
       invoicePayments,
       range,
       business,

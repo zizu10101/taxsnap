@@ -6,6 +6,7 @@ import { findJobByName, duplicateJobMessage, isUniqueViolation } from "@/lib/fin
 import { validateJobPatch } from "@/lib/job-fields";
 import { jobDeleteBlocker } from "@/lib/job-delete";
 import { listJobPhotoPaths, removePhotoFiles } from "@/lib/job-photos-server";
+import { selectAll } from "@/lib/select-all";
 
 // Job detail + cost rollup. Total job cost = sum of tagged expenses
 // (receipts.total_amount) + sum of labor cost (hour_entries.labor_cost).
@@ -22,14 +23,18 @@ export async function GET(
   const { supabase } = result;
   const { id } = await params;
 
-  const [{ data: job, error: jobError }, { data: receipts }, { data: hourEntries }] =
+  const [{ data: job, error: jobError }, { rows: receipts }, { data: hourEntries }] =
     await Promise.all([
       supabase.from("jobs").select("*").eq("id", id).single(),
-      supabase
-        .from("receipts")
-        .select("id, merchant_name, transaction_date, total_amount, tax_category")
-        .eq("job_id", id)
-        .order("transaction_date", { ascending: false }),
+      // All of this job's expenses, all pages (see lib/select-all.ts).
+      selectAll(() =>
+        supabase
+          .from("receipts")
+          .select("id, merchant_name, transaction_date, total_amount, tax_category")
+          .eq("job_id", id)
+          .order("transaction_date", { ascending: false })
+          .order("id", { ascending: true }),
+      ),
       supabase
         .from("hour_entries")
         .select("*, employee:employees(*)")

@@ -11,6 +11,7 @@ import { granularityForRange } from "@/lib/commission-overview";
 import { bucketExpenseTrendPoints } from "@/lib/expense-overview";
 import type { ExpenseOverviewData } from "@/lib/expense-overview-query";
 import { itcSplitNote } from "@/lib/tax-codes";
+import { TruncationNotice } from "@/components/dashboard/truncation-notice";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -91,6 +92,7 @@ const EMPTY_DATA: ExpenseOverviewData = {
   overheadExpenses: { ...EMPTY_SUMMARY },
   trendPoints: [],
   salesTrendPoints: [],
+  truncated: false,
 };
 
 // Route-level Pro-gate happens one level up (dashboard/overview/page.tsx) -
@@ -150,6 +152,8 @@ export function ExpenseOverview({
   return (
     <div className="space-y-4">
       <DateRangeFilter preset={preset} range={range} onChange={handleRangeChange} />
+
+      <TruncationNotice show={data.truncated} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryCard label="Total Sales" value={data.totalSales} />

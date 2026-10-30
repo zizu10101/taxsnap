@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { computeExpenseSummary } from "@/lib/expense-summary";
 import { itcSplitNote } from "@/lib/tax-codes";
 import type { Receipt } from "@/lib/database.types";
+import { TruncationNotice } from "@/components/dashboard/truncation-notice";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -19,9 +20,12 @@ function formatCurrency(amount: number) {
 export function ReceiptsSummary({
   receipts,
   rangeLabel,
+  truncated = false,
 }: {
   receipts: Receipt[];
   rangeLabel: string;
+  /** The page's expense list hit the 20,000-row ceiling: say the totals may be incomplete. */
+  truncated?: boolean;
 }) {
   // Same computeExpenseSummary() the Overview page and accountant export
   // use - this card previously summed raw total_amount for "Deductible
@@ -55,6 +59,8 @@ export function ReceiptsSummary({
     // (sm+): three equal columns, HST last/right like the mockup's
     // 3-column stat row - same cards, same data, just re-flowed via grid
     // placement instead of two separate layouts.
+    <div className="space-y-2">
+    <TruncationNotice show={truncated} />
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <Card className="relative order-1 col-span-2 overflow-hidden border-success/30 bg-success/5 sm:order-3 sm:col-span-1">
         <div className="absolute inset-y-0 right-0 hidden w-1.5 bg-success sm:block" />
@@ -113,6 +119,7 @@ export function ReceiptsSummary({
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

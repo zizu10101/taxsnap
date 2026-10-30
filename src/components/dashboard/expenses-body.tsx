@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useSyncedState } from "@/lib/use-synced-state";
 import Link from "next/link";
-import { FileText, Files, Plus, Repeat } from "lucide-react";
+import { FileSpreadsheet, FileText, Files, History, Plus, Repeat, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
@@ -14,6 +15,10 @@ import { expenseSearchFields } from "@/lib/list-search-fields";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
 import { ManualExpenseDialog } from "@/components/dashboard/manual-expense-dialog";
+import { ImportExpensesDialog } from "@/components/dashboard/import-expenses-dialog";
+import { BulkDeleteDialog, type DeleteTarget } from "@/components/dashboard/bulk-delete-dialog";
+import { ImportsDialog, importLabel } from "@/components/dashboard/imports-dialog";
+import type { BatchSummary } from "@/lib/bulk-delete";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { StatementImportButton } from "@/components/dashboard/statement-import-button";
 import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
@@ -60,6 +65,7 @@ export function ExpensesBody({
   statementImportEnabled = false,
   openStatementDrafts = [],
   initialOpenReceiptId = null,
+  receiptsTruncated = false,
 }: {
   initialReceipts: Receipt[];
   initialJobNames: string[];
@@ -78,6 +84,8 @@ export function ExpensesBody({
   // the loaded receipts regardless of the date and job filters; an id that isn't there (deleted,
   // or not theirs) simply opens nothing.
   initialOpenReceiptId?: string | null;
+  /** The receipts query hit the 20,000-row ceiling: the summary says its totals may be incomplete. */
+  receiptsTruncated?: boolean;
 }) {
   const [receipts, setReceipts] = useSyncedState(initialReceipts);
   const [templates, setTemplates] = useSyncedState(initialTemplates);
@@ -94,6 +102,14 @@ export function ExpensesBody({
     initialOpenReceiptId ? (initialReceipts.find((r) => r.id === initialOpenReceiptId) ?? null) : null,
   );
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const router = useRouter();
+  const [importOpen, setImportOpen] = useState(false);
+  // The recent CSV imports list, the import the list is narrowed to (it ignores the date range: an import
+  // can span any dates), and what the delete confirmation is open for.
+  const [importsOpen, setImportsOpen] = useState(false);
+  const [batchFilter, setBatchFilter] = useState<BatchSummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<(DeleteTarget & { key: number }) | null>(null);
+  const deleteKey = useRef(0);
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [expenseTemplate, setExpenseTemplate] = useState<ExpenseTemplateWithJob | null>(null);
 
@@ -115,13 +131,13 @@ export function ExpensesBody({
   }, [knownCategories, receipts]);
 
   const filteredReceipts = useMemo(() => {
-    const byRange = filterByRange(receipts, range);
+    const byRange = batchFilter ? receipts.filter((r) => r.import_batch_id === batchFilter.id) : filterByRange(receipts, range);
     const byJob = jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
     const byCategory = categoryFilter
       ? byJob.filter((r) => sameCategory(r.tax_category, categoryFilter))
       : byJob;
     return searchList(byCategory, query, (r) => expenseSearchFields(r));
-  }, [receipts, range, jobFilter, categoryFilter, query]);
+  }, [receipts, range, jobFilter, categoryFilter, query, batchFilter]);
 
   // Only rows that are still on screen count (a deleted row drops out by itself).
   const selectedIds = useMemo(
@@ -148,7 +164,10 @@ export function ExpensesBody({
   );
 
   const rangeLabel = useMemo(() => describeRange(preset, range), [preset, range]);
-  const scopeLabel = [jobFilter, categoryFilter].filter(Boolean).concat(rangeLabel).join(" — ");
+  const scopeLabel = [jobFilter, categoryFilter]
+    .filter(Boolean)
+    .concat(batchFilter ? `Import of ${new Date(batchFilter.imported_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : rangeLabel)
+    .join(" — ");
 
   const exportFilenameBase = `taxsnap-expenses-${slugify(scopeLabel)}`;
 
@@ -181,6 +200,25 @@ export function ExpensesBody({
 
   function handleDeleted(id: string) {
     setReceipts((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // The Delete confirmation finished: drop what the server really deleted. Deleting an import leaves the
+  // import view too (nothing of it is left to show).
+  function handleBulkDeleted(ids: string[]) {
+    const gone = new Set(ids);
+    setReceipts((prev) => prev.filter((r) => !gone.has(r.id)));
+    setSelected(new Set());
+    if (deleteTarget?.kind === "batch") setBatchFilter(null);
+    router.refresh();
+  }
+
+  function describeReceipt(id: string): string {
+    const r = receipts.find((x) => x.id === id);
+    return r ? `${r.merchant_name}, ${r.transaction_date}` : "An expense that is no longer in this list";
+  }
+
+  function openDelete(target: DeleteTarget) {
+    setDeleteTarget({ ...target, key: ++deleteKey.current });
   }
 
   function handleUpdated(updated: Receipt) {
@@ -245,6 +283,14 @@ export function ExpensesBody({
             <Plus className="h-4 w-4" />
             Add Expense
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Import CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportsOpen(true)}>
+            <History className="h-4 w-4" />
+            Imports
+          </Button>
         </div>
       </div>
 
@@ -293,7 +339,30 @@ export function ExpensesBody({
         />
       )}
 
-      <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} />
+      {batchFilter && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+          <span>
+            Showing one import: <strong>{importLabel(batchFilter)}</strong>. The date range is ignored while you are looking at it.
+          </span>
+          <span className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                openDelete({ kind: "batch", batchId: batchFilter.id, label: importLabel(batchFilter) })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete this import
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setBatchFilter(null)}>
+              Show all
+            </Button>
+          </span>
+        </div>
+      )}
+
+      <ReceiptsSummary receipts={filteredReceipts} rangeLabel={scopeLabel} truncated={receiptsTruncated} />
 
       <ReceiptsList
         receipts={jobExpenses}
@@ -344,6 +413,7 @@ export function ExpensesBody({
           }
         }}
         onClear={() => setSelected(new Set())}
+        onDelete={(ids) => openDelete({ kind: "ids", ids })}
         onMoved={({ category, previous, retaxed }) => {
           const moved = new Set(previous.map((p) => p.id));
           const newTax = new Map(retaxed.map((t) => [t.id, t.patch]));
@@ -395,6 +465,27 @@ export function ExpensesBody({
         onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
         onTemplateSaved={(template) => setTemplates((prev) => [...prev, template])}
       />
+
+      <ImportExpensesDialog open={importOpen} onOpenChange={setImportOpen} />
+
+      <ImportsDialog
+        open={importsOpen}
+        onOpenChange={setImportsOpen}
+        onChoose={(batch) => {
+          setBatchFilter(batch);
+          setSelected(new Set());
+        }}
+      />
+
+      {deleteTarget && (
+        <BulkDeleteDialog
+          key={deleteTarget.key}
+          target={deleteTarget}
+          describe={describeReceipt}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={handleBulkDeleted}
+        />
+      )}
 
       <ExpenseTemplatesDialog
         open={templatesDialogOpen}

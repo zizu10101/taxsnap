@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getAccountantApiContext } from "@/lib/accountant-api";
 import {
   listAccountantBankAccounts,
-  listAccountantExpenses,
+  loadAccountantExpenses,
   loadAccountantBusiness,
 } from "@/lib/accountant-portal-server";
 import type { QuickBooksInvoicePayment } from "@/lib/csv";
+import { selectAll } from "@/lib/select-all";
 
 // Read-only. Everything the accountant export bundle is built from, for one
 // inclusive "YYYY-MM-DD" range: the receipts, accounts, the range's invoices
@@ -21,31 +22,38 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const allReceipts = await listAccountantExpenses(db);
-  const receipts = allReceipts.filter(
-    (r) => (!from || r.transaction_date >= from) && (!to || r.transaction_date <= to),
-  );
-
-  let invoiceQuery = db
-    .from("documents")
-    .select(
-      "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, draw_percent_complete, draw_description, notes, client:clients(name, email, address), payments(*), items:document_items(*)",
-    )
-    .eq("type", "invoice")
-    .order("issue_date", { ascending: true });
-  if (from) invoiceQuery = invoiceQuery.gte("issue_date", from);
-  if (to) invoiceQuery = invoiceQuery.lte("issue_date", to);
-
-  const [{ data: invoices }, { data: paymentDocs }, bankAccounts, { business, logoPath }] =
-    await Promise.all([
-      invoiceQuery,
+  // The date range is part of each QUERY (not applied to a loaded list afterwards), and every query reads all
+  // its pages, so neither the database's 1000-row page nor the 20,000-row ceiling can cut a range short.
+  const [
+    { rows: receipts },
+    { rows: invoices },
+    { rows: paymentDocs },
+    bankAccounts,
+    { business, logoPath },
+  ] = await Promise.all([
+    loadAccountantExpenses(db, { from, to }),
+    selectAll(() => {
+      let query = db
+        .from("documents")
+        .select(
+          "id, type, status, document_number, issue_date, due_date, subtotal, hst_amount, total_amount, excluded_from_hst, is_progress_draw, draw_number, draw_percent_complete, draw_description, notes, client:clients(name, email, address), payments(*), items:document_items(*)",
+        )
+        .eq("type", "invoice");
+      if (from) query = query.gte("issue_date", from);
+      if (to) query = query.lte("issue_date", to);
+      return query.order("issue_date", { ascending: true }).order("id", { ascending: true });
+    }),
+    // Every invoice's payments: a payment in the range can belong to an older invoice.
+    selectAll(() =>
       db
         .from("documents")
         .select("document_number, excluded_from_hst, client:clients(name), payments(*)")
-        .eq("type", "invoice"),
-      listAccountantBankAccounts(db),
-      loadAccountantBusiness(admin, userId),
-    ]);
+        .eq("type", "invoice")
+        .order("id", { ascending: true }),
+    ),
+    listAccountantBankAccounts(db),
+    loadAccountantBusiness(admin, userId),
+  ]);
 
   // Same revenue-recognition rule as the owner's receipts page: real payments
   // in the range, skipping invoices excluded from HST.
@@ -72,8 +80,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     receipts,
     bankAccounts,
-    invoices: invoices ?? [],
-    paymentDocs: paymentDocs ?? [],
+    invoices,
+    paymentDocs,
     invoicePayments,
     business,
     hasLogo: !!logoPath,

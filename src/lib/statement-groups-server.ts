@@ -18,6 +18,7 @@ import {
   type LineOutcome,
   type ReconcileTone,
 } from "./statement-summary.ts";
+import { selectAll } from "./select-all.ts";
 import { torontoMonthStart } from "./toronto-month.ts";
 
 // The server half of saved-statement grouping: the Statements list, a statement's detail, "Delete
@@ -84,16 +85,18 @@ async function loadImport(db: Db, userId: string, importId: string): Promise<Imp
 }
 
 async function loadLines(db: Db, userId: string, importId: string): Promise<LineRow[]> {
-  const { data, error } = await db
-    .from("statement_lines")
-    .select(LINE_COLUMNS)
-    .eq("import_id", importId)
-    .eq("user_id", userId)
-    .order("page", { ascending: true })
-    .order("line_no", { ascending: true })
-    .limit(1000);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as LineRow[];
+  // All of the statement's lines, all pages (a `.limit(1000)` is the API's own page size, not a promise).
+  const { rows } = await selectAll(() =>
+    db
+      .from("statement_lines")
+      .select(LINE_COLUMNS)
+      .eq("import_id", importId)
+      .eq("user_id", userId)
+      .order("page", { ascending: true })
+      .order("line_no", { ascending: true })
+      .order("id", { ascending: true }),
+  );
+  return rows as unknown as LineRow[];
 }
 
 async function loadReceipts(db: Db, userId: string, ids: string[]): Promise<DeleteReceipt[]> {
