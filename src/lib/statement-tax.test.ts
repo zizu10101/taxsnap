@@ -11,13 +11,13 @@ const defaults = buildCategoryDefaults({ bankChargesName: "Bank charges" });
 const line = (over: Partial<TaxLineInput> = {}): TaxLineInput => ({
   kind: "purchase",
   amount: 113,
-  category: "Supplies",
+  category: "Other",
   original_currency: null,
   tax_amount: 0,
   ...over,
 });
 
-test("an ordinary purchase in an ordinary category has no code: nothing is calculated, and it says so", () => {
+test("a purchase in a category with no default (Other) has no code: nothing is calculated, and it says so", () => {
   const t = lineTax(line(), defaults);
   assert.deepEqual([t.tax_amount, t.needs_code, t.code], [0, true, null]);
 });
@@ -33,6 +33,15 @@ test("changing the amount recalculates; nothing stale is stored on a draft", () 
   const picked = { tax_source: "line" as const, ...TAX_CODES.taxable };
   assert.equal(lineTax(line({ amount: 113, ...picked }), defaults).tax_amount, 13);
   assert.equal(lineTax(line({ amount: 226, ...picked }), defaults).tax_amount, 26);
+});
+
+test("a purchase in a built-in category is calculated from that category's default", () => {
+  const t = lineTax(line({ category: "Materials & Supplies" }), defaults);
+  assert.deepEqual([t.tax_amount, t.needs_code, t.source], [13, false, "category"]);
+  // an old name still resolves, and the owner's own pick still wins
+  assert.equal(lineTax(line({ category: "Job Materials" }), defaults).tax_amount, 13);
+  const picked = lineTax(line({ category: "Materials & Supplies", tax_source: "line", ...TAX_CODES.none }), defaults);
+  assert.deepEqual([picked.tax_amount, picked.source], [0, "line"]);
 });
 
 test("bank charges, fees and interest are no-tax by default; foreign currency too", () => {
@@ -101,7 +110,7 @@ test("a derived code is recomputed if the category changed since the last attemp
   const first = taxWritesFor([row("a", { category: "Bank charges" })], defaults)[0];
   assert.equal(first.update.tax_source, "category");
   // Same line, now in a category with no default, but carrying the derived code from the last attempt.
-  const next = taxWritesFor([row("a", { category: "Supplies", ...first.update })], defaults)[0];
+  const next = taxWritesFor([row("a", { category: "Other", ...first.update })], defaults)[0];
   assert.deepEqual(next.update, { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null });
 });
 

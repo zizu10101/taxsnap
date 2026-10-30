@@ -15,6 +15,7 @@
 // reports the before/after effect.
 
 import { computeExpenseSummary } from "./expense-summary.ts";
+import { canonicalCategory, isMealsCategory, sameCategory } from "./tax-categories.ts";
 import { taxAfterCategoryChange, currentTaxPatch, TAX_SOURCES, type CategoryDefaults, type RecalcRow, type TaxPatch } from "./tax-codes.ts";
 
 export const BULK_CATEGORY_MAX = 500;
@@ -70,8 +71,10 @@ export interface BulkPlan {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-export const isMeals = (category: string) => category === "Meals";
+// Old and new spellings of one category count as the same ("Gas" is already in "Vehicle & Fuel"); the
+// stored `from` value stays exactly as it is, because the stale check compares it to the row.
+const same = sameCategory;
+export const isMeals = isMealsCategory;
 
 export function planBulkCategory(
   ids: string[],
@@ -86,10 +89,11 @@ export function planBulkCategory(
 
   const groups = new Map<string, CategoryGroup>();
   for (const r of changing) {
-    const g = groups.get(r.tax_category) ?? { category: r.tax_category, count: 0, total: 0 };
+    const shown = canonicalCategory(r.tax_category);
+    const g = groups.get(shown) ?? { category: shown, count: 0, total: 0 };
     g.count += 1;
     g.total = round2(g.total + r.total_amount);
-    groups.set(r.tax_category, g);
+    groups.set(shown, g);
   }
 
   // Calculated rows whose code follows their category are recomputed; nothing else is.

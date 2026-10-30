@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { canonicalCategory } from "@/lib/tax-categories";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
@@ -50,7 +51,7 @@ function emptyForm(template?: ExpenseTemplateWithJob | null) {
   return {
     merchant_name: template?.description ?? "",
     transaction_date: todayIso(),
-    tax_category: template?.default_tax_category ?? "Other",
+    tax_category: canonicalCategory(template?.default_tax_category),
     total_amount: template?.default_amount ?? 0,
     tax_amount: template?.default_tax_amount ?? 0,
     // Optional "Paid with" account id; a template can remember its usual one.

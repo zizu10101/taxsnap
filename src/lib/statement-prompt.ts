@@ -116,8 +116,10 @@ if one appears, keep only the last 4 digits.
 and its currency code in original_amount / original_currency.
 - Never invent, merge or split lines. If a line is illegible, still include it with your \
 best reading rather than skipping it.
-- suggested_category: pick exactly one from this list when a category is clearly \
-reasonable, otherwise null. ${bankChargesRule} \
+- suggested_category: pick exactly one from this list, spelled exactly as listed. \
+If none clearly fits, use "Other" if it is on the list, otherwise null - never invent a \
+category. ${bankChargesRule} Insurance premiums go under Insurance and payroll under \
+Wages & Payroll. \
 Allowed: ${input.categories.join(", ")}.
 - header: fill in only what is printed on these pages; use null otherwise. \
 closing_balance is the new/statement balance; opening_balance is the previous balance. \

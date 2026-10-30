@@ -2,6 +2,7 @@
 // searches is written down once and tested - the components only call searchList() with these.
 
 import { amountSearchText, type SearchField } from "./list-search.ts";
+import { canonicalCategory } from "./tax-categories.ts";
 import { formatContractNumber } from "./contract-number.ts";
 import { formatDocumentNumber } from "./document-number.ts";
 import { lineDescription, lineName } from "./line-format.ts";
@@ -62,6 +63,8 @@ export function expenseSearchFields(r: {
   return [
     r.merchant_name,
     r.tax_category,
+    // Searchable by the current name too, so "vehicle" finds an old "Gas" row.
+    canonicalCategory(r.tax_category),
     r.job_name,
     ...(r.items ?? []).map((i) => i.name),
     amountSearchText(r.total_amount),

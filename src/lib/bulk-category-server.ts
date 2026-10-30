@@ -12,6 +12,7 @@ import {
 } from "./bulk-category.ts";
 import { loadCategoryRows } from "./statement-bank-charges.ts";
 import { bankChargesSuggestion, resolveBankCharges } from "./statement-categories.ts";
+import { sameCategory } from "./tax-categories.ts";
 import { buildCategoryDefaults, type CategoryDefaults, type TaxPatch } from "./tax-codes.ts";
 
 // The server half of the Expenses page's bulk "Change category". It writes `tax_category`, and
@@ -171,7 +172,7 @@ export async function handleBulkCategory(db: Db, userId: string, body: unknown):
         "STALE_PREVIEW",
       );
     }
-    if (changes.some((c) => c.from.trim().toLowerCase() === category.toLowerCase())) {
+    if (changes.some((c) => sameCategory(c.from, category))) {
       return fail(400, "Some of these are already in that category.");
     }
     const mealsInvolved = isMeals(category) || changes.some((c) => isMeals(c.from));

@@ -1,4 +1,5 @@
 import type { StatementLineKind } from "./database.types.ts";
+import { canonicalCategory } from "./tax-categories.ts";
 import { STATEMENT_MAX_LINES } from "./statement-config.ts";
 
 // Turns the model's raw JSON for one chunk of a card statement into rows that
@@ -101,10 +102,14 @@ function cleanDescription(value: unknown): string {
   return maskCardNumbers(text.replace(/\s+/g, " ").trim()).slice(0, 200);
 }
 
-function canonicalCategory(value: unknown, allowed: string[]): string | null {
+function matchAllowedCategory(value: unknown, allowed: string[]): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const key = value.trim().toLowerCase();
-  return allowed.find((c) => c.toLowerCase() === key) ?? null;
+  const direct = allowed.find((c) => c.toLowerCase() === key);
+  if (direct) return direct;
+  // An old category name the model may still say ("Gas") maps onto the built-in that replaced it.
+  const mapped = canonicalCategory(value).toLowerCase();
+  return allowed.find((c) => c.toLowerCase() === mapped) ?? null;
 }
 
 function parseHeader(raw: unknown): ChunkHeader {
@@ -151,7 +156,7 @@ export function sanitizeChunk(
     periodEnd ? dayNumber(periodEnd) + PERIOD_SLACK_DAYS : Number.POSITIVE_INFINITY,
   );
   const pagesInChunk = ctx.pageTo - ctx.pageFrom + 1;
-  const bankCharges = canonicalCategory(ctx.bankChargesCategory, ctx.allowedCategories);
+  const bankCharges = matchAllowedCategory(ctx.bankChargesCategory, ctx.allowedCategories);
 
   const lineNoByPage = new Map<number, number>();
   const lines: ExtractedLine[] = [];
@@ -193,7 +198,7 @@ export function sanitizeChunk(
     if (kind === "payment" || kind === "refund") amount = -Math.abs(amount);
     if (kind === "purchase" && amount < 0) kind = "refund";
 
-    let suggested = kind === "payment" ? null : canonicalCategory(l.suggested_category, ctx.allowedCategories);
+    let suggested = kind === "payment" ? null : matchAllowedCategory(l.suggested_category, ctx.allowedCategories);
     if (!suggested && (kind === "fee" || kind === "interest") && bankCharges) {
       suggested = bankCharges;
     }

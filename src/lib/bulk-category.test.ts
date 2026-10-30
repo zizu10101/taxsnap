@@ -128,13 +128,27 @@ const calculated = (n: number, over: Partial<BulkRow> = {}): BulkRow => ({
 });
 
 test("a calculated row coded by its category is recomputed: out of the no-tax category it loses the code, and the plan says so", () => {
-  const plan = planBulkCategory([id(1)], [calculated(1)], "Supplies", defaults);
+  const plan = planBulkCategory([id(1)], [calculated(1)], "Other", defaults);
   assert.equal(plan.recalculated, 1);
   assert.deepEqual(plan.retax, [
     { id: id(1), patch: { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null } },
   ]);
   // the change remembers the previous code and tax so Undo can put them back
   assert.deepEqual(plan.changes[0].prev, { tax_amount: 0, tax_rate: 0, itc_pct: 0, deductible_pct: 1, tax_source: "category" });
+});
+
+test("a calculated row moved out of the no-tax category into one with a default is recalculated from that default", () => {
+  const plan = planBulkCategory([id(1)], [calculated(1)], "Supplies", defaults);
+  // "Supplies" is an old name: it lands in Materials & Supplies, which is taxable (13% of 113 = 13)
+  assert.deepEqual(plan.retax, [
+    { id: id(1), patch: { tax_amount: 13, tax_rate: 0.13, itc_pct: 1, deductible_pct: 1, tax_source: "category" } },
+  ]);
+});
+
+test("old and new names of a category are the same category: moving Gas into Vehicle & Fuel changes nothing", () => {
+  const plan = planBulkCategory([id(1)], [row(1, "Gas", 50, 5)], "Vehicle & Fuel", defaults);
+  assert.equal(plan.will_change, 0);
+  assert.equal(plan.already_in_target, 1);
 });
 
 test("confirmed rows are never recalculated: not a scanned receipt, not an attached one, not a typed figure", () => {

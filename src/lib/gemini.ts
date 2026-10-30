@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { TAX_CATEGORIES } from "@/lib/tax-categories";
+import { TAX_CATEGORIES, canonicalCategory, isBuiltInCategory } from "@/lib/tax-categories";
 import { geminiUsage } from "@/lib/gemini-usage";
 import type { ReceiptItem } from "@/lib/database.types";
 
@@ -61,7 +61,8 @@ const RECEIPT_SCHEMA = {
     },
     tax_category: {
       type: Type.STRING,
-      description: "The best-fit IRS Schedule C style write-off category.",
+      description:
+        "The single best-fit business expense category from the list. Use Other when none clearly fits.",
       enum: [...TAX_CATEGORIES],
     },
     items: {
@@ -139,7 +140,7 @@ transaction_date as your best guess but set date_ambiguous to true.
 - total_amount and tax_amount must be plain numbers (no currency symbols).
 - If tax_amount is not printed on the receipt, use 0.
 - Pick exactly one tax_category from this list, choosing the closest match for a \
-self-employed trade contractor's business expenses: ${TAX_CATEGORIES.join(", ")}.
+self-employed trade contractor's business expenses: ${TAX_CATEGORIES.join(", ")}. Choose only from that list, exactly as spelled. If none clearly fits, or you are unsure, choose "Other" - never invent a category. Meals & Entertainment is for restaurant, coffee and food purchases; Materials & Supplies is for what is used up on a job; Tools & Equipment is for things that are kept and reused; Capital Assets is for large purchases of long-lasting equipment or vehicles; Vehicle & Fuel is for gas, repairs, tolls and parking.
 - items should list each distinct product or service line from the receipt with its own
   price (e.g. [{"name": "Interior latex paint 1gal", "amount": 38.99}, {"name": "Paint
   brush set", "amount": 12.50}]). Skip subtotal/tax/total lines - those aren't items.
@@ -204,10 +205,10 @@ export async function parseReceiptImage(
     date_ambiguous: !parsed.transaction_date || Boolean(parsed.date_ambiguous),
     total_amount: Number(parsed.total_amount) || 0,
     tax_amount: Number(parsed.tax_amount) || 0,
-    tax_category: TAX_CATEGORIES.includes(
-      parsed.tax_category as (typeof TAX_CATEGORIES)[number],
-    )
-      ? parsed.tax_category
+    // Only a current built-in is kept (an old name the model might still say is mapped onto it);
+    // anything else falls back to Other.
+    tax_category: isBuiltInCategory(canonicalCategory(parsed.tax_category))
+      ? canonicalCategory(parsed.tax_category)
       : "Other",
     items,
   };

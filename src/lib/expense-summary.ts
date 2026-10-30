@@ -2,11 +2,11 @@ import {
   deductiblePct,
   isCalculated,
   itcPct,
-  MEALS_ITC_RESTRICTION_RATE,
   needsTaxCode,
   round2,
   type TaxedRow,
 } from "./tax-codes.ts";
+import { categoryDeductibleRate } from "./tax-categories.ts";
 
 // Shared by the Overview page's server-side aggregation
 // (expense-overview-query.ts) and the accountant export bundle
@@ -52,7 +52,7 @@ export interface ExpenseSummary {
 // code (a card-statement expense) is read with deductiblePct()/itcPct() instead, which fall back to
 // this when the row carries none - so every receipt from before tax codes is unchanged.
 export function deductibleRate(taxCategory: string): number {
-  return taxCategory === "Meals" ? MEALS_ITC_RESTRICTION_RATE : 1;
+  return categoryDeductibleRate(taxCategory);
 }
 
 export function computeExpenseSummary(receipts: ExpenseLineInput[]): ExpenseSummary {

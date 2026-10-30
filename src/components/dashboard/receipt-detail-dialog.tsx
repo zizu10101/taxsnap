@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-lists-provider";
+import { canonicalCategory } from "@/lib/tax-categories";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { StatementLink } from "@/components/dashboard/statement-link";
@@ -105,7 +106,7 @@ function toForm(receipt: Receipt): EditForm {
   return {
     merchant_name: receipt.merchant_name,
     transaction_date: receipt.transaction_date,
-    tax_category: receipt.tax_category,
+    tax_category: canonicalCategory(receipt.tax_category),
     total_amount: receipt.total_amount,
     tax_amount: receipt.tax_amount,
     items: items.length ? items : [{ ...EMPTY_ITEM }],
@@ -528,7 +529,7 @@ function ReceiptSummaryContent({
           <span className="text-sm text-muted-foreground">
             {formatDate(receipt.transaction_date)}
           </span>
-          <Badge variant="secondary">{receipt.tax_category}</Badge>
+          <Badge variant="secondary">{canonicalCategory(receipt.tax_category)}</Badge>
         </div>
         <StatementFlagBadge receipt={receipt} className="mt-1.5" />
         <StatementLink receiptId={receipt.id} enabled={statementImportEnabled} />

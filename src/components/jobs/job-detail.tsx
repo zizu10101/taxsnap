@@ -19,6 +19,7 @@ import { groupJobDocuments, type JobDocumentRow } from "@/lib/job-documents";
 import { formatDocumentNumber } from "@/lib/document-number";
 import { drawBadgeLabel } from "@/lib/document-filter";
 import { invoiceDetailHref } from "@/lib/invoice-back";
+import { canonicalCategory } from "@/lib/tax-categories";
 import type {
   Client,
   Employee,
@@ -431,7 +432,7 @@ export function JobDetail({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{r.merchant_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatDate(r.transaction_date)} · {r.tax_category}
+                      {formatDate(r.transaction_date)} · {canonicalCategory(r.tax_category)}
                     </p>
                   </div>
                 </div>

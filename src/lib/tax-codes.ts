@@ -15,14 +15,23 @@
 // owner). Attaching a receipt replaces the calculated figure with the actual one.
 //
 // A line with NO code calculates nothing: tax_amount stays 0 and it is flagged "needs a tax code".
-// There is deliberately no fallback rate - a guess would overclaim. Until the owner's accountant
-// supplies a category table, the only defaults are the clear no-tax ones (bank charges, interest and
-// fees); everything else needs a code chosen on the line.
+// There is deliberately no fallback rate - a guess would overclaim. A line gets a code from its
+// category's default (tax-categories.ts CATEGORY_INFO: every built-in except "Other", which has none,
+// so the owner picks one there); a custom category of the owner's has no default either.
 //
-// Pure, with no imports, so it unit-tests directly and can be shared by the review screen, the
-// commit step, the reports and bulk recategorize.
+// Pure, with one pure import (the category table), so it unit-tests directly and can be shared by the
+// review screen, the commit step, the reports and bulk recategorize.
 
-export const MEALS_ITC_RESTRICTION_RATE = 0.5;
+import {
+  TAX_CATEGORIES,
+  canonicalCategory,
+  categoryDefaultCode,
+  categoryDeductibleRate,
+  categoryItcRate,
+  MEALS_ITC_RESTRICTION_RATE as MEALS_RATE,
+} from "./tax-categories.ts";
+
+export const MEALS_ITC_RESTRICTION_RATE = MEALS_RATE;
 export const ONTARIO_HST_RATE = 0.13;
 
 export interface TaxCode {
@@ -96,7 +105,7 @@ export function calculateTax(total: number, code: TaxCode): number {
 //   rule          a saved vendor rule (a later phase - the input is here so the order is fixed now)
 //   foreign       a foreign-currency charge: the vendor most likely charged no GST/HST, so no tax
 //                 (a vendor rule can still say otherwise, and it outranks this)
-//   category      the category's default code (only the no-tax bank charges category is seeded)
+//   category      the category's default code (every built-in except "Other"; see CATEGORY_INFO)
 //   kind          fees and interest are financial services: no tax
 //   (nothing)     no code: calculate nothing, show "needs a tax code"
 export type TaxSource = "line" | "rule" | "foreign_currency" | "category" | "kind";
@@ -106,13 +115,25 @@ export type CategoryDefaults = ReadonlyMap<string, TaxCode>;
 
 const key = (name: string) => name.trim().toLowerCase();
 
-// Category defaults. Today ONLY the owner's bank charges category (found by its stable key, so a
-// rename is followed - see statement-categories.ts) is seeded, as no-tax. Everything else stays
-// "no code set" until the accountant's table arrives.
+// Category defaults: one entry per built-in category that has one (keyed by its lower-case name; look
+// a category up through categoryCodeFor, which maps old names onto the built-ins first). On top of
+// that, an owner's own bank charges category that was RENAMED (found by its stable key, see
+// statement-categories.ts) is seeded as no-tax too. Any other custom category has no default.
 export function buildCategoryDefaults(options: { bankChargesName: string | null }): CategoryDefaults {
   const map = new Map<string, TaxCode>();
+  for (const name of TAX_CATEGORIES) {
+    const codeKey = categoryDefaultCode(name);
+    if (codeKey) map.set(key(name), TAX_CODES[codeKey]);
+  }
   if (options.bankChargesName) map.set(key(options.bankChargesName), TAX_CODES.none);
   return map;
+}
+
+// The default code for a category name as it may be stored (old built-in names and the stock "Bank
+// charges" included), or undefined when it has none.
+export function categoryCodeFor(defaults: CategoryDefaults, category: string | null | undefined): TaxCode | undefined {
+  if (!category) return undefined;
+  return defaults.get(key(canonicalCategory(category))) ?? defaults.get(key(category));
 }
 
 export interface ResolveInput {
@@ -135,7 +156,7 @@ export function resolveTaxCode(input: ResolveInput): Resolved | null {
   if (input.override) return { code: input.override, source: "line" };
   if (input.rule) return { code: input.rule, source: "rule" };
   if (input.foreignCurrency) return { code: TAX_CODES.none, source: "foreign_currency" };
-  const byCategory = input.category ? input.defaults.get(key(input.category)) : undefined;
+  const byCategory = categoryCodeFor(input.defaults, input.category);
   if (byCategory) return { code: byCategory, source: "category" };
   if (input.kind === "fee" || input.kind === "interest") return { code: TAX_CODES.none, source: "kind" };
   return null;
@@ -182,16 +203,17 @@ export interface TaxedRow {
   no_receipt?: boolean | null;
 }
 
-// A row with no stored code (every receipt before tax codes, every scanned or typed one) behaves
-// exactly as it always did: Meals 50%, everything else 100%.
-const categoryRate = (category: string) => (category === "Meals" ? MEALS_ITC_RESTRICTION_RATE : 1);
-
+// A row with no stored code (every scanned or typed receipt, and every receipt from before tax codes)
+// is read from its category: Meals & Entertainment 50% (ITC and deductible), Insurance / Wages &
+// Payroll / Bank Charges & Interest 0% ITC (they carry no HST; still 100% deductible), everything
+// else - "Other" and an owner's custom category included - 100%. Old category names are mapped onto
+// the built-ins first, so "Meals" and "Insurance" rows behave exactly like the new names.
 export function itcPct(row: Pick<TaxedRow, "tax_category" | "itc_pct" | "deductible_pct">): number {
-  return row.itc_pct ?? categoryRate(row.tax_category);
+  return row.itc_pct ?? categoryItcRate(row.tax_category);
 }
 
 export function deductiblePct(row: Pick<TaxedRow, "tax_category" | "itc_pct" | "deductible_pct">): number {
-  return row.deductible_pct ?? categoryRate(row.tax_category);
+  return row.deductible_pct ?? categoryDeductibleRate(row.tax_category);
 }
 
 // "Calculated from statement": created by a statement import and no receipt attached yet.
@@ -281,7 +303,7 @@ export function currentTaxPatch(row: RecalcRow): TaxPatch {
 
 export function taxAfterCategoryChange(row: RecalcRow, newCategory: string, defaults: CategoryDefaults): TaxPatch | null {
   if (!isCalculated(row) || row.tax_source !== "category") return null;
-  const code = defaults.get(key(newCategory)) ?? null;
+  const code = categoryCodeFor(defaults, newCategory) ?? null;
   const next: TaxPatch = code
     ? {
         tax_amount: calculateTax(row.total_amount, code),

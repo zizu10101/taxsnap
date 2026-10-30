@@ -1,5 +1,6 @@
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import { NextResponse } from "next/server";
+import { canonicalCategory } from "@/lib/tax-categories";
 import { requireUser } from "@/lib/require-pro";
 import { resolveJobIdByName } from "@/lib/resolve-job";
 
@@ -55,7 +56,7 @@ export async function PATCH(
       description: description.trim(),
       default_amount: Number(default_amount) || 0,
       default_tax_amount: Number(default_tax_amount) || 0,
-      default_tax_category: default_tax_category || "Other",
+      default_tax_category: canonicalCategory(default_tax_category),
       ...(default_paid_with_account_id !== undefined && { default_paid_with_account_id: paidWith.id }),
       job_id: jobId,
       recurrence_hint: RECURRENCE_HINTS.includes(recurrence_hint) ? recurrence_hint : null,

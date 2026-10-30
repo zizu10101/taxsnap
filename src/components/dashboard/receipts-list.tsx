@@ -31,6 +31,7 @@ import type { Receipt } from "@/lib/database.types";
 import type { BusinessInfo } from "@/components/invoices/document-detail";
 import { useRouter } from "next/navigation";
 import { showUpgradePrompt } from "@/lib/upgrade-prompt";
+import { canonicalCategory } from "@/lib/tax-categories";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -303,7 +304,7 @@ export function ReceiptsList({
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium">{r.merchant_name}</p>
                         <Badge variant="secondary" className="shrink-0 text-xs">
-                          {r.tax_category}
+                          {canonicalCategory(r.tax_category)}
                         </Badge>
                       </div>
                       <StatementFlagBadge receipt={r} className="mt-0.5" />
@@ -365,7 +366,7 @@ export function ReceiptsList({
                   </div>
                   <span className="hidden sm:block">
                     <Badge variant="secondary" className="text-xs">
-                      {r.tax_category}
+                      {canonicalCategory(r.tax_category)}
                     </Badge>
                   </span>
                   <span className="hidden font-mono text-xs text-muted-foreground sm:block">

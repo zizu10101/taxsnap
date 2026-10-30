@@ -1,5 +1,5 @@
 import { cleanMerchantName, vendorKey } from "./merchant-name.ts";
-import { TAX_CATEGORIES } from "./tax-categories.ts";
+import { TAX_CATEGORIES, canonicalCategory, categoryGroupKey, mapsToBuiltInCategory } from "./tax-categories.ts";
 
 // The Reports "Expenses" tab: one set of receipts for the period, grouped by
 // category (the default) or by vendor, with an optional vendor filter and an
@@ -82,8 +82,9 @@ export interface ExpensesReport {
 export const NO_VENDOR_KEY = "__no_vendor__";
 export const NO_VENDOR_NAME = "No vendor name";
 
+// Old and new names of one category share a key (canonicalCategory), so they are one report row.
 function categoryKey(raw: string | null | undefined): string {
-  return (raw?.trim() || "Other").toLowerCase();
+  return categoryGroupKey(raw);
 }
 
 function vendorKeyOf(merchant: string): string {
@@ -110,18 +111,19 @@ export function buildCategoryRows(
   const canonical = new Map<string, string>();
   for (const c of TAX_CATEGORIES) canonical.set(c.toLowerCase(), c);
   for (const name of customCategoryNames) {
-    const key = name.trim().toLowerCase();
-    if (!canonical.has(key)) canonical.set(key, name.trim());
+    // A custom row that maps onto a built-in (the old "Bank charges") is that built-in, not a second row.
+    const key = categoryKey(name);
+    if (!canonical.has(key)) canonical.set(key, canonicalCategory(name));
   }
   const grouped = new Map<string, CategoryRow>();
   for (const r of receipts) {
     const key = categoryKey(r.tax_category);
     const row = grouped.get(key) ?? {
-      category: canonical.get(key) ?? (r.tax_category?.trim() || "Other"),
+      category: canonical.get(key) ?? canonicalCategory(r.tax_category),
       count: 0,
       preTax: 0,
       total: 0,
-      isCustom: !TAX_CATEGORIES.some((c) => c.toLowerCase() === key),
+      isCustom: !mapsToBuiltInCategory(r.tax_category ?? ""),
     };
     row.count += 1;
     row.preTax += r.total_amount - r.tax_amount;
@@ -157,15 +159,15 @@ export function buildExpensesReport(
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Canonical category spelling, same rule as the category rows.
-  const canonicalCategory = new Map(
+  const canonicalCategoryNames = new Map(
     buildCategoryRows(expenses, customCategoryNames).map((r) => [r.category.toLowerCase(), r.category]),
   );
   const categoryName = (raw: string | null | undefined) =>
-    canonicalCategory.get(categoryKey(raw)) ?? (raw?.trim() || "Other");
-  const categoryOptions = [...canonicalCategory.values()].sort((a, b) => a.localeCompare(b));
+    canonicalCategoryNames.get(categoryKey(raw)) ?? canonicalCategory(raw);
+  const categoryOptions = [...canonicalCategoryNames.values()].sort((a, b) => a.localeCompare(b));
 
   const wantedVendor = filters.vendor || null;
-  const wantedCategory = filters.category?.trim() ? filters.category.trim().toLowerCase() : null;
+  const wantedCategory = filters.category?.trim() ? categoryKey(filters.category) : null;
   const kept = expenses.filter(
     (e) =>
       (wantedVendor === null || vendorKeyOf(e.merchant_name) === wantedVendor) &&

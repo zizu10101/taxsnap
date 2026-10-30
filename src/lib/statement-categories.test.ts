@@ -15,16 +15,17 @@ const KEYED = (name: string, active = true): CategoryRow => row(name, { is_activ
 // Options
 // ---------------------------------------------------------------------------
 
-test("options are the built-ins, the owner's own, and the default bank-charges name when it doesn't exist yet", () => {
+test("options are the built-ins (bank charges among them), and the owner's own", () => {
   const options = statementCategoryOptions([row("Permits")]);
-  assert.ok(options.includes("Supplies"));
+  assert.ok(options.includes("Materials & Supplies"));
   assert.ok(options.includes("Permits"));
-  assert.ok(options.includes("Bank charges"));
+  assert.ok(options.includes("Bank Charges & Interest"));
 });
 
-test("an owner's own 'bank charges' category is not duplicated", () => {
+test("an owner's own 'bank charges' category is the built-in now: it is not offered a second time", () => {
   const options = statementCategoryOptions([row("bank charges")]);
-  assert.equal(options.filter((o) => o.toLowerCase() === "bank charges").length, 1);
+  assert.equal(options.filter((o) => o.toLowerCase().startsWith("bank charges")).length, 1);
+  assert.ok(options.includes("Bank Charges & Interest"));
 });
 
 test("an inactive custom category is not offered", () => {
@@ -34,8 +35,8 @@ test("an inactive custom category is not offered", () => {
 
 test("resolveStatementCategory returns the canonical spelling or null", () => {
   const options = statementCategoryOptions([]);
-  assert.equal(resolveStatementCategory("  supplies ", options), "Supplies");
-  assert.equal(resolveStatementCategory("BANK CHARGES", options), "Bank charges");
+  assert.equal(resolveStatementCategory("  materials & supplies ", options), "Materials & Supplies");
+  assert.equal(resolveStatementCategory("BANK CHARGES & INTEREST", options), "Bank Charges & Interest");
   assert.equal(resolveStatementCategory("Yacht", options), null);
   assert.equal(resolveStatementCategory("", options), null);
   assert.equal(resolveStatementCategory(7, options), null);
@@ -45,10 +46,10 @@ test("resolveStatementCategory returns the canonical spelling or null", () => {
 // The bank-charges category is found by KEY, not by name
 // ---------------------------------------------------------------------------
 
-test("never created: offered under the default name, and suggested for fees", () => {
+test("never created: the built-in is suggested for fees (and nothing is created for it)", () => {
   const state = resolveBankCharges([row("Permits")]);
-  assert.deepEqual(state, { state: "virtual", name: "Bank charges" });
-  assert.equal(bankChargesSuggestion(state), "Bank charges");
+  assert.deepEqual(state, { state: "virtual", name: "Bank Charges & Interest" });
+  assert.equal(bankChargesSuggestion(state), "Bank Charges & Interest");
 });
 
 test("RENAMED: the keyed row is still found, under its new name, in the options and as the fee suggestion", () => {
@@ -86,8 +87,9 @@ test("a removed one that is then restored is back, under whatever name it has no
 
 test("before migration 0055 (no keys): an existing 'Bank charges' is adopted, not duplicated", () => {
   const rows = [row("Bank charges")];
-  assert.deepEqual(resolveBankCharges(rows), { state: "active", name: "Bank charges", keyed: false });
-  assert.equal(statementCategoryOptions(rows).filter((o) => o.toLowerCase() === "bank charges").length, 1);
+  // the stock custom row is the built-in under its old name
+  assert.deepEqual(resolveBankCharges(rows), { state: "active", name: "Bank Charges & Interest", keyed: false });
+  assert.equal(statementCategoryOptions(rows).filter((o) => o.toLowerCase().startsWith("bank charges")).length, 1);
 });
 
 test("before migration 0055: an inactive 'Bank charges' is also respected as removed", () => {

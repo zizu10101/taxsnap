@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
+import { sameCategory } from "@/lib/tax-categories";
 import { newJobCapMessage } from "@/lib/job-cap";
 import { sampleBlockMessage } from "@/lib/sample-data";
 import { resolvePaidWithAccountId } from "@/lib/payments";
@@ -110,7 +111,7 @@ export async function PATCH(
   } else if (existing && isCalculated(existing) && existing.tax_source) {
     if (round2(newTax) !== round2(Number(existing.tax_amount))) {
       taxCode = { tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null };
-    } else if (category.toLowerCase() !== existing.tax_category.toLowerCase()) {
+    } else if (!sameCategory(category, existing.tax_category)) {
       const defaults = buildCategoryDefaults({
         bankChargesName: bankChargesSuggestion(resolveBankCharges(await loadCategoryRows(supabase, user.id))),
       });

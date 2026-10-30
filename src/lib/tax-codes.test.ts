@@ -15,6 +15,7 @@ import {
   TAX_CODES,
   type ResolveInput,
 } from "./tax-codes.ts";
+import { TAX_CATEGORIES } from "./tax-categories.ts";
 
 // A tax code is three numbers (tax_rate, itc_pct, deductible_pct). Tax is EXTRACTED at tax_rate from
 // the tax-included price, and the claim share is applied when read - which is why Meals needs three
@@ -23,7 +24,7 @@ import {
 const defaults = buildCategoryDefaults({ bankChargesName: "Bank charges" });
 const input = (over: Partial<ResolveInput> = {}): ResolveInput => ({
   foreignCurrency: false,
-  category: "Supplies",
+  category: "Other",
   kind: "purchase",
   defaults,
   ...over,
@@ -71,15 +72,87 @@ test("ITC and deductible are separate numbers: a no-tax expense is 0% claimable 
 
 // ---- which code applies -------------------------------------------------------
 
-test("only the bank charges category is seeded, and it follows the owner's name for it", () => {
-  assert.deepEqual([...defaults.keys()], ["bank charges"]);
-  assert.deepEqual(buildCategoryDefaults({ bankChargesName: null }).size, 0, "removed -> nothing seeded");
+// Every built-in's default code (tax-categories.ts CATEGORY_INFO): full = taxable, meals, none.
+const EXPECTED_DEFAULTS: Record<string, "taxable" | "meals" | "none" | null> = {
+  "Materials & Supplies": "taxable",
+  Inventory: "taxable",
+  Subcontractors: "taxable",
+  "Tools & Equipment": "taxable",
+  "Capital Assets": "taxable",
+  "Vehicle & Fuel": "taxable",
+  "Travel & Accommodation": "taxable",
+  "Meals & Entertainment": "meals",
+  "Rent & Utilities": "taxable",
+  "Phone & Internet": "taxable",
+  "Office & Admin": "taxable",
+  "Software & Website": "taxable",
+  "Advertising & Promotion": "taxable",
+  "Professional Fees": "taxable",
+  "Licenses, Permits & Training": "taxable",
+  Insurance: "none",
+  "Wages & Payroll": "none",
+  "Bank Charges & Interest": "none",
+  Other: null,
+};
+
+test("every built-in category has the agreed default code, and Other has none", () => {
+  assert.deepEqual(Object.keys(EXPECTED_DEFAULTS), [...TAX_CATEGORIES], "the table covers exactly the built-ins, in order");
+  for (const [category, codeKey] of Object.entries(EXPECTED_DEFAULTS)) {
+    const r = resolveTaxCode(input({ category }));
+    if (codeKey === null) {
+      assert.equal(r, null, `${category} has no default`);
+    } else {
+      assert.deepEqual([r?.source, r?.code], ["category", TAX_CODES[codeKey]], category);
+    }
+  }
+});
+
+test("old category names resolve to the default of the category that replaced them", () => {
+  const expected: Record<string, "taxable" | "meals" | "none" | null> = {
+    "Job Materials": "taxable",
+    Supplies: "taxable",
+    Gas: "taxable",
+    "Vehicle/Fuel": "taxable",
+    "407": "taxable",
+    Lease: "taxable",
+    Rent: "taxable",
+    Phone: "taxable",
+    Internet: "taxable",
+    "Office/Admin": "taxable",
+    Advertising: "taxable",
+    Meals: "meals",
+    Insurance: "none",
+    "Bank charges": "none",
+    "bank CHARGES": "none",
+  };
+  for (const [category, codeKey] of Object.entries(expected)) {
+    assert.deepEqual(resolveTaxCode(input({ category }))?.code, codeKey ? TAX_CODES[codeKey] : null, category);
+  }
+});
+
+test("an owner's own category has no default, and a renamed bank charges category stays no-tax", () => {
+  assert.equal(buildCategoryDefaults({ bankChargesName: null }).has("bank fees"), false);
   const renamed = buildCategoryDefaults({ bankChargesName: "Bank fees" });
   assert.equal(resolveTaxCode(input({ category: "Bank fees", defaults: renamed }))?.source, "category");
-  // Not seeded: every other category, including the ones the accountant has yet to rule on.
-  for (const c of ["Meals", "Supplies", "Job Materials", "Insurance", "Rent", "Phone", "Other", "Licences"]) {
-    assert.equal(resolveTaxCode(input({ category: c })), null, `${c} has no default code`);
+  for (const c of ["Licences", "Permits", "Yacht Upkeep"]) {
+    assert.equal(resolveTaxCode(input({ category: c })), null, `${c} (custom) has no default code`);
   }
+});
+
+test("a statement line with a default is calculated from it: 113.00 in Materials & Supplies has 13.00 HST, in Meals 13.00 stored and half claimable", () => {
+  const supplies = taxForLine(113, input({ category: "Materials & Supplies" }));
+  assert.deepEqual([supplies.tax_amount, supplies.needs_code], [13, false]);
+  const meals = taxForLine(113, input({ category: "Meals & Entertainment" }));
+  assert.deepEqual([meals.tax_amount, meals.code?.itc_pct], [13, 0.5]);
+  const insurance = taxForLine(113, input({ category: "Insurance" }));
+  assert.deepEqual([insurance.tax_amount, insurance.code?.itc_pct, insurance.code?.deductible_pct], [0, 0, 1]);
+});
+
+test("owner pick > vendor rule > category default", () => {
+  const base = input({ category: "Meals & Entertainment" });
+  assert.equal(resolveTaxCode({ ...base, override: TAX_CODES.none, rule: TAX_CODES.taxable })?.code, TAX_CODES.none, "owner's pick wins");
+  assert.equal(resolveTaxCode({ ...base, rule: TAX_CODES.taxable })?.code, TAX_CODES.taxable, "a vendor rule beats the default");
+  assert.equal(resolveTaxCode(base)?.code, TAX_CODES.meals, "otherwise the category default");
 });
 
 test("a category with no default and an ordinary purchase: no code, so nothing is calculated", () => {
@@ -94,7 +167,7 @@ test("no category chosen yet: no code either (the suggestion doesn't count until
 
 test("fees and interest are no-tax by kind, whatever category they end up in", () => {
   for (const kind of ["fee", "interest"]) {
-    const r = resolveTaxCode(input({ kind, category: "Supplies" }));
+    const r = resolveTaxCode(input({ kind, category: "Other" }));
     assert.equal(r?.source, "kind");
     assert.equal(r?.code, TAX_CODES.none);
   }
@@ -119,7 +192,7 @@ test("precedence: line beats rule beats foreign beats category beats kind", () =
   assert.equal(resolveTaxCode({ ...all, rule: TAX_CODES.taxable })?.code, TAX_CODES.taxable, "a vendor rule can say a foreign vendor DID charge tax");
   assert.equal(resolveTaxCode(all)?.source, "foreign_currency");
   assert.equal(resolveTaxCode({ ...all, foreignCurrency: false })?.source, "category");
-  assert.equal(resolveTaxCode({ ...all, foreignCurrency: false, category: "Supplies" })?.source, "kind");
+  assert.equal(resolveTaxCode({ ...all, foreignCurrency: false, category: "Other" })?.source, "kind");
 });
 
 test("a code chosen on the line is applied and calculated", () => {
@@ -207,7 +280,7 @@ const calcRow = (over: Record<string, unknown> = {}) => ({
 });
 
 test("a calculated row coded by its category loses the code (and any calculated tax) when it moves to a category with no default", () => {
-  const p = taxAfterCategoryChange(calcRow(), "Supplies", defaults);
+  const p = taxAfterCategoryChange(calcRow(), "Other", defaults);
   assert.deepEqual(p, { tax_amount: 0, tax_rate: null, itc_pct: null, deductible_pct: null, tax_source: null });
 });
 

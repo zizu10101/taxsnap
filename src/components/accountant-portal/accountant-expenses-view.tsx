@@ -24,6 +24,7 @@ import { formatCurrency, formatDate } from "@/components/accountant-portal/forma
 import { getPresetRange, filterByRange, type DateRange, type RangePreset } from "@/lib/date-range";
 import { NOT_SPECIFIED } from "@/lib/account-spending";
 import type { Receipt } from "@/lib/database.types";
+import { canonicalCategory } from "@/lib/tax-categories";
 
 const ALL = "all";
 
@@ -45,7 +46,7 @@ export function AccountantExpensesView({
   const accountNames = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
 
   const categories = useMemo(
-    () => [...new Set(receipts.map((r) => r.tax_category))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(receipts.map((r) => canonicalCategory(r.tax_category)))].sort((a, b) => a.localeCompare(b)),
     [receipts],
   );
   const categoryItems = useMemo(
@@ -63,7 +64,7 @@ export function AccountantExpensesView({
 
   const visible = useMemo(() => {
     return filterByRange(receipts, range, "transaction_date").filter((r) => {
-      if (category !== ALL && r.tax_category !== category) return false;
+      if (category !== ALL && canonicalCategory(r.tax_category) !== category) return false;
       if (account === NOT_SPECIFIED) return !r.paid_with_account_id;
       if (account !== ALL) return r.paid_with_account_id === account;
       return true;
@@ -172,7 +173,7 @@ export function AccountantExpensesView({
                         <span className="ml-1 text-[10px] text-muted-foreground">auto (Stripe)</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">{r.tax_category}</td>
+                    <td className="px-3 py-2">{canonicalCategory(r.tax_category)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{r.job_name ?? "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {r.paid_with_account_id
@@ -248,7 +249,7 @@ function ReceiptDetail({ receipt, paidWith }: { receipt: Receipt; paidWith: stri
       <DialogHeader>
         <DialogTitle>{receipt.merchant_name}</DialogTitle>
         <DialogDescription>
-          {formatDate(receipt.transaction_date)} · {receipt.tax_category}
+          {formatDate(receipt.transaction_date)} · {canonicalCategory(receipt.tax_category)}
         </DialogDescription>
       </DialogHeader>
 

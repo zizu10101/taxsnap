@@ -22,6 +22,7 @@ import { JobFilter } from "@/components/dashboard/job-filter";
 import { CategoryFilter } from "@/components/dashboard/category-filter";
 import { BulkCategoryControls } from "@/components/dashboard/bulk-category-controls";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { canonicalCategory, sameCategory } from "@/lib/tax-categories";
 import { BULK_CATEGORY_MAX } from "@/lib/bulk-category";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
 import {
@@ -107,7 +108,7 @@ export function ExpensesBody({
   const knownCategories = useExpenseCategoryOptions();
   const categoryOptions = useMemo(() => {
     const seen = new Set(knownCategories.map((c) => c.toLowerCase()));
-    const extra = [...new Set(receipts.map((r) => r.tax_category))].filter(
+    const extra = [...new Set(receipts.map((r) => canonicalCategory(r.tax_category)))].filter(
       (c) => !seen.has(c.toLowerCase()),
     );
     return [...knownCategories, ...extra.sort()];
@@ -117,7 +118,7 @@ export function ExpensesBody({
     const byRange = filterByRange(receipts, range);
     const byJob = jobFilter ? byRange.filter((r) => r.job_name === jobFilter) : byRange;
     const byCategory = categoryFilter
-      ? byJob.filter((r) => r.tax_category.toLowerCase() === categoryFilter.toLowerCase())
+      ? byJob.filter((r) => sameCategory(r.tax_category, categoryFilter))
       : byJob;
     return searchList(byCategory, query, (r) => expenseSearchFields(r));
   }, [receipts, range, jobFilter, categoryFilter, query]);

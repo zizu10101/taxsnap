@@ -1,3 +1,4 @@
+import { canonicalCategory } from "./tax-categories.ts";
 import { dayNumber } from "./statement-lines.ts";
 import { candidateFor, type MatchKind } from "./statement-matching.ts";
 import { STATEMENT_BROWSE_LIMIT } from "./statement-config.ts";
@@ -60,6 +61,7 @@ function matchesSearch(row: BrowseRow, q: string): boolean {
   return (
     row.merchant_name.toLowerCase().includes(needle) ||
     row.tax_category.toLowerCase().includes(needle) ||
+    canonicalCategory(row.tax_category).toLowerCase().includes(needle) ||
     row.amount.toFixed(2).includes(needle) ||
     row.date.includes(needle)
   );

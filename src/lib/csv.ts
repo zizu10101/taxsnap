@@ -1,6 +1,7 @@
 import type { DocumentWithRelations, Receipt } from "@/lib/database.types";
 import { formatDocumentNumber } from "./document-number.ts";
 import { TAX_BASIS_LABELS, taxBasis } from "./tax-codes.ts";
+import { canonicalCategory } from "./tax-categories.ts";
 import type { ExpensesReport } from "./expenses-report.ts";
 import type { RevenueReport } from "./revenue-report.ts";
 
@@ -43,7 +44,7 @@ export function receiptsToCsv(
     return [
       r.transaction_date,
       r.merchant_name,
-      r.tax_category,
+      canonicalCategory(r.tax_category),
       r.total_amount.toFixed(2),
       r.tax_amount.toFixed(2),
       r.total_amount.toFixed(2),
@@ -137,7 +138,7 @@ export function receiptsToQuickBooksCsv(
       date: r.transaction_date,
       row: [
         toQuickBooksDate(r.transaction_date),
-        `${isRefund ? "Refund - " : ""}${r.merchant_name} - ${r.tax_category}`,
+        `${isRefund ? "Refund - " : ""}${r.merchant_name} - ${canonicalCategory(r.tax_category)}`,
         isRefund ? "" : amount,
         isRefund ? amount : "",
       ],

@@ -9,6 +9,7 @@ import {
   type ExpensesReportFilters,
 } from "@/lib/expenses-report";
 import { vendorKey } from "@/lib/merchant-name";
+import { canonicalCategory, categoryGroupKey } from "@/lib/tax-categories";
 import { buildRevenueReport, type RevenueReport } from "@/lib/revenue-report";
 import {
   groupSpendingByAccount,
@@ -95,7 +96,7 @@ export async function getReportsData(
 // Same normalization the grouping above uses, shared with the drill-down so a
 // category's expanded receipts are exactly the ones counted in its total.
 function categoryKey(taxCategory: string | null | undefined): string {
-  return (taxCategory?.trim() || "Other").toLowerCase();
+  return categoryGroupKey(taxCategory);
 }
 
 // Per-job rollup over an optional date range (null/null = all time, the
@@ -295,7 +296,7 @@ export async function getExpenseDetail(
       id: r.id,
       date: r.transaction_date,
       merchant: r.merchant_name,
-      category: r.tax_category,
+      category: canonicalCategory(r.tax_category),
       job: r.job_name,
       paidWith: r.paid_with_account_id ? (accountNames.get(r.paid_with_account_id) ?? null) : null,
       amount: r.total_amount,

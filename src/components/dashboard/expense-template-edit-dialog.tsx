@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { canonicalCategory } from "@/lib/tax-categories";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
@@ -43,7 +44,7 @@ function formFrom(template: ExpenseTemplateWithJob | null) {
     description: template?.description ?? "",
     default_amount: template?.default_amount ?? 0,
     default_tax_amount: template?.default_tax_amount ?? 0,
-    default_tax_category: template?.default_tax_category ?? "Other",
+    default_tax_category: canonicalCategory(template?.default_tax_category),
     default_paid_with_account_id: template?.default_paid_with_account_id ?? "",
   };
 }

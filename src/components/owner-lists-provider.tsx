@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 import { mergeCategories } from "@/lib/expense-categories";
+import { canonicalCategory } from "@/lib/tax-categories";
 import type { BankAccount, ExpenseCategory } from "@/lib/database.types";
 
 interface OwnerLists {
@@ -41,7 +42,8 @@ export function useExpenseCategoryOptions(current?: string): string[] {
   const { customCategories } = useContext(OwnerListsContext);
   return useMemo(() => {
     const options = mergeCategories(customCategories.filter((c) => c.is_active).map((c) => c.name));
-    const cur = current?.trim();
+    // An old name ("Job Materials") is shown as the built-in that replaced it.
+    const cur = current?.trim() ? canonicalCategory(current) : "";
     if (cur && !options.some((o) => o.toLowerCase() === cur.toLowerCase())) options.push(cur);
     return options;
   }, [customCategories, current]);

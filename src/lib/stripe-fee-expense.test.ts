@@ -217,7 +217,7 @@ test("a recorded payment creates ONE fee expense: Stripe, bank charges, payment 
   assert.equal(feeExpenses(db).length, 1);
   const e = feeExpenses(db)[0];
   assert.equal(e.merchant_name, "Stripe");
-  assert.equal(e.tax_category, "Bank charges");
+  assert.equal(e.tax_category, "Bank Charges & Interest");
   assert.equal(e.transaction_date, "2026-10-20", "the payment's own date");
   assert.equal(e.total_amount, 33.07);
   assert.equal(e.tax_amount, 0, "a Stripe fee carries no HST");
@@ -226,11 +226,8 @@ test("a recorded payment creates ONE fee expense: Stripe, bank charges, payment 
   assert.equal(e.stripe_payment_id, db.payments[0].id);
   assert.deepEqual(e.items, [{ name: "Stripe fee on INV-1003 (recorded automatically)", amount: 33.07 }]);
   assert.equal(db.payments[0].fee_expense_outcome, "recorded");
-  // The bank charges category was created, keyed, the way statement import does it.
-  assert.deepEqual(
-    db.expense_categories.map((c) => [c.name, c.system_key]),
-    [["Bank charges", "bank_charges"]],
-  );
+  // Bank Charges & Interest is a built-in now, so no category row is created for it.
+  assert.deepEqual(db.expense_categories, []);
 });
 
 test("a replayed webhook never creates a second fee expense", async () => {
@@ -351,7 +348,7 @@ test("a dispute creates a second expense from the STORED fee, dated when it was 
   assert.equal(d.merchant_name, "Stripe");
   assert.equal(d.total_amount, 15, "Stripe's figure from balance_transactions, not the STRIPE_FEES constant");
   assert.equal(d.tax_amount, 0);
-  assert.equal(d.tax_category, "Bank charges");
+  assert.equal(d.tax_category, "Bank Charges & Interest");
   assert.equal(d.transaction_date, "2026-10-18", "dispute.created, not the day the event was processed");
   assert.deepEqual(d.items, [{ name: "Stripe dispute fee on INV-1003 (recorded automatically)", amount: 15 }]);
   assert.equal(db.stripe_disputes[0].fee_expense_outcome, "recorded");
@@ -464,10 +461,10 @@ test("exports: the CSV, the QuickBooks CSV (and so the accountant bundle) carry 
   await pay(db);
   const receipts = feeExpenses(db) as unknown as Receipt[];
   const csv = receiptsToCsv(receipts).split("\n");
-  assert.match(csv[1], /^2026-10-20,Stripe,Bank charges,33\.07,0\.00,33\.07,Stripe fee on INV-1003 \(recorded automatically\) \(\$33\.07\),/);
+  assert.match(csv[1], /^2026-10-20,Stripe,Bank Charges & Interest,33\.07,0\.00,33\.07,Stripe fee on INV-1003 \(recorded automatically\) \(\$33\.07\),/);
   assert.equal(csv[1].split(",").at(-1), "Confirmed by receipt");
   const qb = receiptsToQuickBooksCsv(receipts).split("\n");
-  assert.equal(qb[1], "10/20/2026,Stripe - Bank charges,33.07,");
+  assert.equal(qb[1], "10/20/2026,Stripe - Bank Charges & Interest,33.07,");
   // The accountant bundle builds from these same two functions.
   assert.match(read("./accountant-export.ts"), /receiptsToCsv\(/);
   assert.match(read("./accountant-export.ts"), /receiptsToQuickBooksCsv\(/);

@@ -71,7 +71,7 @@ test("categories: canonical spelling, custom marker, sorted by total, before-HST
   const report = buildExpensesReport(
     [
       expense("A", 113, 13, { tax_category: "meals" }),
-      expense("B", 50, 0, { tax_category: "Meals" }),
+      expense("B", 50, 0, { tax_category: "Meals & Entertainment" }),
       expense("C", 500, 0, { tax_category: "Pet Care" }),
       expense("D", 10, 0, { tax_category: null }),
     ],
@@ -80,7 +80,7 @@ test("categories: canonical spelling, custom marker, sorted by total, before-HST
   );
   assert.deepEqual(report.categories, [
     { category: "Pet Care", count: 1, preTax: 500, total: 500, isCustom: true },
-    { category: "Meals", count: 2, preTax: 150, total: 163, isCustom: false },
+    { category: "Meals & Entertainment", count: 2, preTax: 150, total: 163, isCustom: false },
     { category: "Other", count: 1, preTax: 10, total: 10, isCustom: false },
   ]);
   assert.equal(report.categories.reduce((s, c) => s + c.total, 0), report.totals.total);
@@ -102,7 +102,7 @@ test("filters: vendor and category together intersect, in both groupings", () =>
   assert.equal(both.totals.count, 1);
   assert.equal(both.totals.total, 100);
   assert.deepEqual(both.vendors.map((v) => v.name), ["Home Depot"]);
-  assert.deepEqual(both.categories.map((c) => c.category), ["Supplies"]);
+  assert.deepEqual(both.categories.map((c) => c.category), ["Materials & Supplies"]);
   // vendor alone spans two categories; category alone spans two vendors
   assert.equal(buildExpensesReport(mixed(), { vendor: key }).categories.length, 2);
   assert.equal(buildExpensesReport(mixed(), { category: "Supplies" }).vendors.length, 2);
@@ -144,9 +144,9 @@ test("csv: both groupings export what the filters leave, with a TOTAL row", () =
   assert.doesNotMatch(byVendor, /Esso|Rona/);
   const byCategory = expensesByCategoryToCsv(r);
   assert.match(byCategory, /^Category,Expenses,Before HST,Total Paid\n/);
-  assert.match(byCategory, /\nSupplies,1,90\.00,100\.00\n/);
+  assert.match(byCategory, /\nMaterials & Supplies,1,90\.00,100\.00\n/);
   assert.match(byCategory, /\nTOTAL,2,126\.00,140\.00$/);
-  assert.doesNotMatch(byCategory, /Vehicle\/Fuel/);
+  assert.doesNotMatch(byCategory, /Vehicle & Fuel/);
 });
 
 // ------------------------------------------------------------ revenue
@@ -315,4 +315,29 @@ test("the Expenses report is wired to its own route and the shared date range, o
   const view = read("../components/reports/reports-view.tsx");
   assert.match(view, /<ExpensesTab range=\{range\}/);
   assert.match(view, /\{ key: "expenses", label: "Expenses" \}/);
+});
+
+test("categories: old and new names of one category are ONE row (Gas + Vehicle/Fuel + 407 + Vehicle & Fuel), and a custom 'Bank charges' joins the built-in", () => {
+  const report = buildExpensesReport(
+    [
+      expense("a", 10, 0, { tax_category: "Gas" }),
+      expense("b", 20, 0, { tax_category: "Vehicle/Fuel" }),
+      expense("c", 30, 0, { tax_category: "407" }),
+      expense("d", 40, 0, { tax_category: "Vehicle & Fuel" }),
+      expense("e", 5, 0, { tax_category: "Bank charges" }),
+      expense("f", 7, 0, { tax_category: "Bank Charges & Interest" }),
+    ],
+    {},
+    ["Bank charges"],
+  );
+  assert.deepEqual(
+    report.categories.map((c) => [c.category, c.count, c.total, c.isCustom]),
+    [
+      ["Vehicle & Fuel", 4, 100, false],
+      ["Bank Charges & Interest", 2, 12, false],
+    ],
+  );
+  // filtering by an old name finds the same rows, and the other way round
+  assert.equal(buildExpensesReport([expense("a", 10, 0, { tax_category: "Gas" })], { category: "Vehicle & Fuel" }).totals.count, 1);
+  assert.equal(buildExpensesReport([expense("a", 10, 0, { tax_category: "Vehicle & Fuel" })], { category: "gas" }).totals.count, 1);
 });

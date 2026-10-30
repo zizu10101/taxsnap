@@ -2,16 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types.ts";
 import { formatDocumentNumber } from "./document-number.ts";
 import { round2 } from "./payments.ts";
-import { BANK_CHARGES_DEFAULT_NAME } from "./statement-categories.ts";
+import { BANK_CHARGES_CATEGORY } from "./tax-categories.ts";
 import { ensureBankChargesCategory } from "./statement-bank-charges.ts";
 
 type Admin = SupabaseClient<Database>;
 
 // Stripe's processing fee and dispute fee, recorded as an ordinary expense the moment they are known.
 // Owner's accountant: a Stripe fee carries no HST, so the expense has tax 0 (no input tax credit) and
-// no tax code. It is filed under the owner's "Bank charges" category (the keyed custom category the
-// statement import uses; created the first time it is needed, like there) - or "Other" if the owner
-// removed that category, which is respected and never recreated.
+// no tax code. It is filed under "Bank Charges & Interest" (a built-in category; an owner who renamed
+// their own keyed "Bank charges" row keeps that name, as in the statement import) - or "Other" if the
+// owner removed that custom row, which is respected.
 //
 // Created at most ONCE per payment / dispute, by `record_stripe_fee_expense()` (migration 0071), which
 // locks the payment / dispute row, inserts the expense and stores `fee_expense_outcome` in one
@@ -77,7 +77,7 @@ export async function recordStripeFeeExpense(admin: Admin, input: FeeExpenseInpu
     return { status: "switched_off" };
   }
 
-  const { state } = await ensureBankChargesCategory(admin, input.userId, [BANK_CHARGES_DEFAULT_NAME]);
+  const { state } = await ensureBankChargesCategory(admin, input.userId, [BANK_CHARGES_CATEGORY]);
   const category = state.state === "removed" ? FALLBACK_FEE_CATEGORY : state.name;
 
   const { data: receiptId, error } = await admin.rpc("record_stripe_fee_expense", {

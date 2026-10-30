@@ -16,12 +16,12 @@ function receipt(overrides: Partial<Receipt>): Receipt {
 
 test("QuickBooks export: a charge goes in Payment, Deposit stays blank", () => {
   const csv = receiptsToQuickBooksCsv([receipt({ total_amount: 48.2 })]);
-  assert.equal(csv.split("\n")[1], "03/14/2026,Home Depot - Supplies,48.20,");
+  assert.equal(csv.split("\n")[1], "03/14/2026,Home Depot - Materials & Supplies,48.20,");
 });
 
 test("QuickBooks export: a refund goes in Deposit as a positive amount", () => {
   const csv = receiptsToQuickBooksCsv([receipt({ total_amount: -12.5 })]);
-  assert.equal(csv.split("\n")[1], "03/14/2026,Refund - Home Depot - Supplies,,12.50");
+  assert.equal(csv.split("\n")[1], "03/14/2026,Refund - Home Depot - Materials & Supplies,,12.50");
 });
 
 test("QuickBooks export: no row ever carries a negative amount", () => {

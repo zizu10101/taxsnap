@@ -6,6 +6,7 @@ import {
   type BankChargesState,
   type CategoryRow,
 } from "./statement-categories.ts";
+import { mapsToBuiltInCategory } from "./tax-categories.ts";
 
 // Server-side half of the "bank charges" category (see statement-categories.ts):
 // reading the owner's categories, and making sure the keyed row exists when a saved
@@ -27,8 +28,8 @@ export type EnsureOutcome = "created" | "keyed" | "none";
 
 // Called before a statement is saved, with the categories its expenses will use.
 //  - removed:  never touched. The owner removed it; saving a statement must not bring it back.
-//  - virtual:  created (and keyed) only if a line actually uses it - never speculatively.
-//  - active:   an unkeyed one found by its default name gets the key, so it survives a rename.
+//  - virtual:  the built-in "Bank Charges & Interest" - there is no row to create any more.
+//  - active:   an unkeyed custom row (not the built-in's own name) gets the key, so it survives a rename.
 export async function ensureBankChargesCategory(
   client: SupabaseClient<Database>,
   userId: string,
@@ -38,16 +39,8 @@ export async function ensureBankChargesCategory(
   const state = resolveBankCharges(rows);
   const used = (name: string) => usedCategories.some((c) => c?.trim().toLowerCase() === name.trim().toLowerCase());
 
-  if (state.state === "virtual" && used(state.name)) {
-    const { error } = await client
-      .from("expense_categories")
-      .insert({ user_id: userId, name: state.name, system_key: BANK_CHARGES_KEY });
-    // 23505: it appeared in the meantime (another tab saving at the same moment) - fine.
-    if (error && error.code !== "23505") throw error;
-    return { outcome: "created", state };
-  }
-
-  if (state.state === "active" && !state.keyed && used(state.name)) {
+  // A row that is just the built-in under its old name ("Bank charges") needs no key: it can not drift.
+  if (state.state === "active" && !state.keyed && !mapsToBuiltInCategory(state.name) && used(state.name)) {
     const { error } = await client
       .from("expense_categories")
       .update({ system_key: BANK_CHARGES_KEY })

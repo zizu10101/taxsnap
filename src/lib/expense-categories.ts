@@ -1,15 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { TAX_CATEGORIES } from "./tax-categories.ts";
+import { TAX_CATEGORIES, canonicalCategory, isBuiltInCategory, mapsToBuiltInCategory } from "./tax-categories.ts";
 
 // Owner-added categories are merged with the fixed TAX_CATEGORIES list at
 // display time and never touch it - that list also feeds Gemini's response
-// enum, the HST calculator and deductibleRate() (which special-cases "Meals"
-// by name), so custom names are always extra choices on top, never a
-// replacement. A custom category gets the default 100% deductible rate.
+// enum, the HST calculator and the category ITC rates, so custom names are
+// always extra choices on top, never a replacement. A custom category gets the
+// default 100% deductible rate and no tax-code default.
+//
+// A name counts as "default" when it IS a built-in or maps onto one (an old
+// built-in name like "Gas", or the stock custom "Bank charges"): canonicalCategory()
+// would fold it into the built-in anyway, so it can't be a separate custom category.
 export function isDefaultCategory(name: string): boolean {
-  const key = name.trim().toLowerCase();
-  return TAX_CATEGORIES.some((c) => c.toLowerCase() === key);
+  return mapsToBuiltInCategory(name);
 }
 
 // Defaults first (fixed order), then custom names alphabetically, skipping
@@ -20,7 +23,8 @@ export function mergeCategories(customNames: string[]): string[] {
   const extras: string[] = [];
   for (const name of [...customNames].sort((a, b) => a.localeCompare(b))) {
     const key = name.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
+    // A custom row that maps onto a built-in (the old "Bank charges") is the built-in now: not offered twice.
+    if (!key || seen.has(key) || mapsToBuiltInCategory(name)) continue;
     seen.add(key);
     extras.push(name.trim());
   }
@@ -39,8 +43,9 @@ export async function resolveCategory(
 ): Promise<string> {
   if (typeof value !== "string" || !value.trim()) return "Other";
   const trimmed = value.trim();
-  const defaultMatch = TAX_CATEGORIES.find((c) => c.toLowerCase() === trimmed.toLowerCase());
-  if (defaultMatch) return defaultMatch;
+  // A built-in, or an old name / stock "Bank charges" that has become one.
+  const canonical = canonicalCategory(trimmed);
+  if (isBuiltInCategory(canonical)) return canonical;
 
   const { data } = await supabase
     .from("expense_categories")
@@ -63,8 +68,8 @@ export async function resolveExistingCategory(
 ): Promise<string | null> {
   if (typeof value !== "string" || !value.trim()) return null;
   const trimmed = value.trim();
-  const defaultMatch = TAX_CATEGORIES.find((c) => c.toLowerCase() === trimmed.toLowerCase());
-  if (defaultMatch) return defaultMatch;
+  const canonical = canonicalCategory(trimmed);
+  if (isBuiltInCategory(canonical)) return canonical;
 
   const { data } = await supabase
     .from("expense_categories")
