@@ -45,9 +45,11 @@ import { periodChange } from "@/lib/statement-attach-period";
 import { AttachPicker, type PickerItem } from "@/components/dashboard/attach-picker";
 import { sha256Hex } from "@/lib/file-hash";
 import type { DuplicateSummary } from "@/lib/receipt-duplicates";
+import { INVOICE_NUMBER_MAX } from "@/lib/invoice-number";
 import {
   AlreadyAttachedWarning,
   ExactFileDuplicateDialog,
+  InvoiceNumberWarning,
   SimilarReceiptsWarning,
   useDuplicateChecks,
 } from "@/components/dashboard/duplicate-warnings";
@@ -56,6 +58,8 @@ import { showUpgradePrompt } from "@/lib/upgrade-prompt";
 
 interface ParsedDraft {
   merchant_name: string;
+  /** Optional invoice / receipt number: read by the scanner, editable, "" for none. */
+  invoice_number: string;
   transaction_date: string;
   /** True when the AI had to guess the day/month order - see gemini.ts. */
   date_ambiguous: boolean;
@@ -195,6 +199,7 @@ export function UploadReceipt({
     draft?.total_amount ?? 0,
     draft?.transaction_date ?? "",
     draft?.merchant_name ?? "",
+    draft?.invoice_number ?? "",
   );
 
   const jobSelectItems = useMemo(() => {
@@ -346,6 +351,7 @@ export function UploadReceipt({
 
       setDraft({
         ...data.parsed,
+        invoice_number: data.parsed.invoice_number ?? "",
         items: data.parsed.items?.length ? data.parsed.items : [{ ...EMPTY_ITEM }],
         job_name: "",
         paid_with_account_id: "",
@@ -407,6 +413,7 @@ export function UploadReceipt({
             transaction_date: draft.transaction_date,
             items: draft.items.filter((i) => i.name.trim()),
             file_sha256: draft.file_sha256,
+            invoice_number: draft.invoice_number,
             ...(mustChooseDate && { keep_statement_date: attachDateChoice === "statement" }),
           }),
         });
@@ -432,6 +439,7 @@ export function UploadReceipt({
           paid_with_account_id: draft.paid_with_account_id,
           image_path: draft.image_path,
           file_sha256: draft.file_sha256,
+          invoice_number: draft.invoice_number,
         }),
       });
       const data = await res.json();
@@ -767,6 +775,7 @@ export function UploadReceipt({
               </label>
             </div>
           )}
+          <InvoiceNumberWarning matches={duplicateChecks.invoice} total={draft?.total_amount ?? 0} />
           <AlreadyAttachedWarning matches={duplicateChecks.attached} />
           <SimilarReceiptsWarning matches={duplicateChecks.similar} />
 
@@ -780,6 +789,16 @@ export function UploadReceipt({
                   onChange={(e) =>
                     setDraft({ ...draft, merchant_name: e.target.value })
                   }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="invoice_number">Invoice / receipt number (optional)</Label>
+                <Input
+                  id="invoice_number"
+                  maxLength={INVOICE_NUMBER_MAX}
+                  value={draft.invoice_number}
+                  onChange={(e) => setDraft({ ...draft, invoice_number: e.target.value })}
                 />
               </div>
 
@@ -949,7 +968,7 @@ export function UploadReceipt({
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {attachChoice && attachChoice !== "new"
                 ? "Attach & Save"
-                : duplicateChecks.similar.length + duplicateChecks.attached.length > 0
+                : duplicateChecks.invoice.length + duplicateChecks.similar.length + duplicateChecks.attached.length > 0
                   ? "Save anyway"
                   : "Approve & Save"}
             </Button>

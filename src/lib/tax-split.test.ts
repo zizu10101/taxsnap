@@ -112,8 +112,10 @@ test("CSV export: every row says whether its tax is calculated from a statement 
     { ...base, total_amount: 113, tax_amount: 13, tax_category: "Supplies" },
     { ...base, total_amount: 113, tax_amount: 13, tax_category: "Supplies", from_statement: true, no_receipt: true, tax_rate: 0.13 },
   ] as unknown as Receipt[]).split("\n");
-  assert.equal(csv[0].split(",").at(-1), "Tax Basis");
-  assert.equal(csv[1].split(",").at(-1), "Confirmed by receipt");
-  assert.equal(csv[2].split(",").at(-1), "Calculated from statement");
+  // "Invoice number" is the last column (new columns only ever go at the end); Tax Basis is just before it.
+  assert.equal(csv[0].split(",").at(-1), "Invoice number");
+  assert.equal(csv[0].split(",").at(-2), "Tax Basis");
+  assert.equal(csv[1].split(",").at(-2), "Confirmed by receipt");
+  assert.equal(csv[2].split(",").at(-2), "Calculated from statement");
   assert.equal(csv.at(-1)!.split(",").length, csv[0].split(",").length, "the totals row keeps the same column count");
 });

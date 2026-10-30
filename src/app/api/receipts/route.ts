@@ -4,6 +4,7 @@ import { resolveCategory } from "@/lib/expense-categories";
 import { resolvePaidWithAccountId } from "@/lib/payments";
 import type { ReceiptItem } from "@/lib/database.types";
 import { isSha256Hex } from "@/lib/file-hash";
+import { cleanInvoiceNumber } from "@/lib/invoice-number";
 import { newJobCapMessage } from "@/lib/job-cap";
 import { sampleBlockMessage } from "@/lib/sample-data";
 import { recordActivation } from "@/lib/activation";
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     source_template_id,
     paid_with_account_id,
     file_sha256,
+    invoice_number,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -68,6 +70,10 @@ export async function POST(request: Request) {
   const savedJobName = jobNotLinked ? null : job_name?.trim() || null;
 
   const category = await resolveCategory(supabase, user.id, tax_category);
+
+  // Optional invoice / receipt number: trimmed, control characters out, 40 characters max, empty = none.
+  // Only written when there is one, so an expense without it never touches the column.
+  const invoiceNumber = cleanInvoiceNumber(invoice_number);
 
   // Optional "Paid with" (one of the caller's own accounts - bank or card).
   // Only written when the client sent the field at all, so a client that
@@ -107,6 +113,7 @@ export async function POST(request: Request) {
       ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
       items: sanitizeItems(items),
       ...(file_sha256 && { file_sha256 }),
+      ...(invoiceNumber && { invoice_number: invoiceNumber }),
     })
     .select()
     .single();

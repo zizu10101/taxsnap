@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TAX_CATEGORIES, canonicalCategory, isBuiltInCategory } from "@/lib/tax-categories";
+import { cleanInvoiceNumber } from "@/lib/invoice-number";
 import { geminiUsage } from "@/lib/gemini-usage";
 import type { ReceiptItem } from "@/lib/database.types";
 
@@ -15,6 +16,8 @@ export interface ParsedReceipt {
   total_amount: number;
   tax_amount: number;
   tax_category: string;
+  /** The invoice / receipt number printed on the document, or null when absent or unsure. */
+  invoice_number: string | null;
   items: ReceiptItem[];
 }
 
@@ -64,6 +67,11 @@ const RECEIPT_SCHEMA = {
       description:
         "The single best-fit business expense category from the list. Use Other when none clearly fits.",
       enum: [...TAX_CATEGORIES],
+    },
+    invoice_number: {
+      type: Type.STRING,
+      nullable: true,
+      description: "The invoice or receipt number printed on the document, or null.",
     },
     items: {
       type: Type.ARRAY,
@@ -137,6 +145,7 @@ produce a date that fails this check, treat the date as unresolved by those rule
 to whichever valid ordering lands closest to today instead, and set date_ambiguous to true.
 - If the image is too illegible to make out numbers/text confidently at all, keep \
 transaction_date as your best guess but set date_ambiguous to true.
+- invoice_number: the invoice or receipt number printed on the document, copied exactly as printed (keep its letters, digits and dashes). It is NOT an order number, purchase order (PO), account or customer number, card number, phone number, table or register number, or GST/HST registration number. If there is no invoice or receipt number, or you are not sure which number it is, return null - never guess.
 - total_amount and tax_amount must be plain numbers (no currency symbols).
 - If tax_amount is not printed on the receipt, use 0.
 - Pick exactly one tax_category from this list, choosing the closest match for a \
@@ -210,6 +219,8 @@ export async function parseReceiptImage(
     tax_category: isBuiltInCategory(canonicalCategory(parsed.tax_category))
       ? canonicalCategory(parsed.tax_category)
       : "Other",
+    // Cleaned the same way the API stores it (trimmed, control characters out, 40 characters max).
+    invoice_number: cleanInvoiceNumber(parsed.invoice_number),
     items,
   };
 }

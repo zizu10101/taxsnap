@@ -3,6 +3,7 @@ import { requireStatementUser, isUuid } from "@/lib/statement-server";
 import { isIsoDate, round2 } from "@/lib/statement-lines";
 import { attachDate } from "@/lib/statement-attach-period";
 import { isSha256Hex } from "@/lib/file-hash";
+import { cleanInvoiceNumber } from "@/lib/invoice-number";
 import type { ReceiptItem } from "@/lib/database.types";
 
 export const runtime = "nodejs";
@@ -40,7 +41,7 @@ export async function POST(
   if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const { image_path, tax_amount, merchant_name, transaction_date, items, keep_statement_date, file_sha256 } = body ?? {};
+  const { image_path, tax_amount, merchant_name, transaction_date, items, keep_statement_date, file_sha256, invoice_number } = body ?? {};
 
   // The photo was uploaded by /api/parse-receipt under `<user id>/...`; refuse a
   // path that points anywhere else, so one user can't attach another's file.
@@ -120,6 +121,8 @@ export async function POST(
       transaction_date: date.date,
       items: sanitizeItems(items),
       ...(file_sha256 && { file_sha256 }),
+      // The receipt's own number, when it has one (never blanks a number the expense already carries).
+      ...(cleanInvoiceNumber(invoice_number) && { invoice_number: cleanInvoiceNumber(invoice_number) }),
       no_receipt: false,
       receipt_attached_at: new Date().toISOString(),
     })

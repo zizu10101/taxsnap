@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions, useBankAccounts } from "@/components/owner-lists-provider";
 import { canonicalCategory } from "@/lib/tax-categories";
+import { INVOICE_NUMBER_MAX } from "@/lib/invoice-number";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import { StatementFlagBadge } from "@/components/dashboard/statement-flag-badge";
 import { StatementLink } from "@/components/dashboard/statement-link";
@@ -89,6 +90,7 @@ function itemsOf(receipt: Receipt): ReceiptItem[] {
 
 interface EditForm {
   merchant_name: string;
+  invoice_number: string;
   transaction_date: string;
   tax_category: string;
   total_amount: number;
@@ -105,6 +107,7 @@ function toForm(receipt: Receipt): EditForm {
   const items = itemsOf(receipt);
   return {
     merchant_name: receipt.merchant_name,
+    invoice_number: receipt.invoice_number ?? "",
     transaction_date: receipt.transaction_date,
     tax_category: canonicalCategory(receipt.tax_category),
     total_amount: receipt.total_amount,
@@ -198,6 +201,8 @@ function ReceiptSummaryContent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           merchant_name: form.merchant_name,
+          // Only when the owner changed it, so saving other edits never touches the column.
+          ...(form.invoice_number !== (receipt.invoice_number ?? "") && { invoice_number: form.invoice_number }),
           transaction_date: form.transaction_date,
           total_amount: form.total_amount,
           tax_amount: form.tax_amount,
@@ -278,6 +283,16 @@ function ReceiptSummaryContent({
               onChange={(e) =>
                 setForm({ ...form, merchant_name: e.target.value })
               }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-invoice-number">Invoice / receipt number (optional)</Label>
+            <Input
+              id="edit-invoice-number"
+              maxLength={INVOICE_NUMBER_MAX}
+              value={form.invoice_number}
+              onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
             />
           </div>
 
@@ -531,6 +546,11 @@ function ReceiptSummaryContent({
           </span>
           <Badge variant="secondary">{canonicalCategory(receipt.tax_category)}</Badge>
         </div>
+        {receipt.invoice_number && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Invoice / receipt no. <span className="font-mono">{receipt.invoice_number}</span>
+          </p>
+        )}
         <StatementFlagBadge receipt={receipt} className="mt-1.5" />
         <StatementLink receiptId={receipt.id} enabled={statementImportEnabled} />
         {receipt.job_name && (

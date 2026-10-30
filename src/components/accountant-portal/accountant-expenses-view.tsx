@@ -172,6 +172,9 @@ export function AccountantExpensesView({
                       {r.origin === "stripe" && (
                         <span className="ml-1 text-[10px] text-muted-foreground">auto (Stripe)</span>
                       )}
+                      {r.invoice_number && (
+                        <span className="block font-mono text-[11px] text-muted-foreground">Inv. {r.invoice_number}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">{canonicalCategory(r.tax_category)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{r.job_name ?? "—"}</td>
@@ -261,6 +264,12 @@ function ReceiptDetail({ receipt, paidWith }: { receipt: Receipt; paidWith: stri
           {formatCurrency(receipt.tax_amount)}
           <span className="block text-[11px] text-muted-foreground">{TAX_BASIS_LABELS[taxBasis(receipt)]}</span>
         </dd>
+        {receipt.invoice_number && (
+          <>
+            <dt className="text-muted-foreground">Invoice / receipt no.</dt>
+            <dd className="text-right font-mono">{receipt.invoice_number}</dd>
+          </>
+        )}
         <dt className="text-muted-foreground">Job</dt>
         <dd className="text-right">{receipt.job_name ?? "—"}</dd>
         <dt className="text-muted-foreground">Paid with</dt>

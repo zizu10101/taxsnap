@@ -181,6 +181,8 @@ export interface Database {
           created_at: string;
           // 0056: SHA-256 of the original scanned file (64 hex), the only thing kept of it.
           file_sha256?: string | null;
+          // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
+          invoice_number?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;
@@ -211,6 +213,8 @@ export interface Database {
           receipt_attached_at?: string | null;
           created_at?: string;
           file_sha256?: string | null;
+          // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
+          invoice_number?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;
@@ -241,6 +245,8 @@ export interface Database {
           receipt_attached_at?: string | null;
           created_at?: string;
           file_sha256?: string | null;
+          // 0073: the number printed on the document, as typed or read (max 40 chars, API-enforced). Optional until applied.
+          invoice_number?: string | null;
           // 0057 (tax codes): the code a card-statement expense was saved with. Null = no code (every
           // scanned or typed receipt, and a statement line that needs one). Optional until applied.
           tax_rate?: number | null;

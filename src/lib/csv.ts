@@ -19,7 +19,10 @@ function escapeCsvField(value: string | number): string {
 //
 // "Paid With" (the account/card an expense was paid with, resolved through
 // accountNames) is appended as the LAST column, after Notes, so a spreadsheet
-// or pivot already built on the original seven columns keeps working.
+// or pivot already built on the original seven columns keeps working. "Tax Basis" and then
+// "Invoice number" (the number printed on the document, blank when there is none) follow it for the
+// same reason: new columns only ever go at the end. The QuickBooks CSV below is a fixed import
+// format and does not carry it.
 export function receiptsToCsv(
   receipts: Receipt[],
   accountNames: Map<string, string> = new Map(),
@@ -34,6 +37,7 @@ export function receiptsToCsv(
     "Notes",
     "Paid With",
     "Tax Basis",
+    "Invoice number",
   ];
 
   const rows = receipts.map((r) => {
@@ -53,6 +57,7 @@ export function receiptsToCsv(
       // "Calculated from statement" (tax worked out from a card statement, no receipt yet) or
       // "Confirmed by receipt" (a scanned/attached receipt, or a figure the owner entered).
       TAX_BASIS_LABELS[taxBasis(r)],
+      r.invoice_number ?? "",
     ];
   });
 
@@ -65,6 +70,7 @@ export function receiptsToCsv(
     totalAmount.toFixed(2),
     totalTax.toFixed(2),
     totalAmount.toFixed(2),
+    "",
     "",
     "",
     "",

@@ -462,7 +462,7 @@ test("exports: the CSV, the QuickBooks CSV (and so the accountant bundle) carry 
   const receipts = feeExpenses(db) as unknown as Receipt[];
   const csv = receiptsToCsv(receipts).split("\n");
   assert.match(csv[1], /^2026-10-20,Stripe,Bank Charges & Interest,33\.07,0\.00,33\.07,Stripe fee on INV-1003 \(recorded automatically\) \(\$33\.07\),/);
-  assert.equal(csv[1].split(",").at(-1), "Confirmed by receipt");
+  assert.equal(csv[1].split(",").at(-2), "Confirmed by receipt", "Tax Basis is second to last; Invoice number is the last column");
   const qb = receiptsToQuickBooksCsv(receipts).split("\n");
   assert.equal(qb[1], "10/20/2026,Stripe - Bank Charges & Interest,33.07,");
   // The accountant bundle builds from these same two functions.

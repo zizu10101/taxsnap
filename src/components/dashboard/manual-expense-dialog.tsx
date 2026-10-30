@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
 import { canonicalCategory } from "@/lib/tax-categories";
+import { INVOICE_NUMBER_MAX, normalizeInvoiceNumber } from "@/lib/invoice-number";
+import { InvoiceNumberWarning, useInvoiceNumberCheck } from "@/components/dashboard/duplicate-warnings";
 import { PaidWithSelect } from "@/components/dashboard/paid-with-select";
 import type { ExpenseTemplateWithJob, Receipt } from "@/lib/database.types";
 import { useRouter } from "next/navigation";
@@ -50,6 +52,7 @@ const RECURRENCE_SELECT_ITEMS: Record<string, string> = {
 function emptyForm(template?: ExpenseTemplateWithJob | null) {
   return {
     merchant_name: template?.description ?? "",
+    invoice_number: "",
     transaction_date: todayIso(),
     tax_category: canonicalCategory(template?.default_tax_category),
     total_amount: template?.default_amount ?? 0,
@@ -97,6 +100,9 @@ export function ManualExpenseDialog({
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [recurrenceHint, setRecurrenceHint] = useState(NO_RECURRENCE);
+  // Same invoice / receipt number from the same merchant already saved: a warning only, never a block.
+  // Only this rule runs here (a typed expense has no scan to compare); see useInvoiceNumberCheck.
+  const invoiceCheck = useInvoiceNumberCheck(open, form.merchant_name, form.invoice_number, form.total_amount);
 
   const jobSelectItems = useMemo(() => {
     const map: Record<string, string> = { [NO_JOB]: "No job", [NEW_JOB]: "+ Add new job" };
@@ -128,6 +134,24 @@ export function ManualExpenseDialog({
       return;
     }
 
+    // Ask once more at save time (the number may have been typed a moment ago). If a match turns up that
+    // the person has not been shown yet, show it and stop; the button now reads "Save anyway", and the
+    // next press saves. A warning already on screen was seen, so it never blocks.
+    if (normalizeInvoiceNumber(form.invoice_number) !== null) {
+      const alreadyShown = invoiceCheck.matches.length > 0;
+      setSaving(true);
+      let found: Awaited<ReturnType<typeof invoiceCheck.check>>;
+      try {
+        found = await invoiceCheck.check();
+      } finally {
+        setSaving(false);
+      }
+      if (found.length > 0 && !alreadyShown) {
+        toast.warning("This invoice number is already saved. Check the warning, then Save anyway.");
+        return;
+      }
+    }
+
     const jobName =
       jobMode === NO_JOB ? null : jobMode === NEW_JOB ? newJobName.trim() : jobMode;
 
@@ -145,6 +169,7 @@ export function ManualExpenseDialog({
           job_name: jobName,
           source_template_id: template?.id ?? null,
           paid_with_account_id: form.paid_with_account_id,
+          invoice_number: form.invoice_number,
         }),
       });
       const data = await res.json();
@@ -214,6 +239,18 @@ export function ManualExpenseDialog({
               onChange={(e) => setForm({ ...form, merchant_name: e.target.value })}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense-invoice-number">Invoice / receipt number (optional)</Label>
+            <Input
+              id="expense-invoice-number"
+              maxLength={INVOICE_NUMBER_MAX}
+              value={form.invoice_number}
+              onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
+              onBlur={() => void invoiceCheck.check()}
+            />
+          </div>
+          <InvoiceNumberWarning matches={invoiceCheck.matches} total={form.total_amount} />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -356,7 +393,7 @@ export function ManualExpenseDialog({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save Expense
+            {invoiceCheck.matches.length > 0 ? "Save anyway" : "Save Expense"}
           </Button>
         </DialogFooter>
       </DialogContent>

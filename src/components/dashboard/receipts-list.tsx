@@ -307,6 +307,11 @@ export function ReceiptsList({
                           {canonicalCategory(r.tax_category)}
                         </Badge>
                       </div>
+                      {r.invoice_number && (
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">
+                          Inv. {r.invoice_number}
+                        </p>
+                      )}
                       <StatementFlagBadge receipt={r} className="mt-0.5" />
                       <AutoExpenseBadge receipt={r} className="mt-0.5" />
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -355,6 +360,9 @@ export function ReceiptsList({
                   )}
                   <div className="hidden min-w-0 sm:block">
                     <p className="truncate text-sm font-medium">{r.merchant_name}</p>
+                    {r.invoice_number && (
+                      <p className="truncate font-mono text-[11px] text-muted-foreground">Inv. {r.invoice_number}</p>
+                    )}
                     <StatementFlagBadge receipt={r} className="mt-0.5" />
                     <AutoExpenseBadge receipt={r} className="mt-0.5" />
                     {r.job_name && (

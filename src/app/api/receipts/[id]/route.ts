@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveCategory } from "@/lib/expense-categories";
+import { cleanInvoiceNumber } from "@/lib/invoice-number";
 import { sameCategory } from "@/lib/tax-categories";
 import { newJobCapMessage } from "@/lib/job-cap";
 import { sampleBlockMessage } from "@/lib/sample-data";
@@ -47,6 +48,7 @@ export async function PATCH(
     job_name,
     paid_with_account_id,
     tax_code,
+    invoice_number,
   } = body ?? {};
 
   if (!merchant_name || !transaction_date || total_amount === undefined) {
@@ -139,6 +141,9 @@ export async function PATCH(
       tax_category: category,
       job_name: savedJobName,
       ...(paid_with_account_id !== undefined && { paid_with_account_id: paidWith.id }),
+      // Only when the form sent it: an older client that doesn't know the field leaves it alone, and
+      // an empty one clears it (cleanInvoiceNumber -> null).
+      ...(invoice_number !== undefined && { invoice_number: cleanInvoiceNumber(invoice_number) }),
       items: sanitizeItems(items),
     })
     .eq("id", id)

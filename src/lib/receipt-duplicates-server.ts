@@ -1,8 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types.ts";
 import { isSha256Hex } from "./file-hash.ts";
+import { invoiceNumberLikePattern, normalizeInvoiceNumber } from "./invoice-number.ts";
+import { vendorKey } from "./merchant-name.ts";
 import {
   attachedStatementMatches,
+  invoiceNumberMatches,
+  type InvoiceNumberCandidate,
+  type InvoiceNumberMatch,
   DUPLICATE_WINDOW_DAYS,
   MAX_DUPLICATE_MATCHES,
   similarReceipts,
@@ -98,17 +103,70 @@ export async function findAttachedStatementExpenses(
   return attachedStatementMatches(candidate, data ?? []);
 }
 
-// Both soft checks together. A receipt in BOTH answers is shown once, under the more specific
-// "already has a receipt attached" message.
+// Saved expenses with the same invoice / receipt number and merchant. The database only narrows the
+// search (this owner's numbered expenses whose number contains the key's characters in order - a
+// superset, since normalising only removes characters; the partial index on (user_id,
+// invoice_number) serves it); the exact number and merchant comparison is done in code, because the
+// merchant rule isn't expressible in SQL. A blank number, or no usable merchant, checks nothing. If
+// the invoice_number column isn't there yet (migration 0073 not applied) it answers nothing.
+const INVOICE_LOOKUP_LIMIT = 200;
+
+export async function findInvoiceNumberDuplicates(
+  client: SupabaseClient<Database>,
+  userId: string,
+  candidate: InvoiceNumberCandidate,
+): Promise<InvoiceNumberMatch[]> {
+  const key = normalizeInvoiceNumber(candidate.invoice_number);
+  if (key === null || vendorKey(candidate.merchant) === null) return [];
+  const { data, error } = await client
+    .from("receipts")
+    .select(`${SUMMARY_COLUMNS}, invoice_number`)
+    .eq("user_id", userId)
+    .not("invoice_number", "is", null)
+    .ilike("invoice_number", invoiceNumberLikePattern(key))
+    .order("transaction_date", { ascending: false })
+    .limit(INVOICE_LOOKUP_LIMIT);
+  if (error) return [];
+  return invoiceNumberMatches(candidate, data ?? []);
+}
+
+// All the soft checks together. The invoice-number match is the strongest and outranks the others:
+// a receipt it found is shown once, under its own message, and removed from the other two answers.
+// A receipt in BOTH of the other two is shown once, under the more specific "already has a receipt
+// attached" message.
+//
+// `invoiceOnly` runs ONLY the invoice-number check (and reads nothing else): the manual expense
+// dialog uses it, because a typed expense has no scan to compare and the merchant + total + date
+// rule is for scans.
 export async function findDuplicateChecks(
   client: SupabaseClient<Database>,
   userId: string,
-  candidate: SimilarCandidate,
-): Promise<{ similar: DuplicateSummary[]; attached: AttachedSummary[] }> {
-  const [similar, attached] = await Promise.all([
+  candidate: SimilarCandidate & { invoice_number?: string | null },
+  options: { invoiceOnly?: boolean } = {},
+): Promise<{ invoice: InvoiceNumberMatch[]; similar: DuplicateSummary[]; attached: AttachedSummary[] }> {
+  if (options.invoiceOnly) {
+    const invoice = await findInvoiceNumberDuplicates(client, userId, {
+      merchant: candidate.merchant,
+      invoice_number: candidate.invoice_number,
+      total: candidate.total,
+    });
+    return { invoice, similar: [], attached: [] };
+  }
+  const [invoice, similar, attached] = await Promise.all([
+    findInvoiceNumberDuplicates(client, userId, {
+      merchant: candidate.merchant,
+      invoice_number: candidate.invoice_number,
+      total: candidate.total,
+    }),
     findSimilarReceipts(client, userId, candidate),
     findAttachedStatementExpenses(client, userId, candidate),
   ]);
-  const attachedIds = new Set(attached.map((a) => a.id));
-  return { similar: similar.filter((s) => !attachedIds.has(s.id)), attached };
+  const invoiceIds = new Set(invoice.map((i) => i.id));
+  const attachedLeft = attached.filter((a) => !invoiceIds.has(a.id));
+  const attachedIds = new Set(attachedLeft.map((a) => a.id));
+  return {
+    invoice,
+    similar: similar.filter((s) => !invoiceIds.has(s.id) && !attachedIds.has(s.id)),
+    attached: attachedLeft,
+  };
 }
