@@ -13,6 +13,7 @@ import {
   EXPENSE_IMPORT_BATCH,
   EXPENSE_IMPORT_MAX_BYTES,
   EXPENSE_IMPORT_MAX_ROWS,
+  allMonthNameDates,
   analyzeDateFormat,
   DATE_SET_AT_IMPORT_NOTE,
   TOTAL_REASONS,
@@ -126,7 +127,7 @@ test("slash dates: day-first and month-first give different dates, and without a
 });
 
 test("unreadable dates are null: bad calendar days, other formats, text, out-of-range years", () => {
-  for (const v of ["31/02/2026", "2026-02-30", "2026-13-01", "March 14, 2026", "not a date", "", "99/99/9999", "1999-12-31"]) {
+  for (const v of ["31/02/2026", "2026-02-30", "2026-13-01", "Smarch 14, 2026", "not a date", "", "99/99/9999", "1999-12-31"]) {
     assert.equal(parseDate(v, "dmy"), null, v);
   }
 });
@@ -143,6 +144,81 @@ test("the whole file decides whether the person must choose", () => {
   assert.equal(analyzeDateFormat(["05/05/2026", "11/11/2026"]).needsChoice, false);
   // mixed with ISO rows: only the slash rows count
   assert.equal(analyzeDateFormat(["2026-03-14", "03/04/2026"]).needsChoice, true);
+});
+
+test("month-name dates read the same under every order setting, in every written form", () => {
+  const forms = [
+    "Jul 2, 2026", "Jul 2 2026", "July 2, 2026", "JULY 2 2026", "jul 02, 2026",
+    "2 Jul 2026", "2 July 2026", "2 Jul, 2026", "02 JUL 2026", "2026-Jul-2", "2026-July-02", "  Jul   2,  2026  ",
+  ];
+  for (const form of forms) {
+    for (const order of [null, "dmy", "mdy"] as const) assert.equal(parseDate(form, order), "2026-07-02", `${form} / ${order}`);
+  }
+  assert.equal(parseDate("Sep 30, 2026", "dmy"), "2026-09-30");
+  assert.equal(parseDate("May 5, 2026", "mdy"), "2026-05-05");
+});
+
+test("month-name dates are validated against the real calendar and the month word", () => {
+  for (const v of ["Feb 30, 2026", "30 Feb 2026", "2026-Feb-30", "Feb 29, 2026", "Jul 32, 2026", "Jul 0, 2026", "Sept 2, 2026", "Ju 2, 2026", "Foo 2, 2026", "Jul 2, 1999"]) {
+    assert.equal(parseDate(v, null), null, v);
+  }
+  assert.equal(parseDate("Feb 29, 2028", null), "2028-02-29", "a real leap day");
+});
+
+test("a column that is all month-name dates needs no format question", () => {
+  assert.equal(allMonthNameDates(["Jul 2, 2026", "", "2 Aug 2026"]), true);
+  assert.equal(allMonthNameDates(["Jul 2, 2026", "03/04/2026"]), false);
+  assert.equal(allMonthNameDates(["", " "]), false);
+  const t = table("Created Date,Total\n\"Jul 2, 2026\",10.00\n\"Aug 3, 2026\",20.00\n");
+  assert.deepEqual(dateFormatQuestion(t, ["date", "total"]), { needsChoice: false, detected: null });
+});
+
+// A supplier sheet like the Nike one: 3 blank lines above the header, "Mon D, YYYY" dates, "$1,410.25" amounts,
+// and a grand-total row at the end.
+const NIKE_LINES = [
+  ["Jul 2, 2026", "INV-1001", "$1,410.25"], ["Jul 3, 2026", "INV-1002", "$288.00"], ["Jul 7, 2026", "INV-1003", "$2,046.10"],
+  ["Jul 9, 2026", "INV-1004", "$95.40"], ["Jul 14, 2026", "INV-1005", "$1,000.00"], ["Jul 15, 2026", "INV-1006", "$742.31"],
+  ["Jul 21, 2026", "INV-1007", "$3,310.75"], ["Jul 22, 2026", "INV-1008", "$12.99"], ["Jul 28, 2026", "INV-1009", "$560.00"],
+  ["Jul 30, 2026", "INV-1010", "$1,875.50"], ["Aug 4, 2026", "INV-1011", "$420.20"], ["Aug 6, 2026", "INV-1012", "$99.99"],
+  ["Aug 11, 2026", "INV-1013", "$2,500.00"], ["Aug 13, 2026", "INV-1014", "$38.15"], ["Aug 18, 2026", "INV-1015", "$1,120.80"],
+  ["Aug 20, 2026", "INV-1016", "$640.00"], ["Aug 25, 2026", "INV-1017", "$77.77"], ["Aug 27, 2026", "INV-1018", "$1,305.05"],
+  ["Sep 1, 2026", "INV-1019", "$810.60"],
+];
+const NIKE_TOTAL = Math.round(NIKE_LINES.reduce((s, l) => s + Number(l[2].replace(/[$,]/g, "")), 0) * 100) / 100;
+const NIKE_CSV =
+  ",,\n,,\n,,\n" +
+  "Created Date,Reference Number,Open to Pay (CAD)\n" +
+  NIKE_LINES.map(([d, ref, amt]) => `"${d}",${ref},"${amt}"`).join("\n") +
+  `\n,,"$${NIKE_TOTAL.toLocaleString("en-US", { minimumFractionDigits: 2 })}"\n`;
+
+test("supplier sheet with month-name dates: headings map, 19 rows build, trailing total row is flagged", () => {
+  const t = parseDelimited(NIKE_CSV);
+  assert.deepEqual(t.headers, ["Created Date", "Reference Number", "Open to Pay (CAD)"], "blank lines above the header are skipped");
+  assert.equal(t.rows.length, 20);
+  const guessed = guessExpenseMapping(t.headers);
+  assert.equal(guessed[0], "date", "Created Date");
+  assert.equal(guessed[1], "invoice_number", "Reference Number");
+  const mapping: ExpenseImportTarget[] = ["date", "invoice_number", "total"];
+
+  assert.deepEqual(dateFormatQuestion(t, mapping), { needsChoice: false, detected: null });
+  for (const order of [null, "dmy", "mdy"] as const) {
+    const { rows, problems } = buildImportRows(t, mapping, { supplierName: "Nike", dateOrder: order });
+    assert.equal(problems.length, 0, `${order}`);
+    assert.equal(rows.length, 20);
+    assert.deepEqual([rows[0].date, rows[0].invoice_number, rows[0].total], ["2026-07-02", "INV-1001", 1410.25]);
+    assert.equal(rows[18].date, "2026-09-01");
+    assert.equal(rows[19].date, "", "the total row has no date");
+
+    const flags = detectTotalRows(rows);
+    assert.equal(flags.slice(0, 19).filter((f) => f !== null).length, 0, "no real invoice is flagged");
+    assert.notEqual(flags[19], null, "the total row is flagged");
+    const planned = plan(rows.map((r) => ({ ...r, supplier_defaulted: true })), ctx());
+    assert.equal(planned[19].status, "total");
+    assert.equal(decideRow(planned[19], {}), "skip", "the total row is left out");
+    const imported = planned.filter((p, i) => decideRow(p, rows[i]) === "import");
+    assert.equal(imported.length, 19);
+    assert.equal(Math.round(imported.reduce((s, p) => s + p.expense!.total_amount, 0) * 100) / 100, NIKE_TOTAL);
+  }
 });
 
 // ---- amounts -------------------------------------------------------------------------------------

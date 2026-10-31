@@ -70,7 +70,7 @@ export const EXPENSE_TARGET_LABELS: Record<ExpenseImportTarget, string> = {
 // Headings (lower case, punctuation dropped) that mean each field. Exact matches only, as in the
 // client import: "Amount" is the total, but "Amount Paid To Date" is not guessed at.
 const EXPENSE_SYNONYMS: Record<Exclude<ExpenseImportTarget, "ignore">, string[]> = {
-  date: ["date", "invoice date", "transaction date", "bill date", "order date", "issue date", "purchase date", "posted date"],
+  date: ["date", "created date", "invoice date", "transaction date", "bill date", "order date", "issue date", "purchase date", "posted date"],
   supplier: ["supplier", "supplier name", "vendor", "vendor name", "merchant", "merchant name", "payee", "store", "seller", "company"],
   invoice_number: [
     "invoice",
@@ -85,6 +85,8 @@ const EXPENSE_SYNONYMS: Record<Exclude<ExpenseImportTarget, "ignore">, string[]>
     "receipt number",
     "receipt no",
     "reference",
+    "reference number",
+    "reference no",
     "ref",
     "document number",
     "doc number",
@@ -196,13 +198,48 @@ function toIso(year: number, month: number, day: number): string | null {
 
 const fullYear = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
 
-// ISO and year-first dates (2026-03-14, 2026/3/14) are never ambiguous. Day-first / month-first
-// dates (14/03/2026, 3/14/26) need `order`; without one, only a date whose day cannot be a month
-// (a first or second part over 12) is read - anything else is null, never a guess.
+// Dates with a month NAME: "Jul 2, 2026", "July 2 2026", "2 Jul 2026", "2026-Jul-2". The word says which
+// part is the month, so they are never ambiguous and ignore the day/month order setting.
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const NAME_MDY = /^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/i;
+const NAME_DMY = /^(\d{1,2})\s+([a-z]+),?\s+(\d{4})$/i;
+const NAME_YMD = /^(\d{4})[-\s]+([a-z]+)[-\s]+(\d{1,2})$/i;
+
+// 1-12 for a full English month name or its 3-letter form (any case), otherwise 0.
+function monthFromName(word: string): number {
+  const w = word.toLowerCase();
+  if (w.length < 3) return 0;
+  const i = MONTHS.findIndex((m) => m === w || (w.length === 3 && m.startsWith(w)));
+  return i + 1;
+}
+
+function parseMonthNameDate(s: string): string | null {
+  const text = s.replace(/\s+/g, " ");
+  let m = NAME_MDY.exec(text);
+  if (m) return toIso(Number(m[3]), monthFromName(m[1]), Number(m[2]));
+  m = NAME_DMY.exec(text);
+  if (m) return toIso(Number(m[3]), monthFromName(m[2]), Number(m[1]));
+  m = NAME_YMD.exec(text);
+  if (m) return toIso(Number(m[1]), monthFromName(m[2]), Number(m[3]));
+  return null;
+}
+
+// True when the column has at least one value and every non-empty value is a month-name date. Such a
+// file needs no "how are the dates written?" answer: the format is settled by the words themselves.
+export function allMonthNameDates(values: string[]): boolean {
+  const filled = values.map((v) => v.trim()).filter((v) => v !== "");
+  return filled.length > 0 && filled.every((v) => parseMonthNameDate(v) !== null);
+}
+
+// ISO and year-first dates (2026-03-14, 2026/3/14) and month-name dates (Jul 2, 2026) are never
+// ambiguous. Day-first / month-first dates (14/03/2026, 3/14/26) need `order`; without one, only a date
+// whose day cannot be a month (a first or second part over 12) is read - anything else is null, never a guess.
 export function parseDate(raw: string, order: DateOrder | null): string | null {
   const s = raw.trim();
   const ymd = YMD.exec(s);
   if (ymd) return toIso(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]));
+  const named = parseMonthNameDate(s);
+  if (named) return named;
   const m = SLASH.exec(s);
   if (!m) return null;
   const a = Number(m[1]);
