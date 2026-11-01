@@ -230,7 +230,7 @@ export function StatementImportButton() {
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <FileText className="h-4 w-4" />
-        Import Statement
+        Import statement (PDF/photo)
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>

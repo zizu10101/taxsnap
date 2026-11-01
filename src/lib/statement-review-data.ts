@@ -1,5 +1,6 @@
 import { loadCategoryContext, loadOwnImport, type StatementCtx } from "@/lib/statement-server";
 import { candidatesForLines, type ReceiptBrief } from "@/lib/statement-match-server";
+import { importCameFromCsv } from "@/lib/statement-csv";
 import { reconcileStatement, type ReconcileResult } from "@/lib/statement-reconcile";
 import type { MatchCandidate } from "@/lib/statement-matching";
 import type { Stopwatch } from "@/lib/statement-timing";
@@ -69,6 +70,8 @@ export interface StatementReviewData {
     statement_total_kind: "purchases" | "new_balance" | null;
     line_count: number | null;
     created_at: string;
+    /** Read from a CSV file: its lines have no meaningful page. */
+    from_csv: boolean;
   };
   chunks: ReviewChunkData[];
   lines: ReviewLineData[];
@@ -125,6 +128,7 @@ export async function loadStatementReview(
       statement_total_kind: imp.statement_total_kind,
       line_count: imp.line_count,
       created_at: imp.created_at,
+      from_csv: importCameFromCsv(imp),
     },
     chunks: chunks ?? [],
     lines: allLines.map((l) => ({

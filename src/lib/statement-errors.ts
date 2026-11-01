@@ -10,6 +10,7 @@ export interface StatementApiError {
 
 const BY_MESSAGE: Record<string, StatementApiError> = {
   ACCOUNT_NOT_CARD: { status: 400, code: "ACCOUNT_NOT_CARD", message: "Choose one of your credit cards." },
+  ACCOUNT_NOT_FOUND: { status: 400, code: "ACCOUNT_NOT_FOUND", message: "Choose one of your accounts." },
   ALREADY_IMPORTED: {
     status: 409,
     code: "ALREADY_IMPORTED",

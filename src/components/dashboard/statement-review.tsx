@@ -278,6 +278,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                   bankChargesCategory={data.bank_charges_category}
                   disabled={busy || saving}
                   onPatch={patchLines}
+                  showPage={!data.import.from_csv}
                 />
               ))}
             </ul>

@@ -71,7 +71,9 @@ export function LineRow({
   bankChargesCategory,
   disabled,
   onPatch,
+  showPage = true,
 }: {
+  showPage?: boolean;
   line: ReviewLineData;
   group: ReviewGroup;
   categories: string[];
@@ -125,7 +127,8 @@ export function LineRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{line.description}</p>
           <p className="text-xs text-muted-foreground">
-            {formatDay(line.txn_date)} · page {line.page}
+            {formatDay(line.txn_date)}
+            {showPage && ` · page ${line.page}`}
             {line.original_amount !== null && line.original_currency && (
               <span>
                 {" "}

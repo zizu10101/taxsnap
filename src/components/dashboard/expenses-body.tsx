@@ -21,6 +21,7 @@ import { ImportsDialog, importLabel } from "@/components/dashboard/imports-dialo
 import type { BatchSummary } from "@/lib/bulk-delete";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
 import { StatementImportButton } from "@/components/dashboard/statement-import-button";
+import { StatementCsvButton } from "@/components/dashboard/statement-csv-button";
 import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
 import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
@@ -266,6 +267,7 @@ export function ExpensesBody({
             </Button>
           )}
           {statementImportEnabled && <StatementImportButton />}
+          {statementImportEnabled && <StatementCsvButton />}
           <UploadReceipt
             variant="compact"
             onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
@@ -285,7 +287,7 @@ export function ExpensesBody({
           </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" />
-            Import CSV
+            Import expenses (CSV)
           </Button>
           <Button variant="outline" size="sm" onClick={() => setImportsOpen(true)}>
             <History className="h-4 w-4" />

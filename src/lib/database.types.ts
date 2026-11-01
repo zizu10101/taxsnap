@@ -1970,6 +1970,14 @@ export interface Database {
         };
         Returns: string | null;
       };
+      start_statement_csv_import: {
+        Args: {
+          p_user_id: string;
+          p_account_id: string;
+          p_file_sha256: string;
+        };
+        Returns: string;
+      };
       start_statement_import: {
         Args: {
           p_user_id: string;
