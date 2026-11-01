@@ -228,7 +228,7 @@ export function StatementImportButton() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="h-auto min-h-11 lg:h-7 lg:min-h-0" onClick={() => setOpen(true)}>
         <FileText className="h-4 w-4" />
         Import statement (PDF/photo)
       </Button>

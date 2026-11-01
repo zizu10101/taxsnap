@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatementsList } from "@/components/dashboard/statements-list";
+import { StatementImportButton } from "@/components/dashboard/statement-import-button";
+import { StatementCsvButton } from "@/components/dashboard/statement-csv-button";
 import { Button } from "@/components/ui/button";
 import { getStatementPageCtx } from "@/lib/statement-server";
 import { countDeletedStatements, loadStatementList } from "@/lib/statement-groups-server";
@@ -51,6 +53,11 @@ export default async function StatementsPage({
           ) : undefined
         }
       />
+      {/* Importing lives here, above the list it adds to. The page itself is allowlist-only (notFound above). */}
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+        <StatementImportButton />
+        <StatementCsvButton />
+      </div>
       <StatementsList items={items} />
     </div>
   );

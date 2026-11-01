@@ -329,9 +329,12 @@ test("allowlist: a user who is not on STATEMENT_IMPORT_USER_IDS gets nothing (40
   assert.equal((await handleStatementCsv(makeDeps().deps, ME, send([row()]), NOW)).status, 200);
 });
 
-test("allowlist: the route is behind requireStatementUser and the button is only rendered for allowlisted users", () => {
+test("allowlist: the route is behind requireStatementUser and the buttons live on the allowlist-only Statements page", () => {
   assert.match(read("../app/api/statements/csv/route.ts"), /requireStatementUser\(\)/);
-  assert.match(read("../components/dashboard/expenses-body.tsx"), /statementImportEnabled && <StatementCsvButton \/>/);
+  assert.doesNotMatch(read("../components/dashboard/expenses-body.tsx"), /Statement(Csv|Import)Button/, "moved off the Expenses toolbar");
+  const page = read("../app/(app)/dashboard/expenses/statements/page.tsx");
+  assert.match(page, /if \(!ctx\) notFound\(\)/);
+  assert.match(page, /<StatementImportButton \/>[\s\S]*<StatementCsvButton \/>[\s\S]*<StatementsList/);
 });
 
 test("another user's account id, an unknown id and a removed account are refused, in preview and in apply, with nothing written", async () => {

@@ -107,6 +107,7 @@ export function UploadReceipt({
   statementImportEnabled = false,
   existingJobs = [],
   variant = "hero",
+  className,
 }: {
   onSaved: (receipt: Receipt) => void;
   // Called instead of onSaved when the scan was attached to an existing
@@ -123,6 +124,8 @@ export function UploadReceipt({
   // system picker itself offers Take Photo / Photo Library / Files, so the
   // camera is still one tap away without a menu here.
   variant?: "hero" | "tile" | "compact";
+  /** Extra classes for the "compact" toolbar button (sizing in the Expenses toolbar). */
+  className?: string;
 }) {
   const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -535,6 +538,7 @@ export function UploadReceipt({
         <Button
           variant="outline"
           size="sm"
+          className={className}
           disabled={parsing}
           onClick={() => libraryInputRef.current?.click()}
         >

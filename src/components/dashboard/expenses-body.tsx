@@ -20,8 +20,6 @@ import { BulkDeleteDialog, type DeleteTarget } from "@/components/dashboard/bulk
 import { ImportsDialog, importLabel } from "@/components/dashboard/imports-dialog";
 import type { BatchSummary } from "@/lib/bulk-delete";
 import { UploadReceipt } from "@/components/dashboard/upload-receipt";
-import { StatementImportButton } from "@/components/dashboard/statement-import-button";
-import { StatementCsvButton } from "@/components/dashboard/statement-csv-button";
 import { RecentlyAddedReceipts } from "@/components/dashboard/recently-added-receipts";
 import { ExpenseTemplatesDialog } from "@/components/dashboard/expense-templates-dialog";
 import { JobFilter } from "@/components/dashboard/job-filter";
@@ -55,6 +53,10 @@ function slugify(label: string): string {
 // still live on the main dashboard; this page is a focused expenses-only
 // view, mirroring how Invoices/Estimates/Jobs each get their own page
 // instead of being mixed into one screen.
+// Toolbar buttons: at least 44px tall on a phone or tablet (labels may wrap to two lines instead of overflowing a
+// half-width button), the compact 28px size from lg up.
+const TOOLBAR_BUTTON = "h-auto min-h-11 whitespace-normal text-center leading-tight lg:h-7 lg:min-h-0 lg:whitespace-nowrap";
+
 export function ExpensesBody({
   initialReceipts,
   initialJobNames,
@@ -255,44 +257,50 @@ export function ExpensesBody({
             }}
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setTemplatesDialogOpen(true)}>
-            <Repeat className="h-4 w-4" />
-            From Template
-          </Button>
-          {statementImportEnabled && (
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={STATEMENTS_HREF} />}>
-              <Files className="h-4 w-4" />
-              Statements
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          {/* Primary row: the two things most visits are for, side by side at every width. */}
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button
+              size="sm"
+              className={TOOLBAR_BUTTON}
+              onClick={() => {
+                setExpenseTemplate(null);
+                setAddExpenseOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Add Expense
             </Button>
-          )}
-          {statementImportEnabled && <StatementImportButton />}
-          {statementImportEnabled && <StatementCsvButton />}
-          <UploadReceipt
-            variant="compact"
-            onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
-            onAttached={handleAttached}
-            statementImportEnabled={statementImportEnabled}
-            existingJobs={existingJobs}
-          />
-          <Button
-            size="sm"
-            onClick={() => {
-              setExpenseTemplate(null);
-              setAddExpenseOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Add Expense
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <FileSpreadsheet className="h-4 w-4" />
-            Import expenses (CSV)
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportsOpen(true)}>
-            <History className="h-4 w-4" />
-            Imports
-          </Button>
+            <UploadReceipt
+              variant="compact"
+              className={TOOLBAR_BUTTON}
+              onSaved={(receipt) => setReceipts((prev) => [receipt, ...prev])}
+              onAttached={handleAttached}
+              statementImportEnabled={statementImportEnabled}
+              existingJobs={existingJobs}
+            />
+          </div>
+          {/* Secondary: two columns on a phone (so at most two rows), one wrapping row from sm up. */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Button variant="outline" size="sm" className={TOOLBAR_BUTTON} onClick={() => setTemplatesDialogOpen(true)}>
+              <Repeat className="h-4 w-4" />
+              From Template
+            </Button>
+            {statementImportEnabled && (
+              <Button variant="outline" size="sm" className={TOOLBAR_BUTTON} nativeButton={false} render={<Link href={STATEMENTS_HREF} />}>
+                <Files className="h-4 w-4" />
+                Statements
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className={TOOLBAR_BUTTON} onClick={() => setImportOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Import expenses (CSV)
+            </Button>
+            <Button variant="outline" size="sm" className={TOOLBAR_BUTTON} onClick={() => setImportsOpen(true)}>
+              <History className="h-4 w-4" />
+              Imports
+            </Button>
+          </div>
         </div>
       </div>
 
