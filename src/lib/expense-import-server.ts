@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types.ts";
+import type { AccountLike } from "./accounts.ts";
 import {
   EXPENSE_IMPORT_BATCH,
   EXPENSE_IMPORT_MAX_ROWS,
@@ -25,6 +26,10 @@ import { buildCategoryDefaults } from "./tax-codes.ts";
 //
 //   preview  {mode:"preview", default_category, rows, fallback_date?}   the plan for every row; nothing is written
 //   apply    {mode:"apply",   default_category, rows, fallback_date?}   saves what the plan allows, in batches
+//
+// Both also take an optional `paid_with_account_id` (the dialog's one account for rows with none of their own)
+// and each row an optional `paid_with` (the file's cell text). Both are re-resolved here against the session
+// user's own accounts; see planRequest.
 //
 // `fallback_date` is the dialog's "Date for rows without a date": it dates every row that was sent with an
 // empty date. It is sent with BOTH requests and validated here (a real date, not in the future).
@@ -120,7 +125,25 @@ export async function planRequest(
     userId,
     [...inputs.map((r) => r.date), ...(fallbackDate ? [fallbackDate] : [])].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
   );
-  const planned = planExpenseImport(inputs, { defaultCategory, customCategories, existing, defaults, fallbackDate });
+  // "Paid with": the accounts are read here, for this user only, and only when something asks for one (the
+  // picker's id or a row's text). The picker's id is checked against THIS list, so another user's id, an
+  // unknown one or a removed account is refused; a row's text is matched against the active ones only.
+  const pickedId = body.paid_with_account_id;
+  const wantsAccount = (pickedId !== undefined && pickedId !== null && pickedId !== "") || inputs.some((r) => (r.paid_with ?? "").trim() !== "");
+  let accounts: AccountLike[] = [];
+  let defaultAccountId: string | null = null;
+  if (wantsAccount) {
+    const { data, error } = await db.from("bank_accounts").select("id, name, is_active, account_type").eq("user_id", userId);
+    if (error) throw new Error("load-accounts");
+    accounts = (data ?? []) as AccountLike[];
+    if (pickedId !== undefined && pickedId !== null && pickedId !== "") {
+      const picked = typeof pickedId === "string" ? accounts.find((a) => a.id === pickedId) : undefined;
+      if (!picked) return { status: 400, body: { error: "That \"Paid with\" account wasn't found." } };
+      if (!picked.is_active) return { status: 400, body: { error: "That \"Paid with\" account has been removed." } };
+      defaultAccountId = picked.id;
+    }
+  }
+  const planned = planExpenseImport(inputs, { defaultCategory, customCategories, existing, defaults, fallbackDate, accounts, defaultAccountId });
   return { inputs, planned, defaultCategory };
 }
 
@@ -195,6 +218,7 @@ export async function handleExpenseImport(
         items: e.items,
         import_batch_id: batchId,
         ...(e.invoice_number && { invoice_number: e.invoice_number }),
+        ...(e.paid_with_account_id && { paid_with_account_id: e.paid_with_account_id }),
       },
     });
   });

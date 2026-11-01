@@ -24,6 +24,7 @@ import {
   guessExpenseMapping,
   headingsKey,
   isTotalLabel,
+  matchAccountByName,
   mappingProblems,
   parseAmount,
   parseDate,
@@ -512,7 +513,7 @@ test("the preview totals count only what would be saved", () => {
 
 type Row = Record<string, unknown>;
 function makeDb(
-  opts: { receipts?: Row[]; categories?: Row[]; rejectRow?: (r: Row) => boolean; missingColumn?: string } = {},
+  opts: { receipts?: Row[]; categories?: Row[]; accounts?: Row[]; rejectRow?: (r: Row) => boolean; missingColumn?: string } = {},
 ) {
   const receipts: Row[] = (opts.receipts ?? []).map((r, i) => ({ id: `seed-${i}`, ...r }));
   const log = { inserts: [] as number[], tables: [] as string[] };
@@ -525,7 +526,8 @@ function makeDb(
       let values: Row[] = [];
       let range: [number, number] | null = null;
       let single = false;
-      const rows = () => (table === "expense_categories" ? (opts.categories ?? []) : receipts);
+      const rows = () =>
+        table === "expense_categories" ? (opts.categories ?? []) : table === "bank_accounts" ? (opts.accounts ?? []) : receipts;
       const b = {
         select: () => b,
         insert: (v: Row | Row[]) => ((op = "insert"), (values = Array.isArray(v) ? v : [v]), b),
@@ -1214,4 +1216,135 @@ test("batch: only a missing-column error triggers the retry; a bad row still fai
   assert.deepEqual([r.body.imported, r.body.failed], [1, [{ row: 3, reason: "Could not save this row" }]]);
   assert.equal(typeof r.body.import_batch_id, "string", "the column is still used");
   assert.equal(receipts[0].import_batch_id, r.body.import_batch_id);
+});
+
+// ---- "Paid with" -----------------------------------------------------------------------------------
+
+const ACCOUNTS = [
+  { id: "a-visa", user_id: "u1", name: "TD Visa", is_active: true, account_type: "card" as const },
+  { id: "a-chq", user_id: "u1", name: "RBC Chequing", is_active: true, account_type: "bank" as const },
+  { id: "a-old", user_id: "u1", name: "Old Amex", is_active: false, account_type: "card" as const },
+  { id: "b-visa", user_id: "u2", name: "Other Owner Card", is_active: true, account_type: "card" as const },
+];
+const MINE = ACCOUNTS.filter((a) => a.user_id === "u1");
+
+test("paid with: names match ignoring case, edge spaces and inner whitespace", () => {
+  for (const cell of ["TD Visa", "td visa", "  TD   VISA  ", "TD Visa (credit card)"]) {
+    const m = matchAccountByName(cell, MINE);
+    assert.equal(m.state === "match" && m.account.id, "a-visa", cell);
+  }
+  assert.equal(matchAccountByName("   ", MINE).state, "blank");
+});
+
+test("paid with: an unknown name, or a removed account, matches nothing", () => {
+  assert.equal(matchAccountByName("Mastercard", MINE).state, "none");
+  assert.equal(matchAccountByName("Old Amex", MINE).state, "none", "inactive accounts are not offered, so not matched");
+});
+
+test("paid with: two accounts that read the same are ambiguous, never guessed", () => {
+  const twins = [
+    { id: "x1", name: "Visa", is_active: true },
+    { id: "x2", name: "visa ", is_active: true },
+  ];
+  assert.equal(matchAccountByName("VISA", twins).state, "ambiguous");
+});
+
+test("paid with: the column is guessed from payment headings, but a bare 'account' is not", () => {
+  assert.deepEqual(guessExpenseMapping(["Date", "Total", "Paid With"]), ["date", "total", "paid_with"]);
+  assert.equal(guessExpenseMapping(["Date", "Total", "Payment Method"])[2], "paid_with");
+  assert.equal(guessExpenseMapping(["Date", "Total", "Payment Account"])[2], "paid_with");
+  assert.equal(guessExpenseMapping(["Date", "Total", "Card"])[2], "paid_with");
+  assert.equal(guessExpenseMapping(["Date", "Total", "Account"])[2], "ignore");
+  assert.equal(guessExpenseMapping(["Date", "Total", "GL Account"])[2], "category");
+});
+
+test("paid with: precedence - a matched cell beats the picker, a blank cell takes it, a miss is blank with a warning", () => {
+  const c = ctx({ accounts: MINE, defaultAccountId: "a-chq" });
+  const matched = one({ paid_with: "td visa" }, c);
+  assert.deepEqual([matched.status, matched.expense!.paid_with_account_id, matched.expense!.paid_with_name], ["ready", "a-visa", "TD Visa"]);
+
+  const blank = one({ paid_with: "  " }, c);
+  assert.deepEqual([blank.status, blank.expense!.paid_with_account_id], ["ready", "a-chq"]);
+  const absent = one({}, c);
+  assert.equal(absent.expense!.paid_with_account_id, "a-chq", "no column at all = the picker");
+
+  const miss = one({ paid_with: "Mastercard" }, c);
+  assert.equal(miss.status, "warning");
+  assert.equal(miss.expense!.paid_with_account_id, null, "a miss is NOT replaced by the picker");
+  assert.ok(miss.messages.includes('Paid with "Mastercard" not found, will be left blank'));
+
+  const none = one({ paid_with: "TD Visa" }, ctx());
+  assert.equal(none.expense!.paid_with_account_id, null, "no accounts loaded");
+});
+
+test("paid with: an ambiguous cell warns and imports with no account", () => {
+  const twins = [
+    { id: "x1", name: "Visa", is_active: true },
+    { id: "x2", name: "visa", is_active: true },
+  ];
+  const p = one({ paid_with: "Visa" }, ctx({ accounts: twins, defaultAccountId: "x1" }));
+  assert.deepEqual([p.status, p.expense!.paid_with_account_id], ["warning", null]);
+  assert.match(p.messages.join(" "), /more than one account/);
+});
+
+test("paid with: rows without the feature are unchanged (no warning, no account, same duplicate rules)", () => {
+  const p = plan([row({ row: 2, invoice_number: "A" }), row({ row: 3, invoice_number: "A" })]);
+  assert.deepEqual(p.map((x) => x.status), ["ready", "duplicate"]);
+  assert.equal(p[0].expense!.paid_with_account_id, null);
+});
+
+test("paid with: buildImportRows carries the cell only when a column is mapped", () => {
+  const t = parseDelimited("Date,Total,Card\n2026-03-14,113,TD Visa\n");
+  const withCol = buildImportRows(t, ["date", "total", "paid_with"], { supplierName: "Acme", dateOrder: null });
+  assert.equal(withCol.rows[0].paid_with, "TD Visa");
+  const without = buildImportRows(t, ["date", "total", "ignore"], { supplierName: "Acme", dateOrder: null });
+  assert.equal("paid_with" in without.rows[0], false);
+});
+
+test("paid with: a mapping saved before this field existed still loads", () => {
+  const old = JSON.stringify(["date", "supplier", "invoice_number", "subtotal", "tax", "total", "category", "description", "ignore"]);
+  assert.deepEqual(parseSavedMapping(old, 9)?.slice(-2), ["description", "ignore"]);
+  assert.deepEqual(parseSavedMapping(JSON.stringify(["date", "paid_with", "total"]), 3), ["date", "paid_with", "total"]);
+  assert.equal(parseSavedMapping(JSON.stringify(["date", "paid_with", "paid_with"]), 3), null, "claimed twice");
+});
+
+test("server: the picker's account and a matched cell are saved; the preview shows the resolved name", async () => {
+  const { db, receipts } = makeDb({ accounts: ACCOUNTS });
+  const rows = [wire({ row: 2, supplier: "A" }), wire({ row: 3, supplier: "B", paid_with: "RBC chequing" }), wire({ row: 4, supplier: "C", paid_with: "nope" })];
+  const preview = await handleExpenseImport(db, "u1", send(rows, "preview", { paid_with_account_id: "a-visa" }));
+  const shown = (preview.body.rows as { expense: { paid_with_name: string | null } }[]).map((r) => r.expense.paid_with_name);
+  assert.deepEqual(shown, ["TD Visa", "RBC Chequing", null]);
+  assert.equal(receipts.length, 0);
+
+  const applied = await handleExpenseImport(db, "u1", send(rows, "apply", { paid_with_account_id: "a-visa" }));
+  assert.equal(applied.body.imported, 3);
+  assert.deepEqual(receipts.map((r) => r.paid_with_account_id ?? null), ["a-visa", "a-chq", null]);
+});
+
+test("server: another user's account id is refused and nothing is written", async () => {
+  for (const mode of ["preview", "apply"] as const) {
+    const { db, receipts } = makeDb({ accounts: ACCOUNTS });
+    const r = await handleExpenseImport(db, "u1", send([wire()], mode, { paid_with_account_id: "b-visa" }));
+    assert.equal(r.status, 400, mode);
+    assert.equal(receipts.length, 0);
+  }
+  const { db } = makeDb({ accounts: ACCOUNTS });
+  assert.equal((await handleExpenseImport(db, "u1", send([wire()], "apply", { paid_with_account_id: "ghost" }))).status, 400);
+  assert.equal((await handleExpenseImport(db, "u1", send([wire()], "apply", { paid_with_account_id: 42 }))).status, 400);
+});
+
+test("server: a removed account's id is refused, and a cell naming another user's account matches nothing", async () => {
+  const gone = makeDb({ accounts: ACCOUNTS });
+  assert.equal((await handleExpenseImport(gone.db, "u1", send([wire()], "apply", { paid_with_account_id: "a-old" }))).status, 400);
+
+  const { db, receipts } = makeDb({ accounts: ACCOUNTS });
+  const r = await handleExpenseImport(db, "u1", send([wire({ paid_with: "Other Owner Card" })]));
+  assert.equal(r.body.imported, 1, "the row still imports");
+  assert.equal(receipts[0].paid_with_account_id ?? null, null);
+});
+
+test("server: nothing about accounts is read when the import does not use the feature", async () => {
+  const { db, log } = makeDb({ accounts: ACCOUNTS });
+  await handleExpenseImport(db, "u1", send([wire()]));
+  assert.equal(log.tables.includes("bank_accounts"), false);
 });

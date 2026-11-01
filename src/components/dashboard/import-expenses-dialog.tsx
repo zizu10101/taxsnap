@@ -18,7 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { useBankAccounts, useExpenseCategoryOptions } from "@/components/owner-lists-provider";
+import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, parseDelimited, rowsWithExtraValues, type ParsedTable } from "@/lib/client-import";
 import {
   DATE_ORDER_LABELS,
@@ -41,6 +42,7 @@ import {
 
 const money = (n: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 const NO_DATE_ORDER = "__choose__";
+const NO_ACCOUNT = "__none__";
 
 type Step = "file" | "map" | "preview" | "done";
 
@@ -89,6 +91,7 @@ export function ImportExpensesDialog({
 }) {
   const router = useRouter();
   const categoryOptions = useExpenseCategoryOptions();
+  const accountOptions = paidWithAccounts(useBankAccounts());
   const [step, setStep] = useState<Step>("file");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileText, setFileText] = useState<string | null>(null);
@@ -102,6 +105,8 @@ export function ImportExpensesDialog({
   const [dateOrder, setDateOrder] = useState<DateOrder | "">("");
   // "Date for rows without a date": kept in this dialog's state only (cleared when it closes), never saved.
   const [fallbackDate, setFallbackDate] = useState("");
+  // "Paid with" for every row that has no account of its own; "" = Not specified. Dialog state only.
+  const [paidWithId, setPaidWithId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [inputs, setInputs] = useState<ExpenseImportRow[]>([]);
@@ -124,6 +129,7 @@ export function ImportExpensesDialog({
     setDefaultCategory("Other");
     setDateOrder("");
     setFallbackDate("");
+    setPaidWithId("");
     setInputs([]);
     setProblems([]);
     setPlanned([]);
@@ -223,6 +229,7 @@ export function ImportExpensesDialog({
           mode: "preview",
           default_category: defaultCategory,
           ...(fallbackDate && { fallback_date: fallbackDate }),
+          ...(paidWithId && { paid_with_account_id: paidWithId }),
           rows: built.rows,
         });
         plan = data.rows as PlannedRow[];
@@ -268,6 +275,7 @@ export function ImportExpensesDialog({
         mode: "apply",
         default_category: defaultCategory,
         ...(fallbackDate && { fallback_date: fallbackDate }),
+        ...(paidWithId && { paid_with_account_id: paidWithId }),
         rows: toSend,
       });
       const r = data as unknown as Result;
@@ -318,6 +326,10 @@ export function ImportExpensesDialog({
 
   const dateOrderItems: Record<string, string> = { [NO_DATE_ORDER]: "Choose...", ...DATE_ORDER_LABELS };
   const categoryItems = useMemo(() => Object.fromEntries(categoryOptions.map((c) => [c, c])), [categoryOptions]);
+  const accountItems: Record<string, string> = {
+    [NO_ACCOUNT]: "Not specified",
+    ...Object.fromEntries(accountOptions.map((a) => [a.id, accountDisplayName(a, { withType: true })])),
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -420,6 +432,32 @@ export function ImportExpensesDialog({
             </div>
 
             <div className="space-y-1.5">
+              <Label>Paid with (optional)</Label>
+              <Select
+                items={accountItems}
+                value={paidWithId === "" ? NO_ACCOUNT : paidWithId}
+                onValueChange={(v) => setPaidWithId(!v || v === NO_ACCOUNT ? "" : v)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ACCOUNT}>Not specified</SelectItem>
+                  {accountOptions.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {accountDisplayName(a, { withType: true })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {mapping.includes("paid_with")
+                  ? "Used for rows whose Paid with cell is blank. A cell that names one of your accounts wins."
+                  : "Applied to every row. Map a column to Paid with if the file has one per row."}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="import-fallback-date">
                 Date for rows without a date{hasDateColumn ? " (optional)" : ""}
               </Label>
@@ -491,7 +529,7 @@ export function ImportExpensesDialog({
               saved until you confirm.
             </p>
             <div className="max-h-[50vh] overflow-auto rounded-lg border">
-              <table className="w-full min-w-[56rem] text-left text-xs">
+              <table className="w-full min-w-[64rem] text-left text-xs">
                 <thead className="sticky top-0 bg-muted">
                   <tr>
                     <th className="px-2 py-1.5 font-medium">Import</th>
@@ -501,6 +539,7 @@ export function ImportExpensesDialog({
                     <th className="px-2 py-1.5 font-medium">Supplier</th>
                     <th className="px-2 py-1.5 font-medium">Invoice no.</th>
                     <th className="px-2 py-1.5 font-medium">Category</th>
+                    <th className="px-2 py-1.5 font-medium">Paid with</th>
                     <th className="px-2 py-1.5 text-right font-medium">Tax</th>
                     <th className="px-2 py-1.5 text-right font-medium">Total</th>
                     <th className="px-2 py-1.5 font-medium">Notes</th>
@@ -547,6 +586,7 @@ export function ImportExpensesDialog({
                         <td className="max-w-40 truncate px-2 py-1.5">{e?.merchant_name ?? ""}</td>
                         <td className="px-2 py-1.5 font-mono">{e?.invoice_number ?? ""}</td>
                         <td className="max-w-36 truncate px-2 py-1.5">{e?.tax_category ?? ""}</td>
+                        <td className="max-w-36 truncate px-2 py-1.5">{e ? (e.paid_with_name ?? "Not specified") : ""}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">
                           {e ? money(e.tax_amount) : ""}
                           {e?.tax_estimated && <span className="ml-1 text-[10px] text-muted-foreground">est.</span>}

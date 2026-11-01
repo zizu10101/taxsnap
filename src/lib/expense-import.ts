@@ -16,6 +16,7 @@ import {
   normalizeHeader,
   type ParsedTable,
 } from "./client-import.ts";
+import { accountDisplayName, type AccountLike } from "./accounts.ts";
 import { cleanInvoiceNumber, INVOICE_NUMBER_MAX, normalizeInvoiceNumber } from "./invoice-number.ts";
 import { vendorKey } from "./merchant-name.ts";
 import { canonicalCategory, isBuiltInCategory, OTHER_CATEGORY } from "./tax-categories.ts";
@@ -41,6 +42,7 @@ export type ExpenseImportTarget =
   | "total"
   | "category"
   | "description"
+  | "paid_with"
   | "ignore";
 
 export const EXPENSE_TARGETS: ExpenseImportTarget[] = [
@@ -52,6 +54,7 @@ export const EXPENSE_TARGETS: ExpenseImportTarget[] = [
   "total",
   "category",
   "description",
+  "paid_with",
   "ignore",
 ];
 
@@ -64,6 +67,7 @@ export const EXPENSE_TARGET_LABELS: Record<ExpenseImportTarget, string> = {
   total: "Total",
   category: "Category",
   description: "Description",
+  paid_with: "Paid with",
   ignore: "Ignore",
 };
 
@@ -96,6 +100,8 @@ const EXPENSE_SYNONYMS: Record<Exclude<ExpenseImportTarget, "ignore">, string[]>
   total: ["total", "total amount", "amount", "grand total", "invoice total", "total due", "amount due", "total incl tax", "total with tax"],
   category: ["category", "expense category", "expense type", "gl account"],
   description: ["description", "memo", "notes", "note", "details", "item", "items", "line item"],
+  // A bare "account" is deliberately absent: it is ambiguous, and "gl account" already means the category.
+  paid_with: ["paid with", "payment method", "payment account", "card"],
 };
 
 export function guessExpenseMapping(headers: string[]): ExpenseImportTarget[] {
@@ -315,6 +321,8 @@ export interface ExpenseImportRow {
   import_anyway?: boolean;
   /** The supplier above is the dialog's one name for the whole file, not something this row said. */
   supplier_defaulted?: boolean;
+  /** The text in the file's "Paid with" column ("" / absent = none, so the dialog's picker applies). */
+  paid_with?: string;
 }
 
 export interface ImportProblem {
@@ -394,6 +402,7 @@ export function buildImportRows(
       invoice_number: cell(r.cells, "invoice_number"),
       category: cell(r.cells, "category"),
       description: cell(r.cells, "description"),
+      ...(col("paid_with") >= 0 && { paid_with: cell(r.cells, "paid_with") }),
       subtotal,
       tax,
       total,
@@ -425,6 +434,10 @@ export interface PlannedExpense {
   credit: boolean;
   /** The file had no date for this row; it was dated with the "Date for rows without a date" picker. */
   date_set_at_import: boolean;
+  /** The account this expense is saved under ("Paid with"), or null for none. Always one of the owner's active accounts. */
+  paid_with_account_id: string | null;
+  /** That account's name, for the preview. */
+  paid_with_name: string | null;
 }
 
 // "total" = the row looks like a spreadsheet total (a grand total at the bottom, a "Total" label): skipped
@@ -448,6 +461,38 @@ export interface PlanContext {
   defaults: CategoryDefaults;
   /** The picker's date, ALREADY validated by the caller (a real date, not in the future); null = none. */
   fallbackDate?: string | null;
+  /** The owner's accounts, for matching a row's "Paid with" text. Only active ones can be matched. */
+  accounts?: AccountLike[];
+  /** The dialog's whole-import "Paid with" id, ALREADY checked by the caller (the owner's own, active); null = none. */
+  defaultAccountId?: string | null;
+}
+
+// ------------------------------------------------------------------ "Paid with"
+
+// Case-insensitive, trimmed, inner whitespace collapsed: "  td   VISA " == "TD Visa".
+export function normalizeAccountName(value: string): string {
+  return value.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+export type AccountMatch =
+  | { state: "blank" }
+  | { state: "match"; account: AccountLike }
+  | { state: "none" }
+  | { state: "ambiguous" };
+
+// Matches a cell to an ACTIVE account by the name the owner sees ("Name", or "Name (credit card)" as the
+// Accounts list writes a card). Two different accounts that read the same are ambiguous: never a guess.
+export function matchAccountByName(raw: string, accounts: AccountLike[]): AccountMatch {
+  const wanted = normalizeAccountName(raw);
+  if (wanted === "") return { state: "blank" };
+  const hits = accounts.filter(
+    (a) =>
+      a.is_active &&
+      (normalizeAccountName(accountDisplayName(a)) === wanted ||
+        normalizeAccountName(accountDisplayName(a, { withType: true })) === wanted),
+  );
+  if (hits.length === 0) return { state: "none" };
+  return hits.length === 1 ? { state: "match", account: hits[0] } : { state: "ambiguous" };
 }
 
 // The note saved on an expense whose date was not in the file, alongside (never in place of) the
@@ -489,6 +534,7 @@ export function coerceImportRow(raw: unknown, index: number): ExpenseImportRow {
     invoice_number: str(o.invoice_number),
     category: str(o.category),
     description: str(o.description),
+    paid_with: str(o.paid_with).slice(0, 200),
     subtotal: finiteOrNull(o.subtotal),
     tax: finiteOrNull(o.tax),
     total: finiteOrNull(o.total),
@@ -640,6 +686,24 @@ export function planExpenseImport(rows: ExpenseImportRow[], ctx: PlanContext): P
       messages.push(`Invoice number shortened to ${INVOICE_NUMBER_MAX} characters`);
     }
 
+    // "Paid with": a cell that names an account wins over the dialog's picker; a blank cell takes the picker;
+    // a cell that matches nothing (or two accounts) is left blank with a warning - never guessed, never the
+    // picker, never an error.
+    const accounts = ctx.accounts ?? [];
+    const byId = (id: string | null | undefined) => accounts.find((a) => a.id === id) ?? null;
+    let account: AccountLike | null = byId(ctx.defaultAccountId);
+    const paidWith = matchAccountByName(input.paid_with ?? "", accounts);
+    if (paidWith.state === "match") account = paidWith.account;
+    else if (paidWith.state !== "blank") {
+      account = null;
+      const shown = cleanText(input.paid_with, 60);
+      messages.push(
+        paidWith.state === "none"
+          ? `Paid with "${shown}" not found, will be left blank`
+          : `Paid with "${shown}" matches more than one account, will be left blank`,
+      );
+    }
+
     const description = cleanText(input.description, DESCRIPTION_MAX);
     const items: { name: string; amount: number }[] = [];
     if (description) items.push({ name: description, amount: total });
@@ -686,6 +750,8 @@ export function planExpenseImport(rows: ExpenseImportRow[], ctx: PlanContext): P
         tax_estimated: estimated,
         credit: total < 0,
         date_set_at_import: setAtImport,
+        paid_with_account_id: account?.id ?? null,
+        paid_with_name: account?.name ?? null,
       },
     };
   };
