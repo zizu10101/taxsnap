@@ -39,7 +39,7 @@ export default async function StatementsPage({
         backHref="/dashboard/expenses"
         backLabel="Back to expenses"
         title="Statements"
-        subtitle="Every card statement you've saved, and what it created."
+        subtitle="Every statement you've saved, and what it created."
         actions={
           deletedCount > 0 || showDeleted ? (
             <Button

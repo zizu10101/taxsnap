@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { LineRow, type PatchFn } from "@/components/dashboard/statement-review-line";
-import { formatDay, formatMoney } from "@/lib/statement-format";
+import { formatDay, formatMoney, moneyInCopy, statementTitle } from "@/lib/statement-format";
 import { useBankAccounts } from "@/components/owner-lists-provider";
 import {
   finalizeImport,
@@ -57,7 +57,8 @@ const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
     help: "Linked to a receipt you already have. Nothing new is created.",
   },
   excluded: { title: "Excluded", help: "Not saved." },
-  payments: { title: "Payments to the card", help: "Not expenses, so they're ignored." },
+  // The title is set per account type where it is shown (moneyInCopy).
+  payments: { title: moneyInCopy("card").title, help: "Not expenses, so they're ignored." },
 };
 
 function toReviewLine(l: ReviewLineData): ReviewLine {
@@ -182,7 +183,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {data.import.issuer ?? "Card statement"}
+            {statementTitle(data.import.issuer, data.import.account_type)}
             {card ? ` · ${card.name}` : ""}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -252,7 +253,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold">
-                  {GROUP_COPY[g].title} <span className="text-muted-foreground">({rows.length})</span>
+                  {g === "payments" ? moneyInCopy(data.import.account_type).title : GROUP_COPY[g].title} <span className="text-muted-foreground">({rows.length})</span>
                 </h2>
                 <p className="text-xs text-muted-foreground">{GROUP_COPY[g].help}</p>
               </div>
@@ -279,6 +280,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                   disabled={busy || saving}
                   onPatch={patchLines}
                   showPage={!data.import.from_csv}
+                  accountType={data.import.account_type}
                 />
               ))}
             </ul>

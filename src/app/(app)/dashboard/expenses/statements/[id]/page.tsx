@@ -1,3 +1,4 @@
+import { statementTitle } from "@/lib/statement-format";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -40,7 +41,7 @@ export default async function StatementReviewPage({
         <PageHeader
           backHref={STATEMENTS_HREF}
           backLabel="Back to statements"
-          title={detail.issuer ?? "Card statement"}
+          title={statementTitle(detail.issuer, detail.account_type)}
           subtitle={detail.deleted ? "This statement was deleted." : "A saved statement."}
         />
         <StatementDetailView detail={detail} />

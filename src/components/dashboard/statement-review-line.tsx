@@ -26,7 +26,7 @@ import { useBankAccounts } from "@/components/owner-lists-provider";
 import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { LINE_KINDS } from "@/lib/statement-lines";
 import { cleanMerchantName } from "@/lib/merchant-name";
-import { formatDay, formatMoney } from "@/lib/statement-format";
+import { formatDay, formatMoney, moneyInCopy } from "@/lib/statement-format";
 import { lineTax } from "@/lib/statement-tax";
 import {
   buildCategoryDefaults,
@@ -72,7 +72,10 @@ export function LineRow({
   disabled,
   onPatch,
   showPage = true,
+  accountType,
 }: {
+  /** "bank" or "card": the wording of the money-in note. */
+  accountType: string;
   showPage?: boolean;
   line: ReviewLineData;
   group: ReviewGroup;
@@ -208,7 +211,7 @@ export function LineRow({
 
       {group === "payments" && (
         <p className="mt-1 text-xs text-muted-foreground">
-          A payment to the card, not an expense - ignored. Use the pencil if this was misread.
+          {moneyInCopy(accountType).lineText} Use the pencil if this was misread.
         </p>
       )}
 

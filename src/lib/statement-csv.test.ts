@@ -11,6 +11,7 @@ import {
   defaultConventionFor,
   guessStatementMapping,
   headerBalances,
+  kindForCardAmount,
   importCameFromCsv,
   layoutFromMapping,
   moneyTotals,
@@ -24,6 +25,9 @@ import {
   type SignConvention,
   type StatementCsvRow,
 } from "./statement-csv.ts";
+import { taxForLine, buildCategoryDefaults, TAX_CODES } from "./tax-codes.ts";
+import { moneyInCopy, statementTitle } from "./statement-format.ts";
+import { cleanMerchantName } from "./merchant-name.ts";
 import { handleStatementCsv, lineFingerprint } from "./statement-csv-server.ts";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -247,7 +251,7 @@ const THEIRS = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const GONE = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const SHA = "a".repeat(64);
 
-function makeDeps(opts: { lines?: Row[]; startError?: { message?: string; code?: string }; allowlist?: string | null } = {}) {
+function makeDeps(opts: { categories?: Row[]; lines?: Row[]; startError?: { message?: string; code?: string }; allowlist?: string | null } = {}) {
   const accounts: Row[] = [
     { id: BANK, user_id: ME, account_type: "bank", is_active: true },
     { id: CARD, user_id: ME, account_type: "card", is_active: true },
@@ -288,7 +292,7 @@ function makeDeps(opts: { lines?: Row[]; startError?: { message?: string; code?:
   };
   const readDb = {
     from: (table: string) =>
-      builder(table, () => (table === "bank_accounts" ? accounts : table === "statement_lines" ? (opts.lines ?? []) : [{ id: "open-draft", user_id: ME, file_sha256: SHA, status: "draft" }])),
+      builder(table, () => (table === "bank_accounts" ? accounts : table === "expense_categories" ? (opts.categories ?? []) : table === "statement_lines" ? (opts.lines ?? []) : [{ id: "open-draft", user_id: ME, file_sha256: SHA, status: "draft" }])),
   };
   const admin = {
     from: (table: string) => builder(table, () => []),
@@ -523,4 +527,123 @@ test("labels and the review's page label: CSV imports hide 'page N', PDF/photo i
   assert.match(read("../components/dashboard/statement-import-button.tsx"), /Import statement \(PDF\/photo\)/);
   assert.match(read("../components/dashboard/import-expenses-dialog.tsx"), /Import expenses from CSV/);
   assert.match(read("../components/dashboard/statement-csv-button.tsx"), /Import a statement from CSV/);
+});
+
+// ---- fee and interest lines ------------------------------------------------------------------------
+
+test("money out that plainly says fee or charge is a fee; plainly says interest is interest", () => {
+  const fees = [
+    "MONTHLY ACCOUNT FEE", "E-TRANSFER FEE", "NSF FEE", "SERVICE CHARGE", "SERVICE CHARGES", "ANNUAL FEE", "WIRE TRANSFER FEE",
+    "Overdraft  Fee", "INTERAC E-TRANSFER FEE", "etransfer fee", "ATM FEE", "WITHDRAWAL FEE", "FOREIGN EXCHANGE FEE",
+    "CARD FEE", "PLAN FEE", "MAINTENANCE CHARGE", "NSF", "RETURNED ITEM NSF 0042", "Account-Fee",
+  ];
+  for (const d of fees) assert.equal(kindForCardAmount(12, d), "fee", d);
+  for (const d of ["OVERDRAFT INTEREST", "INTEREST CHARGE", "PURCHASE INTEREST", "Interest", "CASH ADVANCE INTEREST"]) {
+    assert.equal(kindForCardAmount(12, d), "interest", d);
+  }
+});
+
+test("conservative: a bare fee, a look-alike word or a supplier stays a purchase", () => {
+  for (const d of [
+    "PERMIT FEE", "REGISTRATION FEE", "STARBUCKS COFFEE", "INTERAC PURCHASE TEST OFFICE SUPPLY", "TEST HARDWARE STORE",
+    "INTERAC", "INTEREST RATE REVIEW", "INTEREST FREE FINANCING", "FEEDBACK SURVEY", "SERVICE CANADA", "ACCOUNTING SERVICES",
+    "CARDINAL SUPPLY", "PLANT NURSERY", "ATM", "WIRE WORLD", "MONTHLY RENT", "ANNUAL LICENCE", "ROGERS", "",
+  ]) {
+    assert.equal(kindForCardAmount(12, d), "purchase", d);
+  }
+});
+
+test("money in is never classified: INTEREST PAID and NSF REVERSAL stay payments", () => {
+  assert.equal(kindForCardAmount(-5, "INTEREST PAID"), "payment");
+  assert.equal(kindForCardAmount(-25, "NSF FEE REFUND"), "payment");
+  assert.equal(kindForCardAmount(0, "NSF FEE"), "payment");
+});
+
+test("the planner carries the kind, and the preview Notes name it (Fee / Interest)", () => {
+  const p = plan([
+    row({ row: 2, amount: -12, description: "MONTHLY ACCOUNT FEE" }),
+    row({ row: 3, amount: -3.4, description: "OVERDRAFT INTEREST" }),
+    row({ row: 4, amount: -50, description: "PERMIT FEE" }),
+    row({ row: 5, amount: 8, description: "INTEREST PAID" }),
+  ]);
+  assert.deepEqual(p.map((x) => [x.line?.kind, x.messages, x.status]), [
+    ["fee", ["Fee"], "ready"],
+    ["interest", ["Interest"], "ready"],
+    ["purchase", [], "ready"],
+    ["payment", [], "ready"],
+  ]);
+});
+
+test("apply: fee and interest lines are saved with their kind and the owner's Bank charges category suggested (renamed ones too); others get none", async () => {
+  const rows = [
+    row({ row: 2, amount: -12, description: "MONTHLY ACCOUNT FEE" }),
+    row({ row: 3, amount: -3.4, description: "OVERDRAFT INTEREST" }),
+    row({ row: 4, amount: -50, description: "Acme Supply" }),
+  ];
+  const stock = makeDeps();
+  await handleStatementCsv(stock.deps, ME, send(rows, "apply"), NOW);
+  const lines = (stock.calls[1].args as { p_lines: Row[] }).p_lines;
+  assert.deepEqual(lines.map((l) => [l.kind, l.suggested_category]), [["fee", "Bank Charges & Interest"], ["interest", "Bank Charges & Interest"], ["purchase", null]]);
+
+  const renamed = makeDeps({ categories: [{ user_id: ME, name: "Bank fees", is_active: true, system_key: "bank_charges" }] });
+  await handleStatementCsv(renamed.deps, ME, send(rows, "apply"), NOW);
+  assert.equal(((renamed.calls[1].args as { p_lines: Row[] }).p_lines)[0].suggested_category, "Bank fees");
+
+  const removed = makeDeps({ categories: [{ user_id: ME, name: "Bank charges", is_active: false, system_key: "bank_charges" }] });
+  await handleStatementCsv(removed.deps, ME, send(rows, "apply"), NOW);
+  const gone = (removed.calls[1].args as { p_lines: Row[] }).p_lines;
+  assert.deepEqual([gone[0].kind, gone[0].suggested_category], ["fee", null], "removed: no suggestion, but still a fee");
+  // a statement with no fee line never reads the categories
+  const plain = makeDeps();
+  await handleStatementCsv(plain.deps, ME, send([row()], "apply"), NOW);
+  assert.equal(plain.tables.includes("expense_categories"), false);
+});
+
+test("a CSV fee line ends with a no-tax code and no ITC, never 'needs a tax code' (the PDF path's own rule)", () => {
+  const defaults = buildCategoryDefaults({ bankChargesName: "Bank charges" });
+  for (const kind of ["fee", "interest"] as const) {
+    for (const category of [null, "Bank charges"]) {
+      const t = taxForLine(12, { foreignCurrency: false, category, kind, defaults });
+      assert.deepEqual([t.needs_code, t.tax_amount, t.code?.itc_pct], [false, 0, TAX_CODES.none.itc_pct], `${kind} ${category}`);
+    }
+  }
+  assert.equal(taxForLine(12, { foreignCurrency: false, category: null, kind: "purchase", defaults }).needs_code, true, "a purchase with no category still needs one");
+});
+
+test("the money-in wording follows the account: bank vs card", () => {
+  assert.deepEqual(moneyInCopy("bank"), { title: "Money in (not expenses)", lineText: "Money in, not an expense - ignored." });
+  assert.deepEqual(moneyInCopy("card"), { title: "Payments to the card", lineText: "A payment to the card, not an expense - ignored." });
+  assert.equal(moneyInCopy(null).title, "Money in (not expenses)", "an account with no type is a bank account, as everywhere else");
+  assert.ok(read("../components/dashboard/statement-detail.tsx").includes("moneyInCopy(detail.account_type).title"));
+});
+
+test("supplier cleanup keeps short acronyms upper-case: NSF FEE -> NSF Fee", () => {
+  assert.equal(cleanMerchantName("NSF FEE"), "NSF Fee");
+  assert.equal(cleanMerchantName("ATM FEE"), "ATM Fee");
+  assert.equal(cleanMerchantName("POS PURCHASE ITC"), "POS Purchase ITC");
+  assert.equal(cleanMerchantName("ROGERS *************3771"), "Rogers");
+});
+
+test("statement wording for both account types: header, money-in heading and line text", () => {
+  assert.equal(statementTitle(null, "bank"), "Bank statement");
+  assert.equal(statementTitle(null, "card"), "Card statement");
+  assert.equal(statementTitle("TD Canada Trust", "bank"), "TD Canada Trust", "an issuer read off the statement wins");
+  assert.equal(statementTitle("", "bank"), "Bank statement");
+  assert.deepEqual(moneyInCopy("bank"), { title: "Money in (not expenses)", lineText: "Money in, not an expense - ignored." });
+  assert.deepEqual(moneyInCopy("card"), { title: "Payments to the card", lineText: "A payment to the card, not an expense - ignored." });
+});
+
+test("every screen takes the wording from the import's own account type, not the browser's account list", () => {
+  assert.ok(read("./statement-review-data.ts").includes("account_type: account?.account_type"));
+  const review = read("../components/dashboard/statement-review.tsx");
+  assert.ok(review.includes("statementTitle(data.import.issuer, data.import.account_type)"));
+  assert.ok(review.includes("moneyInCopy(data.import.account_type).title"));
+  assert.ok(review.includes("accountType={data.import.account_type}"));
+  assert.ok(read("../components/dashboard/statement-review-line.tsx").includes("moneyInCopy(accountType).lineText"));
+  assert.ok(read("../components/dashboard/statement-detail.tsx").includes("statementTitle(detail.issuer, detail.account_type)"));
+  assert.ok(read("../components/dashboard/statements-list.tsx").includes("statementTitle(s.issuer, s.account_type)"));
+  assert.ok(read("../app/(app)/dashboard/expenses/statements/[id]/page.tsx").includes("statementTitle(detail.issuer, detail.account_type)"));
+  for (const f of ["../components/dashboard/statement-review.tsx", "../components/dashboard/statement-detail.tsx", "../components/dashboard/statements-list.tsx"]) {
+    assert.doesNotMatch(read(f), /\?\? "Card statement"/, f);
+  }
 });

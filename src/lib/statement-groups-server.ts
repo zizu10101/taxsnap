@@ -126,6 +126,7 @@ export interface StatementListItem {
   id: string;
   deleted: boolean;
   account_name: string;
+  account_type: "bank" | "card";
   issuer: string | null;
   period_start: string | null;
   period_end: string | null;
@@ -149,12 +150,15 @@ export async function loadStatementList(
   if (error) throw new Error(error.message);
   const imports = (data ?? []) as unknown as ImportRow[];
   const names = await accountNames(db, userId);
+  const { data: typed } = await db.from("bank_accounts").select("id, account_type").eq("user_id", userId);
+  const types = new Map((typed ?? []).map((a) => [a.id as string, a.account_type === "card" ? "card" : "bank"] as const));
 
   return Promise.all(
     imports.map(async (i) => ({
       id: i.id,
       deleted: i.status === "discarded",
       account_name: names.get(i.account_id) ?? "Card",
+      account_type: types.get(i.account_id) ?? "bank",
       issuer: i.issuer,
       period_start: i.period_start,
       period_end: i.period_end,
@@ -201,6 +205,8 @@ export interface StatementDetail {
   id: string;
   deleted: boolean;
   account_name: string;
+  /** "bank" or "card": the wording of the money-in group depends on it. */
+  account_type: "bank" | "card";
   issuer: string | null;
   period_start: string | null;
   period_end: string | null;
@@ -220,11 +226,13 @@ export async function loadStatementDetail(db: Db, userId: string, importId: stri
   const ids = [...new Set(lines.flatMap((l) => [l.created_receipt_id, l.matched_receipt_id]).filter((x): x is string => !!x))];
   const receipts = new Map((await loadReceipts(db, userId, ids)).map((r) => [r.id, r as DeleteReceipt & { tax_category?: string }]));
   const names = await accountNames(db, userId);
+  const { data: account } = await db.from("bank_accounts").select("account_type").eq("id", imp.account_id).eq("user_id", userId).maybeSingle();
 
   return {
     id: imp.id,
     deleted: imp.status === "discarded",
     account_name: names.get(imp.account_id) ?? "Card",
+    account_type: account?.account_type === "card" ? "card" : "bank",
     issuer: imp.issuer,
     period_start: imp.period_start,
     period_end: imp.period_end,

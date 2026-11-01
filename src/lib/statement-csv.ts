@@ -340,8 +340,42 @@ export function toCardAmount(row: StatementCsvRow, layout: AmountLayout, convent
 
 // Money out is a charge. Money in is stored as a payment (never an expense): a CSV does not say whether a
 // credit on a card was a refund or a payment, and a bank deposit is income, so none is guessed to be a refund.
+// Money out is a purchase unless the description plainly says fee or interest (below).
 // The review screen lets the person change a line's type.
-export const kindForCardAmount = (value: number) => (value > 0 ? ("purchase" as const) : ("payment" as const));
+// ------------------------------------------------------------------ fees and interest
+
+// The PDF path gets a line's kind from the model. A CSV has no model, so money OUT is classified here from its
+// description, and only when it is plain: anything unsure stays a "purchase" (the owner can change the type on
+// the review screen with the pencil). Money in is never classified: it stays a payment.
+//
+// The description is first normalised: lower case, every run of anything that is not a letter or digit (hyphens,
+// slashes, asterisks, extra spaces) becomes one space - "E-TRANSFER  FEE" -> "e transfer fee".
+//
+//   fee       <qualifier> fee|fees|charge|charges, where the qualifier is one of
+//               account | monthly | annual | service | maintenance | overdraft | nsf | e ?transfer | interac |
+//               wire | wire transfer | atm | withdrawal | foreign exchange | card | plan
+//             or the word "nsf" on its own.      A bare "fee" ("permit fee", "registration fee") is NOT enough.
+//   interest  the word "interest", unless it is "interest rate(s)" / "interest free" / "interest only" / "interest bearing".
+//
+// Fee wins when both read (it can't happen with these patterns, but the order is fixed).
+const FEE_PATTERN =
+  /\b(?:(?:account|monthly|annual|service|maintenance|overdraft|nsf|e ?transfer|interac|wire(?: transfer)?|atm|withdrawal|foreign exchange|card|plan) (?:fee|fees|charge|charges)|nsf)\b/;
+const INTEREST_PATTERN = /\binterest\b(?! (?:rates?|free|only|bearing)\b)/;
+
+export const normalizeForKind = (description: string) => description.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+export type CsvLineKind = "purchase" | "payment" | "fee" | "interest";
+
+// Money out is positive (the card's sign). Money in is a payment, whatever it says.
+export function kindForCardAmount(value: number, description = ""): CsvLineKind {
+  if (value <= 0) return "payment";
+  const text = normalizeForKind(description);
+  if (FEE_PATTERN.test(text)) return "fee";
+  if (INTEREST_PATTERN.test(text)) return "interest";
+  return "purchase";
+}
+
+export const KIND_NOTE: Partial<Record<CsvLineKind, string>> = { fee: "Fee", interest: "Interest" };
 
 export interface MoneyTotals {
   out: number;
@@ -407,7 +441,7 @@ export interface PlannedCsvLine {
   description: string;
   /** Money out positive, money in negative. */
   amount: number;
-  kind: "purchase" | "payment";
+  kind: CsvLineKind;
 }
 
 export interface PlannedCsvRow {
@@ -485,8 +519,9 @@ export function planStatementCsvRows(rows: StatementCsvRow[], ctx: PlanCsvContex
       txn_date: date,
       description,
       amount: amount.value,
-      kind: kindForCardAmount(amount.value),
+      kind: kindForCardAmount(amount.value, description),
     };
-    return flag !== null ? make("total", [flag], line) : make("ready", [], line);
+    const note = KIND_NOTE[line.kind];
+    return flag !== null ? make("total", [flag], line) : make("ready", note ? [note] : [], line);
   });
 }

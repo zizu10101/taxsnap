@@ -52,7 +52,7 @@ const NAME_JOINERS = new Set(["of", "de", "du", "des", "the", "la", "le", "d'"])
 // Stay upper-case when re-casing (initialisms and stylised brands).
 const KEEP_UPPER = new Set([
   "LCBO", "TD", "RBC", "BMO", "CIBC", "KFC", "IKEA", "HBC", "MEC", "IGA", "UPS", "USPS", "DHL", "TTC", "LLC",
-  "USA", "ATM", "HST", "GST", "LRT", "GO", "CN", "CP", "MTS", "BCAA", "CAA", "AAA", "ABC", "RONA", "LDS",
+  "USA", "ATM", "HST", "GST", "NSF", "ITC", "POS", "LRT", "GO", "CN", "CP", "MTS", "BCAA", "CAA", "AAA", "ABC", "RONA", "LDS",
 ]);
 
 // 416-740-8020, (416) 740-8020, 416.740.8020, 4167408020, 416-7408020, +1 416 740 8020.

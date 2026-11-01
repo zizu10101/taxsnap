@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteStatementDialog } from "@/components/dashboard/delete-statement-dialog";
-import { formatDay, formatMoney, formatSavedDate } from "@/lib/statement-format";
+import { formatDay, formatMoney, formatSavedDate, moneyInCopy, statementTitle } from "@/lib/statement-format";
 import { expenseHref } from "@/lib/statement-routes";
 import type { DetailLine, StatementDetail } from "@/lib/statement-groups-server";
 import type { LineOutcome } from "@/lib/statement-summary";
@@ -24,7 +24,8 @@ const GROUPS: { outcomes: LineOutcome[]; title: string; help: string }[] = [
     help: "Saved earlier, since deleted. These can be brought back by re-importing the statement.",
   },
   { outcomes: ["excluded"], title: "Not saved", help: "Excluded when the statement was saved (or freed before this history was kept)." },
-  { outcomes: ["payment"], title: "Payments to the card", help: "Not expenses." },
+  // The title is set per account type where it is shown (moneyInCopy).
+  { outcomes: ["payment"], title: moneyInCopy("card").title, help: "Not expenses." },
 ];
 
 function LineRow({ line }: { line: DetailLine }) {
@@ -73,7 +74,7 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-base">
-              {detail.issuer ?? "Card statement"} · {detail.account_name}
+              {statementTitle(detail.issuer, detail.account_type)} · {detail.account_name}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
               {detail.period_start && detail.period_end
@@ -140,7 +141,7 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
           <section key={g.title} className="space-y-2">
             <div>
               <h2 className="text-base font-semibold">
-                {g.title} <span className="text-sm font-normal text-muted-foreground">({lines.length})</span>
+                {g.outcomes.includes("payment") ? moneyInCopy(detail.account_type).title : g.title} <span className="text-sm font-normal text-muted-foreground">({lines.length})</span>
               </h2>
               <p className="text-xs text-muted-foreground">{g.help}</p>
             </div>

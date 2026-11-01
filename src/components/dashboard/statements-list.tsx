@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDay, formatSavedDate } from "@/lib/statement-format";
+import { formatDay, formatSavedDate, statementTitle } from "@/lib/statement-format";
 import { statementHref } from "@/lib/statement-routes";
 import type { StatementListItem } from "@/lib/statement-groups-server";
 
@@ -33,7 +33,7 @@ export function StatementsList({ items }: { items: StatementListItem[] }) {
                 <CardContent className="flex items-center justify-between gap-3 py-4">
                   <div className="min-w-0 space-y-1">
                     <p className="truncate font-medium">
-                      {s.issuer ?? "Card statement"} · {s.account_name}
+                      {statementTitle(s.issuer, s.account_type)} · {s.account_name}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {s.period_start && s.period_end

@@ -18,6 +18,8 @@ import { mapStatementDbError } from "./statement-errors.ts";
 import { selectAll } from "./select-all.ts";
 import { isIsoDate } from "./statement-lines.ts";
 import { STATEMENTS_HREF, statementHref } from "./statement-routes.ts";
+import { loadCategoryRows } from "./statement-bank-charges.ts";
+import { bankChargesSuggestion, resolveBankCharges } from "./statement-categories.ts";
 
 // The server half of "Import CSV" in the card statement import. The browser parses the file and sends only
 // the mapped rows plus a few statement-level fields; the file itself is never sent or stored. EVERYTHING is
@@ -241,6 +243,15 @@ export async function handleStatementCsv(
     await deps.admin.rpc("discard_statement_import", { p_user_id: userId, p_import_id: importId });
   };
 
+  // Fee and interest lines take the PDF path's route: the owner's "Bank charges" category is suggested (found by its
+  // stable key, so a renamed one works and a removed one suggests nothing - statement-categories.ts), and the
+  // no-tax default for fees and interest then applies from the line's kind (tax-codes.ts resolveTaxCode). Read only
+  // when such a line exists.
+  const needsBankCharges = stored.some((s) => s.planned.line!.kind === "fee" || s.planned.line!.kind === "interest");
+  const bankCharges = needsBankCharges
+    ? bankChargesSuggestion(resolveBankCharges(await loadCategoryRows(deps.read, userId)))
+    : null;
+
   const lines = stored.map((s, i) => ({
     page: 1,
     line_no: i + 1,
@@ -251,7 +262,7 @@ export async function handleStatementCsv(
     currency: "CAD",
     original_amount: null,
     original_currency: null,
-    suggested_category: null,
+    suggested_category: s.planned.line!.kind === "fee" || s.planned.line!.kind === "interest" ? bankCharges : null,
   }));
   const header = {
     period_start: start.value,

@@ -72,6 +72,8 @@ export interface StatementReviewData {
     created_at: string;
     /** Read from a CSV file: its lines have no meaningful page. */
     from_csv: boolean;
+    /** "bank" or "card", read from the import's own account here (not from the browser's account list). */
+    account_type: "bank" | "card";
   };
   chunks: ReviewChunkData[];
   lines: ReviewLineData[];
@@ -110,6 +112,12 @@ export async function loadStatementReview(
 
   timer?.lap("chunks_lines_categories");
   const allLines = lines ?? [];
+  const { data: account } = await ctx.supabase
+    .from("bank_accounts")
+    .select("account_type")
+    .eq("id", imp.account_id)
+    .eq("user_id", ctx.user.id)
+    .maybeSingle();
   const { candidates, briefs } = await candidatesForLines(ctx, allLines, timer);
 
   return {
@@ -129,6 +137,7 @@ export async function loadStatementReview(
       line_count: imp.line_count,
       created_at: imp.created_at,
       from_csv: importCameFromCsv(imp),
+      account_type: account?.account_type === "card" ? "card" : "bank",
     },
     chunks: chunks ?? [],
     lines: allLines.map((l) => ({

@@ -26,3 +26,18 @@ export function formatSavedDate(iso: string): string {
     timeZone: "America/Toronto",
   });
 }
+
+// The "money in" group on a statement (kind "payment"). On a credit card it is a payment TO the card; on a bank
+// account it is any money in (a deposit, a transfer in, interest paid). Neither is an expense.
+// The heading of a statement when the bank or card issuer wasn't read off it (a CSV never has one).
+export function statementTitle(issuer: string | null | undefined, accountType: string | null | undefined): string {
+  return issuer || (accountType === "card" ? "Card statement" : "Bank statement");
+}
+
+export function moneyInCopy(accountType: string | null | undefined) {
+  const bank = accountType !== "card";
+  return {
+    title: bank ? "Money in (not expenses)" : "Payments to the card",
+    lineText: bank ? "Money in, not an expense - ignored." : "A payment to the card, not an expense - ignored.",
+  };
+}
