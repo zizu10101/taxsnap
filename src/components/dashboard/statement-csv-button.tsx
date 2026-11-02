@@ -582,7 +582,7 @@ export function StatementCsvButton() {
                             {line && line.amount > 0 ? money(line.amount) : ""}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">
-                            {line && line.amount < 0 ? money(-line.amount) : ""}
+                            {line && line.amount < 0 ? `+${money(-line.amount)}` : ""}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                             {p?.balance != null ? money(p.balance) : ""}

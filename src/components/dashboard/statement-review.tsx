@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { LineRow, type PatchFn } from "@/components/dashboard/statement-review-line";
-import { formatDay, formatMoney, moneyInCopy, statementTitle } from "@/lib/statement-format";
+import { bankChargesHelp, formatDay, formatMoney, formatReconcileFigure, moneyInCopy, statementTitle } from "@/lib/statement-format";
 import { useBankAccounts } from "@/components/owner-lists-provider";
 import {
   finalizeImport,
@@ -46,7 +46,7 @@ const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
   },
   bank_charges: {
     title: "Interest and fees",
-    help: "Interest and card fees, saved as no-tax. Accept the suggested category, or choose another.",
+    help: bankChargesHelp("card"),
   },
   already_imported: {
     title: "Already imported",
@@ -57,6 +57,10 @@ const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
     help: "Linked to a receipt you already have. Nothing new is created.",
   },
   excluded: { title: "Excluded", help: "Not saved." },
+  transfers: {
+    title: "Transfers and loan principal (not expenses)",
+    help: "Money out that isn't an expense: loan principal, a card payment, or a transfer to your own account. Ignored. Use the pencil to make a line a purchase.",
+  },
   // The title is set per account type where it is shown (moneyInCopy).
   payments: { title: moneyInCopy("card").title, help: "Not expenses, so they're ignored." },
 };
@@ -197,7 +201,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
           {rc.status === "matches" && (
             <p className="flex items-start gap-2 text-success">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              The lines add up to the statement ({formatMoney(rc.extracted)}
+              The lines add up to the statement ({formatReconcileFigure(rc.extracted, data.import.account_type, rc.basis)}
               {rc.basis === "balance_roll" ? ", from the balances" : ", total purchases"}).
             </p>
           )}
@@ -206,8 +210,8 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
               <p className="flex items-start gap-2 text-destructive">
                 <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  The lines add up to {formatMoney(rc.extracted)} but the statement says{" "}
-                  {formatMoney(rc.expected)} - off by {formatMoney(Math.abs(rc.diff))}
+                  The lines add up to {formatReconcileFigure(rc.extracted, data.import.account_type, rc.basis)} but the statement says{" "}
+                  {formatReconcileFigure(rc.expected, data.import.account_type, rc.basis)} - off by {formatMoney(Math.abs(rc.diff))}
                   {rc.diff < 0 ? " (a line may be missing)" : " (a line may be extra or misread)"}. Check
                   the amounts against your statement.
                 </span>
@@ -255,7 +259,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                 <h2 className="text-base font-semibold">
                   {g === "payments" ? moneyInCopy(data.import.account_type).title : GROUP_COPY[g].title} <span className="text-muted-foreground">({rows.length})</span>
                 </h2>
-                <p className="text-xs text-muted-foreground">{GROUP_COPY[g].help}</p>
+                <p className="text-xs text-muted-foreground">{g === "bank_charges" ? bankChargesHelp(data.import.account_type) : GROUP_COPY[g].help}</p>
               </div>
               {ids.length > 0 && (g === "new" || g === "bank_charges" || g === "refunds") && (
                 <Button

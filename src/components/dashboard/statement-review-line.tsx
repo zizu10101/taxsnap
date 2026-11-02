@@ -26,7 +26,7 @@ import { useBankAccounts } from "@/components/owner-lists-provider";
 import { accountDisplayName, paidWithAccounts } from "@/lib/accounts";
 import { LINE_KINDS } from "@/lib/statement-lines";
 import { cleanMerchantName } from "@/lib/merchant-name";
-import { formatDay, formatMoney, moneyInCopy } from "@/lib/statement-format";
+import { formatDay, formatLineAmount, formatMoney, moneyInCopy } from "@/lib/statement-format";
 import { lineTax } from "@/lib/statement-tax";
 import {
   buildCategoryDefaults,
@@ -144,7 +144,7 @@ export function LineRow({
           <span
             className={`font-semibold tabular-nums ${line.amount < 0 ? "text-success" : ""}`}
           >
-            {formatMoney(line.amount)}
+            {formatLineAmount(line.amount, accountType, line.kind)}
           </span>
           <Button
             variant="ghost"
@@ -207,6 +207,12 @@ export function LineRow({
             Include
           </Button>
         </div>
+      )}
+
+      {group === "transfers" && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          A transfer or loan principal, not an expense - ignored. Use the pencil if this was misread.
+        </p>
       )}
 
       {group === "payments" && (

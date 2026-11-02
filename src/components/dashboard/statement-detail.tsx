@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteStatementDialog } from "@/components/dashboard/delete-statement-dialog";
-import { formatDay, formatMoney, formatSavedDate, moneyInCopy, statementTitle } from "@/lib/statement-format";
+import { formatBalance, formatDay, formatLineAmount, formatMoney, formatSavedDate, moneyInCopy, statementTitle } from "@/lib/statement-format";
 import { expenseHref } from "@/lib/statement-routes";
 import type { DetailLine, StatementDetail } from "@/lib/statement-groups-server";
 import type { LineOutcome } from "@/lib/statement-summary";
@@ -28,7 +28,10 @@ const GROUPS: { outcomes: LineOutcome[]; title: string; help: string }[] = [
   { outcomes: ["payment"], title: moneyInCopy("card").title, help: "Not expenses." },
 ];
 
-function LineRow({ line }: { line: DetailLine }) {
+// A payment-kind line with money OUT (positive amount) is a transfer or loan principal from a CSV, not money in.
+const TRANSFERS_TITLE = "Transfers and loan principal (not expenses)";
+
+function LineRow({ line, accountType }: { line: DetailLine; accountType: string | null }) {
   return (
     <li className="flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0">
       <div className="min-w-0">
@@ -54,7 +57,7 @@ function LineRow({ line }: { line: DetailLine }) {
         )}
       </div>
       <span className={`shrink-0 text-sm font-semibold tabular-nums ${line.amount < 0 ? "text-success" : ""}`}>
-        {formatMoney(line.amount)}
+        {formatLineAmount(line.amount, accountType, line.kind)}
       </span>
     </li>
   );
@@ -101,13 +104,13 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
             {detail.opening_balance !== null && (
               <div>
                 <dt className="text-muted-foreground">Opening balance</dt>
-                <dd className="tabular-nums">{formatMoney(detail.opening_balance)}</dd>
+                <dd className="tabular-nums">{formatBalance(detail.opening_balance, detail.account_type)}</dd>
               </div>
             )}
             {detail.closing_balance !== null && (
               <div>
                 <dt className="text-muted-foreground">Closing balance</dt>
-                <dd className="tabular-nums">{formatMoney(detail.closing_balance)}</dd>
+                <dd className="tabular-nums">{formatBalance(detail.closing_balance, detail.account_type)}</dd>
               </div>
             )}
             {detail.statement_total !== null && (
@@ -134,20 +137,25 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
         </CardContent>
       </Card>
 
-      {GROUPS.map((g) => {
-        const lines = detail.lines.filter((l) => g.outcomes.includes(l.outcome));
+      {[...GROUPS, { outcomes: ["payment"] as LineOutcome[], title: TRANSFERS_TITLE, help: "Not expenses." }].map((g) => {
+        const isTransfers = g.title === TRANSFERS_TITLE;
+        const lines = detail.lines.filter((l) => {
+          if (!g.outcomes.includes(l.outcome)) return false;
+          if (!g.outcomes.includes("payment")) return true;
+          return isTransfers ? l.amount > 0 : l.amount <= 0;
+        });
         if (lines.length === 0) return null;
         return (
           <section key={g.title} className="space-y-2">
             <div>
               <h2 className="text-base font-semibold">
-                {g.outcomes.includes("payment") ? moneyInCopy(detail.account_type).title : g.title} <span className="text-sm font-normal text-muted-foreground">({lines.length})</span>
+                {g.outcomes.includes("payment") && !isTransfers ? moneyInCopy(detail.account_type).title : g.title} <span className="text-sm font-normal text-muted-foreground">({lines.length})</span>
               </h2>
               <p className="text-xs text-muted-foreground">{g.help}</p>
             </div>
             <ul className="rounded-lg border px-3">
               {lines.map((l) => (
-                <LineRow key={l.id} line={l} />
+                <LineRow key={l.id} line={l} accountType={detail.account_type} />
               ))}
             </ul>
           </section>

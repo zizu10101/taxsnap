@@ -26,7 +26,8 @@ import {
   type StatementCsvRow,
 } from "./statement-csv.ts";
 import { taxForLine, buildCategoryDefaults, TAX_CODES } from "./tax-codes.ts";
-import { moneyInCopy, statementTitle } from "./statement-format.ts";
+import { bankChargesHelp, formatBalance, formatLineAmount, formatReconcileFigure, moneyInCopy, openDraftsBanner, statementTitle } from "./statement-format.ts";
+import { groupOf } from "./statement-review-model.ts";
 import { cleanMerchantName } from "./merchant-name.ts";
 import { handleStatementCsv, lineFingerprint } from "./statement-csv-server.ts";
 
@@ -559,6 +560,59 @@ test("money in is never classified: INTEREST PAID and NSF REVERSAL stay payments
   assert.equal(kindForCardAmount(0, "NSF FEE"), "payment");
 });
 
+test("real-style bank lines: fees, loan interest, and non-expense money out (principal, card payments, own-account transfers)", () => {
+  const expect: Record<string, string> = {
+    "SEND E-TFR FEE": "fee",
+    "E-TFR FEE": "fee",
+    "INTERAC E TFR FEE": "fee",
+    "BUS LINE FEE": "fee",
+    "BUSINESS LINE FEES": "fee",
+    "MONTHLY PLAN FEE": "fee",
+    "SERVICE CHARGE": "fee",
+    "LN PYT INT 123456789": "interest",
+    "LOAN PMT INT": "interest",
+    "LN PYMT INTEREST": "interest",
+    "LN PYT PRI 123456789": "payment",
+    "LOAN PMT PRIN": "payment",
+    "LN PYMT PRINCIPAL": "payment",
+    "CAPTL ONE MC A1B2C3": "payment",
+    "AMEX CARDS A1B2C3": "payment",
+    "TD VISA A1B2C3": "payment",
+    "WJ211 TFR-TO C/C": "payment",
+    "CREDIT CARD PAYMENT": "payment",
+    "CC PAYMENT": "payment",
+    "VISA DEBIT PUR TEST STORE": "purchase",
+    "INTERAC PURCHASE TEST STORE": "purchase",
+    "DB FEE 1234567 MSP": "purchase",
+    "BC FEE 1234567 MSP": "purchase",
+    "BDC BUS": "purchase",
+    "EMPTX 1234567 BUS": "purchase",
+    "PEMBRIDGE INS. INS": "purchase",
+    "SEND E-TFR *abc SALA": "purchase",
+    "ACCOUNTING SERVICES": "purchase",
+    "SERVICE CANADA": "purchase",
+    "MC DONALDS #123": "purchase",
+    "VISA DEBIT": "purchase",
+    "MASTERCARD POS PURCHASE": "purchase",
+  };
+  for (const [d, kind] of Object.entries(expect)) assert.equal(kindForCardAmount(12, d), kind, d);
+});
+
+test("a non-expense money-out line is kind payment with a positive amount; the Note says so, money in has none", () => {
+  const p = plan([
+    row({ row: 2, amount: -500, description: "LN PYT PRI 123456789" }),
+    row({ row: 3, amount: -20, description: "LN PYT INT 123456789" }),
+    row({ row: 4, amount: 500, description: "PAYROLL DEPOSIT" }),
+  ]);
+  assert.deepEqual(p.map((x) => [x.line?.kind, x.line?.amount, x.messages]), [
+    ["payment", 500, ["Transfer / loan principal"]],
+    ["interest", 20, ["Interest"]],
+    ["payment", -500, []],
+  ]);
+  assert.equal(groupOf({ id: "a", kind: "payment", amount: 500, resolution: "skipped", category: null, category_confirmed: false, duplicate_of_line_id: null, duplicate_override: false, candidate_count: 0 }), "transfers");
+  assert.equal(groupOf({ id: "b", kind: "payment", amount: -500, resolution: "skipped", category: null, category_confirmed: false, duplicate_of_line_id: null, duplicate_override: false, candidate_count: 0 }), "payments");
+});
+
 test("the planner carries the kind, and the preview Notes name it (Fee / Interest)", () => {
   const p = plan([
     row({ row: 2, amount: -12, description: "MONTHLY ACCOUNT FEE" }),
@@ -646,4 +700,54 @@ test("every screen takes the wording from the import's own account type, not the
   for (const f of ["../components/dashboard/statement-review.tsx", "../components/dashboard/statement-detail.tsx", "../components/dashboard/statements-list.tsx"]) {
     assert.doesNotMatch(read(f), /\?\? "Card statement"/, f);
   }
+});
+
+// ---- display only: how amounts and messages read for each account type -------------------------------------
+
+test("line amounts: money out is plain, money in is +$x on a bank account, labelled on a card; stored values untouched", () => {
+  assert.equal(formatLineAmount(615.57, "bank"), "$615.57");
+  assert.equal(formatLineAmount(-615.57, "bank"), "+$615.57");
+  assert.equal(formatLineAmount(-615.57, "bank", "payment"), "+$615.57");
+  assert.equal(formatLineAmount(-1234.5, null), "+$1,234.50", "no account type reads as a bank account, as everywhere else");
+  assert.equal(formatLineAmount(42, "card"), "$42.00");
+  assert.equal(formatLineAmount(-75, "card", "payment"), "Payment +$75.00");
+  assert.equal(formatLineAmount(-9.99, "card", "refund"), "Refund +$9.99");
+  assert.equal(formatLineAmount(-5, "card", "purchase"), "Credit +$5.00");
+  for (const t of ["bank", "card"]) for (const k of ["payment", "refund", "purchase"]) assert.ok(!formatLineAmount(-5, t, k).includes("-"), `${t} ${k}`);
+});
+
+test("balances and the balance check read in the account's natural direction", () => {
+  // stored balances are "owed" for both; a bank balance is shown as what is IN the account
+  assert.equal(formatBalance(-1500, "bank"), "$1,500.00");
+  assert.equal(formatBalance(0, "bank"), "$0.00");
+  assert.equal(formatBalance(250, "card"), "$250.00");
+  // the reported case: lines add up to -12,859.22 in the card's sign = the bank balance GREW by that much
+  assert.equal(formatReconcileFigure(-12859.22, "bank", "balance_roll"), "+$12,859.22");
+  assert.equal(formatReconcileFigure(300, "bank", "balance_roll"), "-$300.00", "net money out lowers a bank balance");
+  assert.equal(formatReconcileFigure(0, "bank", "balance_roll"), "$0.00");
+  assert.equal(formatReconcileFigure(-12859.22, "card", "balance_roll"), "-$12,859.22", "a card keeps what is owed");
+  assert.equal(formatReconcileFigure(88.1, "bank", "purchases"), "$88.10");
+  assert.equal(formatReconcileFigure(88.1, "card", "purchases"), "$88.10");
+});
+
+test("wording follows the account: bank charges help and the Expenses banner", () => {
+  assert.equal(bankChargesHelp("bank"), "Interest and fees, saved as no-tax. Accept the suggested category, or choose another.");
+  assert.equal(bankChargesHelp(null), bankChargesHelp("bank"));
+  assert.equal(bankChargesHelp("card"), "Interest and card fees, saved as no-tax. Accept the suggested category, or choose another.");
+  assert.equal(openDraftsBanner(["bank"]), "You have a statement import waiting for review.");
+  assert.equal(openDraftsBanner(["card"]), "You have a card statement import waiting for review.");
+  assert.equal(openDraftsBanner(["bank", "bank"]), "You have 2 statement imports waiting for review.");
+  assert.equal(openDraftsBanner(["card", "card"]), "You have 2 card statement imports waiting for review.");
+  assert.equal(openDraftsBanner(["card", "bank"]), "You have 2 statement imports waiting for review.", "mixed: no 'card'");
+  assert.equal(openDraftsBanner([null]), "You have a statement import waiting for review.");
+});
+
+test("the screens use these helpers (not a bare formatMoney on a signed line amount)", () => {
+  const detail = read("../components/dashboard/statement-detail.tsx");
+  const review = read("../components/dashboard/statement-review.tsx");
+  assert.ok(detail.includes("formatLineAmount(line.amount, accountType, line.kind)") && detail.includes("formatBalance(detail.closing_balance, detail.account_type)"));
+  assert.ok(read("../components/dashboard/statement-review-line.tsx").includes("formatLineAmount(line.amount, accountType, line.kind)"));
+  assert.ok(review.includes("formatReconcileFigure(rc.extracted, data.import.account_type, rc.basis)") && review.includes("bankChargesHelp(data.import.account_type)"));
+  assert.ok(read("../components/dashboard/expenses-body.tsx").includes("openDraftsBanner("));
+  assert.ok(read("../components/dashboard/statement-csv-button.tsx").includes("`+${money(-line.amount)}`"));
 });

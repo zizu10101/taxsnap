@@ -11,6 +11,7 @@ import { ReceiptsSummary } from "@/components/dashboard/receipts-summary";
 import { ReceiptsList } from "@/components/dashboard/receipts-list";
 import { ListSearch } from "@/components/ui/list-search";
 import { searchList } from "@/lib/list-search";
+import { openDraftsBanner } from "@/lib/statement-format";
 import { expenseSearchFields } from "@/lib/list-search-fields";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { ReceiptDetailDialog } from "@/components/dashboard/receipt-detail-dialog";
@@ -82,7 +83,7 @@ export function ExpensesBody({
   // Card-statement import (allowlist-only): shows the Import button, the
   // "resume" banner for a draft in progress, and the scan-to-attach check.
   statementImportEnabled?: boolean;
-  openStatementDrafts?: { id: string; issuer: string | null; created_at: string }[];
+  openStatementDrafts?: { id: string; issuer: string | null; created_at: string; account_type?: string | null }[];
   // A receipt to open in the detail drawer on first render (from ?receipt=<id>). Looked up among
   // the loaded receipts regardless of the date and job filters; an id that isn't there (deleted,
   // or not theirs) simply opens nothing.
@@ -308,9 +309,7 @@ export function ExpensesBody({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
           <span className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            {openStatementDrafts.length === 1
-              ? "You have a card statement import waiting for review."
-              : `You have ${openStatementDrafts.length} card statement imports waiting for review.`}
+            {openDraftsBanner(openStatementDrafts.map((d) => d.account_type))}
           </span>
           <span className="flex gap-2">
             {openStatementDrafts.map((d, i) => (

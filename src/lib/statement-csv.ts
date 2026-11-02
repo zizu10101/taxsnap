@@ -358,24 +358,51 @@ export function toCardAmount(row: StatementCsvRow, layout: AmountLayout, convent
 //   interest  the word "interest", unless it is "interest rate(s)" / "interest free" / "interest only" / "interest bearing".
 //
 // Fee wins when both read (it can't happen with these patterns, but the order is fixed).
+//             Also: "tfr" (e transfer abbreviated: "SEND E-TFR FEE") and "(bus|business|credit) line fee(s)".
+// Loan payments: "ln|loan pyt|pmt|pymt|payment int|interest" is interest (the interest part of a loan payment).
+//
+// NOT EXPENSES (money out stored as the existing kind "payment", see below):
+//   loan principal   "ln|loan pyt|pmt|pymt|payment pri|prin|principal"
+//   card payment / transfer between own accounts, when the description has a whole-word marker:
+//     visa | mastercard | mc | amex | american express | captl one | capital one | td visa |
+//     tfr to c c | transfer to c c | credit card payment | cc payment
+//   ...unless it also has one of the whole words debit | interac | pos | purchase | pur (a debit-card or POS purchase,
+//   "VISA DEBIT PUR ..."), which always stays a purchase. "mc donald(s)" is not a marker either.
 const FEE_PATTERN =
-  /\b(?:(?:account|monthly|annual|service|maintenance|overdraft|nsf|e ?transfer|interac|wire(?: transfer)?|atm|withdrawal|foreign exchange|card|plan) (?:fee|fees|charge|charges)|nsf)\b/;
+  /\b(?:(?:account|monthly|annual|service|maintenance|overdraft|nsf|e ?transfer|tfr|interac|wire(?: transfer)?|atm|withdrawal|foreign exchange|card|plan|(?:bus|business|credit) line) (?:fee|fees|charge|charges)|nsf)\b/;
 const INTEREST_PATTERN = /\binterest\b(?! (?:rates?|free|only|bearing)\b)/;
+const LOAN_INTEREST_PATTERN = /\b(?:ln|loan) (?:pyt|pmt|pymt|payment) (?:int|interest)\b/;
+const LOAN_PRINCIPAL_PATTERN = /\b(?:ln|loan) (?:pyt|pmt|pymt|payment) (?:pri|prin|principal)\b/;
+const CARD_OR_TRANSFER_PATTERN =
+  /\b(?:visa|mastercard|mc(?! ?donalds?\b)|amex|american express|captl one|capital one|td visa|(?:tfr|transfer) to c c|credit card payment|cc payment)\b/;
+const POS_PATTERN = /\b(?:debit|interac|pos|purchase|pur)\b/;
 
 export const normalizeForKind = (description: string) => description.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 export type CsvLineKind = "purchase" | "payment" | "fee" | "interest";
 
 // Money out is positive (the card's sign). Money in is a payment, whatever it says.
+// Money out that is not an expense (loan principal, a card payment, a transfer to the owner's own account) is
+// ALSO kind "payment", just with a positive amount: the PDF path already treats that kind as "never an expense,
+// skipped automatically", so nothing new is stored. isNonExpenseOut() tells the two apart by the sign.
 export function kindForCardAmount(value: number, description = ""): CsvLineKind {
   if (value <= 0) return "payment";
   const text = normalizeForKind(description);
   if (FEE_PATTERN.test(text)) return "fee";
-  if (INTEREST_PATTERN.test(text)) return "interest";
+  if (INTEREST_PATTERN.test(text) || LOAN_INTEREST_PATTERN.test(text)) return "interest";
+  if (LOAN_PRINCIPAL_PATTERN.test(text)) return "payment";
+  if (CARD_OR_TRANSFER_PATTERN.test(text) && !POS_PATTERN.test(text)) return "payment";
   return "purchase";
 }
 
+export const NON_EXPENSE_OUT_NOTE = "Transfer / loan principal";
+
 export const KIND_NOTE: Partial<Record<CsvLineKind, string>> = { fee: "Fee", interest: "Interest" };
+
+// The preview Note for a planned line: Fee, Interest, or (a payment-kind line that is money OUT) the transfer note.
+export function noteForLine(kind: CsvLineKind, amount: number): string | undefined {
+  return kind === "payment" && amount > 0 ? NON_EXPENSE_OUT_NOTE : KIND_NOTE[kind];
+}
 
 export interface MoneyTotals {
   out: number;
@@ -521,7 +548,7 @@ export function planStatementCsvRows(rows: StatementCsvRow[], ctx: PlanCsvContex
       amount: amount.value,
       kind: kindForCardAmount(amount.value, description),
     };
-    const note = KIND_NOTE[line.kind];
+    const note = noteForLine(line.kind, line.amount);
     return flag !== null ? make("total", [flag], line) : make("ready", note ? [note] : [], line);
   });
 }

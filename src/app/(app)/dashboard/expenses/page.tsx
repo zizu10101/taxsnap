@@ -67,7 +67,7 @@ export default async function ExpensesPage({
   const { data: openStatementDrafts } = statementImportEnabled
     ? await supabase
         .from("statement_imports")
-        .select("id, issuer, created_at")
+        .select("id, issuer, created_at, account:bank_accounts(account_type)")
         .eq("status", "draft")
         .order("created_at", { ascending: false })
     : { data: null };
@@ -98,7 +98,10 @@ export default async function ExpensesPage({
         logoPath={profile?.logo_url ?? null}
         lastSignInAt={user.last_sign_in_at ?? null}
         statementImportEnabled={statementImportEnabled}
-        openStatementDrafts={openStatementDrafts ?? []}
+        openStatementDrafts={(openStatementDrafts ?? []).map((d) => {
+          const account = Array.isArray(d.account) ? d.account[0] : d.account;
+          return { id: d.id, issuer: d.issuer, created_at: d.created_at, account_type: account?.account_type ?? null };
+        })}
         initialOpenReceiptId={openReceiptId ?? null}
       />
     </div>

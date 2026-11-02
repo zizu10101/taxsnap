@@ -26,6 +26,7 @@ export type ReviewGroup =
   | "refunds"
   | "bank_charges"
   | "excluded"
+  | "transfers"
   | "payments";
 
 export const GROUP_ORDER: ReviewGroup[] = [
@@ -36,12 +37,15 @@ export const GROUP_ORDER: ReviewGroup[] = [
   "already_imported",
   "matched",
   "excluded",
+  "transfers",
   "payments",
 ];
 
 export function groupOf(line: ReviewLine): ReviewGroup {
   if (line.duplicate_of_line_id && !line.duplicate_override) return "already_imported";
-  if (line.kind === "payment") return "payments";
+  // Kind "payment" with money OUT (a positive amount) is a CSV line that is not an expense: loan principal, a card
+  // payment, a transfer between the owner's own accounts. Money in keeps the "payments" group.
+  if (line.kind === "payment") return line.amount > 0 ? "transfers" : "payments";
   if (line.resolution === "skipped") return "excluded";
   if (line.resolution === "matched") return "matched";
   if (line.kind === "refund") return "refunds";
