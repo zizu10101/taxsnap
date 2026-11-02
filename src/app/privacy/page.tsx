@@ -3,8 +3,8 @@ import { pageMetadata } from "@/lib/seo";
 import { LegalList, LegalPage, LegalSection } from "@/components/legal/legal-page";
 import { LEGAL_COMPANY, LEGAL_CONTACT_EMAIL, PRIVACY_LAST_UPDATED, PRIVACY_VERSION } from "@/lib/legal-versions";
 
-// Counsel reviewed this page on 2026-10-22, except the Sentry and Gemini paragraphs (section 3), which
-// await review. Indexed and in the sitemap (a test pins both).
+// Counsel reviewed this page on 2026-10-22, except the Sentry and Gemini paragraphs (section 3) and the
+// statements section (section 7), which await review. Indexed and in the sitemap (a test pins both).
 export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy — TaxSnap",
   description: "How TaxSnap handles your information.",
@@ -100,7 +100,33 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Your choices and rights">
+      <LegalSection title="7. Bank and card statements">
+        <p>
+          If you import a bank or card statement, we store the lines we read from it (date, description, amount and type),
+          the account you chose, the statement period, the opening and closing balances when they are given, the name of the
+          bank or card issuer when it is printed on a PDF or photo, and a fingerprint (SHA-256) of the file so the same file is
+          not imported twice. We do not keep the statement file or the photos. A PDF or photo is read in memory and then
+          discarded. A CSV file is opened in your browser, and only the columns you map are sent to us.
+        </p>
+        <p>
+          PDF and photo statements are read by Google{"’"}s Gemini, the same service that reads your receipts: the pages are sent
+          in groups of a few pages, together with the date, the statement period and the names of your expense categories, so
+          anything printed on those pages goes with them. CSV files are never sent to Google or to any other AI service.
+        </p>
+        <p>
+          Only your own account can read the stored statement lines. Employees and clients cannot, and the accountant
+          sign-in does not read them, although an accountant you invite sees the expenses you save from a statement like any
+          other expense. If you discard a draft, its lines are deleted at once, and a draft you leave untouched is deleted
+          automatically after 14 days. A small record of the import is kept for limits and cost tracking: the file
+          fingerprint, usage counts, and, if you discarded the draft yourself, also the statement period, the opening and
+          closing balances and the issuer name. A draft deleted automatically after 14 days keeps only the fingerprint and
+          usage counts. Deleting a saved statement removes the expenses it created that have no receipt attached,
+          but keeps its line records, hidden, so the same transactions are not counted twice if you import it again. Statement
+          records are deleted with your account (see section 6).
+        </p>
+      </LegalSection>
+
+      <LegalSection title="8. Your choices and rights">
         <LegalList
           items={[
             "Access and correction: you can see and edit your data in the app. You can ask us for a copy of your personal information or to correct it.",
@@ -112,7 +138,7 @@ export default function PrivacyPage() {
         <p>Send requests to {mail}. We may need to confirm who you are first.</p>
       </LegalSection>
 
-      <LegalSection title="8. Security">
+      <LegalSection title="9. Security">
         <p>
           Data is sent over HTTPS. Sign-in is handled by Supabase, each owner{"’"}s data is separated by row-level security rules
           in the database, files are in private storage and opened with time-limited links, and employee, client and
@@ -122,7 +148,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Cookies and tracking">
+      <LegalSection title="10. Cookies and tracking">
         <p>
           TaxSnap uses only the cookies and browser storage it needs to work: sign-in session cookies, short-lived cookies
           that remember where you were heading or the plan or business type you chose while signing up, sign-in cookies for
@@ -132,25 +158,25 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Children">
+      <LegalSection title="11. Children">
         <p>TaxSnap is for businesses and is not for anyone under 18. We do not knowingly collect information from children.</p>
       </LegalSection>
 
-      <LegalSection title="11. If something goes wrong">
+      <LegalSection title="12. If something goes wrong">
         <p>
           If we learn of a breach of security safeguards that creates a real risk of significant harm, we will tell the
           people affected and the Privacy Commissioner of Canada as the law requires, and keep a record of it.
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Changes">
+      <LegalSection title="13. Changes">
         <p>
           We may update this policy. The date and version at the top show the current text, and we will tell you in the app
           or by email about material changes.
         </p>
       </LegalSection>
 
-      <LegalSection title="13. Contact">
+      <LegalSection title="14. Contact">
         <p>
           {LEGAL_COMPANY}, Ontario, Canada. Privacy requests and questions: {mail}
         </p>

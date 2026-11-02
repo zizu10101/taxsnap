@@ -25,7 +25,7 @@ test("both legal pages are final: indexable, in the sitemap, and carry no draft 
   assert.match(TERMS_VERSION + PRIVACY_VERSION, /^2026-10-222026-10-22$/);
   assert.doesNotMatch(TERMS_VERSION + PRIVACY_VERSION, /draft/i);
   assert.equal(TERMS_LAST_UPDATED, "October 22, 2026");
-  assert.equal(PRIVACY_LAST_UPDATED, "October 27, 2026");
+  assert.equal(PRIVACY_LAST_UPDATED, "November 1, 2026");
 });
 
 test("versions and dates exist and the pages show them", () => {
@@ -86,8 +86,21 @@ test("the privacy policy describes Sentry error monitoring and the Gemini paid-t
   has("We do not use advertising or analytics cookies or trackers in the app.");
 });
 
-test("statement import is not described yet (re-add at launch)", () => {
-  assert.doesNotMatch(terms + privacy, /card statement|statement import|statement pages|statement drafts|and statements/i);
+test("the privacy policy has a statements section that names Gemini and says CSV files go to no AI service", () => {
+  const flat = privacy.replace(/\s+/g, " ");
+  const has = (text: string) => assert.ok(flat.includes(text), "missing: " + text);
+  has('<LegalSection title="7. Bank and card statements">');
+  has("PDF and photo statements are read by Google{\"’\"}s Gemini");
+  has("CSV files are never sent to Google or to any other AI service.");
+  has("We do not keep the statement file or the photos.");
+  has("automatically after 14 days");
+  has("A small record of the import is kept for limits and cost tracking: the file fingerprint, usage counts, and, if you discarded the draft yourself, also the statement period, the opening and closing balances and the issuer name.");
+  has("A draft deleted automatically after 14 days keeps only the fingerprint and usage counts.");
+  has("Statement records are deleted with your account (see section 6).");
+  // the retention section it points to is still section 6
+  has('<LegalSection title="6. How long we keep it">');
+  // the terms still say nothing about statements
+  assert.doesNotMatch(terms, /card statement|statement import|statement pages|statement drafts|and statements/i);
 });
 
 test("revised decisions: liability floor, annual refund, staff access, deletion within 30 days", () => {
