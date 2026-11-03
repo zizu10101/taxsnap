@@ -30,6 +30,8 @@ import {
 import type { ReviewLineData, StatementReviewData } from "@/lib/statement-review-data";
 import { lineTax } from "@/lib/statement-tax";
 import { buildCategoryDefaults } from "@/lib/tax-codes";
+import { depositHint, depositsBanner } from "@/lib/statement-invoice-hints";
+import { DepositsBanner } from "@/components/dashboard/statement-invoice-hint";
 
 const GROUP_COPY: Record<ReviewGroup, { title: string; help: string }> = {
   possible_matches: {
@@ -272,6 +274,10 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                 </Button>
               )}
             </div>
+            {g === "payments" && (() => {
+              const banner = depositsBanner(data.lines, data.import.account_type, data.unpaid_invoices);
+              return banner ? <DepositsBanner text={banner} /> : null;
+            })()}
             <ul className="rounded-lg border px-3">
               {rows.map((line) => (
                 <LineRow
@@ -285,6 +291,7 @@ export function StatementReview({ initial }: { initial: StatementReviewData }) {
                   onPatch={patchLines}
                   showPage={!data.import.from_csv}
                   accountType={data.import.account_type}
+                  invoiceHint={depositHint(line, data.import.account_type, data.unpaid_invoices)}
                 />
               ))}
             </ul>

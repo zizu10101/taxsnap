@@ -37,6 +37,8 @@ import {
   type TaxSource,
 } from "@/lib/tax-codes";
 import type { ReviewGroup } from "@/lib/statement-review-model";
+import type { DepositHint } from "@/lib/statement-invoice-hints";
+import { DepositHintNote } from "@/components/dashboard/statement-invoice-hint";
 import type { ReviewLineData } from "@/lib/statement-review-data";
 import type { StatementLineKind } from "@/lib/database.types";
 
@@ -73,9 +75,12 @@ export function LineRow({
   onPatch,
   showPage = true,
   accountType,
+  invoiceHint = null,
 }: {
   /** "bank" or "card": the wording of the money-in note. */
   accountType: string;
+  /** An unpaid invoice that matches this deposit (bank statements only). */
+  invoiceHint?: DepositHint | null;
   showPage?: boolean;
   line: ReviewLineData;
   group: ReviewGroup;
@@ -220,6 +225,7 @@ export function LineRow({
           {moneyInCopy(accountType).lineText} Use the pencil if this was misread.
         </p>
       )}
+      {group === "payments" && invoiceHint && <DepositHintNote hint={invoiceHint} />}
 
       {/* Candidate receipts: a tie or near match is always the user's call. */}
       {line.candidates.length > 0 && group !== "matched" && group !== "already_imported" && (

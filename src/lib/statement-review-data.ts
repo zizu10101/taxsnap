@@ -4,6 +4,8 @@ import { importCameFromCsv } from "@/lib/statement-csv";
 import { reconcileStatement, type ReconcileResult } from "@/lib/statement-reconcile";
 import type { MatchCandidate } from "@/lib/statement-matching";
 import type { Stopwatch } from "@/lib/statement-timing";
+import { depositCount, type UnpaidInvoice } from "@/lib/statement-invoice-hints";
+import { loadUnpaidInvoices } from "@/lib/statement-invoice-hints-server";
 import type { StatementLineKind, StatementImportStatus, TaxSourceName } from "@/lib/database.types";
 
 // Everything the review screen needs in one read, shared by GET
@@ -81,6 +83,8 @@ export interface StatementReviewData {
   categories: string[];
   /** The owner's bank-charges category (the one no-tax category default), or null if they removed it. */
   bank_charges_category: string | null;
+  /** The owner's unpaid invoices, for the "check whether any were paid" reminder. Empty unless this is a BANK statement with money-in lines. */
+  unpaid_invoices: UnpaidInvoice[];
 }
 
 // `timer` (optional) records where the time goes: the import row, the chunk/line/category reads,
@@ -119,6 +123,11 @@ export async function loadStatementReview(
     .eq("user_id", ctx.user.id)
     .maybeSingle();
   const { candidates, briefs } = await candidatesForLines(ctx, allLines, timer);
+  const accountType = account?.account_type === "card" ? "card" : "bank";
+  // Read once, only when there is something to remind about (a bank account and at least one deposit). A failure
+  // here costs the reminder, never the review screen.
+  const unpaidInvoices =
+    depositCount(allLines, accountType) > 0 ? await loadUnpaidInvoices(ctx.supabase, ctx.user.id).catch(() => []) : [];
 
   return {
     import: {
@@ -176,5 +185,6 @@ export async function loadStatementReview(
     }),
     categories: categories.options,
     bank_charges_category: categories.bankChargesCategory,
+    unpaid_invoices: unpaidInvoices,
   };
 }

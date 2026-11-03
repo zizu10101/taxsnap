@@ -8,6 +8,8 @@ import { loadStatementReview } from "@/lib/statement-review-data";
 import { loadStatementDetail } from "@/lib/statement-groups-server";
 import { StatementDetailView } from "@/components/dashboard/statement-detail";
 import { STATEMENTS_HREF } from "@/lib/statement-routes";
+import { depositCount } from "@/lib/statement-invoice-hints";
+import { loadUnpaidInvoices } from "@/lib/statement-invoice-hints-server";
 import { logTiming, shortId, stopwatch } from "@/lib/statement-timing";
 
 export const metadata: Metadata = {
@@ -36,6 +38,11 @@ export default async function StatementReviewPage({
     const detail = await loadStatementDetail(ctx.supabase, ctx.user.id, id);
     // An abandoned or purged draft has nothing to show.
     if (!detail) redirect("/dashboard/expenses");
+    // The "check whether any were paid" reminder: a bank statement with deposits only; a failure just drops it.
+    const unpaidInvoices =
+      depositCount(detail.lines, detail.account_type) > 0
+        ? await loadUnpaidInvoices(ctx.supabase, ctx.user.id).catch(() => [])
+        : [];
     return (
       <div className="mx-auto w-full max-w-2xl space-y-6 lg:max-w-none">
         <PageHeader
@@ -44,7 +51,7 @@ export default async function StatementReviewPage({
           title={statementTitle(detail.issuer, detail.account_type)}
           subtitle={detail.deleted ? "This statement was deleted." : "A saved statement."}
         />
-        <StatementDetailView detail={detail} />
+        <StatementDetailView detail={detail} unpaidInvoices={unpaidInvoices} />
       </div>
     );
   }

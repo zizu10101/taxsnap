@@ -11,6 +11,11 @@ import { formatBalance, formatDay, formatLineAmount, formatMoney, formatSavedDat
 import { expenseHref } from "@/lib/statement-routes";
 import type { DetailLine, StatementDetail } from "@/lib/statement-groups-server";
 import type { LineOutcome } from "@/lib/statement-summary";
+import { depositHint, depositsBanner, type UnpaidInvoice } from "@/lib/statement-invoice-hints";
+import { DepositHintNote, DepositsBanner } from "@/components/dashboard/statement-invoice-hint";
+
+// A module-level fallback (a default in the parameter list would be a new array every render).
+const NO_UNPAID: UnpaidInvoice[] = [];
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -31,7 +36,8 @@ const GROUPS: { outcomes: LineOutcome[]; title: string; help: string }[] = [
 // A payment-kind line with money OUT (positive amount) is a transfer or loan principal from a CSV, not money in.
 const TRANSFERS_TITLE = "Transfers and loan principal (not expenses)";
 
-function LineRow({ line, accountType }: { line: DetailLine; accountType: string | null }) {
+function LineRow({ line, accountType, unpaid }: { line: DetailLine; accountType: string | null; unpaid: UnpaidInvoice[] }) {
+  const hint = line.outcome === "payment" ? depositHint(line, accountType, unpaid) : null;
   return (
     <li className="flex items-start justify-between gap-3 border-b py-2.5 last:border-b-0">
       <div className="min-w-0">
@@ -55,6 +61,7 @@ function LineRow({ line, accountType }: { line: DetailLine; accountType: string 
             {line.outcome === "expense_deleted" ? "The expense was deleted." : "The matched receipt was deleted."}
           </p>
         )}
+        {hint && <DepositHintNote hint={hint} />}
       </div>
       <span className={`shrink-0 text-sm font-semibold tabular-nums ${line.amount < 0 ? "text-success" : ""}`}>
         {formatLineAmount(line.amount, accountType, line.kind)}
@@ -67,7 +74,7 @@ function LineRow({ line, accountType }: { line: DetailLine; accountType: string 
 // of them, each linking to its expense. Read-only except for "Delete statement", which always
 // previews first and is never automatic. To re-import a statement, upload the file again from
 // Expenses: the refusal then offers it.
-export function StatementDetailView({ detail }: { detail: StatementDetail }) {
+export function StatementDetailView({ detail, unpaidInvoices = NO_UNPAID }: { detail: StatementDetail; unpaidInvoices?: UnpaidInvoice[] }) {
   const [deleting, setDeleting] = useState(false);
   const s = detail.summary;
 
@@ -153,9 +160,13 @@ export function StatementDetailView({ detail }: { detail: StatementDetail }) {
               </h2>
               <p className="text-xs text-muted-foreground">{g.help}</p>
             </div>
+            {g.outcomes.includes("payment") && !isTransfers && (() => {
+              const banner = depositsBanner(lines, detail.account_type, unpaidInvoices);
+              return banner ? <DepositsBanner text={banner} /> : null;
+            })()}
             <ul className="rounded-lg border px-3">
               {lines.map((l) => (
-                <LineRow key={l.id} line={l} accountType={detail.account_type} />
+                <LineRow key={l.id} line={l} accountType={detail.account_type} unpaid={unpaidInvoices} />
               ))}
             </ul>
           </section>
