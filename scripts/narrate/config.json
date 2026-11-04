@@ -11,6 +11,7 @@
     "record-receipt-scan": { "input": "public/videos/record-receipt-scan.mp4" },
     "estimate-to-invoice": { "input": "public/videos/estimate-to-invoice.mp4" },
     "record-reports": { "input": "public/videos/record-reports.mp4" },
-    "record-clock-in": { "input": "public/videos/record-clock-in.mp4" }
+    "record-clock-in": { "input": "public/videos/record-clock-in.mp4" },
+    "record-job-profit": { "input": "public/videos/job-profit.mp4" }
   }
 }

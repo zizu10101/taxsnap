@@ -1,0 +1,16 @@
+# One scene = "== name | startSec-endSec" (seconds of public/videos/job-profit.mp4, 61.9 s),
+# then the narration. Parsed by scripts/narrate/script.ts.
+== Start the job | 8.0-17.0
+Start with a job. Name it, choose the customer, and it's ready to collect costs. One job for every project you run.
+
+== Add your costs | 17.0-39.0
+Add your costs as they happen. Scan a receipt or a supplier invoice and attach it to the job, or add an expense with no receipt at all, like lumber or hardware. Hours you log count as labour. Tag every cost you can, and it all counts toward what the job really costs you.
+
+== Get paid | 39.0-54.0
+When it's time to get paid, make an invoice for the job. Pick the job and the work address fills in. Add the work, and the HST is calculated for you. When the client pays, record the payment, even part of it.
+
+== Real profit | 54.0-61.4
+Open the job to see revenue, cost and estimated profit. Revenue counts only what you've actually been paid.
+
+== Close | 61.4-61.9
+Snap it. Sort it. Write it off. TaxSnap.
